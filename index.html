@@ -1558,7 +1558,7 @@ function adminTab(name, el) {
   closeDetail('admin');
   if (name === 'dashboard')     renderDashboardStats();
   if (name === 'leads')         loadAdminLeads();
-  if (name === 'conversations') renderConversations();
+  if (name === 'conversations') { renderConversations(); startConvRealtime(); } else { stopConvRealtime(); }
   if (name === 'agents')        { renderAgentsTable(); updateRoundRobinStatus(); }
   if (name === 'meta')          loadMetaSettings();
   if (name === 'automation')    { loadAutomationRules(); populateArAgentDropdown(); }
@@ -3101,6 +3101,7 @@ const _DEMO_CONVERSATIONS = [
   },
 ];
 let _activeConvId = null;
+let _convRealtimeSub = null;
 
 function fmtConvTime(isoStr) {
   if (!isoStr) return '';
@@ -3344,6 +3345,36 @@ async function sendConvMessage(convId) {
   } finally {
     if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send ↗'; }
     if (input) input.disabled = false;
+  }
+}
+
+function startConvRealtime() {
+  if (_convRealtimeSub || demoMode) return;
+  _convRealtimeSub = sb
+    .channel('conv-live')
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'communications',
+      filter: 'type=eq.whatsapp'
+    }, payload => {
+      renderConversations();
+      if (_activeConvId && _activeConvId === payload.new.lead_id) {
+        const msgArea = document.getElementById('conv-msgs-' + _activeConvId);
+        if (msgArea) {
+          const div = document.createElement('div');
+          div.className = 'msg-wrapper' + (payload.new.direction === 'outbound' ? ' outgoing' : '');
+          div.innerHTML = `<div class="msg-bubble ${payload.new.direction === 'outbound' ? 'outgoing' : 'incoming'}">${esc(payload.new.body)}</div><div class="msg-time${payload.new.direction === 'outbound' ? ' outgoing' : ''}">${fmtConvTime(payload.new.created_at)}</div>`;
+          msgArea.appendChild(div);
+          msgArea.scrollTop = msgArea.scrollHeight;
+        }
+      }
+    })
+    .subscribe();
+}
+
+function stopConvRealtime() {
+  if (_convRealtimeSub) {
+    sb.removeChannel(_convRealtimeSub);
+    _convRealtimeSub = null;
   }
 }
 
