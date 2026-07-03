@@ -456,5 +456,17 @@ BEGIN
 END;
 $$;
 
--- ── DONE (Phase 3) ───────────────────────────────────────────
+-- ── PENDING SQL (run these if not already applied) ───────────
+-- 1. Agent suspend column (if table was created before this was added):
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN NOT NULL DEFAULT false;
+
+-- 2. Allow anonymous inserts to leads (for landing page / Lovable form):
+DROP POLICY IF EXISTS "leads: anon insert" ON public.leads;
+CREATE POLICY "leads: anon insert"
+  ON public.leads
+  FOR INSERT
+  TO anon
+  WITH CHECK (true);
+
+-- ── DONE ─────────────────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
