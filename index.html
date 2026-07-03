@@ -821,7 +821,7 @@
     <div class="card" style="padding:0">
       <table>
         <thead><tr>
-          <th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Actions</th>
+          <th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Status</th><th>Actions</th>
         </tr></thead>
         <tbody id="agents-tbody">
           <tr><td colspan="5" class="empty-state">Loading…</td></tr>
@@ -1505,6 +1505,14 @@ async function afterLogin(user) {
       'Account profile not found. Contact your administrator.';
     return;
   }
+
+  if (profile.is_suspended) {
+    await sb.auth.signOut();
+    document.getElementById('login-error').textContent =
+      'Your account has been suspended. Contact your administrator.';
+    return;
+  }
+
   currentProfile = profile;
   document.getElementById('login-screen').style.display = 'none';
 
@@ -1587,20 +1595,29 @@ function renderAgentsTable() {
   const tbody = document.getElementById('agents-tbody');
   if (!tbody) return;
   if (!cachedProfiles.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No profiles yet.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No profiles yet.</td></tr>';
     return;
   }
   tbody.innerHTML = cachedProfiles.map(p => `
-    <tr>
+    <tr style="${p.is_suspended ? 'opacity:0.5' : ''}">
       <td><strong style="color:#e0e0e0">${esc(p.full_name)}</strong></td>
       <td>${esc(p.email)}</td>
       <td><span class="badge badge-${p.role}">${p.role}</span></td>
       <td style="color:#666;font-size:0.8rem">${fmtDate(p.created_at)}</td>
       <td>${p.id !== currentUser.id
+        ? (p.is_suspended
+            ? '<span style="color:#ef4444;font-size:0.8rem;font-weight:600">🚫 Suspended</span>'
+            : '<span style="color:#22c55e;font-size:0.8rem;font-weight:600">✓ Active</span>')
+        : '<span style="color:#555;font-size:0.8rem">(you)</span>'}</td>
+      <td style="display:flex;gap:6px;flex-wrap:wrap">${p.id !== currentUser.id
         ? `<button class="btn btn-secondary btn-sm"
-             onclick="toggleRole('${p.id}','${p.role}')">
-             Make ${p.role === 'admin' ? 'Agent' : 'Admin'}
-           </button>`
+               onclick="toggleRole('${p.id}','${p.role}')">
+               Make ${p.role === 'admin' ? 'Agent' : 'Admin'}
+             </button>
+             <button class="btn btn-sm" style="background:${p.is_suspended ? '#16a34a' : '#dc2626'};color:#fff"
+               onclick="suspendAgent('${p.id}',${!p.is_suspended})">
+               ${p.is_suspended ? 'Unsuspend' : 'Suspend'}
+             </button>`
         : '<span style="color:#555;font-size:0.8rem">(you)</span>'}</td>
     </tr>`).join('');
 }
@@ -1608,14 +1625,16 @@ function renderAgentsTable() {
 async function toggleRole(id, current) {
   const next = current === 'admin' ? 'agent' : 'admin';
   if (!confirm(`Change this user's role to "${next}"?`)) return;
-  if (demoMode) {
-    const p = cachedProfiles.find(x => x.id === id);
-    if (p) p.role = next;
-    renderAgentsTable();
-    return;
-  }
   const { error } = await sb.from('profiles').update({ role: next }).eq('id', id);
   if (error) { alert(error.message); return; }
+  await loadProfiles();
+}
+
+async function suspendAgent(id, suspend) {
+  const action = suspend ? 'suspend' : 'unsuspend';
+  if (!confirm(`Are you sure you want to ${action} this user? ${suspend ? 'They will not be able to log in.' : 'They will regain access.'}`)) return;
+  const { error } = await sb.from('profiles').update({ is_suspended: suspend }).eq('id', id);
+  if (error) { alert('Error: ' + error.message + '\n\nIf this is a column error, run this SQL in Supabase:\nALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN DEFAULT FALSE;'); return; }
   await loadProfiles();
 }
 
