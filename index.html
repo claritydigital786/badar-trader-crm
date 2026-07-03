@@ -3102,29 +3102,83 @@ const _DEMO_CONVERSATIONS = [
 ];
 let _activeConvId = null;
 
-function renderConversations() {
-  const convs = demoMode ? _DEMO_CONVERSATIONS : [];
+function fmtConvTime(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  const diffMs = Date.now() - d;
+  const mins  = Math.floor(diffMs / 60000);
+  const hours = Math.floor(diffMs / 3600000);
+  const days  = Math.floor(diffMs / 86400000);
+  if (mins  <  1) return 'Just now';
+  if (mins  < 60) return `${mins}m ago`;
+  if (hours < 24) return d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+  if (days  <  7) return d.toLocaleDateString('en-US', { weekday:'short' });
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+}
+
+async function renderConversations() {
   const listEl = document.getElementById('conv-list');
   if (!listEl) return;
-  if (!convs.length) {
-    listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:0.85rem">No conversations yet.</div>';
+
+  if (demoMode) {
+    const convs = _DEMO_CONVERSATIONS;
+    if (!convs.length) {
+      listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:0.85rem">No conversations yet.</div>';
+      return;
+    }
+    listEl.innerHTML = convs.map(c => {
+      const initials = c.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+      return `
+        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" onclick="openConversation('${c.id}')">
+          <div class="conv-avatar">${initials}</div>
+          <div class="conv-info">
+            <div class="conv-name">${esc(c.name)}</div>
+            <div class="conv-preview">${esc(c.lastMsg)}</div>
+          </div>
+          <div style="flex-shrink:0;text-align:right">
+            <div class="conv-time">${c.lastTime}</div>
+            <div style="margin-top:4px">${statusBadge(c.status)}</div>
+          </div>
+        </div>`;
+    }).join('');
     return;
   }
-  listEl.innerHTML = convs.map(c => {
-    const initials = c.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
-    return `
-      <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" onclick="openConversation('${c.id}')">
-        <div class="conv-avatar">${initials}</div>
-        <div class="conv-info">
-          <div class="conv-name">${esc(c.name)}</div>
-          <div class="conv-preview">${esc(c.lastMsg)}</div>
-        </div>
-        <div style="flex-shrink:0;text-align:right">
-          <div class="conv-time">${c.lastTime}</div>
-          <div style="margin-top:4px">${statusBadge(c.status)}</div>
-        </div>
-      </div>`;
-  }).join('');
+
+  // Live mode — load from Supabase
+  listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:0.85rem">Loading…</div>';
+  try {
+    const { data: comms, error } = await sb
+      .from('communications')
+      .select('lead_id, body, direction, created_at, leads(full_name, phone, status)')
+      .eq('type', 'whatsapp')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    if (!comms || !comms.length) {
+      listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:0.85rem">No WhatsApp conversations yet.<br><span style="font-size:0.75rem;opacity:.7">Messages received via webhook will appear here.</span></div>';
+      return;
+    }
+    const seen = new Set();
+    const convs = comms.filter(c => { if (seen.has(c.lead_id)) return false; seen.add(c.lead_id); return true; });
+    listEl.innerHTML = convs.map(c => {
+      const name = c.leads?.full_name || 'Unknown';
+      const initials = name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+      const preview = (c.direction === 'inbound' ? '↩ ' : '↪ ') + c.body;
+      return `
+        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" onclick="openConversation('${c.lead_id}')">
+          <div class="conv-avatar">${initials}</div>
+          <div class="conv-info">
+            <div class="conv-name">${esc(name)}</div>
+            <div class="conv-preview">${esc(preview.slice(0,60))}</div>
+          </div>
+          <div style="flex-shrink:0;text-align:right">
+            <div class="conv-time">${fmtConvTime(c.created_at)}</div>
+            <div style="margin-top:4px">${statusBadge(c.leads?.status || 'new')}</div>
+          </div>
+        </div>`;
+    }).join('');
+  } catch(err) {
+    listEl.innerHTML = `<div style="padding:24px;text-align:center;color:#ef4444;font-size:0.85rem">Error: ${esc(err.message)}</div>`;
+  }
 }
 
 function filterConversations() {
@@ -3134,59 +3188,165 @@ function filterConversations() {
   });
 }
 
-function openConversation(convId) {
+async function openConversation(convId) {
   _activeConvId = convId;
-  const convs = demoMode ? _DEMO_CONVERSATIONS : [];
-  const conv = convs.find(c => c.id === convId);
-  if (!conv) return;
-  renderConversations();
+
+  if (demoMode) {
+    const conv = _DEMO_CONVERSATIONS.find(c => c.id === convId);
+    if (!conv) return;
+    renderConversations();
+    const chatPanel = document.getElementById('conv-chat-panel');
+    if (!chatPanel) return;
+    const initials = conv.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+    chatPanel.innerHTML = `
+      <div class="conv-chat-header">
+        <div class="conv-avatar">${initials}</div>
+        <div class="conv-chat-header-info">
+          <h3>${esc(conv.name)}</h3>
+          <p>${esc(conv.phone)}&nbsp;&nbsp;${statusBadge(conv.status)}</p>
+        </div>
+      </div>
+      <div class="conv-messages" id="conv-msgs-${convId}">
+        ${conv.messages.map(m => `
+          <div class="msg-wrapper${m.from === 'agent' ? ' outgoing' : ''}">
+            <div class="msg-bubble ${m.from === 'agent' ? 'outgoing' : 'incoming'}">${esc(m.text)}</div>
+            <div class="msg-time${m.from === 'agent' ? ' outgoing' : ''}">${m.time}</div>
+          </div>`).join('')}
+      </div>
+      <div class="conv-input-bar">
+        <input type="text" id="conv-msg-input" placeholder="Type a message…"
+          onkeydown="if(event.key==='Enter') sendConvMessage('${convId}')" />
+        <button class="btn btn-primary btn-sm" id="conv-send-btn" onclick="sendConvMessage('${convId}')">Send</button>
+      </div>`;
+    const msgArea = document.getElementById('conv-msgs-' + convId);
+    if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
+    return;
+  }
+
+  // Live mode
   const chatPanel = document.getElementById('conv-chat-panel');
   if (!chatPanel) return;
-  const initials = conv.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
-  chatPanel.innerHTML = `
-    <div class="conv-chat-header">
-      <div class="conv-avatar">${initials}</div>
-      <div class="conv-chat-header-info">
-        <h3>${esc(conv.name)}</h3>
-        <p>${esc(conv.phone)}&nbsp;&nbsp;${statusBadge(conv.status)}</p>
+  chatPanel.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8">Loading conversation…</div>';
+  renderConversations(); // update sidebar active state
+
+  try {
+    const [leadRes, msgsRes] = await Promise.all([
+      sb.from('leads').select('full_name, phone, status').eq('id', convId).single(),
+      sb.from('communications').select('body, direction, created_at')
+        .eq('lead_id', convId).eq('type', 'whatsapp').order('created_at', { ascending: true })
+    ]);
+    if (leadRes.error) throw leadRes.error;
+    const lead = leadRes.data;
+    const messages = msgsRes.data || [];
+    const initials = (lead?.full_name || '?').split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+    chatPanel.innerHTML = `
+      <div class="conv-chat-header">
+        <div class="conv-avatar">${initials}</div>
+        <div class="conv-chat-header-info">
+          <h3>${esc(lead?.full_name || 'Unknown')}</h3>
+          <p>${esc(lead?.phone || '')} ${statusBadge(lead?.status || 'new')}</p>
+        </div>
       </div>
-    </div>
-    <div class="conv-messages" id="conv-msgs-${convId}">
-      ${conv.messages.map(m => `
-        <div class="msg-wrapper${m.from === 'agent' ? ' outgoing' : ''}">
-          <div class="msg-bubble ${m.from === 'agent' ? 'outgoing' : 'incoming'}">${esc(m.text)}</div>
-          <div class="msg-time${m.from === 'agent' ? ' outgoing' : ''}">${m.time}</div>
-        </div>`).join('')}
-    </div>
-    <div class="conv-input-bar">
-      <input type="text" id="conv-msg-input" placeholder="Type a messageÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¦"
-        onkeydown="if(event.key==='Enter') sendConvMessage('${convId}')" />
-      <button class="btn btn-primary btn-sm" onclick="sendConvMessage('${convId}')">Send</button>
-    </div>`;
-  const msgArea = document.getElementById('conv-msgs-' + convId);
-  if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
+      <div class="conv-messages" id="conv-msgs-${convId}">
+        ${messages.length
+          ? messages.map(m => `
+              <div class="msg-wrapper${m.direction === 'outbound' ? ' outgoing' : ''}">
+                <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}">${esc(m.body)}</div>
+                <div class="msg-time${m.direction === 'outbound' ? ' outgoing' : ''}">${fmtConvTime(m.created_at)}</div>
+              </div>`).join('')
+          : '<div style="text-align:center;color:#64748b;font-size:0.85rem;padding:32px">No messages yet.</div>'}
+      </div>
+      <div class="conv-input-bar">
+        <input type="text" id="conv-msg-input" placeholder="Type a WhatsApp message…"
+          onkeydown="if(event.key==='Enter') sendConvMessage('${convId}')" />
+        <button class="btn btn-primary btn-sm" id="conv-send-btn" onclick="sendConvMessage('${convId}')">Send ↗</button>
+      </div>`;
+    const msgArea = document.getElementById('conv-msgs-' + convId);
+    if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
+  } catch(err) {
+    chatPanel.innerHTML = `<div style="padding:24px;color:#ef4444">Error loading conversation: ${esc(err.message)}</div>`;
+  }
 }
 
-function sendConvMessage(convId) {
+async function sendConvMessage(convId) {
   const input = document.getElementById('conv-msg-input');
   const text = (input?.value || '').trim();
   if (!text) return;
-  const timeStr = new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+
   if (demoMode) {
+    const timeStr = new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
     const conv = _DEMO_CONVERSATIONS.find(c => c.id === convId);
     if (conv) { conv.messages.push({ from:'agent', text, time:timeStr }); conv.lastMsg = text; conv.lastTime = timeStr; }
+    const msgArea = document.getElementById('conv-msgs-' + convId);
+    if (msgArea) {
+      const div = document.createElement('div');
+      div.className = 'msg-wrapper outgoing';
+      div.innerHTML = `<div class="msg-bubble outgoing">${esc(text)}</div><div class="msg-time outgoing">${timeStr}</div>`;
+      msgArea.appendChild(div);
+      msgArea.scrollTop = msgArea.scrollHeight;
+    }
+    if (input) input.value = '';
+    renderConversations();
+    return;
   }
-  const msgArea = document.getElementById('conv-msgs-' + convId);
-  if (msgArea) {
-    const div = document.createElement('div');
-    div.className = 'msg-wrapper outgoing';
-    div.innerHTML = `<div class="msg-bubble outgoing">${esc(text)}</div><div class="msg-time outgoing">${timeStr}</div>`;
-    msgArea.appendChild(div);
-    msgArea.scrollTop = msgArea.scrollHeight;
+
+  // Live mode — send via WhatsApp Cloud API, then save to DB
+  const sendBtn = document.getElementById('conv-send-btn');
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending…'; }
+  if (input) input.disabled = true;
+
+  try {
+    const [leadRes, settingsRes] = await Promise.all([
+      sb.from('leads').select('phone').eq('id', convId).single(),
+      sb.from('settings').select('key, value').in('key', ['wa_phone_number_id', 'wa_access_token'])
+    ]);
+    if (leadRes.error) throw leadRes.error;
+
+    const getS = k => (settingsRes.data?.find(r => r.key === k) || {}).value || '';
+    const phoneNumberId = getS('wa_phone_number_id');
+    const accessToken   = getS('wa_access_token');
+
+    if (!phoneNumberId || !accessToken) {
+      showToast('WhatsApp token not set — go to Meta Integration and save your credentials first.', 'err');
+      return;
+    }
+
+    const phoneDigits = (leadRes.data?.phone || '').replace(/\D/g, '');
+    const waResp = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: phoneDigits,
+        type: 'text',
+        text: { body: text }
+      })
+    });
+    if (!waResp.ok) {
+      const errData = await waResp.json().catch(() => ({}));
+      throw new Error(errData?.error?.message || `WhatsApp API error ${waResp.status}`);
+    }
+
+    // Save outbound message to communications table
+    await sb.from('communications').insert({
+      lead_id:   convId,
+      type:      'whatsapp',
+      direction: 'outbound',
+      body:      text,
+      logged_by: currentUser?.id || null
+    });
+
+    if (input) input.value = '';
+    showToast('Message sent ✓');
+    openConversation(convId); // refresh thread
+  } catch(err) {
+    showToast(`Send failed: ${err.message}`, 'err');
+  } finally {
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send ↗'; }
+    if (input) input.disabled = false;
   }
-  if (input) input.value = '';
-  renderConversations();
 }
+
 
 // ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ PAYROLL CALCULATOR ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
 function renderPayrollSetup() {
