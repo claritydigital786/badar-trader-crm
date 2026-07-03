@@ -2795,7 +2795,34 @@ async function loadReports() {
       source: sourceLabel(r.source), count: r.total_leads, color: palette[i % palette.length],
     })), tot);
   }
-  renderMonthlyTrendChart([], []);
+
+  // Monthly trend — last 6 months from real data
+  try {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+    sixMonthsAgo.setDate(1);
+    const { data: monthlyLeads } = await sb
+      .from('leads').select('created_at')
+      .gte('created_at', sixMonthsAgo.toISOString())
+      .order('created_at', { ascending: true });
+    const buckets = {};
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(); d.setMonth(d.getMonth() - i); d.setDate(1);
+      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0');
+      buckets[key] = { label: monthNames[d.getMonth()], count: 0 };
+    }
+    (monthlyLeads || []).forEach(l => {
+      const d = new Date(l.created_at);
+      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0');
+      if (buckets[key]) buckets[key].count++;
+    });
+    const mLabels = Object.values(buckets).map(b => b.label);
+    const mData   = Object.values(buckets).map(b => b.count);
+    renderMonthlyTrendChart(mLabels, mData);
+  } catch(e) {
+    renderMonthlyTrendChart([], []);
+  }
   renderFinancialSummaryReport((finSummary && finSummary[0]) || null);
 }
 
