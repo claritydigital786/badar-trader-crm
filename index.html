@@ -1328,6 +1328,25 @@
     </div>
   </header>
 
+  <div id="agent-stats-bar" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 16px;background:#0f172a;border-bottom:1px solid #1e293b">
+    <div style="background:#1e293b;border-radius:8px;padding:10px 16px;text-align:center;min-width:90px">
+      <div style="font-size:1.4rem;font-weight:700;color:#e2e8f0" id="agent-stat-total">-</div>
+      <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em">My Leads</div>
+    </div>
+    <div style="background:#1e293b;border-radius:8px;padding:10px 16px;text-align:center;min-width:90px">
+      <div style="font-size:1.4rem;font-weight:700;color:#f59e0b" id="agent-stat-new">-</div>
+      <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em">New</div>
+    </div>
+    <div style="background:#1e293b;border-radius:8px;padding:10px 16px;text-align:center;min-width:90px">
+      <div style="font-size:1.4rem;font-weight:700;color:#10b981" id="agent-stat-converted">-</div>
+      <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em">Converted</div>
+    </div>
+    <div style="background:#1e293b;border-radius:8px;padding:10px 16px;text-align:center;min-width:90px">
+      <div style="font-size:1.4rem;font-weight:700;color:#0ea5e9" id="agent-stat-revenue">-</div>
+      <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em">AUM ($)</div>
+    </div>
+  </div>
+
   <div class="tabs" id="agent-tabs">
     <button class="tab-btn active" onclick="agentTab('my-leads',this)">My Leads</button>
     <button class="tab-btn"        onclick="agentTab('log-activity',this)">Log Activity</button>
@@ -1850,6 +1869,13 @@ async function loadAgentLeads() {
   if (error) { console.error('loadAgentLeads:', error); return; }
   cachedLeads = data || [];
   renderLeadsTable('agent-leads-tbody', cachedLeads, false);
+  var _total = cachedLeads.length;
+  var _new = cachedLeads.filter(function(l){return l.status==='new';}).length;
+  var _conv = cachedLeads.filter(function(l){return l.status==='converted';}).length;
+  var _rev = cachedLeads.reduce(function(s,l){return s+(Number(l.account_balance)||0);},0);
+  var _setS = function(id,v){var el=document.getElementById(id);if(el)el.textContent=v;};
+  _setS('agent-stat-total',_total); _setS('agent-stat-new',_new); _setS('agent-stat-converted',_conv);
+  _setS('agent-stat-revenue',_rev>=1000?(_rev/1000).toFixed(1)+'k':_rev);
 
   const sel = document.getElementById('act-lead-sel');
   if (sel) {
@@ -1949,8 +1975,13 @@ async function openDetail(leadId, ctx) {
         <div class="detail-row"><span class="detail-label">Source</span><span>${sourceLabel(lead.source)}</span></div>
         <div class="detail-row"><span class="detail-label">Campaign</span><span>${esc(lead.meta_campaign||'ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ')}</span></div>
         <div class="detail-row"><span class="detail-label">Instrument</span><span>${esc(lead.instrument_type||'ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ')}</span></div>
-        <div class="detail-row"><span class="detail-label">Notes</span>
-          <span style="color:#aaa">${esc(lead.notes||'ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ')}</span></div>
+        <div class="detail-row" style="align-items:flex-start"><span class="detail-label" style="padding-top:4px">Notes</span>
+          <div style="flex:1">
+            <textarea id="det-notes" rows="2" style="width:100%;background:#1e293b;border:1px solid #334155;border-radius:6px;color:#e2e8f0;padding:6px 10px;font-size:0.82rem;resize:vertical">${esc(lead.notes||'')}</textarea>
+            <button class="btn btn-secondary btn-sm" style="margin-top:4px" onclick="saveLeadNotes('${leadId}','${ctx}')">Save Notes</button>
+            <span id="det-notes-msg" style="font-size:0.78rem;color:#10b981;margin-left:8px"></span>
+          </div>
+        </div>
       </div>
       <div>
         <div class="detail-row">
