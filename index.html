@@ -444,21 +444,6 @@
     .detail-header h3 { color: #0f172a; font-size: 1.05rem; margin: 0; }
     .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
     @media (max-width: 600px) { .detail-grid { grid-template-columns: 1fr; } }
-
-    /* Mobile sidebar */
-    .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:19; }
-    .hamburger-btn { display:none; background:none; border:none; cursor:pointer; padding:6px; color:#0f172a; font-size:22px; line-height:1; }
-    @media (max-width: 768px) {
-      .sidebar { transform: translateX(-220px); transition: transform 0.25s ease; }
-      .sidebar.open { transform: translateX(0); }
-      .sidebar-overlay.open { display: block; }
-      .main-content { margin-left: 0 !important; }
-      .hamburger-btn { display: block; }
-      .header-actions { gap: 6px; }
-      .header-actions .btn { font-size: 0.75rem; padding: 5px 8px; }
-      .content-header { padding: 12px 14px; }
-      .content-body { padding: 12px; }
-    }
     .detail-row {
       display: flex;
       align-items: flex-start;
@@ -619,12 +604,8 @@
 
   <!-- ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Main content ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ -->
   <div class="main-content">
-    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar(false)"></div>
     <div class="content-header">
-      <div style="display:flex;align-items:center;gap:10px">
-        <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Menu">&#9776;</button>
-        <h2 id="current-tab-title" class="page-title">Dashboard</h2>
-      </div>
+      <h2 id="current-tab-title" class="page-title">Dashboard</h2>
       <div class="header-actions">
         <span id="user-greeting" style="color:#64748b;font-size:13px;"></span>
         <button class="btn btn-secondary btn-sm" onclick="exportLeadsCSV()">📥 Export CSV</button>
@@ -758,6 +739,26 @@
   <!-- Add Lead -->
   <div id="admin-tab-add-lead" class="tab-content">
     <h3>Add Lead</h3>
+    <div class="card" style="margin-bottom:20px">
+      <div style="font-weight:700;font-size:0.9rem;color:#e2e8f0;margin-bottom:6px">&#128196; Import from CSV</div>
+      <p style="font-size:0.8rem;color:#64748b;margin-bottom:12px;line-height:1.6">
+        Upload a CSV with columns: <code>name, phone, email, source, instrument</code> (headers in row 1).
+      </p>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <input type="file" id="csv-import-file" accept=".csv" style="font-size:0.82rem;color:#94a3b8" />
+        <button class="btn btn-secondary btn-inline" onclick="importLeadsCSV()">Import</button>
+        <span id="csv-import-msg" style="font-size:0.8rem;color:#94a3b8"></span>
+      </div>
+      <div id="csv-import-preview" style="display:none;margin-top:14px">
+        <div id="csv-import-count" style="font-size:0.82rem;color:#94a3b8;margin-bottom:8px"></div>
+        <div id="csv-import-table-wrap" style="overflow-x:auto;max-height:220px;overflow-y:auto;margin-bottom:10px"></div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-primary btn-inline" id="csv-confirm-btn" onclick="confirmImportCSV()">Confirm Import</button>
+          <button class="btn btn-secondary btn-inline" onclick="cancelImportCSV()">Cancel</button>
+          <span id="csv-confirm-msg" style="font-size:0.8rem;color:#94a3b8"></span>
+        </div>
+      </div>
+    </div>
     <div class="card">
       <div class="form-row">
         <div>
@@ -1599,17 +1600,7 @@ async function initAdmin() {
   renderDashboardStats();
 }
 
-function toggleSidebar(forceOpen) {
-  var sidebar = document.querySelector('.sidebar');
-  var overlay = document.getElementById('sidebar-overlay');
-  if (!sidebar || !overlay) return;
-  var open = forceOpen !== undefined ? forceOpen : !sidebar.classList.contains('open');
-  sidebar.classList.toggle('open', open);
-  overlay.classList.toggle('open', open);
-}
-
 function adminTab(name, el) {
-  if (window.innerWidth <= 768) toggleSidebar(false);
   document.querySelectorAll('#admin-dashboard .tab-content')
     .forEach(e => e.classList.remove('active'));
   document.querySelectorAll('#admin-tabs .nav-item')
@@ -1741,6 +1732,78 @@ async function loadAdminLeads() {
   renderLeadsTable('admin-leads-tbody', cachedLeads, true);
   const badge = document.getElementById('leads-count-badge');
   if (badge) { badge.textContent = cachedLeads.length || ''; badge.style.display = cachedLeads.length ? '' : 'none'; }
+}
+
+// ---- CSV IMPORT ----
+let _csvImportRows = [];
+
+function importLeadsCSV() {
+  var fileInput = document.getElementById('csv-import-file');
+  var msgEl     = document.getElementById('csv-import-msg');
+  var file      = fileInput && fileInput.files && fileInput.files[0];
+  if (!file) { if(msgEl) msgEl.textContent = 'Please select a CSV file first.'; return; }
+  if(msgEl) msgEl.textContent = '';
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var lines = e.target.result.split(/\r?\n/).filter(function(l){ return l.trim(); });
+    if (lines.length < 2) { if(msgEl) msgEl.textContent = 'CSV needs a header row + data.'; return; }
+    var headers = lines[0].split(',').map(function(h){ return h.trim().replace(/^"|"$/g,'').toLowerCase(); });
+    var nameIdx  = headers.findIndex(function(h){ return h.includes('name'); });
+    var phoneIdx = headers.findIndex(function(h){ return h.includes('phone'); });
+    var emailIdx = headers.findIndex(function(h){ return h.includes('email'); });
+    var srcIdx   = headers.findIndex(function(h){ return h.includes('source'); });
+    var instrIdx = headers.findIndex(function(h){ return h.includes('instrument'); });
+    if (nameIdx === -1) { if(msgEl) msgEl.textContent = 'No "name" column found.'; return; }
+    _csvImportRows = [];
+    for (var i = 1; i < lines.length; i++) {
+      var cols = lines[i].split(',').map(function(v){ return v.trim().replace(/^"|"$/g,''); });
+      var row = {
+        full_name: cols[nameIdx] || '',
+        phone: phoneIdx >= 0 ? (cols[phoneIdx] || '') : '',
+        email: emailIdx >= 0 ? (cols[emailIdx] || '') : '',
+        source: srcIdx >= 0 ? (cols[srcIdx] || 'manual') : 'manual',
+        instrument_type: instrIdx >= 0 ? (cols[instrIdx] || '') : '',
+        status: 'new'
+      };
+      if (row.full_name) _csvImportRows.push(row);
+    }
+    if (!_csvImportRows.length) { if(msgEl) msgEl.textContent = 'No valid rows found.'; return; }
+    var countEl = document.getElementById('csv-import-count');
+    if(countEl) countEl.textContent = _csvImportRows.length + ' leads ready to import';
+    var thead = '<thead><tr><th style="padding:4px 8px">Name</th><th style="padding:4px 8px">Phone</th><th style="padding:4px 8px">Email</th><th style="padding:4px 8px">Source</th><th style="padding:4px 8px">Instrument</th></tr></thead>';
+    var tbody = '<tbody>' + _csvImportRows.map(function(row) {
+      return '<tr><td style="padding:4px 8px">'+row.full_name+'</td><td style="padding:4px 8px">'+row.phone+'</td><td style="padding:4px 8px">'+row.email+'</td><td style="padding:4px 8px">'+row.source+'</td><td style="padding:4px 8px">'+row.instrument_type+'</td></tr>';
+    }).join('') + '</tbody>';
+    var wrap = document.getElementById('csv-import-table-wrap');
+    if(wrap) wrap.innerHTML = '<table style="width:100%;font-size:0.78rem;border-collapse:collapse">'+thead+tbody+'</table>';
+    var prev = document.getElementById('csv-import-preview');
+    if(prev) prev.style.display = 'block';
+  };
+  reader.readAsText(file);
+}
+
+async function confirmImportCSV() {
+  var msgEl = document.getElementById('csv-confirm-msg');
+  var btn   = document.getElementById('csv-confirm-btn');
+  if (!_csvImportRows.length) return;
+  if (typeof demoMode !== 'undefined' && demoMode) { if(msgEl) msgEl.textContent = 'Live mode only.'; return; }
+  if(btn){ btn.disabled = true; btn.textContent = 'Importing...'; }
+  var inserted = 0, errors = 0;
+  for (var i = 0; i < _csvImportRows.length; i++) {
+    var res = await sb.from('leads').insert(_csvImportRows[i]);
+    if (res.error) errors++; else inserted++;
+  }
+  if(btn){ btn.disabled = false; btn.textContent = 'Confirm Import'; }
+  if(msgEl) msgEl.textContent = inserted + ' imported' + (errors ? ', ' + errors + ' failed' : '') + '.';
+  if (inserted) { if(typeof loadAdminLeads === 'function') await loadAdminLeads(); cancelImportCSV(); }
+}
+
+function cancelImportCSV() {
+  _csvImportRows = [];
+  var prev = document.getElementById('csv-import-preview'); if(prev) prev.style.display = 'none';
+  var fi   = document.getElementById('csv-import-file');   if(fi)   fi.value = '';
+  var msg  = document.getElementById('csv-import-msg');    if(msg)  msg.textContent = '';
+  var conf = document.getElementById('csv-confirm-msg');   if(conf) conf.textContent = '';
 }
 
 function filterLeadsLocal() {
