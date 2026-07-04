@@ -689,6 +689,9 @@
   <div id="admin-tab-leads" class="tab-content">
     <h3>All Leads</h3>
     <div class="filter-bar">
+      <input type="text" id="lead-search" placeholder="🔍 Search name, phone, email…"
+             oninput="filterLeadsLocal()"
+             style="flex:1;min-width:180px;max-width:280px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:0.85rem;outline:none" />
       <select id="filter-status" onchange="loadAdminLeads()">
         <option value="">All Statuses</option>
         <option value="new">New</option>
@@ -1324,6 +1327,11 @@
   <!-- My Leads -->
   <div id="agent-tab-my-leads" class="tab-content active">
     <h3>My Leads</h3>
+    <div class="filter-bar">
+      <input type="text" id="agent-lead-search" placeholder="🔍 Search name, phone…"
+             oninput="filterAgentLeadsLocal()"
+             style="flex:1;min-width:180px;max-width:280px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:0.85rem;outline:none" />
+    </div>
     <div class="card" style="padding:0">
       <table>
         <thead><tr>
@@ -1676,6 +1684,17 @@ async function loadAdminLeads() {
   renderLeadsTable('admin-leads-tbody', cachedLeads, true);
 }
 
+function filterLeadsLocal() {
+  const q = (document.getElementById('lead-search')?.value || '').toLowerCase().trim();
+  if (!q) { renderLeadsTable('admin-leads-tbody', cachedLeads, true); return; }
+  const filtered = cachedLeads.filter(l =>
+    (l.full_name  || '').toLowerCase().includes(q) ||
+    (l.phone      || '').toLowerCase().includes(q) ||
+    (l.email      || '').toLowerCase().includes(q)
+  );
+  renderLeadsTable('admin-leads-tbody', filtered, true);
+}
+
 async function addLead() {
   const name       = v('nl-name');
   const phone      = v('nl-phone');
@@ -1830,6 +1849,17 @@ async function loadAgentLeads() {
       sel.appendChild(o);
     });
   }
+}
+
+function filterAgentLeadsLocal() {
+  const q = (document.getElementById('agent-lead-search')?.value || '').toLowerCase().trim();
+  if (!q) { renderLeadsTable('agent-leads-tbody', cachedLeads, false); return; }
+  const filtered = cachedLeads.filter(l =>
+    (l.full_name  || '').toLowerCase().includes(q) ||
+    (l.phone      || '').toLowerCase().includes(q) ||
+    (l.email      || '').toLowerCase().includes(q)
+  );
+  renderLeadsTable('agent-leads-tbody', filtered, false);
 }
 
 async function logActivityStandalone() {
