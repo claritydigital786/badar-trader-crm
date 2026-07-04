@@ -608,7 +608,7 @@
       <h2 id="current-tab-title" class="page-title">Dashboard</h2>
       <div class="header-actions">
         <span id="user-greeting" style="color:#64748b;font-size:13px;"></span>
-        <button class="btn btn-secondary btn-sm">Export CSV</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportLeadsCSV()">📥 Export CSV</button>
         <button class="btn btn-primary btn-inline btn-sm" onclick="adminTab('add-lead')">+ Add Lead</button>
         <button class="btn btn-danger btn-sm" onclick="handleLogout()">Logout</button>
       </div>
@@ -3710,6 +3710,27 @@ function calculatePayroll() {
 
   const resEl = document.getElementById('payroll-results');
   if (resEl) resEl.style.display = 'block';
+}
+
+function exportLeadsCSV() {
+  const leads = cachedLeads || [];
+  if (!leads.length) { alert('No leads to export.'); return; }
+  const headers = ['Name','Phone','Email','Source','Campaign','Status','Instrument','Agent','Deposit ($)','Date Added'];
+  const rows = leads.map(l => {
+    const agent = cachedProfiles.find(p => p.id === l.assigned_agent_id);
+    return [
+      l.full_name || '', l.phone || '', l.email || '',
+      l.source || '', l.meta_campaign || '', l.status || '',
+      l.instrument_type || '', agent ? agent.full_name : 'Unassigned',
+      l.account_balance || 0,
+      l.created_at ? new Date(l.created_at).toLocaleDateString() : '',
+    ];
+  });
+  const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv' }));
+  a.download = `leads_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
 }
 
 function exportPayrollCSV() {
