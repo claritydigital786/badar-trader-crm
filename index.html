@@ -2463,7 +2463,10 @@ function renderLeadsTable(tbodyId, leads, isAdmin) {
       ? esc(agentProfile ? agentProfile.full_name : 'Unassigned')
       : 'You';
     return `<tr>
-      <td><strong style="color:#e0e0e0">${esc(l.full_name)}</strong></td>
+      <td>
+        <strong style="color:#e0e0e0">${esc(l.full_name)}</strong>
+        ${l.instrument_type ? '<br><span style="font-size:0.72rem;color:#94a3b8;background:#0f172a;padding:1px 7px;border-radius:8px;display:inline-block;margin-top:2px">' + esc(l.instrument_type) + '</span>' : ''}
+      </td>
       <td>${esc(l.phone||'ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ')}</td>
       <td>
         <span style="font-size:0.82rem">${sourceLabel(l.source)}</span>
@@ -3187,9 +3190,6 @@ async function renderConversations() {
     }
     const seen = new Set();
     const convs = comms.filter(c => { if (seen.has(c.lead_id)) return false; seen.add(c.lead_id); return true; });
-    // Update sidebar badge
-    const navBadge = document.getElementById('conv-nav-badge');
-    if (navBadge) { navBadge.textContent = convs.length; navBadge.style.display = convs.length ? 'inline-block' : 'none'; }
     listEl.innerHTML = convs.map(c => {
       const name = c.leads?.full_name || 'Unknown';
       const initials = name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
