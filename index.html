@@ -855,6 +855,8 @@
       <input type="text" id="meta-waba-id" placeholder="WABA ID" value="1342908727797643" />
       <label>Lead Form ID (optional)</label>
       <input type="text" id="meta-form-id" placeholder="Meta Lead Ad form ID" />
+      <label>Pixel ID <span style="color:#666;font-weight:400">(required for Meta Analytics tab)</span></label>
+      <input type="text" id="meta-pixel-id" placeholder="e.g. 1234567890123456" />
     </div>
 
     <!-- WhatsApp Webhook -->
@@ -1056,14 +1058,11 @@
           <a href="https://preview--profit-path-crm.lovable.app/" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="text-decoration:none">Open Page ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ</a>
         </div>
       </div>
-      <div style="background:#141414;border:1px solid #2a2a2a;border-radius:8px;overflow:hidden">
-        <iframe
-          src="https://preview--profit-path-crm.lovable.app/"
-          style="width:100%;height:500px;border:none;display:block"
-          title="Badar Trader Hub Landing Page"
-          loading="lazy"
-          sandbox="allow-scripts allow-same-origin allow-forms"
-        ></iframe>
+      <div style="background:#141414;border:1px solid #2a2a2a;border-radius:8px;overflow:hidden;height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px">
+        <div style="font-size:2.5rem">🌐</div>
+        <p style="color:#888;font-size:0.9rem;font-weight:600">Live preview not available</p>
+        <p style="color:#555;font-size:0.8rem;text-align:center;max-width:340px">Publish your project in Lovable to get a public URL, then update this link to show the live preview.</p>
+        <a href="https://preview--profit-path-crm.lovable.app/" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="text-decoration:none;margin-top:4px">Open Page ↗</a>
       </div>
       <p style="color:#666;font-size:0.8rem;margin-top:10px">ÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂ¡ This is your lead capture landing page. Share this link in your Meta ads.</p>
     </div>
@@ -1177,67 +1176,79 @@
     </div>
   </div>
 
-  <!-- Meta Ads -->
+  <!-- Meta Ads / Analytics -->
   <div id="admin-tab-meta-ads" class="tab-content">
-    <h3>Meta Ads</h3>
+    <h3>Meta Analytics</h3>
 
-    <!-- Date range + sync bar -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
-      <div style="font-size:0.8rem;color:#64748b">ÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂ Connect your Meta Ad Account to see live campaign data.</div>
-      <button class="btn btn-secondary btn-sm"
-        onclick="adminTab('meta')"
-        style="border-color:#d4a843;color:#d4a843;white-space:nowrap">
-        ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¯ÃÂÃÂ¸ÃÂÃÂ Configure Meta Integration
-      </button>
-    </div>
+    <!-- Status bar -->
+    <div id="ma-status-bar" class="info-box" style="margin-bottom:18px">Checking credentials…</div>
 
-    <!-- 5-col stat cards (placeholder) -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:20px">
-      <div class="stat-card" style="border-left:3px solid #d4a843">
-        <div class="stat-label">Total Spend</div>
-        <div class="stat-value" style="color:#d4a843">--</div>
-        <div class="stat-trend" style="color:#94a3b8">Ad account not linked</div>
-      </div>
-      <div class="stat-card" style="border-left:3px solid #2563eb">
-        <div class="stat-label">Impressions</div>
-        <div class="stat-value" style="color:#2563eb">--</div>
-        <div class="stat-trend" style="color:#94a3b8">Connect to see data</div>
-      </div>
-      <div class="stat-card" style="border-left:3px solid #16a34a">
-        <div class="stat-label">Clicks</div>
-        <div class="stat-value" style="color:#16a34a">--</div>
-        <div class="stat-trend" style="color:#94a3b8">CTR --</div>
-      </div>
-      <div class="stat-card" style="border-left:3px solid #dc2626">
-        <div class="stat-label">Cost per Lead</div>
-        <div class="stat-value" style="color:#dc2626">--</div>
-        <div class="stat-trend" style="color:#94a3b8">Leads --</div>
-      </div>
-      <div class="stat-card" style="border-left:3px solid #7c3aed">
-        <div class="stat-label">ROAS</div>
-        <div class="stat-value" style="color:#7c3aed">--</div>
-        <div class="stat-trend" style="color:#94a3b8">Revenue --</div>
+    <!-- Filters -->
+    <div class="card" style="margin-bottom:18px">
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
+        <div>
+          <label style="margin-top:0">Date Range</label>
+          <select id="ma-date-preset" onchange="toggleCustomDates()">
+            <option value="today">Today</option>
+            <option value="last_7d">Last 7 Days</option>
+            <option value="last_30d" selected>Last 30 Days</option>
+            <option value="last_90d">Last 90 Days</option>
+            <option value="custom">Custom Range</option>
+          </select>
+        </div>
+        <div id="ma-custom-dates" style="display:none;gap:8px">
+          <div><label style="margin-top:0">From</label><input type="date" id="ma-date-from" style="width:auto"/></div>
+          <div><label style="margin-top:0">To</label><input type="date" id="ma-date-to" style="width:auto"/></div>
+        </div>
+        <div>
+          <label style="margin-top:0">Breakdown Level</label>
+          <select id="ma-level">
+            <option value="campaign">Campaign</option>
+            <option value="adset">Ad Set</option>
+            <option value="ad">Ad</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-inline" id="ma-fetch-btn" onclick="fetchMetaAnalytics()" style="margin-top:0">Fetch Data</button>
+        <a href="https://business.facebook.com/adsmanager/manage/campaigns?act=1024848662493589" target="_blank"
+          class="btn btn-secondary btn-sm" style="text-decoration:none;margin-top:0">Open Ads Manager ↗</a>
       </div>
     </div>
 
-    <!-- Campaign Table Placeholder -->
+    <!-- Summary stat cards -->
+    <div class="stat-grid" id="ma-summary-stats" style="margin-bottom:18px">
+      <div class="stat-card"><div class="stat-label">Total Spend</div><div class="stat-value" style="color:#c9a84c">—</div></div>
+      <div class="stat-card"><div class="stat-label">Impressions</div><div class="stat-value">—</div></div>
+      <div class="stat-card"><div class="stat-label">Clicks</div><div class="stat-value">—</div></div>
+      <div class="stat-card"><div class="stat-label">Leads</div><div class="stat-value" style="color:#4caf50">—</div></div>
+      <div class="stat-card"><div class="stat-label">Avg CTR</div><div class="stat-value">—</div></div>
+      <div class="stat-card"><div class="stat-label">Cost per Lead</div><div class="stat-value" style="color:#e05c5c">—</div></div>
+      <div class="stat-card"><div class="stat-label">Cost per Click</div><div class="stat-value">—</div></div>
+    </div>
+
+    <!-- Insights table -->
+    <p class="section-h"><span id="ma-level-label">Campaign</span> Performance</p>
+    <div class="card" style="padding:0;margin-bottom:18px">
+      <table>
+        <thead><tr>
+          <th id="ma-level-col">Campaign</th>
+          <th>Impressions</th><th>Reach</th><th>Clicks</th>
+          <th>CTR</th><th>Spend</th><th>Leads</th><th>CPL</th>
+        </tr></thead>
+        <tbody id="ma-insights-tbody">
+          <tr><td colspan="8" class="empty-state">Click "Fetch Data" to load your campaign metrics.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pixel Events -->
+    <p class="section-h">Pixel Events</p>
     <div class="card" style="padding:0">
-      <div style="padding:14px 18px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between">
-        <div style="font-weight:700;font-size:0.9rem;color:#0f172a">Campaigns</div>
-        <button class="btn btn-primary btn-sm"
-          onclick="window.open('https://business.facebook.com/adsmanager/manage/campaigns?act=1024848662493589','_blank')">
-          Open Ads Manager ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
-        </button>
-      </div>
-      <div style="padding:40px;text-align:center;color:#94a3b8">
-        <div style="font-size:2.5rem;margin-bottom:12px">ÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂ</div>
-        <p style="font-weight:600;color:#64748b;margin-bottom:6px">No campaigns connected</p>
-        <p style="font-size:0.82rem">Add your Meta Access Token in
-          <button onclick="adminTab('meta')" style="background:none;border:none;cursor:pointer;color:#d4a843;font-weight:600;font-size:0.82rem;text-decoration:underline">Meta Integration Settings</button>
-          to see live campaign data here.
-        </p>
-        <p style="font-size:0.75rem;margin-top:8px;color:#94a3b8">Ad Account: act_1024848662493589</p>
-      </div>
+      <table>
+        <thead><tr><th>Event</th><th>Total Fires</th><th>Unique Users</th></tr></thead>
+        <tbody id="ma-pixel-tbody">
+          <tr><td colspan="3" class="empty-state">Add your Pixel ID in Meta Integration settings to see pixel event data.</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 
@@ -1548,7 +1559,7 @@ function adminTab(name, el) {
   const titles = {
     dashboard: 'Dashboard', leads: 'All Leads', agents: 'My Team',
     'add-lead': 'Add Lead', conversations: 'Conversations',
-    meta: 'Meta Integration', 'meta-ads': 'Meta Ads',
+    meta: 'Meta Integration', 'meta-ads': 'Meta Analytics',
     payroll: 'Payroll', automation: 'Automation',
     notifications: 'Notifications', sites: 'Landing Pages', reports: 'Reports',
     'comm-log': 'Communication Log'
@@ -1561,6 +1572,7 @@ function adminTab(name, el) {
   if (name === 'conversations') { renderConversations(); startConvRealtime(); } else { stopConvRealtime(); }
   if (name === 'agents')        { renderAgentsTable(); updateRoundRobinStatus(); }
   if (name === 'meta')          loadMetaSettings();
+  if (name === 'meta-ads')      initMetaAnalytics();
   if (name === 'automation')    { loadAutomationRules(); populateArAgentDropdown(); }
   if (name === 'reports')       loadReports();
   if (name === 'comm-log')      loadCommLog();
@@ -1731,7 +1743,7 @@ async function addLead() {
 
 async function loadMetaSettings() {
   if (demoMode) return; // no settings table in demo
-  const keys = ['meta_token','meta_account_id','meta_waba_id','meta_form_id',
+  const keys = ['meta_token','meta_account_id','meta_waba_id','meta_form_id','meta_pixel_id',
                  'wa_verify_token','wa_phone_number_id','wa_access_token'];
   const { data } = await sb.from('settings').select('key,value').in('key', keys);
   if (!data) return;
@@ -1740,6 +1752,7 @@ async function loadMetaSettings() {
   document.getElementById('meta-account-id').value   = get('meta_account_id') || '1024848662493589';
   document.getElementById('meta-waba-id').value      = get('meta_waba_id')    || '1342908727797643';
   document.getElementById('meta-form-id').value      = get('meta_form_id');
+  document.getElementById('meta-pixel-id').value     = get('meta_pixel_id');
   document.getElementById('wa-verify-token').value   = get('wa_verify_token') || 'badarcrm2026';
   document.getElementById('wa-phone-number-id').value= get('wa_phone_number_id') || '1181979858336353';
   document.getElementById('wa-access-token').value   = get('wa_access_token');
@@ -1749,7 +1762,9 @@ async function saveMetaSettings() {
   const token         = v('meta-token');
   const accountId     = v('meta-account-id');
   const wabaId        = v('meta-waba-id');
+  const wabaId        = v('meta-waba-id');
   const formId        = v('meta-form-id');
+  const pixelId       = v('meta-pixel-id');
   const waVerify      = v('wa-verify-token');
   const waPhoneId     = v('wa-phone-number-id');
   const waAccessToken = v('wa-access-token');
@@ -1761,6 +1776,7 @@ async function saveMetaSettings() {
     { key: 'meta_account_id',    value: accountId,     updated_by: currentUser.id, updated_at: now },
     { key: 'meta_waba_id',       value: wabaId,        updated_by: currentUser.id, updated_at: now },
     { key: 'meta_form_id',       value: formId,        updated_by: currentUser.id, updated_at: now },
+    { key: 'meta_pixel_id',      value: pixelId,       updated_by: currentUser.id, updated_at: now },
     { key: 'wa_verify_token',    value: waVerify,      updated_by: currentUser.id, updated_at: now },
     { key: 'wa_phone_number_id', value: waPhoneId,     updated_by: currentUser.id, updated_at: now },
     { key: 'wa_access_token',    value: waAccessToken, updated_by: currentUser.id, updated_at: now },
@@ -2483,6 +2499,210 @@ function renderLeadsTable(tbodyId, leads, isAdmin) {
 }
 
 // ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Utilities ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
+// ── META ANALYTICS ────────────────────────────────────────────
+const META_API_BASE = 'https://graph.facebook.com/v19.0';
+
+function toggleCustomDates() {
+  const preset = document.getElementById('ma-date-preset')?.value;
+  const el = document.getElementById('ma-custom-dates');
+  if (el) el.style.display = preset === 'custom' ? 'flex' : 'none';
+}
+
+function maGetDateRange() {
+  const preset = document.getElementById('ma-date-preset')?.value || 'last_30d';
+  const today  = new Date();
+  const fmt    = d => d.toISOString().split('T')[0];
+  const offsets = { today: 0, last_7d: 7, last_30d: 30, last_90d: 90 };
+  if (preset in offsets) {
+    const s = new Date(today); s.setDate(s.getDate() - offsets[preset]);
+    return { since: fmt(s), until: fmt(today) };
+  }
+  return { since: v('ma-date-from') || fmt(today), until: v('ma-date-to') || fmt(today) };
+}
+
+async function maGetSetting(key) {
+  if (demoMode) {
+    return { meta_token:'DEMO', meta_account_id:'act_1024848662493589', meta_pixel_id:'987654321' }[key] || '';
+  }
+  const { data } = await sb.from('settings').select('value').eq('key', key).single();
+  return data?.value || '';
+}
+
+async function initMetaAnalytics() {
+  const bar = document.getElementById('ma-status-bar');
+  if (!bar) return;
+  if (demoMode) {
+    bar.style.cssText = 'background:#001a10;border:1px solid #4caf50;border-radius:8px;padding:12px 16px;color:#aee;margin-bottom:18px';
+    bar.innerHTML = '<b>Demo Mode</b> — showing sample campaign data. Add real credentials in <b>Meta Integration</b> settings to pull live data.';
+    return;
+  }
+  const token     = await maGetSetting('meta_token');
+  const accountId = await maGetSetting('meta_account_id');
+  if (!token || token.length < 20) {
+    bar.style.cssText = 'background:#1a0a00;border:1px solid #c9a84c;border-radius:8px;padding:12px 16px;color:#ccc;margin-bottom:18px';
+    bar.innerHTML = 'No Meta Access Token found. Go to <b>Meta Integration</b> settings, paste your access token and account ID, then save.';
+  } else {
+    bar.style.cssText = 'background:#001a10;border:1px solid #4caf50;border-radius:8px;padding:12px 16px;color:#aee;margin-bottom:18px';
+    bar.innerHTML = 'Connected · Ad Account <b>' + (accountId || '') + '</b> · Select a date range and click <b>Fetch Data</b>.';
+  }
+}
+
+function maGetLeadCount(actions) {
+  if (!Array.isArray(actions)) return 0;
+  const leadTypes = ['lead','onsite_conversion.lead_grouped','offsite_conversion.fb_pixel_lead'];
+  const a = actions.find(x => leadTypes.includes(x.action_type));
+  return a ? parseInt(a.value) || 0 : 0;
+}
+
+function maGetCPL(costPerAction) {
+  if (!Array.isArray(costPerAction)) return '—';
+  const leadTypes = ['lead','onsite_conversion.lead_grouped','offsite_conversion.fb_pixel_lead'];
+  const a = costPerAction.find(x => leadTypes.includes(x.action_type));
+  return a ? '$' + parseFloat(a.value).toFixed(2) : '—';
+}
+
+function maRenderInsights(rows, level, nameField) {
+  const tbody    = document.getElementById('ma-insights-tbody');
+  const levelLbl = { campaign:'Campaign', adset:'Ad Set', ad:'Ad' }[level] || 'Campaign';
+  const col      = document.getElementById('ma-level-col');
+  const lbl      = document.getElementById('ma-level-label');
+  if (col) col.textContent = levelLbl;
+  if (lbl) lbl.textContent = levelLbl;
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No data for this period.</td></tr>'; return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const leads = maGetLeadCount(r.actions);
+    const cpl   = maGetCPL(r.cost_per_action_type);
+    return '<tr><td style="font-weight:600;color:#e0e0e0;max-width:220px;word-break:break-word">' + esc(r[nameField] || '') + '</td>'
+      + '<td>' + Number(r.impressions||0).toLocaleString() + '</td>'
+      + '<td>' + Number(r.reach||0).toLocaleString() + '</td>'
+      + '<td>' + Number(r.clicks||0).toLocaleString() + '</td>'
+      + '<td>' + parseFloat(r.ctr||0).toFixed(2) + '%</td>'
+      + '<td style="color:#c9a84c">$' + parseFloat(r.spend||0).toFixed(2) + '</td>'
+      + '<td style="color:#4caf50;font-weight:600">' + (leads || '—') + '</td>'
+      + '<td>' + cpl + '</td></tr>';
+  }).join('');
+}
+
+function maRenderSummary(rows) {
+  const t = rows.reduce((acc, r) => {
+    acc.impressions += parseInt(r.impressions || 0);
+    acc.clicks      += parseInt(r.clicks      || 0);
+    acc.spend       += parseFloat(r.spend     || 0);
+    acc.leads       += maGetLeadCount(r.actions);
+    return acc;
+  }, { impressions: 0, clicks: 0, spend: 0, leads: 0 });
+  const ctr = t.impressions ? ((t.clicks / t.impressions) * 100).toFixed(2) : '0.00';
+  const cpl = t.leads  ? '$' + (t.spend / t.leads).toFixed(2)  : '—';
+  const cpc = t.clicks ? '$' + (t.spend / t.clicks).toFixed(2) : '—';
+  document.getElementById('ma-summary-stats').innerHTML =
+    '<div class="stat-card"><div class="stat-label">Total Spend</div><div class="stat-value" style="color:#c9a84c">$' + fmtMoney(t.spend) + '</div></div>'
+    + '<div class="stat-card"><div class="stat-label">Impressions</div><div class="stat-value">' + t.impressions.toLocaleString() + '</div></div>'
+    + '<div class="stat-card"><div class="stat-label">Clicks</div><div class="stat-value">' + t.clicks.toLocaleString() + '</div></div>'
+    + '<div class="stat-card"><div class="stat-label">Leads</div><div class="stat-value" style="color:#4caf50">' + t.leads.toLocaleString() + '</div></div>'
+    + '<div class="stat-card"><div class="stat-label">Avg CTR</div><div class="stat-value">' + ctr + '%</div></div>'
+    + '<div class="stat-card"><div class="stat-label">Cost per Lead</div><div class="stat-value" style="color:#e05c5c">' + cpl + '</div></div>'
+    + '<div class="stat-card"><div class="stat-label">Cost per Click</div><div class="stat-value">' + cpc + '</div></div>';
+}
+
+function maRenderPixel(rows) {
+  const tbody = document.getElementById('ma-pixel-tbody');
+  const emoji = { PageView:'👁', Lead:'🎯', Purchase:'💰', AddToCart:'🛒',
+    ViewContent:'📄', InitiateCheckout:'💳', CompleteRegistration:'✅',
+    Contact:'📞', Search:'🔍', Subscribe:'📧' };
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No pixel events for this period.</td></tr>'; return;
+  }
+  tbody.innerHTML = rows.map(r =>
+    '<tr><td>' + (emoji[r.event_name] || '📊') + ' ' + esc(r.event_name) + '</td>'
+    + '<td>' + Number(r.count || 0).toLocaleString() + '</td>'
+    + '<td>' + Number(r.unique_count || r.count || 0).toLocaleString() + '</td></tr>'
+  ).join('');
+}
+
+async function fetchMetaAnalytics() {
+  const btn = document.getElementById('ma-fetch-btn');
+  if (btn) { btn.textContent = 'Fetching…'; btn.disabled = true; }
+  const iTbody = document.getElementById('ma-insights-tbody');
+  const pTbody = document.getElementById('ma-pixel-tbody');
+  iTbody.innerHTML = '<tr><td colspan="8" class="empty-state">Loading…</td></tr>';
+  pTbody.innerHTML = '<tr><td colspan="3"  class="empty-state">Loading…</td></tr>';
+
+  try {
+    if (demoMode) {
+      const demoRows = [
+        { campaign_name:'Apr_XAUUSD_Retargeting', impressions:'45230', reach:'38100', clicks:'1240',
+          ctr:'2.74', spend:'320.50',
+          actions:[{action_type:'lead',value:'28'}],
+          cost_per_action_type:[{action_type:'lead',value:'11.45'}] },
+        { campaign_name:'Jun_Crypto_Awareness',   impressions:'82100', reach:'67400', clicks:'2105',
+          ctr:'2.56', spend:'540.80',
+          actions:[{action_type:'lead',value:'45'}],
+          cost_per_action_type:[{action_type:'lead',value:'12.02'}] },
+        { campaign_name:'Jul_Forex_Prospecting',  impressions:'31450', reach:'26200', clicks:'890',
+          ctr:'2.83', spend:'215.30',
+          actions:[{action_type:'lead',value:'19'}],
+          cost_per_action_type:[{action_type:'lead',value:'11.33'}] },
+      ];
+      const demoPixel = [
+        { event_name:'PageView',             count:4821, unique_count:3102 },
+        { event_name:'Lead',                 count:92,   unique_count:88   },
+        { event_name:'ViewContent',          count:2340, unique_count:1890 },
+        { event_name:'Contact',              count:156,  unique_count:134  },
+        { event_name:'CompleteRegistration', count:41,   unique_count:40   },
+      ];
+      maRenderInsights(demoRows, 'campaign', 'campaign_name');
+      maRenderSummary(demoRows);
+      maRenderPixel(demoPixel);
+      return;
+    }
+
+    const token     = await maGetSetting('meta_token');
+    const accountId = await maGetSetting('meta_account_id');
+    const pixelId   = await maGetSetting('meta_pixel_id');
+
+    if (!token || token.length < 20) {
+      iTbody.innerHTML = '<tr><td colspan="8" class="empty-state" style="color:#e05c5c">No access token. Go to <b>Meta Integration</b> settings and save your token first.</td></tr>';
+      pTbody.innerHTML = '<tr><td colspan="3" class="empty-state"></td></tr>';
+      return;
+    }
+
+    const level     = document.getElementById('ma-level').value || 'campaign';
+    const nameField = level === 'campaign' ? 'campaign_name' : level === 'adset' ? 'adset_name' : 'ad_name';
+    const { since, until } = maGetDateRange();
+    const fields    = [nameField,'impressions','reach','clicks','spend','ctr','cpc','actions','cost_per_action_type'].join(',');
+    const timeRange = encodeURIComponent(JSON.stringify({ since, until }));
+    const insightsUrl = META_API_BASE + '/' + accountId + '/insights?fields=' + fields + '&time_range=' + timeRange + '&level=' + level + '&limit=100&access_token=' + token;
+
+    const iResp = await fetch(insightsUrl);
+    const iData = await iResp.json();
+    if (iData.error) throw new Error(iData.error.message);
+
+    maRenderInsights(iData.data || [], level, nameField);
+    maRenderSummary(iData.data || []);
+
+    if (pixelId) {
+      const sinceTs = Math.floor(new Date(since).getTime() / 1000);
+      const untilTs = Math.floor(new Date(until + 'T23:59:59').getTime() / 1000);
+      const pixelUrl = META_API_BASE + '/' + pixelId + '/stats?aggregation=event&start_time=' + sinceTs + '&end_time=' + untilTs + '&access_token=' + token;
+      const pResp = await fetch(pixelUrl);
+      const pData = await pResp.json();
+      pData.error
+        ? (pTbody.innerHTML = '<tr><td colspan="3" class="empty-state" style="color:#e05c5c">Pixel error: ' + esc(pData.error.message) + '</td></tr>')
+        : maRenderPixel(pData.data || []);
+    } else {
+      pTbody.innerHTML = '<tr><td colspan="3" class="empty-state">Add your Pixel ID in Meta Integration settings to see pixel event data.</td></tr>';
+    }
+
+  } catch (err) {
+    iTbody.innerHTML = '<tr><td colspan="8" class="empty-state" style="color:#e05c5c">Error: ' + esc(err.message) + '</td></tr>';
+  } finally {
+    if (btn) { btn.textContent = 'Fetch Data'; btn.disabled = false; }
+  }
+}
+
+
 function v(id) { return (document.getElementById(id)?.value || '').trim(); }
 
 function esc(s) {
