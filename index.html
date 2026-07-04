@@ -3355,7 +3355,6 @@ function renderDashboardStats() {
   if (el('dash-agents'))      el('dash-agents').textContent      = cachedProfiles.filter(p => p.role === 'agent').length;
   const revenue = cachedLeads.reduce((s, l) => s + (Number(l.account_balance) || 0), 0);
   if (el('dash-revenue'))     el('dash-revenue').textContent     = '$' + fmtMoney(revenue);
-  // Load upcoming follow-ups from lead_activity
   loadUpcomingFollowups();
 }
 
@@ -3363,33 +3362,27 @@ async function loadUpcomingFollowups() {
   const listEl = document.getElementById('dash-followups-list');
   if (!listEl) return;
   if (demoMode) {
-    listEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1e293b"><div><div style="color:#e2e8f0;font-size:0.85rem;font-weight:600">Omar Farooq</div><div style="color:#64748b;font-size:0.76rem">Call back re: gold account setup</div></div><span style="color:#f59e0b;font-size:0.78rem;white-space:nowrap">Today</span></div><div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0"><div><div style="color:#e2e8f0;font-size:0.85rem;font-weight:600">Ayesha Malik</div><div style="color:#64748b;font-size:0.76rem">Send crypto signals starter pack</div></div><span style="color:#94a3b8;font-size:0.78rem;white-space:nowrap">Tomorrow</span></div>';
+    listEl.innerHTML = '<div style="border-bottom:1px solid #1e293b;padding:8px 0;display:flex;justify-content:space-between"><div><div style="color:#e2e8f0;font-size:0.85rem;font-weight:600">Omar Farooq</div><div style="color:#64748b;font-size:0.76rem">Call back re: gold account setup</div></div><span style="color:#f59e0b;font-size:0.78rem">Today</span></div><div style="padding:8px 0;display:flex;justify-content:space-between"><div><div style="color:#e2e8f0;font-size:0.85rem;font-weight:600">Ayesha Malik</div><div style="color:#64748b;font-size:0.76rem">Send crypto signals starter pack</div></div><span style="color:#94a3b8;font-size:0.78rem">Tomorrow</span></div>';
     return;
   }
   const today = new Date().toISOString().slice(0,10);
-  const in7   = new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0,10);
-  const { data, error } = await sb
-    .from('lead_activity')
+  const in7 = new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0,10);
+  const { data, error } = await sb.from('lead_activity')
     .select('follow_up_date, summary, lead_id, leads(full_name)')
-    .gte('follow_up_date', today)
-    .lte('follow_up_date', in7)
-    .order('follow_up_date', { ascending: true })
-    .limit(8);
+    .gte('follow_up_date', today).lte('follow_up_date', in7)
+    .order('follow_up_date', { ascending: true }).limit(8);
   if (error || !data || !data.length) {
-    listEl.innerHTML = '<div style="color:#64748b;font-size:0.85rem;padding:8px 0">No follow-ups scheduled for the next 7 days. &#127881;</div>';
+    listEl.innerHTML = '<div style="color:#64748b;font-size:0.85rem;padding:8px 0">No follow-ups scheduled for the next 7 days.</div>';
     return;
   }
-  const todayStr = new Date().toISOString().slice(0,10);
-  const tomorrowStr = new Date(Date.now() + 86400000).toISOString().slice(0,10);
-  listEl.innerHTML = data.map(function(a, i) {
-    var label = a.follow_up_date === todayStr ? 'Today'
-      : a.follow_up_date === tomorrowStr ? 'Tomorrow'
-      : new Date(a.follow_up_date + 'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
-    var color = a.follow_up_date === todayStr ? '#f59e0b' : '#94a3b8';
-    var border = i < data.length - 1 ? 'border-bottom:1px solid #1e293b' : '';
-    var name = (a.leads && a.leads.full_name) ? a.leads.full_name : 'Unknown Lead';
-    var summary = (a.summary || '').slice(0, 70) + ((a.summary || '').length > 70 ? '...' : '');
-    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;' + border + '"><div><div style="color:#e2e8f0;font-size:0.85rem;font-weight:600">' + esc(name) + '</div><div style="color:#64748b;font-size:0.76rem">' + esc(summary) + '</div></div><span style="color:' + color + ';font-size:0.78rem;white-space:nowrap;margin-left:12px">' + label + '</span></div>';
+  const tom = new Date(Date.now() + 86400000).toISOString().slice(0,10);
+  listEl.innerHTML = data.map(function(a,i) {
+    var lbl = a.follow_up_date === today ? 'Today' : a.follow_up_date === tom ? 'Tomorrow' : new Date(a.follow_up_date+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
+    var col = a.follow_up_date === today ? '#f59e0b' : '#94a3b8';
+    var bdr = i < data.length-1 ? 'border-bottom:1px solid #1e293b;' : '';
+    var nm = (a.leads && a.leads.full_name) ? a.leads.full_name : 'Unknown';
+    var sm = (a.summary||'').slice(0,70)+((a.summary||'').length>70?'...':'');
+    return '<div style="'+bdr+'padding:8px 0;display:flex;align-items:center;justify-content:space-between"><div><div style="color:#e2e8f0;font-size:0.85rem;font-weight:600">'+esc(nm)+'</div><div style="color:#64748b;font-size:0.76rem">'+esc(sm)+'</div></div><span style="color:'+col+';font-size:0.78rem;white-space:nowrap;margin-left:12px">'+lbl+'</span></div>';
   }).join('');
 }
 
