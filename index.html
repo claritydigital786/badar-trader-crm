@@ -578,6 +578,7 @@
       <div class="nav-section-label">MAIN</div>
       <div class="nav-item active" data-tab="dashboard"><span class="nav-icon">ÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂ </span> Dashboard</div>
       <div class="nav-item" data-tab="leads"><span class="nav-icon">ÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂ¥</span> All Leads <span class="nav-badge" id="leads-count-badge"></span></div>
+      <div class="nav-item" data-tab="pipeline" onclick="adminTab('pipeline')"><span class="nav-icon">&#9632;</span> Pipeline</div>
       <div class="nav-item" data-tab="agents"><span class="nav-icon">ÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂ</span> My Team</div>
       <div class="nav-item" data-tab="meta-ads"><span class="nav-icon">ÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂ</span> Meta Ads</div>
       <div class="nav-section-label">TOOLS</div>
@@ -736,7 +737,16 @@
     <div id="admin-lead-detail" class="detail-panel" style="display:none"></div>
   </div>
 
-  <!-- Add Lead -->
+  
+  <!-- Pipeline Board -->
+  <div id="admin-tab-pipeline" class="tab-content" style="display:none">
+    <h3>Pipeline Board</h3>
+    <div id="pipeline-board" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:16px;min-height:400px">
+      <div style="color:#64748b;font-size:0.9rem;padding:20px">Loading...</div>
+    </div>
+  </div>
+
+<!-- Add Lead -->
   <div id="admin-tab-add-lead" class="tab-content">
     <h3>Add Lead</h3>
     <div class="card" style="margin-bottom:20px">
@@ -1704,6 +1714,46 @@ async function suspendAgent(id, suspend) {
   const { error } = await sb.from('profiles').update({ is_suspended: suspend }).eq('id', id);
   if (error) { alert('Error: ' + error.message + '\n\nIf this is a column error, run this SQL in Supabase:\nALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN DEFAULT FALSE;'); return; }
   await loadProfiles();
+}
+
+function loadPipeline() {
+  var leads = typeof cachedLeads !== 'undefined' ? cachedLeads : [];
+  var cols = [
+    { key: 'new',       label: 'New',         color: '#3b82f6' },
+    { key: 'contacted', label: 'Contacted',   color: '#8b5cf6' },
+    { key: 'qualified', label: 'Qualified',   color: '#f59e0b' },
+    { key: 'demo',      label: 'Demo Booked', color: '#06b6d4' },
+    { key: 'converted', label: 'Converted',   color: '#22c55e' },
+    { key: 'rejected',  label: 'Rejected',    color: '#ef4444' }
+  ];
+  var board = document.getElementById('pipeline-board');
+  if (!board) return;
+  if (!leads.length) {
+    board.innerHTML = '<div style="color:#64748b;font-size:0.9rem;padding:20px">No leads yet. Add leads first.</div>';
+    return;
+  }
+  board.innerHTML = cols.map(function(col) {
+    var colLeads = leads.filter(function(l) { return (l.status || 'new') === col.key; });
+    var cards = colLeads.map(function(lead) {
+      var initials = (lead.full_name || '?').split(' ').map(function(w){ return w[0] || ''; }).slice(0,2).join('').toUpperCase();
+      var srcBadge = lead.source ? '<span style="font-size:0.7rem;background:#1e293b;color:#94a3b8;border-radius:4px;padding:2px 6px">' + lead.source + '</span>' : '';
+      var dep = lead.deposit_amount ? '<span style="font-size:0.7rem;color:#d4a843">$' + Number(lead.deposit_amount).toLocaleString() + '</span>' : '';
+      return '<div onclick="openLeadDetail('' + lead.id + '')" style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px;margin-bottom:8px;cursor:pointer">'
+        + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+        + '<div style="width:28px;height:28px;border-radius:50%;background:' + col.color + '22;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:' + col.color + '">' + initials + '</div>'
+        + '<div style="flex:1;min-width:0"><div style="font-size:0.82rem;font-weight:600;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (lead.full_name || 'Unknown') + '</div>'
+        + '<div style="font-size:0.72rem;color:#64748b">' + (lead.phone || '') + '</div></div></div>'
+        + '<div style="display:flex;justify-content:space-between;align-items:center">' + srcBadge + dep + '</div>'
+        + '</div>';
+    }).join('');
+    return '<div style="min-width:200px;max-width:220px;flex-shrink:0">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid ' + col.color + '">'
+      + '<span style="font-size:0.8rem;font-weight:700;color:#e2e8f0">' + col.label + '</span>'
+      + '<span style="background:' + col.color + '33;color:' + col.color + ';font-size:0.72rem;font-weight:700;border-radius:10px;padding:1px 8px">' + colLeads.length + '</span>'
+      + '</div>'
+      + (cards || '<div style="color:#334155;font-size:0.78rem;text-align:center;padding:16px 0">Empty</div>')
+      + '</div>';
+  }).join('');
 }
 
 async function loadAdminLeads() {
