@@ -1691,6 +1691,8 @@ async function loadAdminLeads() {
   if (error) { console.error('loadAdminLeads:', error); return; }
   cachedLeads = data || [];
   renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+  const badge = document.getElementById('leads-count-badge');
+  if (badge) { badge.textContent = cachedLeads.length || ''; badge.style.display = cachedLeads.length ? '' : 'none'; }
 }
 
 function filterLeadsLocal() {
@@ -2468,6 +2470,17 @@ async function saveLeadDetail(leadId, ctx) {
   const lead = cachedLeads.find(l => l.id === leadId);
   if (lead) { lead.status = status; lead.assigned_agent_id = agentId; }
   renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+}
+
+async function saveLeadNotes(leadId, ctx) {
+  const notes = (document.getElementById('det-notes')?.value || '').trim();
+  const msgEl = document.getElementById('det-notes-msg');
+  if (demoMode) { if (msgEl) { msgEl.textContent = 'Saved. (demo)'; setTimeout(function(){ msgEl.textContent=''; }, 2000); } return; }
+  const { error } = await sb.from('leads').update({ notes }).eq('id', leadId);
+  if (error) { if (msgEl) msgEl.textContent = error.message; return; }
+  const lead = cachedLeads.find(function(l){ return l.id === leadId; });
+  if (lead) lead.notes = notes;
+  if (msgEl) { msgEl.textContent = 'Saved.'; setTimeout(function(){ msgEl.textContent=''; }, 2000); }
 }
 
 async function agentSaveStatus(leadId, ctx) {
