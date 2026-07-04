@@ -1856,6 +1856,32 @@ function cancelImportCSV() {
   var conf = document.getElementById('csv-confirm-msg');   if(conf) conf.textContent = '';
 }
 
+var _waLeadId=null,_waPhone=null,_waName=null;
+function openWaModal(id,phone,name){_waLeadId=id;_waPhone=phone?(phone.replace(/[^0-9+]/g,'')):'';
+_waName=name||'Lead';var m=document.getElementById('wa-send-modal');
+var t=document.getElementById('wa-modal-to');var n=document.getElementById('wa-modal-num');
+var b=document.getElementById('wa-modal-body');var s=document.getElementById('wa-modal-status');
+if(t)t.textContent=_waName;if(n)n.textContent=_waPhone;if(b)b.value='';if(s)s.textContent='';
+if(m){m.style.display='flex';if(b)b.focus();}}
+
+function closeWaModal(){var m=document.getElementById('wa-send-modal');if(m)m.style.display='none';}
+
+async function submitWaMessage(){var body=(document.getElementById('wa-modal-body')||{}).value||'';body=body.trim();
+var statusEl=document.getElementById('wa-modal-status');
+if(!body){if(statusEl)statusEl.textContent='Please type a message first.';return;}
+if(!_waPhone){if(statusEl)statusEl.textContent='No phone number for this lead.';return;}
+var waToken=null,waPhoneId='1181979858336353';
+try{var sr=await sb.from('settings').select('wa_access_token,wa_phone_number_id').single();
+if(sr.data){waToken=sr.data.wa_access_token;waPhoneId=sr.data.wa_phone_number_id||waPhoneId;}}catch(e){}
+if(!waToken){if(statusEl)statusEl.textContent='No WhatsApp token. Add in Meta Integration tab.';return;}
+if(statusEl)statusEl.textContent='Sending...';
+var toNum=_waPhone.startsWith('+')?_waPhone.slice(1):_waPhone;
+try{var r=await fetch('https://graph.facebook.com/v18.0/'+waPhoneId+'/messages',{method:'POST',headers:{'Authorization':'Bearer '+waToken,'Content-Type':'application/json'},body:JSON.stringify({messaging_product:'whatsapp',to:toNum,type:'text',text:{body:body}})}).then(function(x){return x.json();});
+if(r.messages&&r.messages[0]){await sb.from('lead_activity').insert({lead_id:_waLeadId,activity_type:'whatsapp',content:body,direction:'outbound'});
+if(statusEl)statusEl.textContent='Sent!';setTimeout(closeWaModal,1200);
+}else{if(statusEl)statusEl.textContent='Error: '+(r.error?r.error.message:'Unknown error');}}
+catch(e){if(statusEl)statusEl.textContent='Network error. Check token.';}
+}
 function filterLeadsLocal() {
   const q = (document.getElementById('lead-search')?.value || '').toLowerCase().trim();
   if (!q) { renderLeadsTable('admin-leads-tbody', cachedLeads, true); return; }
@@ -2121,6 +2147,7 @@ async function openDetail(leadId, ctx) {
           <div style="flex:1">
             <textarea id="det-notes" rows="2" style="width:100%;background:#1e293b;border:1px solid #334155;border-radius:6px;color:#e2e8f0;padding:6px 10px;font-size:0.82rem;resize:vertical">${esc(lead.notes||'')}</textarea>
             <button class="btn btn-secondary btn-sm" style="margin-top:4px" onclick="saveLeadNotes('${leadId}','${ctx}')">Save Notes</button>
+            <button class="btn btn-secondary btn-sm" style="margin-top:4px;margin-left:8px;background:#128c7e;color:#fff;border-color:#128c7e" onclick="openWaModal(leadId,lead.phone,lead.full_name)">Send WA</button>
             <span id="det-notes-msg" style="font-size:0.78rem;color:#10b981;margin-left:8px"></span>
           </div>
         </div>
@@ -4129,5 +4156,5 @@ document.addEventListener('keydown', e => {
     handleLogin();
 });
 </script>
-</body>
+<div id="wa-send-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9000;align-items:center;justify-content:center"><div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:24px;width:440px;max-width:90vw"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div style="font-weight:700;color:#e2e8f0;font-size:1rem">Send WhatsApp Message</div><button onclick="closeWaModal()" style="background:none;border:none;color:#64748b;font-size:1.2rem;cursor:pointer">X</button></div><div style="font-size:0.82rem;color:#94a3b8;margin-bottom:4px">To: <span id="wa-modal-to" style="color:#e2e8f0"></span></div><div style="font-size:0.75rem;color:#64748b;margin-bottom:14px" id="wa-modal-num"></div><textarea id="wa-modal-body" rows="5" placeholder="Type your message here..." style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#e2e8f0;padding:10px;font-size:0.85rem;resize:vertical;font-family:inherit"></textarea><div style="display:flex;gap:10px;margin-top:14px;align-items:center"><button onclick="submitWaMessage()" style="background:#25d366;border:none;color:#fff;font-weight:700;border-radius:8px;padding:9px 20px;cursor:pointer;font-size:0.85rem">Send</button><button onclick="closeWaModal()" style="background:#334155;border:none;color:#94a3b8;border-radius:8px;padding:9px 20px;cursor:pointer;font-size:0.85rem">Cancel</button><span id="wa-modal-status" style="font-size:0.8rem;color:#94a3b8;margin-left:8px"></span></div></div></div></body>
 </html>
