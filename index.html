@@ -614,7 +614,6 @@
       <div class="nav-item" data-tab="signal-broadcast"><span class="nav-icon">📡</span> Broadcast Signal</div>
       <div class="nav-item" data-tab="subscribers"><span class="nav-icon">👤</span> Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
       <div class="nav-item" data-tab="ai-signals"><span class="nav-icon">🤖</span> AI Signals</div>
-      <div class="nav-item" data-tab="signal-desk"><span class="nav-icon">📊</span> Signal Desk <span class="nav-badge">DEMO</span></div>
       <div class="nav-section-label">SETTINGS</div>
       <div class="nav-item" data-tab="meta"><span class="nav-icon">🔗</span> Meta Integration</div>
       <div class="nav-item" data-tab="notifications"><span class="nav-icon">🔔</span> Notifications</div>
@@ -1371,15 +1370,16 @@
     </div>
   </div>
 
-  <!-- ─── SIGNAL DESK (DEMO) ─── -->
-  <div id="admin-tab-signal-desk" class="tab-content">
-    <iframe src="signal-desk.html" title="Signal Desk" style="width:100%;height:calc(100vh - 130px);border:1px solid #e2e8f0;border-radius:12px;background:#0d1117"></iframe>
-  </div>
-
   <!-- ─── SIGNAL BROADCAST ─── -->
   <div id="admin-tab-signal-broadcast" class="tab-content">
     <h3>📡 Broadcast Signal</h3>
     <p style="color:#64748b;margin-bottom:16px">Send a trading signal to all subscribers across all 3 groups simultaneously using Promise.all — every subscriber receives it at the exact same moment.</p>
+
+    <!-- Signal Desk (demo preview) -->
+    <details open style="margin-bottom:20px;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">
+      <summary style="cursor:pointer;padding:12px 16px;background:#f8fafc;font-weight:600;color:#334155;user-select:none">📊 Signal Desk — verified signals &amp; IB Revenue Radar <span style="background:#d4a843;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:2px 8px;margin-left:6px;vertical-align:middle">DEMO PREVIEW</span> <span style="color:#94a3b8;font-weight:400;font-size:12px">(click to collapse)</span></summary>
+      <iframe src="signal-desk.html" title="Signal Desk" style="width:100%;height:78vh;border:none;display:block;background:#0d1117"></iframe>
+    </details>
 
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
       <div class="stat-card"><div class="stat-value" id="bc-total-subs">0</div><div class="stat-label">Total Subscribers</div></div>
@@ -1907,8 +1907,7 @@ function adminTab(name, el) {
     payroll: 'Payroll', automation: 'Automation',
     notifications: 'Notifications', sites: 'Landing Pages', reports: 'Reports',
     'comm-log': 'Communication Log',
-    'signal-broadcast': 'Broadcast Signal', subscribers: 'Subscribers', 'ai-signals': 'AI Signals',
-    'signal-desk': 'Signal Desk (Demo)'
+    'signal-broadcast': 'Broadcast Signal', subscribers: 'Subscribers', 'ai-signals': 'AI Signals'
   };
   const titleEl = document.getElementById('current-tab-title');
   if (titleEl) titleEl.textContent = titles[name] || name;
