@@ -470,3 +470,36 @@ CREATE POLICY "leads: anon insert"
 
 -- ── DONE ─────────────────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+-- ── SIGNALS (broadcast history + public track record) ─────────
+-- Public can READ (powers track-record.html); only logged-in
+-- agents can INSERT/UPDATE. Paste this whole file (or just this
+-- section) into Supabase Dashboard → SQL Editor → Run.
+CREATE TABLE IF NOT EXISTS public.signals (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  type        TEXT        NOT NULL,
+  instrument  TEXT        NOT NULL,
+  entry       NUMERIC,
+  tp          NUMERIC,
+  sl          NUMERIC,
+  message     TEXT,
+  recipients  INTEGER     NOT NULL DEFAULT 0,
+  outcome     TEXT        NOT NULL DEFAULT 'pending'
+                CHECK (outcome IN ('pending','tp_hit','sl_hit','be','cancelled')),
+  resolved_at TIMESTAMPTZ
+);
+
+ALTER TABLE public.signals ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS signals_public_read ON public.signals;
+CREATE POLICY signals_public_read ON public.signals
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS signals_auth_insert ON public.signals;
+CREATE POLICY signals_auth_insert ON public.signals
+  FOR INSERT TO authenticated WITH CHECK (true);
+
+DROP POLICY IF EXISTS signals_auth_update ON public.signals;
+CREATE POLICY signals_auth_update ON public.signals
+  FOR UPDATE TO authenticated USING (true);

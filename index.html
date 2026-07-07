@@ -1932,6 +1932,8 @@ function adminTab(name, el) {
     ? el
     : document.querySelector(`#admin-tabs .nav-item[data-tab="${name}"]`);
   if (navItem) navItem.classList.add('active');
+  // Load persisted signal history when opening signal tabs
+  if (name === 'signal-broadcast' || name === 'ai-signals') loadSignalHistoryFromDb();
   // Update header title
   const titles = {
     dashboard: 'Dashboard', leads: 'All Leads', agents: 'My Team',
@@ -4582,6 +4584,25 @@ let _subscribers = (function() {
 let _signalHistory = []; // { id, time, type, instrument, entry, tp, sl, message, recipients, outcome }
 let _aiLastSignal  = null;
 
+// ── Signal history persistence (Supabase 'signals' table) ──────
+// History survives page reloads and feeds the public track-record page.
+let _signalHistoryLoaded = false;
+async function loadSignalHistoryFromDb(force) {
+  if (!sb || (_signalHistoryLoaded && !force)) return;
+  try {
+    const { data, error } = await sb.from('signals').select('*')
+      .order('created_at', { ascending: false }).limit(200);
+    if (error || !data) return;
+    _signalHistoryLoaded = true;
+    _signalHistory = data.map(r => ({
+      id: r.id, time: new Date(r.created_at), type: r.type, instrument: r.instrument,
+      entry: r.entry, tp: r.tp, sl: r.sl, message: r.message,
+      recipients: r.recipients || 0, outcome: r.outcome
+    }));
+    renderBroadcastHistory(); syncAccuracyTracker();
+  } catch (e) { /* signals table not created yet — in-memory history still works */ }
+}
+
 // ── Helpers ──────────────────────────────────────────────────
 function _subsByGroup(g) { return _subscribers.filter(s => s.group === g); }
 function _activeSubs(g)  { return _subscribers.filter(s => s.status === 'active' && (!g || s.group === g)); }
@@ -4696,6 +4717,18 @@ async function broadcastSignal() {
   };
   _signalHistory.unshift(record);
 
+  // Persist to Supabase so history survives reloads and feeds the public track record
+  if (sb && currentUser) {
+    try {
+      const { data } = await sb.from('signals').insert({
+        type, instrument: inst,
+        entry: parseFloat(entry) || null, tp: parseFloat(tp) || null, sl: parseFloat(sl) || null,
+        message: msg, recipients: sent, outcome: 'pending'
+      }).select().single();
+      if (data) record.id = data.id;
+    } catch (e) { /* signals table not created yet — history stays in-memory */ }
+  }
+
   // Update subscriber lastSignal field
   targets.forEach(s => { s.lastSignal = 'just now'; });
 
@@ -4731,7 +4764,7 @@ function renderBroadcastHistory() {
       <td style="color:#22c55e">${s.tp || '—'}</td>
       <td style="color:#ef4444">${s.sl || '—'}</td>
       <td>${s.recipients.toLocaleString()}</td>
-      <td>${outcomeHtml} <button onclick="cycleOutcome(${s.id},'bc')" style="background:none;border:none;cursor:pointer;font-size:0.7rem;color:#64748b;margin-left:4px">edit</button></td>
+      <td>${outcomeHtml} <button onclick="cycleOutcome('${s.id}','bc')" style="background:none;border:none;cursor:pointer;font-size:0.7rem;color:#64748b;margin-left:4px">edit</button></td>
     </tr>`;
   }).join('');
   renderAccuracyBar();
@@ -4745,9 +4778,16 @@ function outcomeTag(outcome) {
 
 function cycleOutcome(id, ctx) {
   const cycles = ['pending','tp_hit','sl_hit','be','cancelled'];
-  const sig = _signalHistory.find(s => s.id === id);
+  const sig = _signalHistory.find(s => String(s.id) === String(id));
   if (!sig) return;
   sig.outcome = cycles[(cycles.indexOf(sig.outcome)+1) % cycles.length];
+  // Persist outcome so the public track record shows it
+  if (sb && typeof sig.id === 'string') {
+    sb.from('signals').update({
+      outcome: sig.outcome,
+      resolved_at: (sig.outcome === 'pending') ? null : new Date().toISOString()
+    }).eq('id', sig.id).then(() => {});
+  }
   if (ctx === 'bc') renderBroadcastHistory();
   syncAccuracyTracker();
 }
@@ -4878,16 +4918,53 @@ const _AI_PATTERNS = [
 
 const _AI_SESSIONS = ['London Open', 'New York Open', 'London-NY Overlap', 'Asian Session'];
 
-const _BASE_PRICES = { XAUUSD: 2345, EURUSD: 1.0850, GBPUSD: 1.2720, USDJPY: 154.50, BTCUSD: 67800 };
+const _BASE_PRICES = { XAUUSD: 2345, EURUSD: 1.0850, GBPUSD: 1.2720, USDJPY: 154.50, BTCUSD: 67800 }; // static fallback only
 const _PIP_SIZES   = { XAUUSD: 0.1,  EURUSD: 0.0001, GBPUSD: 0.0001, USDJPY: 0.01,   BTCUSD: 10 };
 
-function generateAISignal() {
+// ── Live price fetch — free, no-key APIs, zero monthly cost ────
+// BTC: Binance public API (real-time). Gold: gold-api.com (real-time).
+// FX majors: open.er-api.com (free reference rates, refreshed daily).
+// Falls back to static base prices if a feed is unreachable.
+const _PRICE_CACHE = {};
+async function fetchLivePrice(inst) {
+  const now = Date.now();
+  if (_PRICE_CACHE[inst] && now - _PRICE_CACHE[inst].t < 60000) return _PRICE_CACHE[inst];
+  let price = null, source = null;
+  try {
+    if (inst === 'BTCUSD') {
+      const r = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
+      price = parseFloat((await r.json()).price);
+      source = 'Binance (real-time)';
+    } else if (inst === 'XAUUSD') {
+      const r = await fetch('https://api.gold-api.com/price/XAU');
+      price = parseFloat((await r.json()).price);
+      source = 'gold-api.com (real-time)';
+    } else {
+      const r = await fetch('https://open.er-api.com/v6/latest/USD');
+      const rates = (await r.json()).rates || {};
+      if (inst === 'EURUSD' && rates.EUR) price = 1 / rates.EUR;
+      else if (inst === 'GBPUSD' && rates.GBP) price = 1 / rates.GBP;
+      else if (inst === 'USDJPY' && rates.JPY) price = rates.JPY;
+      source = 'open.er-api.com (daily reference rate)';
+    }
+  } catch (e) { /* feed unreachable — fall back below */ }
+  if (!price || !isFinite(price)) {
+    price = _BASE_PRICES[inst] || 100;
+    source = 'static fallback (live feed unavailable)';
+  }
+  const rec = { price, source, t: now };
+  _PRICE_CACHE[inst] = rec;
+  return rec;
+}
+
+async function generateAISignal() {
   const inst      = document.getElementById('ai-instrument')?.value || 'XAUUSD';
   const timeframe = document.getElementById('ai-timeframe')?.value || 'H4';
   const minRR     = parseFloat(document.getElementById('ai-rr')?.value || '2');
+  const live      = await fetchLivePrice(inst);
   const pattern   = _AI_PATTERNS[Math.floor(Math.random() * _AI_PATTERNS.length)];
   const session   = _AI_SESSIONS[Math.floor(Math.random() * _AI_SESSIONS.length)];
-  const base      = _BASE_PRICES[inst] || 100;
+  const base      = live.price;
   const pip       = _PIP_SIZES[inst] || 0.1;
   const slPips    = Math.floor(Math.random()*15+10);
   const tpPips    = Math.round(slPips * minRR);
@@ -4898,7 +4975,7 @@ function generateAISignal() {
   const rrActual  = (tpPips / slPips).toFixed(1);
   const emoji     = pattern.bias === 'buy' ? '🟢' : '🔴';
 
-  _aiLastSignal = { type: pattern.bias, instrument: inst, entry, tp, sl, pattern: pattern.name, confidence: pattern.confidence, trend: pattern.trend, session, timeframe, rrActual };
+  _aiLastSignal = { type: pattern.bias, instrument: inst, entry, tp, sl, pattern: pattern.name, confidence: pattern.confidence, trend: pattern.trend, session, timeframe, rrActual, priceSource: live.source };
 
   const detail = `${emoji} ${pattern.bias.toUpperCase()} ${inst} — ${timeframe}\n` +
     `━━━━━━━━━━━━━━━━\n` +
@@ -4910,6 +4987,7 @@ function generateAISignal() {
     `📊 Pattern:  ${pattern.name}\n` +
     `📈 Trend:    ${pattern.trend}\n` +
     `🕐 Session:  ${session}\n` +
+    `📡 Price basis: ${live.source}\n` +
     `⚠️ Trade at your own risk.\n` +
     `📲 Badar Trader Signals`;
 
@@ -4972,7 +5050,7 @@ function syncAccuracyTracker() {
       <td style="color:#22c55e">${s.tp||'—'}</td>
       <td style="color:#ef4444">${s.sl||'—'}</td>
       <td>${rr}</td>
-      <td>${outcomeTag(s.outcome)} <button onclick="cycleOutcome(${s.id},'ai')" style="background:none;border:none;cursor:pointer;font-size:0.7rem;color:#64748b">edit</button></td>
+      <td>${outcomeTag(s.outcome)} <button onclick="cycleOutcome('${s.id}','ai')" style="background:none;border:none;cursor:pointer;font-size:0.7rem;color:#64748b">edit</button></td>
       <td style="font-size:0.78rem;color:#94a3b8">${s.outcome==='tp_hit'?'+'+tpPips:s.outcome==='sl_hit'?'-'+slPips:'—'}</td>
     </tr>`;
   }).join('');
