@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BT Bot Simulator — v3</title>
+<style>
+  :root{--wa:#075E54;--wa2:#128C7E;--bg:#0b141a;--in:#202c33;--out:#005c4b;--txt:#e9edef;--mut:#8696a0}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#111b21;font-family:'Segoe UI',system-ui,sans-serif;display:flex;justify-content:center;min-height:100vh}
+  .phone{width:100%;max-width:480px;background:var(--bg);display:flex;flex-direction:column;height:100vh}
+  .head{background:var(--wa);padding:12px 16px;display:flex;align-items:center;gap:12px;color:#fff}
+  .dp{width:40px;height:40px;border-radius:50%;background:var(--wa2);display:flex;align-items:center;justify-content:center;font-size:20px}
+  .head .name{font-weight:600}
+  .head .sub{font-size:.72rem;color:#c5e0db}
+  .badge{margin-left:auto;font-size:.6rem;background:#0a4a42;padding:3px 8px;border-radius:10px;font-weight:700}
+  .chat{flex:1;overflow-y:auto;padding:16px 12px;display:flex;flex-direction:column;gap:8px;background-image:radial-gradient(rgba(255,255,255,.03) 1px,transparent 1px);background-size:20px 20px}
+  .msg{max-width:85%;padding:8px 12px;border-radius:8px;font-size:.88rem;line-height:1.45;color:var(--txt);white-space:pre-wrap;word-wrap:break-word;box-shadow:0 1px 1px rgba(0,0,0,.3);animation:pop .18s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .in{background:var(--in);align-self:flex-start;border-top-left-radius:2px}
+  .out{background:var(--out);align-self:flex-end;border-top-right-radius:2px}
+  .msg a{color:#53bdeb}
+  .time{font-size:.6rem;color:var(--mut);margin-top:4px;text-align:right}
+  .quick{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;background:#111b21;border-top:1px solid #222d34}
+  .quick button{background:var(--in);border:1px solid #2a3942;color:#53bdeb;border-radius:18px;padding:8px 14px;font-size:.8rem;cursor:pointer;font-weight:600}
+  .quick button:hover{background:#2a3942}
+  .inputbar{display:flex;gap:8px;padding:10px 12px;background:#202c33}
+  .inputbar input{flex:1;background:#2a3942;border:none;border-radius:20px;padding:10px 16px;color:var(--txt);font-size:.9rem;outline:none}
+  .inputbar button{background:var(--wa2);border:none;color:#fff;width:42px;height:42px;border-radius:50%;font-size:18px;cursor:pointer}
+  .typing{color:var(--mut);font-size:.75rem;padding:0 16px 6px;display:none}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="head">
+    <div class="dp">🤖</div>
+    <div><div class="name">BT Bot — Team Badar</div><div class="sub">online</div></div>
+    <div class="badge">SIMULATOR v3</div>
+  </div>
+  <div class="chat" id="chat"></div>
+  <div class="typing" id="typing">BT Bot is typing…</div>
+  <div class="quick" id="quick"></div>
+  <div class="inputbar">
+    <input id="inp" placeholder="Type a message…" onkeydown="if(event.key==='Enter')send()">
+    <button onclick="send()">➤</button>
+  </div>
+</div>
+<script>
+const chat=document.getElementById('chat'),quickEl=document.getElementById('quick'),typingEl=document.getElementById('typing');
+let lang=null; // 'en' | 'ru'
+const LINKS={exness:'https://one.exnesstrack.org/a/eatgh2cl7y',dprime:'https://my.dooprime.com/links/go/45031',form:'https://forms.gle/ivBDDYQSLPvKHzXM9',course:'https://badartrader.com/check-3/',discord:'https://discord.gg/ph6f78DFJm',wa:'+923715773903'};
+
+function now(){const d=new Date();return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});}
+function add(text,who){const m=document.createElement('div');m.className='msg '+who;m.innerHTML=text.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank">$1</a>')+'<div class="time">'+now()+(who==='out'?' ✓✓':'')+'</div>';chat.appendChild(m);chat.scrollTop=chat.scrollHeight;}
+function bot(text,delay){return new Promise(res=>{typingEl.style.display='block';setTimeout(()=>{typingEl.style.display='none';add(text,'in');res();},delay||700);});}
+function quick(opts){quickEl.innerHTML='';opts.forEach(o=>{const b=document.createElement('button');b.textContent=o.label;b.onclick=()=>{add(o.label,'out');o.fn();};quickEl.appendChild(b);});}
+
+function t(en,ru){return lang==='ru'?ru:en;}
+
+async function start(){
+  await bot("Assalam o Alaikum! 🌟 This is *BT Bot* — Team Badar ka official assistant.\n\nPlease choose your language / Barah-e-karam apni zubaan chunein:");
+  quick([
+    {label:'1️⃣ English',fn:()=>{lang='en';mainMenu();}},
+    {label:'2️⃣ Roman Urdu',fn:()=>{lang='ru';mainMenu();}}
+  ]);
+}
+
+async function mainMenu(){
+  await bot(t("Great! How can I help you today? 👇","Zabardast! Aaj mein aapki kya madad kar sakta hoon? 👇"));
+  quick([
+    {label:t('📈 Join FREE Signal Group','📈 FREE Signal Group join karein'),fn:joinFlow},
+    {label:t('🔁 I already have a broker account','🔁 Mera broker account pehle se hai'),fn:existingFlow},
+    {label:t('🎓 Course Details','🎓 Course ki details'),fn:courseFlow},
+    {label:t('💎 Premium Group','💎 Premium Group'),fn:premiumFlow},
+    {label:t('🔗 Links & Community','🔗 Links aur Community'),fn:linksFlow},
+  ]);
+}
+
+async function joinFlow(){
+  await bot(t("Free Signals access has 4 simple steps:\n\n1️⃣ Create your broker account through OUR link (mandatory)\n2️⃣ Deposit $100–$500 (this is YOUR trading capital, not a fee)\n3️⃣ Send deposit screenshot here on WhatsApp\n4️⃣ Submit the verification form\n\nYou'll be added within 48 hours ✅\n\nWhich broker do you prefer?","Free Signals ke liye 4 asaan steps:\n\n1️⃣ Hamari link se broker account banayein (lazmi)\n2️⃣ $100–$500 deposit karein (ye aapka apna trading capital hai, fee nahi)\n3️⃣ Deposit ka screenshot yahan WhatsApp par bhejein\n4️⃣ Verification form submit karein\n\n48 hours ke andar aapko add kar diya jayega ✅\n\nKaunsa broker pasand karenge?"));
+  brokerButtons(false);
+}
+
+function brokerButtons(existing){
+  quick([
+    {label:'🟡 Exness (XNS)',fn:()=>existing?ibGuide('Exness'):brokerLink('Exness')},
+    {label:'🔵 Dprime',fn:()=>existing?ibGuide('Dprime'):brokerLink('Dprime')},
+    {label:t('⬅️ Main menu','⬅️ Wapis menu'),fn:mainMenu}
+  ]);
+}
+
+async function brokerLink(b){
+  const link=b==='Exness'?LINKS.exness:LINKS.dprime, code=b==='Exness'?'eatgh2cl7y':'45031';
+  await bot(t(`Perfect! Create your ${b} account here 👇\n${link}\n\nReferral / partner code: *${code}*\n\nAfter depositing $100–$500, send your deposit screenshot here, then submit the verification form:\n${LINKS.form}\n\nYou'll be added within 48 hours of form submission ✅`,`Perfect! Apna ${b} account yahan banayein 👇\n${link}\n\nReferral / partner code: *${code}*\n\n$100–$500 deposit ke baad screenshot yahan bhejein, phir verification form submit karein:\n${LINKS.form}\n\nForm ke 48 hours ke andar aapko add kar diya jayega ✅`));
+  afterFlow();
+}
+
+async function existingFlow(){
+  await bot(t("No problem! If you already have an account, you just need to change your IB / partner code to Team Badar's.\n\nWhich broker is your account with?","Koi masla nahi! Agar aapka account pehle se hai to sirf IB / partner code Team Badar ke code par change karna hoga.\n\nAapka account kis broker ke sath hai?"));
+  brokerButtons(true);
+}
+
+async function ibGuide(b){
+  const code=b==='Exness'?'eatgh2cl7y':'45031';
+  if(b==='Exness'){
+    await bot(t(`To change your IB on *Exness* to Team Badar (code: *${code}*):\n\n1️⃣ Open Exness → Settings → Partner section\n2️⃣ Request partner change to code *${code}* (or email Exness support: partner change request)\n3️⃣ You'll receive a *confirmation email* from Exness\n4️⃣ Send that confirmation screenshot here\n5️⃣ Submit the form: ${LINKS.form}\n\nAdded within 48 hours ✅`,`*Exness* par IB Team Badar (code: *${code}*) par change karne ke liye:\n\n1️⃣ Exness kholein → Settings → Partner section\n2️⃣ Partner change request karein code *${code}* par (ya Exness support ko email karein)\n3️⃣ Exness se *confirmation email* aayegi\n4️⃣ Us ka screenshot yahan bhejein\n5️⃣ Form submit karein: ${LINKS.form}\n\n48 hours ke andar add ✅`));
+  } else {
+    await bot(t(`To change your IB on *Dprime* to Team Badar (code: *${code}*):\n\n1️⃣ Log into Dprime client portal\n2️⃣ Contact Dprime support → request IB/referral change to code *${code}*\n3️⃣ You'll receive a *confirmation email*\n4️⃣ Send that confirmation screenshot here\n5️⃣ Submit the form: ${LINKS.form}\n\nAdded within 48 hours ✅`,`*Dprime* par IB Team Badar (code: *${code}*) par change karne ke liye:\n\n1️⃣ Dprime client portal login karein\n2️⃣ Dprime support se IB/referral change request karein code *${code}* par\n3️⃣ *Confirmation email* aayegi\n4️⃣ Us ka screenshot yahan bhejein\n5️⃣ Form submit karein: ${LINKS.form}\n\n48 hours ke andar add ✅`));
+  }
+  afterFlow();
+}
+
+async function courseFlow(){
+  await bot(t(`🎓 *3 Months Mentorship*\n💰 $200 Fee\n✅ High Success Ratio\n🎥 Live Classes via Zoom (8–10pm PKT, ~60 min, recorded)\n📊 Live Trading with Advanced Liquidity Concepts\n📝 Assignments Checking\n🏦 Trading Room Access\n🏆 Funded Accounts for top performers!\n\nEnroll NOW 👉 ${LINKS.course}\nWhatsApp: ${LINKS.wa}`,`🎓 *3 Months Mentorship*\n💰 $200 Fees\n✅ High Success Ratio\n🎥 Zoom par Live Classes (8–10pm PKT, ~60 min, recording milti hai)\n📊 Advanced Liquidity Concepts ke sath Live Trading\n📝 Assignments Checking\n🏦 Trading Room Access\n🏆 Top performers ke liye Funded Accounts!\n\nAbhi Enroll karein 👉 ${LINKS.course}\nWhatsApp: ${LINKS.wa}`));
+  afterFlow();
+}
+
+async function premiumFlow(){
+  await bot(t(`💎 *Premium options:*\n\n1. FREE route — join under our IB link (Exness/Dprime), deposit $100–$500, and get signals free.\n2. Keep your own broker — paid premium membership (fee details from the team).\n\nDiscuss directly on WhatsApp: ${LINKS.wa}`,`💎 *Premium options:*\n\n1. FREE tareeqa — hamari IB link se join karein (Exness/Dprime), $100–$500 deposit, signals bilkul free.\n2. Apna broker rakhein — paid premium membership (fees team se confirm karein).\n\nWhatsApp par direct baat karein: ${LINKS.wa}`));
+  afterFlow();
+}
+
+async function linksFlow(){
+  await bot(`🔗 *Team Badar Links*\n\n🟡 Exness: ${LINKS.exness}\n(code: eatgh2cl7y)\n🔵 Dprime: ${LINKS.dprime}\n(code: 45031)\n📋 ${t('Verification form','Verification form')}: ${LINKS.form}\n🎮 Discord: ${LINKS.discord}\n🎓 ${t('Course','Course')}: ${LINKS.course}\n📱 WhatsApp: ${LINKS.wa}`);
+  afterFlow();
+}
+
+function afterFlow(){
+  quick([
+    {label:t('⬅️ Main menu','⬅️ Wapis menu'),fn:mainMenu},
+    {label:t('❓ Ask a question','❓ Sawal poochein'),fn:async()=>{await bot(t("Sure! Type your question below 👇","Zaroor! Apna sawal neeche likhein 👇"));quickEl.innerHTML='';}}
+  ]);
+}
+
+// Free-text FAQ engine
+const FAQ=[
+ {k:/premium.*free|free.*premium/i,en:`Free access is via our IB route: create your account through our link + deposit $100–$500 + submit the form. That's the no-fee path ✅`,ru:`Free access hamari IB link se milta hai: account hamari link se + $100–$500 deposit + form submit. Ye bilkul free tareeqa hai ✅`},
+ {k:/join|add me|premium group|signal group|group me|group mein/i,en:null,ru:null,fn:joinFlow},
+ {k:/course|batch|mentorship|class/i,fn:courseFlow},
+ {k:/how many signal|kitne signal|signals recv|signals receive/i,en:"Signals are shared daily based on market conditions — we focus on quality setups, not a fixed count. 📊",ru:"Signals market ke mutabiq daily share hote hain — hum quality setups par focus karte hain, fixed number par nahi. 📊"},
+ {k:/live kab|daily live|live at|live time/i,en:"Course live classes run approx 8–10pm PKT (~60 min, recorded). Live trading session timings are announced in the group. ⏰",ru:"Course ki live classes approx 8–10pm PKT hoti hain (~60 min, recording milti hai). Live trading ke timings group mein announce hote hain. ⏰"},
+ {k:/own broker|current broker|apna broker|charges/i,fn:premiumFlow},
+ {k:/confirmation mail|confirm.*mail|mail.*confirm/i,en:"Yes — the broker sends a confirmation email after the IB change. If you didn't get it, contact Exness / Dprime support, then send us the screenshot. 📧",ru:"Ji haan — IB change ke baad broker confirmation email bhejta hai. Agar nahi mili to Exness / Dprime support se contact karein, phir screenshot humein bhejein. 📧"},
+ {k:/screenshot.*(share|send|bhej|kar diya)|deposit.*screenshot/i,en:"Great! Once your screenshot + verification form are received, you'll be added within 48 hours ✅",ru:"Zabardast! Screenshot + verification form milne ke baad 48 hours ke andar aapko add kar diya jayega ✅"},
+ {k:/update|kab add|add kab|kab tak|when.*add/i,en:"You're added within 48 hours of form submission. If 48 hours have passed, send your form submission screenshot and the team will check. 🕐",ru:"Form submit hone ke 48 hours ke andar add kiya jata hai. Agar 48 hours guzar gaye hain to form submission ka screenshot bhejein, team check karegi. 🕐"},
+ {k:/fees pay|paid.*course|course.*pay/i,en:`Send your payment proof on WhatsApp ${LINKS.wa} — you'll be added with the next batch schedule. 🎓`,ru:`Payment proof WhatsApp par bhejein ${LINKS.wa} — next batch ke schedule ke sath add kar diya jayega. 🎓`},
+ {k:/minimum deposit|min.*deposit|deposit.*minimum|kitna deposit/i,en:"Minimum deposit is $100 (recommended range $100–$500). This stays in YOUR account as trading capital. 💵",ru:"Minimum deposit $100 hai (range $100–$500). Ye aapke apne account mein trading capital rehta hai. 💵"},
+ {k:/free or paid|free ya paid|is.*free/i,en:"The signal group is FREE when you join under Team Badar's IB link. A paid premium exists if you keep your own broker. ✅",ru:"Signal group FREE hai jab aap Team Badar ki IB link se join karte hain. Apna broker rakhne par paid premium option hai. ✅"},
+ {k:/deposit.*withdraw|withdraw|nikaal/i,en:"Deposits & withdrawals happen inside your broker app (Exness / Dprime): Wallet → Deposit/Withdraw with local payment methods. Team can guide you step by step. 🏦",ru:"Deposit aur withdraw aapke broker app (Exness / Dprime) ke andar hote hain: Wallet → Deposit/Withdraw, local payment methods ke sath. Team step by step guide kar sakti hai. 🏦"},
+ {k:/partner|referral.*change|ib change|previous.*change/i,fn:existingFlow},
+ {k:/joining fee|kitni fees|what.*fee|fee kya/i,en:"Signal group: FREE via the IB route (the $100–$500 deposit is your own capital, not a fee). Course: $200. 💰",ru:"Signal group: IB route se FREE ($100–$500 deposit aapka apna capital hai, fee nahi). Course: $200. 💰"},
+ {k:/exness.*link|link.*exness/i,en:`Exness: ${LINKS.exness} (code: eatgh2cl7y)`,ru:`Exness: ${LINKS.exness} (code: eatgh2cl7y)`},
+ {k:/prime.*link|link.*prime|dprime|d prime/i,en:`Dprime: ${LINKS.dprime} (code: 45031)`,ru:`Dprime: ${LINKS.dprime} (code: 45031)`},
+ {k:/form/i,en:`Verification form: ${LINKS.form}\nYou'll be added within 48 hours ✅`,ru:`Verification form: ${LINKS.form}\n48 hours ke andar add kar diya jayega ✅`},
+ {k:/discord/i,en:`Discord Community: ${LINKS.discord}`,ru:`Discord Community: ${LINKS.discord}`},
+];
+
+async function send(){
+  const inp=document.getElementById('inp');const v=inp.value.trim();if(!v)return;
+  add(v,'out');inp.value='';
+  if(!lang){lang=/[a-z]/i.test(v)&&/(mein|hai|kya|kab|ka |ke |ki )/i.test(v)?'ru':'en';}
+  for(const f of FAQ){
+    if(f.k.test(v)){ if(f.fn){await f.fn();} else {await bot(lang==='ru'?f.ru:f.en);afterFlow();} return; }
+  }
+  await bot(t(`Thanks for your message! 🙏 A team member will reply shortly. Meanwhile you can use the menu below, or contact us directly: ${LINKS.wa}`,`Aapke message ka shukriya! 🙏 Team member jald jawab denge. Filhaal neeche menu use karein ya direct rabta karein: ${LINKS.wa}`));
+  quick([{label:t('⬅️ Main menu','⬅️ Wapis menu'),fn:mainMenu}]);
+}
+
+start();
+</script>
+</body>
+</html>
