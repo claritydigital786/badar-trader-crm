@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Badar Trader — Demo</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161c24; --panel2:#1d2531; --line:#2a3442;
+    --green:#17c07a; --green-dk:#0e7c5a; --red:#f0564f; --amber:#e8a838;
+    --txt:#e8edf3; --mut:#8b98a8; --wa:#075E54; --wa-bg:#0b141a; --wa-bubble:#005c4b;
+    font-size:15px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh}
+  .top{display:flex;align-items:center;gap:14px;padding:14px 24px;border-bottom:1px solid var(--line);background:var(--panel)}
+  .logo{font-weight:800;font-size:1.25rem;letter-spacing:.3px}
+  .logo span{color:var(--green)}
+  .badge{font-size:.7rem;background:var(--green-dk);padding:3px 8px;border-radius:20px;font-weight:600}
+  .trader{margin-left:auto;display:flex;align-items:center;gap:10px;color:var(--mut);font-size:.85rem}
+  .avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#17c07a,#0e7c5a);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff}
+  nav{display:flex;gap:4px;padding:10px 24px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+  nav button{background:none;border:none;color:var(--mut);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:.9rem;font-weight:600}
+  nav button.active{background:var(--panel2);color:var(--txt);box-shadow:inset 0 -2px 0 var(--green)}
+  nav button:hover{color:var(--txt)}
+  main{padding:24px;max-width:1200px;margin:0 auto}
+  .page{display:none}.page.active{display:block}
+  h2{font-size:1.15rem;margin-bottom:16px}
+  h3{font-size:.95rem;margin-bottom:10px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:.5px;font-size:.75rem}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card .num{font-size:1.6rem;font-weight:800;margin:4px 0}
+  .card .lbl{color:var(--mut);font-size:.78rem}
+  .card .sub{font-size:.75rem;color:var(--mut)}
+  .up{color:var(--green)} .dn{color:var(--red)} .am{color:var(--amber)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
+  table{width:100%;border-collapse:collapse;font-size:.85rem}
+  th{color:var(--mut);text-align:left;font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);font-size:.72rem;text-transform:uppercase;letter-spacing:.4px}
+  td{padding:10px;border-bottom:1px solid var(--line)}
+  tr:last-child td{border-bottom:none}
+  .pill{padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700;display:inline-block}
+  .pill.win{background:rgba(23,192,122,.15);color:var(--green)}
+  .pill.loss{background:rgba(240,86,79,.15);color:var(--red)}
+  .pill.open{background:rgba(232,168,56,.15);color:var(--amber)}
+  .pill.active{background:rgba(23,192,122,.15);color:var(--green)}
+  .pill.dormant{background:rgba(232,168,56,.15);color:var(--amber)}
+  .pill.never{background:rgba(240,86,79,.15);color:var(--red)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:860px){.grid2{grid-template-columns:1fr}}
+  label{display:block;color:var(--mut);font-size:.75rem;margin:12px 0 5px;font-weight:600}
+  input,select{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 12px;color:var(--txt);font-size:.9rem}
+  input:focus,select:focus{outline:none;border-color:var(--green)}
+  .row{display:flex;gap:10px}.row>*{flex:1}
+  .btn{background:var(--green);color:#04120c;border:none;border-radius:8px;padding:11px 20px;font-weight:800;cursor:pointer;font-size:.9rem;margin-top:16px;width:100%}
+  .btn:hover{filter:brightness(1.1)}
+  .btn.sec{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  .buysell{display:flex;gap:8px}
+  .buysell button{flex:1;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--mut);font-weight:800;cursor:pointer}
+  .buysell button.buy.on{background:rgba(23,192,122,.2);border-color:var(--green);color:var(--green)}
+  .buysell button.sell.on{background:rgba(240,86,79,.2);border-color:var(--red);color:var(--red)}
+  /* WhatsApp preview */
+  .phone{background:var(--wa-bg);border:1px solid var(--line);border-radius:20px;overflow:hidden;max-width:360px;margin:0 auto}
+  .wa-head{background:var(--wa);padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:.85rem;font-weight:600;color:#fff}
+  .wa-dot{width:30px;height:30px;border-radius:50%;background:#128C7E;display:flex;align-items:center;justify-content:center}
+  .wa-body{padding:16px 12px;min-height:330px;background-image:radial-gradient(rgba(255,255,255,.03) 1px,transparent 1px);background-size:18px 18px}
+  .bubble{background:var(--wa-bubble);border-radius:10px;border-top-left-radius:2px;padding:10px 12px;max-width:95%;font-size:.82rem;line-height:1.5;color:#e9f5f0;box-shadow:0 1px 2px rgba(0,0,0,.4)}
+  .bubble .sig-head{font-weight:800;color:#7ee2b8;margin-bottom:6px}
+  .bubble .kv{display:flex;justify-content:space-between;gap:16px}
+  .bubble .kv b{color:#fff}
+  .bubble .foot{margin-top:8px;font-size:.68rem;color:#9fc9bb;border-top:1px solid rgba(255,255,255,.12);padding-top:6px}
+  .wa-time{font-size:.62rem;color:#9fc9bb;text-align:right;margin-top:4px}
+  /* proof page */
+  .proof-hero{background:linear-gradient(135deg,#12271e,#0d1a24);border:1px solid var(--green-dk);border-radius:14px;padding:24px;margin-bottom:18px;text-align:center}
+  .proof-hero .vlink{color:var(--green);font-family:monospace;font-size:.9rem}
+  .verified{display:inline-flex;align-items:center;gap:6px;background:rgba(23,192,122,.15);color:var(--green);padding:4px 12px;border-radius:20px;font-size:.75rem;font-weight:700;margin-top:8px}
+  .bignum{font-size:2rem;font-weight:800}
+  .statrow{display:flex;justify-content:center;gap:40px;margin-top:18px;flex-wrap:wrap}
+  .statrow .lbl{color:var(--mut);font-size:.72rem;text-transform:uppercase}
+  .note{font-size:.75rem;color:var(--mut);margin-top:10px;line-height:1.5}
+  .flag{background:rgba(232,168,56,.08);border:1px solid rgba(232,168,56,.3);border-radius:10px;padding:12px 14px;font-size:.82rem;margin-bottom:10px;display:flex;gap:10px;align-items:flex-start}
+  .flag .act{margin-left:auto;white-space:nowrap;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:5px 10px;font-size:.72rem;cursor:pointer}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:#04120c;font-weight:700;padding:12px 22px;border-radius:10px;display:none;z-index:9}
+  .disclaimer{font-size:.68rem;color:var(--mut);margin-top:20px;text-align:center;line-height:1.5}
+  /* how it works */
+  .step{display:flex;gap:16px;position:relative;padding-bottom:26px}
+  .step:last-child{padding-bottom:0}
+  .step:not(:last-child):before{content:'';position:absolute;left:17px;top:38px;bottom:0;width:2px;background:var(--line)}
+  .stepnum{width:36px;height:36px;min-width:36px;border-radius:50%;background:rgba(23,192,122,.15);border:1px solid var(--green);color:var(--green);display:flex;align-items:center;justify-content:center;font-weight:800}
+  .step h4{font-size:.95rem;margin-bottom:4px}
+  .step p{font-size:.83rem;color:var(--mut);line-height:1.55}
+  .step .src{display:inline-block;margin-top:6px;font-size:.7rem;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:3px 8px;color:var(--txt)}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:860px){.split{grid-template-columns:1fr}}
+  .human{border:1px solid var(--green-dk);border-radius:10px;padding:14px;background:rgba(23,192,122,.05)}
+  .robot{border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--panel2)}
+  .human h4,.robot h4{font-size:.85rem;margin-bottom:8px}
+  .human li,.robot li{font-size:.8rem;color:var(--mut);margin:6px 0 6px 16px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="logo">Badar <span>Trader</span></div>
+  <div class="badge">DEMO</div>
+  <div class="trader"><span>Badar Trader — Gold &amp; Majors</span><div class="avatar">B</div></div>
+</div>
+<nav>
+  <button class="active" data-p="dash">Dashboard</button>
+  <button data-p="compose">New Signal</button>
+  <button data-p="proof">Track Record (Public)</button>
+  <button data-p="radar">IB Revenue Radar</button>
+  <button data-p="how">How It Works</button>
+</nav>
+<main>
+
+<!-- DASHBOARD -->
+<section class="page active" id="dash">
+  <div class="cards">
+    <div class="card"><div class="lbl">Verified Win Rate (90d)</div><div class="num up">71.4%</div><div class="sub">147 signals graded automatically</div></div>
+    <div class="card"><div class="lbl">Total Pips (90d)</div><div class="num up">+2,318</div><div class="sub">incl. all losses — nothing hidden</div></div>
+    <div class="card"><div class="lbl">Est. IB Rebates (July)</div><div class="num">$1,942</div><div class="sub up">▲ 18% vs June</div></div>
+    <div class="card"><div class="lbl">Active Traders</div><div class="num">186 <span class="sub">/ 412</span></div><div class="sub am">64 dormant — recoverable</div></div>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <h3>Live &amp; Recent Signals</h3>
+      <table>
+        <tr><th>Signal</th><th>Entry</th><th>Result</th><th>Pips</th></tr>
+        <tr><td><b>XAUUSD</b> BUY</td><td>3,341.50</td><td><span class="pill open">RUNNING</span></td><td class="up">+42</td></tr>
+        <tr><td><b>GBPUSD</b> SELL</td><td>1.3628</td><td><span class="pill win">TP2 HIT</span></td><td class="up">+65</td></tr>
+        <tr><td><b>USOIL</b> BUY</td><td>67.20</td><td><span class="pill loss">SL HIT</span></td><td class="dn">−38</td></tr>
+        <tr><td><b>EURUSD</b> BUY</td><td>1.1782</td><td><span class="pill win">TP1 HIT</span></td><td class="up">+30</td></tr>
+        <tr><td><b>XAUUSD</b> SELL</td><td>3,368.00</td><td><span class="pill win">TP3 HIT</span></td><td class="up">+120</td></tr>
+      </table>
+    </div>
+    <div class="panel">
+      <h3>Revenue Radar — Action Items</h3>
+      <div class="flag">⚠️ <div><b>64 dormant traders</b> haven't traded in 30+ days. Est. recoverable rebates: <b class="up">$740/mo</b></div><button class="act" onclick="toast('Re-engagement message queued for 64 members')">Send nudge</button></div>
+      <div class="flag">🚫 <div><b>117 group members</b> never registered under your IB link.</div><button class="act" onclick="toast('Invite with your IB link sent to 117 members')">Send IB link</button></div>
+      <div class="flag">🔎 <div>Signal card leak detected in an outside group — watermark traces to <b>member #2841</b>.</div><button class="act" onclick="toast('Member flagged for review')">Review</button></div>
+      <div class="note">Every action is one click. On WhatsApp today, this is a week of manual chasing.</div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPOSER -->
+<section class="page" id="compose">
+  <div class="grid2">
+    <div class="panel">
+      <h2>Compose Signal</h2>
+      <label>Instrument</label>
+      <select id="f-sym"><option>XAUUSD (Gold)</option><option>EURUSD</option><option>GBPUSD</option><option>USOIL (WTI)</option><option>BTCUSD</option><option>GBPJPY</option></select>
+      <label>Direction</label>
+      <div class="buysell">
+        <button class="buy on" id="b-buy" onclick="setDir('BUY')">▲ BUY</button>
+        <button class="sell" id="b-sell" onclick="setDir('SELL')">▼ SELL</button>
+      </div>
+      <div class="row">
+        <div><label>Entry</label><input id="f-entry" value="3341.50"></div>
+        <div><label>Stop Loss</label><input id="f-sl" value="3328.00"></div>
+      </div>
+      <div class="row">
+        <div><label>TP1</label><input id="f-tp1" value="3350.00"></div>
+        <div><label>TP2</label><input id="f-tp2" value="3362.00"></div>
+        <div><label>TP3</label><input id="f-tp3" value="3378.00"></div>
+      </div>
+      <label>Deliver to</label>
+      <select><option>All groups (3) — 412 members</option><option>VIP Gold Group — 118 members</option><option>Majors Group — 201 members</option></select>
+      <button class="btn" onclick="publish()">🔒 Publish &amp; Lock Signal → WhatsApp</button>
+      <div class="note">Publishing timestamps and locks the signal. It cannot be edited or deleted afterwards — that's what makes your track record provable.</div>
+    </div>
+    <div>
+      <h3 style="text-align:center;margin-bottom:10px">Live WhatsApp preview</h3>
+      <div class="phone">
+        <div class="wa-head"><div class="wa-dot">💬</div> VIP Gold Group <span style="margin-left:auto;font-weight:400;font-size:.7rem">412 members</span></div>
+        <div class="wa-body">
+          <div class="bubble">
+            <div class="sig-head" id="pv-head">📊 XAUUSD — BUY 🟢</div>
+            <div class="kv"><span>Entry</span><b id="pv-entry">3341.50</b></div>
+            <div class="kv"><span>Stop Loss</span><b id="pv-sl">3328.00</b></div>
+            <div class="kv"><span>TP1</span><b id="pv-tp1">3350.00</b></div>
+            <div class="kv"><span>TP2</span><b id="pv-tp2">3362.00</b></div>
+            <div class="kv"><span>TP3</span><b id="pv-tp3">3378.00</b></div>
+            <div class="foot">✅ Verified Signal · badartrader.com/track-record<br>Risk warning: trading involves risk of loss. سرمایہ کاری میں نقصان کا خطرہ ہے۔</div>
+          </div>
+          <div class="wa-time">09:41 ✓✓</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROOF -->
+<section class="page" id="proof">
+  <div class="proof-hero">
+    <div style="font-size:1.3rem;font-weight:800">Badar Trader</div>
+    <div class="vlink">badartrader.com/track-record</div>
+    <div class="verified">✔ VERIFIED TRACK RECORD — auto-graded from live market prices, cannot be edited</div>
+    <div class="statrow">
+      <div><div class="bignum up">71.4%</div><div class="lbl">Win rate</div></div>
+      <div><div class="bignum up">+2,318</div><div class="lbl">Pips (90d)</div></div>
+      <div><div class="bignum">147</div><div class="lbl">Signals graded</div></div>
+      <div><div class="bignum">1:2.1</div><div class="lbl">Avg risk:reward</div></div>
+    </div>
+  </div>
+  <div class="panel">
+    <h3>Every signal. Every result. Including losses.</h3>
+    <table>
+      <tr><th>Date (PKT)</th><th>Signal</th><th>Entry</th><th>Exit</th><th>Result</th><th>Pips</th></tr>
+      <tr><td>07 Jul, 09:41</td><td><b>XAUUSD</b> BUY</td><td>3,341.50</td><td>—</td><td><span class="pill open">RUNNING</span></td><td class="up">+42</td></tr>
+      <tr><td>04 Jul, 14:22</td><td><b>GBPUSD</b> SELL</td><td>1.3628</td><td>1.3563</td><td><span class="pill win">TP2</span></td><td class="up">+65</td></tr>
+      <tr><td>03 Jul, 11:05</td><td><b>USOIL</b> BUY</td><td>67.20</td><td>66.82</td><td><span class="pill loss">SL</span></td><td class="dn">−38</td></tr>
+      <tr><td>02 Jul, 16:48</td><td><b>EURUSD</b> BUY</td><td>1.1782</td><td>1.1812</td><td><span class="pill win">TP1</span></td><td class="up">+30</td></tr>
+      <tr><td>01 Jul, 10:15</td><td><b>XAUUSD</b> SELL</td><td>3,368.00</td><td>3,356.00</td><td><span class="pill win">TP3</span></td><td class="up">+120</td></tr>
+      <tr><td>30 Jun, 13:30</td><td><b>GBPJPY</b> BUY</td><td>197.42</td><td>196.88</td><td><span class="pill loss">SL</span></td><td class="dn">−54</td></tr>
+    </table>
+    <div class="note">This page is public. The trader shares this link instead of screenshots — new subscribers can verify everything before joining. This is the customer-acquisition weapon.</div>
+  </div>
+  <div class="disclaimer">Past performance does not guarantee future results. Trading forex and CFDs carries a high level of risk and may not be suitable for all investors. This platform is a communication and analytics tool and does not provide investment advice.</div>
+</section>
+
+<!-- RADAR -->
+<section class="page" id="radar">
+  <div class="cards">
+    <div class="card"><div class="lbl">Group members</div><div class="num">412</div></div>
+    <div class="card"><div class="lbl">Registered under your IB link</div><div class="num">295</div><div class="sub dn">117 never registered</div></div>
+    <div class="card"><div class="lbl">Traded this month</div><div class="num up">186</div></div>
+    <div class="card"><div class="lbl">Rebates this month</div><div class="num up">$1,942</div><div class="sub am">+$740/mo recoverable from dormant</div></div>
+  </div>
+  <div class="panel">
+    <h3>Subscriber → Revenue map</h3>
+    <table>
+      <tr><th>Member</th><th>IB Status</th><th>Last Trade</th><th>Lots (30d)</th><th>Your Rebate (30d)</th><th></th></tr>
+      <tr><td>Ahmed R.</td><td><span class="pill active">ACTIVE</span></td><td>Today</td><td>14.2</td><td class="up">$99.40</td><td></td></tr>
+      <tr><td>Sana K.</td><td><span class="pill active">ACTIVE</span></td><td>Yesterday</td><td>8.5</td><td class="up">$59.50</td><td></td></tr>
+      <tr><td>Usman T.</td><td><span class="pill dormant">DORMANT 41d</span></td><td>27 May</td><td>0</td><td class="dn">$0.00</td><td><button class="act" style="background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:4px 10px;font-size:.72rem;cursor:pointer" onclick="toast('Personal re-engagement message sent to Usman T.')">Nudge</button></td></tr>
+      <tr><td>Fatima A.</td><td><span class="pill active">ACTIVE</span></td><td>2 days ago</td><td>5.1</td><td class="up">$35.70</td><td></td></tr>
+      <tr><td>Hassan M.</td><td><span class="pill never">NO IB ACCOUNT</span></td><td>—</td><td>—</td><td class="dn">$0.00</td><td><button class="act" style="background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:4px 10px;font-size:.72rem;cursor:pointer" onclick="toast('IB registration link sent to Hassan M.')">Send link</button></td></tr>
+      <tr><td>Zainab H.</td><td><span class="pill dormant">DORMANT 33d</span></td><td>4 Jun</td><td>0</td><td class="dn">$0.00</td><td><button class="act" style="background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:4px 10px;font-size:.72rem;cursor:pointer" onclick="toast('Personal re-engagement message sent to Zainab H.')">Nudge</button></td></tr>
+    </table>
+    <div class="note">This is the pillar no other signal tool has: every group member mapped to real IB revenue. The trader finally sees which subscribers pay their bills — and who to win back.</div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="page" id="how">
+  <div class="grid2">
+    <div class="panel">
+      <h3>Where the data comes from</h3>
+      <div class="step">
+        <div class="stepnum">1</div>
+        <div><h4>Badar creates the signal</h4>
+        <p>No AI, no fetching. Badar types entry, TP and SL in the composer. The platform timestamps it, locks it, and broadcasts it. The trading brain is Badar, always.</p>
+        <span class="src">Source: Badar himself · Time: whenever he trades</span></div>
+      </div>
+      <div class="step">
+        <div class="stepnum">2</div>
+        <div><h4>Delivered to WhatsApp in seconds</h4>
+        <p>One tap sends the branded signal card to every connected group through the linked WhatsApp number. Subscribers see it instantly, formatted, never lost in chat noise.</p>
+        <span class="src">Source: connected WhatsApp number · Time: within seconds of publish</span></div>
+      </div>
+      <div class="step">
+        <div class="stepnum">3</div>
+        <div><h4>Live prices grade every signal</h4>
+        <p>From the moment of publish, the Proof Engine watches a live market price feed tick by tick. When price crosses TP or SL, the result is recorded with the exact date and time. Nobody can edit it, including Badar.</p>
+        <span class="src">Source: market data feed (e.g. TwelveData / MT5 stream) · Time: real-time, 24/5</span></div>
+      </div>
+      <div class="step">
+        <div class="stepnum">4</div>
+        <div><h4>Broker IB report feeds the Revenue Radar</h4>
+        <p>The broker's IB portal reports which referred accounts traded and what rebates were earned. V1: daily CSV upload from the portal. V1.5: automatic sync via broker API. The platform matches accounts to group members.</p>
+        <span class="src">Source: broker IB portal · Time: synced once daily</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="panel">
+        <h3>What is automated vs. what stays Badar</h3>
+        <div class="split">
+          <div class="robot">
+            <h4>⚙️ Automated (one-way broadcasts only)</h4>
+            <ul>
+              <li>Signal card formatting and delivery</li>
+              <li>Result grading and track-record updates</li>
+              <li>Re-engagement nudges, written once by Badar in his own words, personalized per member, sent at randomized human hours</li>
+              <li>Group joins/removals based on IB status</li>
+            </ul>
+          </div>
+          <div class="human">
+            <h4>🧑 Always Badar (never automated)</h4>
+            <ul>
+              <li>Every trading decision and every signal</li>
+              <li>All one-to-one conversations with subscribers</li>
+              <li>All replies inside the groups</li>
+              <li>Voice notes, market commentary, mentoring</li>
+            </ul>
+          </div>
+        </div>
+        <div class="note">The platform never chats on Badar's behalf. Subscribers can't "catch an AI" because a human sends every conversational message. Broadcasts are in Badar's own words, from his templates.</div>
+      </div>
+      <div class="panel">
+        <h3>Sync schedule at a glance</h3>
+        <table>
+          <tr><th>Data</th><th>Source</th><th>When</th></tr>
+          <tr><td>Signals</td><td>Badar (composer)</td><td>Instant on publish</td></tr>
+          <tr><td>Prices / results</td><td>Market data feed</td><td>Real-time, 24/5</td></tr>
+          <tr><td>IB rebates &amp; activity</td><td>Broker IB portal</td><td>Daily</td></tr>
+          <tr><td>Member list</td><td>WhatsApp groups + CRM</td><td>Real-time</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+<div class="toast" id="toast"></div>
+<script>
+  let dir = 'BUY';
+  document.querySelectorAll('nav button').forEach(b=>{
+    b.onclick=()=>{
+      document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      document.getElementById(b.dataset.p).classList.add('active');
+    };
+  });
+  function setDir(d){
+    dir=d;
+    document.getElementById('b-buy').classList.toggle('on',d==='BUY');
+    document.getElementById('b-sell').classList.toggle('on',d==='SELL');
+    updatePreview();
+  }
+  function updatePreview(){
+    const sym=document.getElementById('f-sym').value.split(' ')[0];
+    document.getElementById('pv-head').textContent=`📊 ${sym} — ${dir} ${dir==='BUY'?'🟢':'🔴'}`;
+    ['entry','sl','tp1','tp2','tp3'].forEach(k=>{
+      document.getElementById('pv-'+k).textContent=document.getElementById('f-'+k).value||'—';
+    });
+  }
+  ['f-sym','f-entry','f-sl','f-tp1','f-tp2','f-tp3'].forEach(id=>{
+    document.getElementById(id).addEventListener('input',updatePreview);
+    document.getElementById(id).addEventListener('change',updatePreview);
+  });
+  function publish(){
+    toast('Signal locked, timestamped & delivered to 3 WhatsApp groups ✓');
+  }
+  function toast(msg){
+    const t=document.getElementById('toast');
+    t.textContent=msg; t.style.display='block';
+    clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none',2600);
+  }
+</script>
+</body>
+</html>

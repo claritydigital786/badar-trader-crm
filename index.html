@@ -346,8 +346,15 @@
     .badge-contacted     { background: #fef9c3; color: #854d0e; }
     .badge-qualified     { background: #e0f2fe; color: #0369a1; }
     .badge-proposal_sent { background: #f3e8ff; color: #7e22ce; }
-    .badge-converted     { background: #dcfce7; color: #15803d; }
-    .badge-lost          { background: #fee2e2; color: #dc2626; }
+    .badge-converted        { background: #dcfce7; color: #15803d; }
+    .badge-pending_approval { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; font-weight: 700; }
+    .badge-lost             { background: #fee2e2; color: #dc2626; }
+    .pending-approval-banner { background: #fff7ed; border: 1.5px solid #fb923c; border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; display: flex; align-items: center; gap: 12px; }
+    .pending-approval-banner span { flex: 1; font-size: 0.9rem; color: #9a3412; font-weight: 600; }
+    .btn-approve { background: #16a34a; color: #fff; border: none; padding: 7px 18px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+    .btn-approve:hover { background: #15803d; }
+    .btn-reject  { background: #dc2626; color: #fff; border: none; padding: 7px 18px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-left: 8px; }
+    .btn-reject:hover  { background: #b91c1c; }
     .badge-admin         { background: #fef3c7; color: #92400e; }
     .badge-agent         { background: #dbeafe; color: #1d4ed8; }
     .badge-deposit       { background: #dcfce7; color: #15803d; }
@@ -607,6 +614,7 @@
       <div class="nav-item" data-tab="signal-broadcast"><span class="nav-icon">📡</span> Broadcast Signal</div>
       <div class="nav-item" data-tab="subscribers"><span class="nav-icon">👤</span> Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
       <div class="nav-item" data-tab="ai-signals"><span class="nav-icon">🤖</span> AI Signals</div>
+      <div class="nav-item" data-tab="signal-desk"><span class="nav-icon">📊</span> Signal Desk <span class="nav-badge">DEMO</span></div>
       <div class="nav-section-label">SETTINGS</div>
       <div class="nav-item" data-tab="meta"><span class="nav-icon">🔗</span> Meta Integration</div>
       <div class="nav-item" data-tab="notifications"><span class="nav-icon">🔔</span> Notifications</div>
@@ -948,6 +956,11 @@
 
       <label>WhatsApp Access Token <span style="color:#666;font-weight:400">(fill in when Badar provides credentials)</span></label>
       <input type="text" id="wa-access-token" placeholder="EAA… permanent token from Meta Developer App" />
+    </div>
+
+    <div>
+      <label>Admin WhatsApp Number (Badar's number for approval notifications) <span style="color:#666;font-weight:400">e.g. 971563309447</span></label>
+      <input type="text" id="admin-whatsapp-number" placeholder="Country code + number, no +, no spaces — e.g. 971563309447" />
     </div>
 
     <div class="form-actions" style="margin-top:16px">
@@ -1356,6 +1369,11 @@
         <button class="btn btn-primary btn-inline" onclick="alert('Notification settings will be saved once WhatsApp is configured.')">Save Notification Settings</button>
       </div>
     </div>
+  </div>
+
+  <!-- ─── SIGNAL DESK (DEMO) ─── -->
+  <div id="admin-tab-signal-desk" class="tab-content">
+    <iframe src="signal-desk.html" title="Signal Desk" style="width:100%;height:calc(100vh - 130px);border:1px solid #e2e8f0;border-radius:12px;background:#0d1117"></iframe>
   </div>
 
   <!-- ─── SIGNAL BROADCAST ─── -->
@@ -1889,7 +1907,8 @@ function adminTab(name, el) {
     payroll: 'Payroll', automation: 'Automation',
     notifications: 'Notifications', sites: 'Landing Pages', reports: 'Reports',
     'comm-log': 'Communication Log',
-    'signal-broadcast': 'Broadcast Signal', subscribers: 'Subscribers', 'ai-signals': 'AI Signals'
+    'signal-broadcast': 'Broadcast Signal', subscribers: 'Subscribers', 'ai-signals': 'AI Signals',
+    'signal-desk': 'Signal Desk (Demo)'
   };
   const titleEl = document.getElementById('current-tab-title');
   if (titleEl) titleEl.textContent = titles[name] || name;
@@ -2158,7 +2177,7 @@ async function addLead() {
 async function loadMetaSettings() {
   if (demoMode) return; // no settings table in demo
   const keys = ['meta_token','meta_account_id','meta_waba_id','meta_form_id','meta_pixel_id',
-                 'wa_verify_token','wa_phone_number_id','wa_access_token'];
+                 'wa_verify_token','wa_phone_number_id','wa_access_token','admin_whatsapp_number'];
   const { data } = await sb.from('settings').select('key,value').in('key', keys);
   if (!data) return;
   const get = k => (data.find(r => r.key === k) || {}).value || '';
@@ -2169,7 +2188,8 @@ async function loadMetaSettings() {
   document.getElementById('meta-pixel-id').value     = get('meta_pixel_id');
   document.getElementById('wa-verify-token').value   = get('wa_verify_token') || 'badarcrm2026';
   document.getElementById('wa-phone-number-id').value= get('wa_phone_number_id') || '1181979858336353';
-  document.getElementById('wa-access-token').value   = get('wa_access_token');
+  document.getElementById('wa-access-token').value        = get('wa_access_token');
+  document.getElementById('admin-whatsapp-number').value  = get('admin_whatsapp_number') || '';
 }
 
 async function saveMetaSettings() {
@@ -2180,19 +2200,21 @@ async function saveMetaSettings() {
   const pixelId       = v('meta-pixel-id');
   const waVerify      = v('wa-verify-token');
   const waPhoneId     = v('wa-phone-number-id');
-  const waAccessToken = v('wa-access-token');
-  const msgEl         = document.getElementById('meta-msg');
+  const waAccessToken    = v('wa-access-token');
+  const adminWaNumber    = v('admin-whatsapp-number');
+  const msgEl            = document.getElementById('meta-msg');
 
   const now = new Date().toISOString();
   const rows = [
-    { key: 'meta_token',         value: token,         updated_by: currentUser.id, updated_at: now },
-    { key: 'meta_account_id',    value: accountId,     updated_by: currentUser.id, updated_at: now },
-    { key: 'meta_waba_id',       value: wabaId,        updated_by: currentUser.id, updated_at: now },
-    { key: 'meta_form_id',       value: formId,        updated_by: currentUser.id, updated_at: now },
-    { key: 'meta_pixel_id',      value: pixelId,       updated_by: currentUser.id, updated_at: now },
-    { key: 'wa_verify_token',    value: waVerify,      updated_by: currentUser.id, updated_at: now },
-    { key: 'wa_phone_number_id', value: waPhoneId,     updated_by: currentUser.id, updated_at: now },
-    { key: 'wa_access_token',    value: waAccessToken, updated_by: currentUser.id, updated_at: now },
+    { key: 'meta_token',            value: token,          updated_by: currentUser.id, updated_at: now },
+    { key: 'meta_account_id',       value: accountId,      updated_by: currentUser.id, updated_at: now },
+    { key: 'meta_waba_id',          value: wabaId,         updated_by: currentUser.id, updated_at: now },
+    { key: 'meta_form_id',          value: formId,         updated_by: currentUser.id, updated_at: now },
+    { key: 'meta_pixel_id',         value: pixelId,        updated_by: currentUser.id, updated_at: now },
+    { key: 'wa_verify_token',       value: waVerify,       updated_by: currentUser.id, updated_at: now },
+    { key: 'wa_phone_number_id',    value: waPhoneId,      updated_by: currentUser.id, updated_at: now },
+    { key: 'wa_access_token',       value: waAccessToken,  updated_by: currentUser.id, updated_at: now },
+    { key: 'admin_whatsapp_number', value: adminWaNumber,  updated_by: currentUser.id, updated_at: now },
   ];
   const { error } = await sb.from('settings').upsert(rows, { onConflict: 'key' });
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
@@ -2372,7 +2394,7 @@ async function openDetail(leadId, ctx) {
         <div class="detail-row">
           <span class="detail-label">Status</span>
           <select id="det-status" class="inline-select">
-            ${['new','contacted','qualified','proposal_sent','converted','lost'].map(s =>
+            ${['new','contacted','qualified','proposal_sent','pending_approval','converted','lost'].map(s =>
               `<option value="${s}" ${lead.status===s?'selected':''}>${statusLabel(s)}</option>`
             ).join('')}
           </select>
@@ -2433,11 +2455,19 @@ async function openDetail(leadId, ctx) {
   const profileHtml = buildProfileTab(lead, leadId, ctx);
   const commsHtml  = buildCommsTab(lead, leadId, ctx, commRows);
 
+  const pendingApprovalBanner = (lead.status === 'pending_approval' && isAdmin) ? `
+    <div class="pending-approval-banner">
+      <span>⏳ An agent has marked this lead as closed and is awaiting your approval.</span>
+      <button class="btn-approve" onclick="approveConversion('${leadId}','${ctx}')">✅ Approve</button>
+      <button class="btn-reject"  onclick="rejectConversion('${leadId}','${ctx}')">❌ Reject</button>
+    </div>` : '';
+
   panel.innerHTML = `
     <div class="detail-header">
       <h3>${esc(lead.full_name)}</h3>
       <button class="btn btn-secondary btn-sm" onclick="closeDetail('${ctx}')">✕ Close</button>
     </div>
+    ${pendingApprovalBanner}
 
     <div class="subtabs">
       <button class="subtab-btn active" onclick="detailSubTab('${ctx}','overview',this)">Overview</button>
@@ -2869,10 +2899,11 @@ async function saveLeadDetail(leadId, ctx) {
   const status  = document.getElementById('det-status').value;
   const agentId = document.getElementById('det-agent')?.value || null;
   const msgEl   = document.getElementById('det-save-msg');
+  const prevLead = cachedLeads.find(l => l.id === leadId);
+  const prevStatus = prevLead?.status;
 
   if (demoMode) {
-    const lead = cachedLeads.find(l => l.id === leadId);
-    if (lead) { lead.status = status; lead.assigned_agent_id = agentId; }
+    if (prevLead) { prevLead.status = status; prevLead.assigned_agent_id = agentId; }
     setMsg(msgEl, 'Saved. (demo)', 'ok');
     renderLeadsTable('admin-leads-tbody', cachedLeads, true);
     return;
@@ -2883,9 +2914,80 @@ async function saveLeadDetail(leadId, ctx) {
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
   setMsg(msgEl, 'Saved.', 'ok');
 
-  const lead = cachedLeads.find(l => l.id === leadId);
-  if (lead) { lead.status = status; lead.assigned_agent_id = agentId; }
+  if (prevLead) { prevLead.status = status; prevLead.assigned_agent_id = agentId; }
   renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+
+  // Notify Badar on WhatsApp when any lead moves to Pending Approval
+  if (status === 'pending_approval' && prevStatus !== 'pending_approval') {
+    notifyAdminPendingApproval(leadId, prevLead?.full_name || 'Unknown Lead', currentUser?.email || 'An agent');
+  }
+}
+
+async function notifyAdminPendingApproval(leadId, leadName, agentName) {
+  try {
+    const { data: settingsData } = await sb.from('settings')
+      .select('key, value').in('key', ['wa_phone_number_id', 'wa_access_token', 'admin_whatsapp_number']);
+    const getS = k => (settingsData?.find(r => r.key === k) || {}).value || '';
+    const phoneNumberId  = getS('wa_phone_number_id');
+    const accessToken    = getS('wa_access_token');
+    const adminPhone     = getS('admin_whatsapp_number');
+    if (!phoneNumberId || !accessToken || !adminPhone) return; // silently skip if not configured
+
+    const msg = `🔔 *Pending Approval*\n\n*${agentName}* has marked *${leadName}* as closed and is awaiting your approval.\n\nReview and approve at: crm.badartrader.com`;
+    await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: adminPhone.replace(/\D/g, ''),
+        type: 'text',
+        text: { body: msg }
+      })
+    });
+  } catch(e) { console.warn('Admin WA notification failed:', e); }
+}
+
+async function approveConversion(leadId, ctx) {
+  if (!confirm('Approve this conversion? The lead will be marked as Converted.')) return;
+  const lead  = cachedLeads.find(l => l.id === leadId);
+  const { error } = await sb.from('leads')
+    .update({ status: 'converted', converted_at: new Date().toISOString() }).eq('id', leadId);
+  if (error) { showToast('Error approving: ' + error.message, 'err'); return; }
+  if (lead) lead.status = 'converted';
+  showToast('✅ Conversion approved — lead marked as Converted!');
+  renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+  await openDetail(leadId, ctx);
+  // Notify the assigned agent via WA (optional — fires same helper with a different message)
+}
+
+async function rejectConversion(leadId, ctx) {
+  const reason = prompt('Reason for rejection (optional):') ?? '';
+  const lead   = cachedLeads.find(l => l.id === leadId);
+  const { error } = await sb.from('leads')
+    .update({ status: 'contacted' }).eq('id', leadId); // send back to Contacted
+  if (error) { showToast('Error rejecting: ' + error.message, 'err'); return; }
+  if (lead) lead.status = 'contacted';
+  // Log the rejection reason as an activity
+  if (reason.trim()) {
+    await sb.from('lead_activity').insert({
+      lead_id: leadId, actor_id: currentUser.id,
+      channel: 'note', summary: `Conversion rejected by admin. Reason: ${reason}`,
+    });
+  }
+  showToast('❌ Conversion rejected — lead returned to Contacted.');
+  renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+  await openDetail(leadId, ctx);
+}
+
+async function saveLeadNotes(leadId, ctx) {
+  const notes = (document.getElementById('det-notes')?.value || '').trim();
+  const msgEl = document.getElementById('det-notes-msg');
+  if (demoMode) { if (msgEl) { msgEl.textContent = 'Saved. (demo)'; setTimeout(() => msgEl.textContent = '', 2000); } return; }
+  const { error } = await sb.from('leads').update({ notes }).eq('id', leadId);
+  if (error) { if (msgEl) msgEl.textContent = error.message; return; }
+  const lead = cachedLeads.find(l => l.id === leadId);
+  if (lead) lead.notes = notes;
+  if (msgEl) { msgEl.textContent = 'Saved.'; setTimeout(() => msgEl.textContent = '', 2000); }
 }
 
 async function saveLeadNotes(leadId, ctx) {
@@ -2900,16 +3002,23 @@ async function saveLeadNotes(leadId, ctx) {
 }
 
 async function agentSaveStatus(leadId, ctx) {
-  const status = document.getElementById('det-status').value;
-  const msgEl  = document.getElementById('det-save-msg');
+  const status   = document.getElementById('det-status').value;
+  const msgEl    = document.getElementById('det-save-msg');
+  const lead     = cachedLeads.find(l => l.id === leadId);
+  const prevStatus = lead?.status;
 
   const { error } = await sb.from('leads').update({ status }).eq('id', leadId);
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
   setMsg(msgEl, 'Status updated.', 'ok');
 
-  const lead = cachedLeads.find(l => l.id === leadId);
   if (lead) lead.status = status;
   renderLeadsTable('agent-leads-tbody', cachedLeads, false);
+  await openDetail(leadId, ctx);
+
+  // Notify Badar when agent marks a lead as Pending Approval
+  if (status === 'pending_approval' && prevStatus !== 'pending_approval') {
+    notifyAdminPendingApproval(leadId, lead?.full_name || 'Unknown Lead', currentUser?.email || 'Your agent');
+  }
 }
 
 async function logFromDetail(leadId, ctx) {
@@ -3209,7 +3318,8 @@ function statusBadge(s) {
 }
 function statusLabel(s) {
   return { new:'New', contacted:'Contacted', qualified:'Qualified',
-           proposal_sent:'Proposal Sent', converted:'Converted', lost:'Lost' }[s] || s;
+           proposal_sent:'Proposal Sent', pending_approval:'⏳ Pending Approval',
+           converted:'Converted', lost:'Lost' }[s] || s;
 }
 function sourceLabel(s) {
   return { meta:'Meta Ads', referral:'Referral', website:'Website',
