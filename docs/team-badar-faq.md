@@ -6,10 +6,10 @@ subscriber conversations. Replies mirror the client's language (Roman Urdu / Eng
 ## Onboarding funnel (free signal group)
 1. Client MUST create a broker account through Team Badar's IB link (mandatory):
    - Exness: https://one.exnesstrack.org/a/eatgh2cl7y (referral code: eatgh2cl7y)
-   - Doo Prime: https://my.dooprime.com/links/go/45031 (referral code: 45031)
+   - Do Prime: https://my.dooprime.com/links/go/45031 (referral code: 45031)
 2. Deposit between $100 and $500.
 3. Existing accounts: client must change IB partner code (may need to contact
-   Exness / Doo Prime support). Ask if confirmation email was received.
+   Exness / Do Prime support). Ask if confirmation email was received.
 4. Client shares deposit screenshot on WhatsApp.
 5. Client submits Google Form: https://forms.gle/ivBDDYQSLPvKHzXM9
 6. Added to signal group within 48 hours of form submission.
@@ -27,7 +27,7 @@ subscriber conversations. Replies mirror the client's language (Roman Urdu / Eng
 
 ## Canonical Q→A pairs
 - "I want to join signal group" → Free Signals ke liye pehle hamari link ke through
-  Exness ya Doo Prime par account create karein (hamari link ke through account
+  Exness ya Do Prime par account create karein (hamari link ke through account
   create karna lazmi hai).
 - "Course group details?" → 3 Months Mentorship, $200 fee, high success ratio, live
   Zoom classes, live trading with advanced liquidity concepts, assignments checking,
@@ -48,7 +48,7 @@ subscriber conversations. Replies mirror the client's language (Roman Urdu / Eng
 - Signal group ya Course group ki details chahiye?
 - Deposit screenshot WhatsApp par share kiya? (Different mobile try kiya?)
 - IB partner code change ho gaya? Confirmation mail mili?
-- Account naya hai ya purana? Purana → Doo Prime / Exness support se contact kiya?
+- Account naya hai ya purana? Purana → Do Prime / Exness support se contact kiya?
 - Deposit $100–$500 ke beech hai?
 - Form submission ka screenshot team ko bheja?
 - Discord community join kar li?
@@ -74,9 +74,9 @@ Answers marked [CONFIRM] need Badar's team to supply the official figure before 
 uses them; until then the team answers those manually.
 
 1. "Sir how to join your premium group?" → EN: First create your account through our
-   link on Exness or Doo Prime (mandatory), deposit $100–$500, share the deposit
+   link on Exness or Do Prime (mandatory), deposit $100–$500, share the deposit
    screenshot on WhatsApp, submit the Google Form; you'll be added within 48 hours.
-   RU: Pehle hamari link se Exness ya Doo Prime par account banayein (lazmi), $100–$500
+   RU: Pehle hamari link se Exness ya Do Prime par account banayein (lazmi), $100–$500
    deposit karein, screenshot WhatsApp par bhejein, Google Form submit karein; 48 hours
    mein add kar diye jayenge.
 2. "Kindly share Course group Details?" → 3 Months Mentorship, $200 fee, high success
@@ -91,7 +91,7 @@ uses them; until then the team answers those manually.
 5. "Apna current broker rakhun to premium charges?" → Premium (own broker) paid option
    available: [CONFIRM fee]. IB route par free option available hai.
 6. "IB change ke baad confirmation mail mili thi?" → Haan, broker confirmation email
-   bhejta hai; agar nahi mili to Exness / Doo Prime support se contact karein, phir
+   bhejta hai; agar nahi mili to Exness / Do Prime support se contact karein, phir
    screenshot team ko bhejein.
 7. "Deposit screenshot share kar diya, group mein add kar denge?" → Ji bhai, screenshot
    + Google Form ke baad 48 hours ke andar add kar diya jata hai.
@@ -113,10 +113,10 @@ uses them; until then the team answers those manually.
 16. "How can I join your new batch?" → Enroll at https://badartrader.com/check-3/,
     $200 fee, then WhatsApp payment proof to +923715773903.
 17. "How can I deposit and withdraw?" → Deposits/withdrawals happen inside your broker
-    (Exness / Doo Prime) app: Wallet → Deposit/Withdraw via local payment methods. Team
+    (Exness / Do Prime) app: Wallet → Deposit/Withdraw via local payment methods. Team
     can guide step by step on WhatsApp if stuck.
 18. "Will my previous partner or referral change if I join?" → Yes. Joining requires
-    changing your IB/partner code to Team Badar's (Exness: eatgh2cl7y, Doo Prime:
+    changing your IB/partner code to Team Badar's (Exness: eatgh2cl7y, Do Prime:
     45031). Existing accounts may need to request the change via broker support.
 19. "Please add me to signal group" → Funnel Q1; account via our link first (lazmi).
 20. "What is the joining fee?" → Signal group: free via IB route (deposit $100–$500 is
