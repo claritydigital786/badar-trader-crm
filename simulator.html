@@ -49,7 +49,7 @@
 <script>
 const chat=document.getElementById('chat'),quickEl=document.getElementById('quick'),typingEl=document.getElementById('typing');
 let lang=null; // 'en' | 'ru'
-const LINKS={exness:'https://one.exnesstrack.org/a/eatgh2cl7y',dprime:'https://my.dooprime.com/links/go/45031',form:'https://forms.gle/ivBDDYQSLPvKHzXM9',course:'https://badartrader.com/check-3/',discord:'https://discord.gg/ph6f78DFJm',wa:'+923715773903'};
+const LINKS={exness:'https://one.exnesstrack.org/a/eatgh2cl7y',dprime:'https://my.dooprime.com/links/go/45031',form:'https://crm.badartrader.com/join.html',course:'https://badartrader.com/check-3/',discord:'https://discord.gg/ph6f78DFJm',wa:'+923715773903'};
 
 function now(){const d=new Date();return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});}
 function add(text,who){const m=document.createElement('div');m.className='msg '+who;m.innerHTML=text.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank">$1</a>')+'<div class="time">'+now()+(who==='out'?' ✓✓':'')+'</div>';chat.appendChild(m);chat.scrollTop=chat.scrollHeight;}
