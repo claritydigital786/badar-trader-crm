@@ -3105,7 +3105,7 @@ function renderLeadsTable(tbodyId, leads, isAdmin) {
         ${l.meta_campaign
           ? `<br><span style="color:#555;font-size:0.78rem">${esc(l.meta_campaign)}</span>` : ''}
       </td>
-      <td>${statusBadge(l.status)}</td>
+      <td>${statusBadge(l.status)}${l.deposit_platform ? `<br><span style="font-size:0.68rem;color:#94a3b8" title="Deposit platform">🏦 ${(l.deposit_platform||'').toUpperCase()} ${l.verified ? '✓ verified' : '⏳ pending'}</span>` : ''}</td>
       <td>${agentLabel}</td>
       <td style="font-size:0.8rem;color:#666">${fmtDate(l.created_at)}</td>
       <td><button class="btn btn-secondary btn-sm"
@@ -3173,7 +3173,7 @@ function maGetCPL(costPerAction) {
   if (!Array.isArray(costPerAction)) return '—';
   const leadTypes = ['lead','onsite_conversion.lead_grouped','offsite_conversion.fb_pixel_lead'];
   const a = costPerAction.find(x => leadTypes.includes(x.action_type));
-  return a ? '$' + parseFloat(a.value).toFixed(2) : '—';
+  return a ? 'PKR ' + parseFloat(a.value).toFixed(2) : '—';
 }
 
 function maRenderInsights(rows, level, nameField) {
@@ -3195,7 +3195,7 @@ function maRenderInsights(rows, level, nameField) {
       <td>${Number(r.reach||0).toLocaleString()}</td>
       <td>${Number(r.clicks||0).toLocaleString()}</td>
       <td>${parseFloat(r.ctr||0).toFixed(2)}%</td>
-      <td style="color:#c9a84c">$${parseFloat(r.spend||0).toFixed(2)}</td>
+      <td style="color:#c9a84c">PKR ${parseFloat(r.spend||0).toFixed(2)}</td>
       <td style="color:#4caf50;font-weight:600">${leads || '—'}</td>
       <td>${cpl}</td>
     </tr>`;
@@ -3211,10 +3211,10 @@ function maRenderSummary(rows) {
     return acc;
   }, { impressions: 0, clicks: 0, spend: 0, leads: 0 });
   const ctr = t.impressions ? ((t.clicks / t.impressions) * 100).toFixed(2) : '0.00';
-  const cpl = t.leads  ? '$' + (t.spend / t.leads).toFixed(2)  : '—';
-  const cpc = t.clicks ? '$' + (t.spend / t.clicks).toFixed(2) : '—';
+  const cpl = t.leads  ? 'PKR ' + (t.spend / t.leads).toFixed(2)  : '—';
+  const cpc = t.clicks ? 'PKR ' + (t.spend / t.clicks).toFixed(2) : '—';
   document.getElementById('ma-summary-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">Total Spend</div><div class="stat-value" style="color:#c9a84c">$${fmtMoney(t.spend)}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Spend</div><div class="stat-value" style="color:#c9a84c">PKR ${fmtMoney(t.spend)}</div></div>
     <div class="stat-card"><div class="stat-label">Impressions</div><div class="stat-value">${t.impressions.toLocaleString()}</div></div>
     <div class="stat-card"><div class="stat-label">Clicks</div><div class="stat-value">${t.clicks.toLocaleString()}</div></div>
     <div class="stat-card"><div class="stat-label">Leads</div><div class="stat-value" style="color:#4caf50">${t.leads.toLocaleString()}</div></div>
