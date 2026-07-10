@@ -341,7 +341,7 @@ async function runBotStep(
 
         await sendText(
           to,
-          `Perfect! 🎉 Create your account with ${lead.broker_choice === "doprime" ? "Do Prime" : "Exness"} here 👇\n${link}\n\nReferral / partner code: *${code}*\n\nAfter depositing $500, send your deposit screenshot here — our team will confirm and unlock your free $250 mentorship course. A team member will follow up with you shortly!`,
+          `Perfect! 🎉 Create your account with ${lead.broker_choice === "doprime" ? "Do Prime" : "Exness"} here 👇\n${link}\n\nReferral / partner code: ${code}\n\nAfter depositing $500, send your deposit screenshot here — our team will confirm and unlock your free $250 mentorship course. A team member will follow up with you shortly!`,
         );
         await logOutbound(sb, lead.id, "[qualified: signup link + course unlock sent]");
         return;
@@ -356,7 +356,7 @@ async function runBotStep(
 
       await sendText(
         to,
-        `No problem at all! You can still join our FREE signal group:\n\n1️⃣ Create your account through our link (mandatory)\n2️⃣ Deposit $100–$500 (this is YOUR trading capital, not a fee)\n3️⃣ Send your deposit screenshot here\n4️⃣ Submit the verification form: ${LINKS.form}\n\nYou'll be added within 48 hours ✅`,
+        `No problem at all! You can still join our FREE signal group:\n\n1️⃣ Create your account through our link (mandatory)\n2️⃣ Deposit $500 (this is YOUR trading capital, not a fee)\n3️⃣ Send your deposit screenshot here\n4️⃣ Submit the verification form: ${LINKS.form}\n\nYou'll be added within 48 hours ✅`,
       );
       await logOutbound(sb, lead.id, "[declined $500: free-signals fallback sent]");
       return;
