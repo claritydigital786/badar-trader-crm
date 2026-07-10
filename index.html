@@ -712,6 +712,7 @@
         <div class="stat-label" style="color:#10b981">Total Revenue</div>
         <div class="stat-value" style="color:#10b981" id="dash-revenue">—</div>
         <div class="stat-trend">Approved deposits</div>
+        <div class="stat-trend" id="dash-rev-platform" style="margin-top:6px;color:#94a3b8;line-height:1.6"></div>
       </div>
     </div>
 
@@ -3950,6 +3951,7 @@ function renderDashboardStats() {
   if (el('dash-agents'))      el('dash-agents').textContent      = cachedProfiles.filter(p => p.role === 'agent').length;
   const revenue = cachedLeads.reduce((s, l) => s + (Number(l.account_balance) || 0), 0);
   if (el('dash-revenue'))     el('dash-revenue').textContent     = '$' + fmtMoney(revenue);
+  { const bp={}; (cachedLeads||[]).forEach(l=>{ if(l.deposit_platform && Number(l.account_balance)){ bp[l.deposit_platform]=(bp[l.deposit_platform]||0)+Number(l.account_balance);} }); const pl=Object.entries(bp).map(([k,v])=>k.toUpperCase()+': $'+fmtMoney(v)).join('   ·   '); if(el('dash-rev-platform')) el('dash-rev-platform').textContent = pl ? 'By platform — '+pl : ''; }
   // Load upcoming follow-ups from lead_activity
   loadUpcomingFollowups();
 }
