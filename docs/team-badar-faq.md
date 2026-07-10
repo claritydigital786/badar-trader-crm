@@ -123,3 +123,27 @@ uses them; until then the team answers those manually.
     YOUR trading capital, not a fee). Course: $200. Premium own-broker: [CONFIRM].
 21. "Premium signal group free of cost?" → Free access is via the IB route: create
     account through our link + deposit + form; that's the no-fee path.
+
+## Deposit tiers — added July 2026 (standalone / paid options)
+NOTE: These are SEPARATE ("Alag") paid tiers, distinct from the FREE signal group
+(IB route, $100–$500 capital) covered in Q1/Q13/Q14/Q20 above. Because a user asking
+"signal group join karne ke liye kitna deposit chahiye?" could mean either the free or
+the paid tier, the bot must first clarify which one before quoting a figure.
+[CONFIRM with Badar: are these truly separate products from the free IB group, and is
+the course fee $200 (this doc) or $250 (webhook)? Reconcile before syncing to the bot.]
+
+22. "Signal Group join karne ke liye kitna deposit chahiye?" (standalone paid Signal Group)
+    → EN: Our standalone Signal Group requires a minimum $1,000 deposit. For full details,
+    contact the team on WhatsApp +923715773903.
+    RU: Standalone Signal Group ke liye minimum $1,000 ka deposit zaroori hai. Mazeed
+    tafseelat ke liye WhatsApp +923715773903 par rabta karein.
+23. "Free Forex trading join karne ka kya criteria hai?"
+    → EN: For free Forex training, a $500 deposit in an active account is required. This is
+    trading education — profit and loss are both possible in the market, and we do not
+    guarantee growing your capital to any target.
+    RU: Free Forex training ke liye active account mein $500 ka deposit zaroori hai. Yeh
+    trading education hai — market mein munafa aur nuqsan dono mumkin hai, aur kisi bhi
+    target tak capital grow karne ki guarantee nahi di jati.
+24. "Course ke sath Signal Group bhi join karna ho, toh kya requirement hai?" (Course + Signal combined)
+    → EN: To join the Signal Group together with the Course, a $1,000 deposit is required.
+    RU: Course ke sath Signal Group join karne ke liye $1,000 ka deposit karna hoga.

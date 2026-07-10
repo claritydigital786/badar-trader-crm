@@ -784,6 +784,10 @@
         <option value="manual">Manual</option>
         <option value="other">Other</option>
       </select>
+      <select id="filter-human" onchange="loadAdminLeads()">
+        <option value="">All (bot + human)</option>
+        <option value="1">⚠ Needs Human</option>
+      </select>
     </div>
     <div class="card" style="padding:0">
       <table>
@@ -1765,7 +1769,7 @@ const _DEMO_PROFILES = [
   { id: 'demo-agent-2', full_name: 'Sara Khan',  email: 'sara.khan@badartrader.com',  role: 'agent', created_at: '2026-02-01T00:00:00Z' },
 ];
 const _DEMO_LEADS = [
-  { id:'dl1', full_name:'Omar Farooq',  phone:'+92 321 4567890', email:'omar@example.com',   source:'meta',     meta_campaign:'Apr_XAUUSD_Retargeting', instrument_type:'Forex',  status:'new',       assigned_agent_id:'demo-agent-1', created_at:'2026-06-20T09:15:00Z', notes:'Interested in gold trading.',     account_balance:0,     kyc_status:'not_started', risk_profile:null,     trading_plan:null,                      signal_group:null },
+  { id:'dl1', full_name:'Omar Farooq',  phone:'+92 321 4567890', email:'omar@example.com',   source:'meta',     meta_campaign:'Apr_XAUUSD_Retargeting', instrument_type:'Forex',  status:'new',       assigned_agent_id:'demo-agent-1', created_at:'2026-06-20T09:15:00Z', notes:'Interested in gold trading.', needs_human:true, handoff_reason:'stuck at deposit step',     account_balance:0,     kyc_status:'not_started', risk_profile:null,     trading_plan:null,                      signal_group:null },
   { id:'dl2', full_name:'Ayesha Malik', phone:'+92 300 9876543', email:'ayesha@example.com', source:'referral', meta_campaign:null,                      instrument_type:'Crypto', status:'contacted', assigned_agent_id:'demo-agent-1', created_at:'2026-06-18T11:30:00Z', notes:'Referred by existing client.',    account_balance:0,     kyc_status:'pending',    risk_profile:'medium', trading_plan:null,                      signal_group:null },
   { id:'dl3', full_name:'Hassan Raza',  phone:'+92 333 1234567', email:'hassan@example.com', source:'website',  meta_campaign:null,                      instrument_type:'Stocks', status:'qualified', assigned_agent_id:'demo-agent-2', created_at:'2026-06-15T14:00:00Z', notes:'Experienced stock trader.',       account_balance:5000,  kyc_status:'verified',   risk_profile:'low',    trading_plan:'Long-term equity index.', signal_group:'VIP Signals' },
   { id:'dl4', full_name:'Sana Ahmed',   phone:'+92 311 5551234', email:'sana@example.com',   source:'meta',     meta_campaign:'Jun_Crypto_Awareness',    instrument_type:'Crypto', status:'qualified', assigned_agent_id:'demo-agent-2', created_at:'2026-06-12T10:45:00Z', notes:'Looking to invest $10 000.',      account_balance:10000, kyc_status:'verified',   risk_profile:'high',   trading_plan:'Aggressive crypto.',      signal_group:'VIP Gold Signals' },
@@ -2035,12 +2039,14 @@ async function loadAdminLeads() {
   const status = document.getElementById('filter-status')?.value || '';
   const agent  = document.getElementById('filter-agent')?.value  || '';
   const source = document.getElementById('filter-source')?.value || '';
+  const human  = document.getElementById('filter-human')?.value  || '';
 
   if (demoMode) {
     let leads = _DEMO_LEADS.slice();
     if (status) leads = leads.filter(l => l.status === status);
     if (agent)  leads = leads.filter(l => l.assigned_agent_id === agent);
     if (source) leads = leads.filter(l => l.source === source);
+    if (human)  leads = leads.filter(l => l.needs_human);
     cachedLeads = leads;
     renderLeadsTable('admin-leads-tbody', cachedLeads, true);
     return;
@@ -2050,6 +2056,7 @@ async function loadAdminLeads() {
   if (status) q = q.eq('status', status);
   if (agent)  q = q.eq('assigned_agent_id', agent);
   if (source) q = q.eq('source', source);
+  if (human)  q = q.eq('needs_human', true);
 
   const { data, error } = await q;
   if (error) { console.error('loadAdminLeads:', error); return; }
@@ -3090,6 +3097,7 @@ function renderLeadsTable(tbodyId, leads, isAdmin) {
     return `<tr>
       <td>
         <strong style="color:#e0e0e0">${esc(l.full_name)}</strong>
+        ${l.needs_human ? `<br><span title="${esc(l.handoff_reason||'Needs human follow-up')}" style="font-size:0.72rem;color:#fff;background:#dc2626;padding:1px 7px;border-radius:8px;display:inline-block;margin-top:2px">⚠ Needs Human</span>` : ''}
         ${l.instrument_type ? `<br><span style="font-size:0.72rem;color:#94a3b8;background:#0f172a;padding:1px 7px;border-radius:8px;display:inline-block;margin-top:2px">${esc(l.instrument_type)}</span>` : ''}
       </td>
       <td>${esc(l.phone||'—')}</td>
