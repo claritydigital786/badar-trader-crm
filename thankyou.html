@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thank You — Badar Trader</title>
+<link rel="icon" type="image/svg+xml" href="/assets/bull.svg">
+<style>
+  :root { color-scheme: light; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#0d0d1a; color:#e2e8f0; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .card { background:#1a1a2e; border:1px solid #2a2a44; border-radius:18px; max-width:440px; width:100%; padding:40px 32px; text-align:center; }
+  .tick { width:72px; height:72px; border-radius:50%; background:rgba(201,168,76,0.15); border:2px solid #c9a84c; color:#c9a84c; font-size:38px; line-height:68px; margin:0 auto 20px; }
+  h1 { font-size:22px; color:#fff; margin-bottom:8px; }
+  p { color:#94a3b8; font-size:14px; line-height:1.6; }
+  .detail { margin-top:18px; font-size:13px; color:#c9a84c; }
+  .status { margin-top:20px; font-size:12px; color:#64748b; }
+  .brand { color:#c9a84c; font-weight:800; letter-spacing:1px; font-size:13px; margin-bottom:18px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">🐂 BADAR TRADER</div>
+    <div class="tick">✓</div>
+    <h1>Thank you!</h1>
+    <p>We've received your submission. Our team will confirm your details and unlock your course shortly.</p>
+    <div class="detail" id="detail"></div>
+    <div class="status" id="status">Recording your confirmation…</div>
+  </div>
+<script>
+(function () {
+  var HOOK = 'https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/conversion-hook';
+  var q = new URLSearchParams(location.search);
+  var leadId   = q.get('lead_id') || '';
+  var phone    = q.get('phone') || '';
+  var platform = q.get('platform') || 'other';
+  var amount   = q.get('amount') || '';
+
+  var detail = document.getElementById('detail');
+  var status = document.getElementById('status');
+  if (amount) detail.textContent = 'Recorded: ' + platform + (amount ? ' · $' + amount : '');
+
+  if (!leadId && !phone) { status.textContent = ''; return; }
+
+  var url = HOOK + '?' + new URLSearchParams({
+    lead_id: leadId, phone: phone, platform: platform, amount: amount
+  }).toString();
+
+  fetch(url).then(function (r) { return r.json(); }).then(function (d) {
+    status.textContent = d && d.ok ? '✓ Confirmation recorded.' : 'Saved. Our team will verify manually.';
+  }).catch(function () {
+    status.textContent = 'Saved. Our team will verify manually.';
+  });
+})();
+</script>
+</body>
+</html>

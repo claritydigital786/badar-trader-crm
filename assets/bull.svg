@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="12" fill="#0D0D1A"/>
+  <g fill="none" stroke="#C9A84C" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- horns -->
+    <path d="M18 22 C 10 18, 8 12, 12 9 C 16 14, 20 17, 24 19"/>
+    <path d="M46 22 C 54 18, 56 12, 52 9 C 48 14, 44 17, 40 19"/>
+    <!-- ears -->
+    <path d="M18 22 C 14 22, 12 25, 13 29"/>
+    <path d="M46 22 C 50 22, 52 25, 51 29"/>
+  </g>
+  <!-- head/face -->
+  <path d="M20 21 C 16 27, 16 37, 22 44 C 26 49, 30 51, 32 51 C 34 51, 38 49, 42 44 C 48 37, 48 27, 44 21 C 40 18, 36 17, 32 17 C 28 17, 24 18, 20 21 Z"
+        fill="#C9A84C"/>
+  <!-- snout -->
+  <path d="M25 42 C 27 47, 30 49, 32 49 C 34 49, 37 47, 39 42 C 37 44, 34 45, 32 45 C 30 45, 27 44, 25 42 Z"
+        fill="#0D0D1A"/>
+  <!-- nostrils -->
+  <circle cx="29" cy="43.5" r="1.4" fill="#0D0D1A"/>
+  <circle cx="35" cy="43.5" r="1.4" fill="#0D0D1A"/>
+  <!-- eyes -->
+  <circle cx="26" cy="31" r="2.2" fill="#0D0D1A"/>
+  <circle cx="38" cy="31" r="2.2" fill="#0D0D1A"/>
+</svg>
