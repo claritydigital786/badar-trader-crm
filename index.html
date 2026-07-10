@@ -726,11 +726,11 @@
     </div>
 
     <!-- Meta Ads Performance Placeholder -->
-    <div class="card" style="border:2px dashed #cbd5e1;background:#f8fafc">
+    <div class="card" style="border:1px solid #e2e8f0">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px">
         <div>
           <div style="color:#0f172a;font-weight:700;font-size:1rem;margin-bottom:4px">📊 Meta Ads Performance</div>
-          <div style="color:#94a3b8;font-size:0.8rem">Connect your Meta Ad Account to see live metrics.</div>
+          <div id="dma-sub" style="color:#94a3b8;font-size:0.8rem">Loading campaign metrics…</div>
         </div>
         <button class="btn btn-secondary btn-sm" onclick="window.open('https://business.facebook.com/adsmanager/manage/campaigns?act=1024848662493589','_blank')"
           style="border-color:#0ea5e9;color:#0ea5e9;white-space:nowrap">
@@ -740,23 +740,23 @@
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:16px">
         <div style="text-align:center;padding:10px">
           <div style="color:#94a3b8;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Impressions</div>
-          <div style="color:#cbd5e1;font-size:1.8rem;font-weight:700">--</div>
+          <div id="dma-impr" style="color:#cbd5e1;font-size:1.8rem;font-weight:700">--</div>
         </div>
         <div style="text-align:center;padding:10px">
           <div style="color:#94a3b8;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Clicks</div>
-          <div style="color:#cbd5e1;font-size:1.8rem;font-weight:700">--</div>
+          <div id="dma-clicks" style="color:#cbd5e1;font-size:1.8rem;font-weight:700">--</div>
         </div>
         <div style="text-align:center;padding:10px">
           <div style="color:#94a3b8;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Cost per Lead</div>
-          <div style="color:#cbd5e1;font-size:1.8rem;font-weight:700">--</div>
+          <div id="dma-cpl" style="color:#cbd5e1;font-size:1.8rem;font-weight:700">--</div>
         </div>
         <div style="text-align:center;padding:10px">
           <div style="color:#94a3b8;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Ad Spend</div>
-          <div style="color:#cbd5e1;font-size:1.8rem;font-weight:700">--</div>
+          <div id="dma-spend" style="color:#cbd5e1;font-size:1.8rem;font-weight:700">--</div>
         </div>
         <div style="text-align:center;padding:10px">
-          <div style="color:#94a3b8;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">ROAS</div>
-          <div style="color:#cbd5e1;font-size:1.8rem;font-weight:700">--</div>
+          <div style="color:#94a3b8;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Leads</div>
+          <div id="dma-leads" style="color:#cbd5e1;font-size:1.8rem;font-weight:700">--</div>
         </div>
       </div>
       <div style="margin-top:12px;color:#64748b;font-size:0.75rem">Ad Account: act_1024848662493589</div>
@@ -3954,6 +3954,24 @@ function renderDashboardStats() {
   { const bp={}; (cachedLeads||[]).forEach(l=>{ if(l.deposit_platform && Number(l.account_balance)){ bp[l.deposit_platform]=(bp[l.deposit_platform]||0)+Number(l.account_balance);} }); const pl=Object.entries(bp).map(([k,v])=>k.toUpperCase()+': $'+fmtMoney(v)).join('   ·   '); if(el('dash-rev-platform')) el('dash-rev-platform').textContent = pl ? 'By platform — '+pl : ''; }
   // Load upcoming follow-ups from lead_activity
   loadUpcomingFollowups();
+  loadDashMetaAds();
+}
+
+async function loadDashMetaAds(){
+  try{
+    const token=await maGetSetting('meta_token'); const acct=await maGetSetting('meta_account_id');
+    if(!token||token.length<20||!acct) return;
+    const url=`${META_API_BASE}/${acct}/insights?level=account&fields=impressions,clicks,spend,actions&date_preset=maximum&access_token=${token}`;
+    const r=await fetch(url); const d=await r.json(); if(d.error||!d.data||!d.data[0]) return;
+    const a=d.data[0]; const leads=maGetLeadCount(a.actions);
+    const g=(id,v)=>{const e=document.getElementById(id); if(e){e.textContent=v; e.style.color='#0f172a';}};
+    g('dma-impr',Number(a.impressions||0).toLocaleString());
+    g('dma-clicks',Number(a.clicks||0).toLocaleString());
+    g('dma-cpl',leads?'PKR '+(Number(a.spend||0)/leads).toFixed(0):'—');
+    g('dma-spend','PKR '+fmtMoney(a.spend||0));
+    g('dma-leads',leads||'—');
+    const s=document.getElementById('dma-sub'); if(s){s.textContent='Live · all-time metrics';}
+  }catch(e){}
 }
 
 async function loadUpcomingFollowups() {
