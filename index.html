@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Badar Trader CRM</title>
+  <link rel="icon" type="image/png" href="https://badartrader.com/wp-content/uploads/2024/07/cropped-fav-192x192.png" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
@@ -18,7 +19,8 @@
     }
 
     /* ── App Shell ── */
-    .app-shell { display: flex; height: 100vh; overflow: hidden; }
+    .app-shell { display: flex; height: 100vh; overflow: hidden; position: relative; }
+    .app-shell::before { content:""; position: fixed; top:50%; left:58%; transform:translate(-50%,-50%); width:640px; height:640px; background:url('https://badartrader.com/wp-content/uploads/2024/07/logo1.png') center/contain no-repeat; opacity:0.06; pointer-events:none; z-index:0; }
 
     /* ── Sidebar (GHL style) ── */
     .sidebar {
@@ -113,6 +115,8 @@
 
     /* ── Main Content ── */
     .main-content {
+      position: relative;
+      z-index: 1;
       margin-left: 220px;
       flex: 1;
       display: flex;
@@ -626,6 +630,7 @@
   <!-- ── Sidebar ── -->
   <div class="sidebar">
     <div class="sidebar-brand">
+      <img src="https://badartrader.com/wp-content/uploads/2024/07/logo1.png" alt="Badar Trader" style="max-width:170px;display:block;margin:0 auto 8px" />
       <h1>BADAR TRADER</h1>
       <p>Lead Management CRM</p>
     </div>
@@ -1873,7 +1878,7 @@ function showLogin() {
 async function afterLogin(user) {
   currentUser = user;
   const { data: profile, error } = await sb
-    .from('profiles').select('*').eq('id', user.id).single();
+    .from('profiles').select('*').eq('id', user.id).maybeSingle();
 
   if (error || !profile) {
     await sb.auth.signOut();
@@ -3134,7 +3139,7 @@ async function maGetSetting(key) {
   if (demoMode) {
     return { meta_token:'DEMO', meta_account_id:'act_1024848662493589', meta_pixel_id:'987654321' }[key] || '';
   }
-  const { data } = await sb.from('settings').select('value').eq('key', key).single();
+  const { data } = await sb.from('settings').select('value').eq('key', key).maybeSingle();
   return data?.value || '';
 }
 
@@ -4151,7 +4156,7 @@ async function openConversation(convId) {
 
   try {
     const [leadRes, msgsRes] = await Promise.all([
-      sb.from('leads').select('full_name, phone, status').eq('id', convId).single(),
+      sb.from('leads').select('full_name, phone, status').eq('id', convId).maybeSingle(),
       sb.from('communications').select('body, direction, created_at')
         .eq('lead_id', convId).eq('type', 'whatsapp').order('created_at', { ascending: true })
     ]);
@@ -4217,7 +4222,7 @@ async function sendConvMessage(convId) {
 
   try {
     const [leadRes, settingsRes] = await Promise.all([
-      sb.from('leads').select('phone').eq('id', convId).single(),
+      sb.from('leads').select('phone').eq('id', convId).maybeSingle(),
       sb.from('settings').select('key, value').in('key', ['wa_phone_number_id', 'wa_access_token'])
     ]);
     if (leadRes.error) throw leadRes.error;
@@ -4724,7 +4729,7 @@ async function broadcastSignal() {
         type, instrument: inst,
         entry: parseFloat(entry) || null, tp: parseFloat(tp) || null, sl: parseFloat(sl) || null,
         message: msg, recipients: sent, outcome: 'pending'
-      }).select().single();
+      }).select().maybeSingle();
       if (data) record.id = data.id;
     } catch (e) { /* signals table not created yet — history stays in-memory */ }
   }
