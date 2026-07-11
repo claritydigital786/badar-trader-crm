@@ -4428,20 +4428,31 @@ async function loadCommLog() {
     renderCommLog();
     return;
   }
-  const { data, error } = await sb
-    .from('communication_logs')
-    .select('*, lead:leads!lead_id(full_name), creator:profiles!created_by(full_name)')
-    .order('created_at', { ascending: false });
-  if (error) {
-    console.error('loadCommLog:', error);
-    _cachedCommLogs = [];
-  } else {
-    _cachedCommLogs = (data || []).map(r => ({
-      ...r,
-      lead_name:       r.lead?.full_name    || '—',
-      created_by_name: r.creator?.full_name || '—',
-    }));
-  }
+  const [manualRes, autoRes] = await Promise.all([
+    sb.from('communication_logs')
+      .select('*, lead:leads!lead_id(full_name), creator:profiles!created_by(full_name)')
+      .order('created_at', { ascending: false }),
+    sb.from('communications')
+      .select('id, lead_id, type, body, direction, created_at, leads(full_name)')
+      .order('created_at', { ascending: false }),
+  ]);
+  if (manualRes.error) console.error('loadCommLog (manual):', manualRes.error);
+  if (autoRes.error)   console.error('loadCommLog (auto):', autoRes.error);
+  const manual = (manualRes.data || []).map(r => ({
+    ...r,
+    lead_name:       r.lead?.full_name    || '—',
+    created_by_name: r.creator?.full_name || '—',
+  }));
+  const auto = (autoRes.data || []).map(r => ({
+    id:              'auto-' + r.id,
+    lead_id:         r.lead_id,
+    type:            r.type || 'whatsapp',
+    message:         (r.direction === 'inbound' ? '↩ ' : '↪ ') + (r.body || ''),
+    created_at:      r.created_at,
+    lead_name:       r.leads?.full_name || '—',
+    created_by_name: r.direction === 'inbound' ? (r.leads?.full_name || 'Lead') : 'Bot',
+  }));
+  _cachedCommLogs = manual.concat(auto).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   populateClLeadFilter();
   renderCommLog();
 }
