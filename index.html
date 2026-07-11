@@ -3165,14 +3165,14 @@ async function initMetaAnalytics() {
 
 function maGetLeadCount(actions) {
   if (!Array.isArray(actions)) return 0;
-  const leadTypes = ['lead','onsite_conversion.lead_grouped','offsite_conversion.fb_pixel_lead'];
+  const leadTypes = ['lead','onsite_conversion.lead_grouped','offsite_conversion.fb_pixel_lead','onsite_conversion.messaging_conversation_started_7d','onsite_conversion.total_messaging_connection'];
   const a = actions.find(x => leadTypes.includes(x.action_type));
   return a ? parseInt(a.value) || 0 : 0;
 }
 
 function maGetCPL(costPerAction) {
   if (!Array.isArray(costPerAction)) return '—';
-  const leadTypes = ['lead','onsite_conversion.lead_grouped','offsite_conversion.fb_pixel_lead'];
+  const leadTypes = ['lead','onsite_conversion.lead_grouped','offsite_conversion.fb_pixel_lead','onsite_conversion.messaging_conversation_started_7d','onsite_conversion.total_messaging_connection'];
   const a = costPerAction.find(x => leadTypes.includes(x.action_type));
   return a ? 'PKR ' + parseFloat(a.value).toFixed(2) : '—';
 }
@@ -3961,8 +3961,11 @@ async function loadDashMetaAds(){
   try{
     const token=await maGetSetting('meta_token'); const acct=await maGetSetting('meta_account_id');
     if(!token||token.length<20||!acct) return;
-    const url=`${META_API_BASE}/${acct}/insights?level=account&fields=impressions,clicks,spend,actions&date_preset=maximum&access_token=${token}`;
-    const r=await fetch(url); const d=await r.json(); if(d.error||!d.data||!d.data[0]) return;
+    const url=`${META_API_BASE}/${acct}/insights?level=account&fields=impressions,clicks,spend,actions&date_preset=last_30d&access_token=${token}`;
+    const r=await fetch(url); const d=await r.json();
+    const s0=document.getElementById('dma-sub');
+    if(d.error){ if(s0) s0.textContent='Meta API error: '+d.error.message; return; }
+    if(!d.data||!d.data[0]){ if(s0) s0.textContent='No active campaigns in the last 30 days'; return; }
     const a=d.data[0]; const leads=maGetLeadCount(a.actions);
     const g=(id,v)=>{const e=document.getElementById(id); if(e){e.textContent=v; e.style.color='#0f172a';}};
     g('dma-impr',Number(a.impressions||0).toLocaleString());
@@ -3970,7 +3973,7 @@ async function loadDashMetaAds(){
     g('dma-cpl',leads?'PKR '+(Number(a.spend||0)/leads).toFixed(0):'—');
     g('dma-spend','PKR '+fmtMoney(a.spend||0));
     g('dma-leads',leads||'—');
-    const s=document.getElementById('dma-sub'); if(s){s.textContent='Live · all-time metrics';}
+    const s=document.getElementById('dma-sub'); if(s){s.textContent='Live · last 30 days';}
   }catch(e){}
 }
 
