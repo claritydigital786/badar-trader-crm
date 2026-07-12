@@ -239,9 +239,8 @@ function extractUserInput(message: any): UserInput | null {
 const AGENT_ROTATION = [
   { id: "9bfb2f92-658b-4868-90b9-dd041515d111", name: "Ehsan Wazir", phone: "923342224925" },
   { id: "2bc20292-76bb-467b-a2a1-7bfa0cad4421", name: "Muhammad Hanzala", phone: "923235163874" },
-  { id: "1a066f51-445e-45e9-816b-cfd921205b80", name: "Syed Hamza", phone: "923201946494" },
 ];
-const ROTATION_BATCH_SIZE = 5;
+const ROTATION_BATCH_SIZE = 10;
 
 async function assignAgentRoundRobin(sb: SupabaseClient): Promise<typeof AGENT_ROTATION[number]> {
   const { count } = await sb.from("leads").select("id", { count: "exact", head: true });
@@ -311,7 +310,7 @@ async function upsertLead(
   const notifyAgent = (async () => {
     const pingResult = await sendButtons(
       agent.phone,
-      `🔔 New lead assigned to you: ${newLead.full_name} (${newLead.phone}). Please follow up.`,
+      `🔔 A new lead is waiting for you in the CRM. Please follow up.`,
       [{ id: `ack_${newLead.id}`, title: "✅ I've got this" }],
     );
     await sb.from("leads").update({
@@ -666,12 +665,12 @@ async function handleAgentReply(
     return;
   }
 
-  const { data: lead } = await sb.from("leads").select("id, full_name, agent_acknowledged_at").eq("id", leadId).maybeSingle();
+  const { data: lead } = await sb.from("leads").select("id, agent_acknowledged_at").eq("id", leadId).maybeSingle();
   if (!lead || lead.agent_acknowledged_at) return;
 
   await sb.from("leads").update({ agent_acknowledged_at: new Date().toISOString() }).eq("id", lead.id);
   await insertCommunication(sb, lead.id, "outbound", `[agent ${agent.name} acknowledged assignment]`, new Date().toISOString());
-  await sendText(agent.phone, `✅ Got it — ${lead.full_name} marked as picked up.`);
+  await sendText(agent.phone, `✅ Got it — lead marked as picked up.`);
 }
 
 async function sendDepositConfirm(to: string, sb: SupabaseClient, leadId: string, brokerChoice: string): Promise<SendResult> {

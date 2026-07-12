@@ -19,7 +19,6 @@ const GRAPH_VERSION = "v21.0";
 const AGENT_ROTATION = [
   { id: "9bfb2f92-658b-4868-90b9-dd041515d111", name: "Ehsan Wazir", phone: "923342224925" },
   { id: "2bc20292-76bb-467b-a2a1-7bfa0cad4421", name: "Muhammad Hanzala", phone: "923235163874" },
-  { id: "1a066f51-445e-45e9-816b-cfd921205b80", name: "Syed Hamza", phone: "923201946494" },
 ];
 
 const PING_INTERVAL_MINUTES = 5;
@@ -87,7 +86,7 @@ Deno.serve(async (): Promise<Response> => {
     const cutoff = new Date(Date.now() - PING_INTERVAL_MINUTES * 60_000).toISOString();
     const { data: leads, error } = await sb
       .from("leads")
-      .select("id, full_name, phone, assigned_agent_id, agent_ping_count, agent_escalated")
+      .select("id, assigned_agent_id, agent_ping_count, agent_escalated")
       .not("assigned_agent_id", "is", null)
       .is("agent_acknowledged_at", null)
       .lte("agent_last_pinged_at", cutoff);
@@ -108,7 +107,7 @@ Deno.serve(async (): Promise<Response> => {
         for (const phone of targets) {
           await sendText(
             token, phoneId, phone,
-            `🚨 Lead ${lead.full_name} (${lead.phone}), assigned to ${agent.name}, has gone unacknowledged for ${PING_INTERVAL_MINUTES * ESCALATE_AFTER_PINGS}+ minutes. Please follow up.`,
+            `🚨 A lead assigned to ${agent.name} has gone unacknowledged for ${PING_INTERVAL_MINUTES * ESCALATE_AFTER_PINGS}+ minutes. Please check the CRM.`,
           );
         }
         await sb.from("leads").update({
@@ -121,7 +120,7 @@ Deno.serve(async (): Promise<Response> => {
 
       const r = await sendAckButton(
         token, phoneId, agent.phone,
-        `⏰ Reminder: lead ${lead.full_name} (${lead.phone}) is still waiting on you.`,
+        `⏰ Reminder: a lead in the CRM is still waiting on you.`,
         lead.id,
       );
       if (r.ok) {
