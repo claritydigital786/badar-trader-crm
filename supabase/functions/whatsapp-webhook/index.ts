@@ -161,27 +161,19 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
       }
 
       for (const message of messages) {
-        const input = extractUserInput(message);
-        if (!input) {
-          console.log(`Skipping unsupported message of type: ${message.type}`);
-          continue;
-        }
-
         const senderPhone: string = normalisePhone(message.from ?? "");
         const timestamp: string   = message.timestamp
           ? new Date(Number(message.timestamp) * 1000).toISOString()
           : new Date().toISOString();
-
-        const contactName: string =
-          contacts.find((c: any) => c.wa_id === message.from)?.profile?.name ??
-          senderPhone;
 
         if (!senderPhone) {
           console.error("Message has no sender phone number — skipping.");
           continue;
         }
 
-        console.log(`Incoming WhatsApp from ${senderPhone}: "${input.text}"`);
+        const contactName: string =
+          contacts.find((c: any) => c.wa_id === message.from)?.profile?.name ??
+          senderPhone;
 
         const sb = makeSupabase();
 
@@ -189,6 +181,24 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         // "new lead assigned" ping) — route those separately so an agent never
         // gets processed as if they were a customer lead.
         const agent = AGENT_ROTATION.find((a) => normalisePhone(a.phone) === senderPhone);
+
+        if (message.type === "image") {
+          if (agent) {
+            console.log(`Image from agent ${agent.name} — ignoring (agents aren't processed as leads).`);
+            continue;
+          }
+          await handleImageMessage(sb, message, senderPhone, contactName, timestamp);
+          continue;
+        }
+
+        const input = extractUserInput(message);
+        if (!input) {
+          console.log(`Skipping unsupported message of type: ${message.type}`);
+          continue;
+        }
+
+        console.log(`Incoming WhatsApp from ${senderPhone}: "${input.text}"`);
+
         if (agent) {
           await handleAgentReply(sb, agent, input);
           continue;
@@ -346,17 +356,110 @@ async function insertCommunication(
   direction: "inbound" | "outbound",
   body: string,
   timestamp: string,
+  attachmentPath?: string,
 ): Promise<void> {
   const { error } = await sb.from("communications").insert({
-    lead_id:    leadId,
-    type:       "whatsapp",
-    direction:  direction,
-    body:       body,
-    created_at: timestamp,
+    lead_id:         leadId,
+    type:            "whatsapp",
+    direction:       direction,
+    body:            body,
+    created_at:      timestamp,
+    attachment_path: attachmentPath ?? null,
   });
 
   if (error) {
     console.error("Error inserting communication:", error.message);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// handleImageMessage
+// The bot explicitly asks qualified leads to send a deposit screenshot back
+// on this same number — until now nothing handled image messages at all, so
+// every screenshot sent was silently dropped (no ack, no CRM record, no agent
+// notified). This downloads the image from Meta, stores it privately, logs
+// it against the lead with a viewable path, acknowledges the customer, and
+// pings the assigned agent (no lead details in the ping, per policy).
+// ---------------------------------------------------------------------------
+async function handleImageMessage(
+  sb: SupabaseClient,
+  message: any,
+  senderPhone: string,
+  contactName: string,
+  timestamp: string,
+): Promise<void> {
+  const { lead } = await upsertLead(sb, senderPhone, contactName, timestamp);
+  if (!lead) return;
+
+  const to = senderPhone.replace(/^\+/, "");
+  const mediaId: string | undefined = message.image?.id;
+
+  if (!mediaId) {
+    await insertCommunication(sb, lead.id, "inbound", "[image received — no media ID in payload]", timestamp);
+    return;
+  }
+
+  const stored = await downloadAndStoreMedia(sb, mediaId, lead.id);
+  await insertCommunication(
+    sb,
+    lead.id,
+    "inbound",
+    stored.ok ? "[deposit screenshot received]" : `[image received — FAILED to store: ${stored.error}]`,
+    timestamp,
+    stored.ok ? stored.path : undefined,
+  );
+
+  const ackResult = await sendText(
+    to,
+    "Got it! ✅ Your deposit screenshot has been received — our team will confirm it shortly.",
+  );
+  await logOutbound(sb, lead.id, ackResult.ok ? "[screenshot ack sent]" : `[SEND FAILED: screenshot ack — ${ackResult.error}]`);
+
+  if (lead.assigned_agent_id) {
+    const assignedAgent = AGENT_ROTATION.find((a) => a.id === lead.assigned_agent_id);
+    if (assignedAgent) {
+      const pingResult = await sendText(assignedAgent.phone, "📸 A deposit screenshot just came in from a lead in the CRM. Please review.");
+      await insertCommunication(
+        sb,
+        lead.id,
+        "outbound",
+        pingResult.ok ? `[agent ${assignedAgent.name} notified of screenshot]` : `[SEND FAILED: agent screenshot notification — ${pingResult.error}]`,
+        new Date().toISOString(),
+      );
+    }
+  }
+}
+
+async function downloadAndStoreMedia(
+  sb: SupabaseClient,
+  mediaId: string,
+  leadId: string,
+): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+  const { token } = await getWaCredentials();
+  if (!token) return { ok: false, error: "no WhatsApp access token available" };
+
+  try {
+    const metaRes = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${mediaId}`, {
+      headers: { "Authorization": `Bearer ${token}` },
+    });
+    if (!metaRes.ok) return { ok: false, error: `media lookup failed: HTTP ${metaRes.status}` };
+    const meta = await metaRes.json();
+    const mediaUrl: string = meta.url;
+    const mimeType: string = (meta.mime_type ?? "image/jpeg").split(";")[0];
+
+    const fileRes = await fetch(mediaUrl, { headers: { "Authorization": `Bearer ${token}` } });
+    if (!fileRes.ok) return { ok: false, error: `media download failed: HTTP ${fileRes.status}` };
+    const bytes = new Uint8Array(await fileRes.arrayBuffer());
+
+    const ext = mimeType.split("/")[1] ?? "jpg";
+    const path = `${leadId}/${Date.now()}.${ext}`;
+
+    const { error: uploadError } = await sb.storage.from("deposit-screenshots").upload(path, bytes, { contentType: mimeType });
+    if (uploadError) return { ok: false, error: uploadError.message };
+
+    return { ok: true, path };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 

@@ -2801,6 +2801,12 @@ async function viewKycFile(path) {
   window.open(data.signedUrl, '_blank');
 }
 
+async function viewDepositScreenshot(path) {
+  const { data, error } = await sb.storage.from('deposit-screenshots').createSignedUrl(path, 60);
+  if (error) { alert('Could not open file: ' + error.message); return; }
+  window.open(data.signedUrl, '_blank');
+}
+
 async function reviewKycDocument(docId, decision, leadId, ctx) {
   const note = prompt(decision === 'verified'
     ? 'Optional note for verification:' : 'Reason for rejection:') || '';
@@ -2891,7 +2897,7 @@ async function loadClientCommunications(leadId) {
 function buildCommsTab(lead, leadId, ctx, commRows) {
   const commsTable = `
     <table>
-      <thead><tr><th>Date</th><th>Type</th><th>Direction</th><th>Subject / Preview</th><th>Logged By</th></tr></thead>
+      <thead><tr><th>Date</th><th>Type</th><th>Direction</th><th>Subject / Preview</th><th>Logged By</th><th>Attachment</th></tr></thead>
       <tbody>
         ${commRows.length ? commRows.map(c => `
           <tr>
@@ -2900,8 +2906,9 @@ function buildCommsTab(lead, leadId, ctx, commRows) {
             <td><span class="badge badge-${c.direction}">${directionLabel(c.direction)}</span></td>
             <td style="color:#aaa">${esc(c.subject || truncate(c.body, 60))}</td>
             <td>${esc(c.logger?.full_name || '—')}</td>
+            <td>${c.attachment_path ? `<button class="btn btn-secondary btn-sm" onclick="viewDepositScreenshot('${c.attachment_path}')">View</button>` : '—'}</td>
           </tr>`).join('')
-        : '<tr><td colspan="5" class="empty-state">No communications logged yet.</td></tr>'}
+        : '<tr><td colspan="6" class="empty-state">No communications logged yet.</td></tr>'}
       </tbody>
     </table>`;
 

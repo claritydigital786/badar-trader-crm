@@ -590,3 +590,39 @@ CREATE POLICY "kyc-documents: agent select own clients" ON storage.objects
 
 -- ── DONE (Phase 6) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 7 Schema (deposit screenshot capture)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 25. Deposit screenshot storage ──────────────────────────
+-- The bot previously had no handling at all for image messages — a
+-- customer's deposit screenshot (which the bot explicitly asks for) was
+-- silently dropped. Now stored at {lead_id}/{timestamp}.{ext}, same
+-- admin-full / agent-own-client pattern as kyc-documents.
+ALTER TABLE public.communications ADD COLUMN IF NOT EXISTS attachment_path TEXT;
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('deposit-screenshots', 'deposit-screenshots', false)
+ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "deposit-screenshots: admin full access" ON storage.objects;
+CREATE POLICY "deposit-screenshots: admin full access" ON storage.objects
+  FOR ALL USING (bucket_id = 'deposit-screenshots' AND public.is_admin())
+  WITH CHECK (bucket_id = 'deposit-screenshots' AND public.is_admin());
+
+DROP POLICY IF EXISTS "deposit-screenshots: agent select own clients" ON storage.objects;
+CREATE POLICY "deposit-screenshots: agent select own clients" ON storage.objects
+  FOR SELECT USING (
+    bucket_id = 'deposit-screenshots' AND
+    EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id::text = (storage.foldername(name))[1]
+      AND l.assigned_agent_id = auth.uid()
+    )
+  );
+
+-- ── DONE (Phase 7) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
