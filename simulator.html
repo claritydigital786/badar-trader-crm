@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Team Badar Assistant — Simulator v3</title>
+<title>Team Badar Assistant, Simulator v3</title>
 <link rel="icon" type="image/png" href="favicon.png" />
 <style>
   :root{--wa:#075E54;--wa2:#128C7E;--bg:#0b141a;--in:#202c33;--out:#005c4b;--txt:#e9edef;--mut:#8696a0}
@@ -66,10 +66,11 @@ function chatChoices(opts){const row=document.createElement('div');row.className
 function t(en,ru){return lang==='ru'?ru:en;}
 
 async function start(){
-  await bot("Assalam o Alaikum! 🌟 This is Badar Tanveer's team — mein Team Badar ka official assistant hoon.\n\nPlease choose your language / Barah-e-karam apni zubaan chunein:");
+  await bot("Hello! 👋");
+  await bot("Dear Customer\n\nWelcome to Team Badar's Self-Service.\n\nPlease select your preferred language from the Main Menu below.");
   chatChoices([
-    {label:'1️⃣ English',fn:()=>{lang='en';mainMenu();}},
-    {label:'2️⃣ Roman Urdu',fn:()=>{lang='ru';mainMenu();}}
+    {label:'English',fn:()=>{lang='en';mainMenu();}},
+    {label:'Roman Urdu',fn:()=>{lang='ru';mainMenu();}}
   ]);
 }
 
@@ -77,7 +78,7 @@ async function mainMenu(){
   misses=0; // navigating the menu means the user is unstuck — reset the counter
   await bot(t("Great! How can I help you today? 👇","Zabardast! Aaj mein aapki kya madad kar sakta hoon? 👇"));
   quick([
-    {label:t('📈 Join FREE Signal Group','📈 FREE Signal Group join karein'),fn:joinFlow},
+    {label:t('📈 Join Free Premium Signals Group','📈 Free Premium Signals Group join karein'),fn:joinFlow},
     {label:t('🔁 I already have a broker account','🔁 Mera broker account pehle se hai'),fn:existingFlow},
     {label:t('🎓 Course Details','🎓 Course ki details'),fn:courseFlow},
     {label:t('💎 Premium Group','💎 Premium Group'),fn:premiumFlow},
@@ -86,7 +87,7 @@ async function mainMenu(){
 }
 
 async function joinFlow(){
-  await bot(t("Free Signals access has 4 simple steps:\n\n1️⃣ Create your broker account through OUR link (mandatory)\n2️⃣ Deposit $100–$500 (this is YOUR trading capital, not a fee)\n3️⃣ Send deposit screenshot here on WhatsApp\n4️⃣ Submit the verification form\n\nYou'll be added within 48 hours ✅\n\nWhich broker do you prefer?","Free Signals ke liye 4 asaan steps:\n\n1️⃣ Hamari link se broker account banayein (lazmi)\n2️⃣ $100–$500 deposit karein (ye aapka apna trading capital hai, fee nahi)\n3️⃣ Deposit ka screenshot yahan WhatsApp par bhejein\n4️⃣ Verification form submit karein\n\n48 hours ke andar aapko add kar diya jayega ✅\n\nKaunsa broker pasand karenge?"));
+  await bot(t("Free Premium Signals Group By Badar Tanveer access has 4 simple steps:\n\n1️⃣ Create your broker account through OUR link (mandatory)\n2️⃣ Deposit $500 (this is YOUR trading capital, not a fee)\n3️⃣ Send deposit screenshot here on WhatsApp\n4️⃣ Submit the verification form\n\nYou'll be added within 48 hours ✅\n\nWhich broker do you prefer?","Free Premium Signals Group By Badar Tanveer ke liye 4 asaan steps:\n\n1️⃣ Hamari link se broker account banayein (lazmi)\n2️⃣ $500 deposit karein (ye aapka apna trading capital hai, fee nahi)\n3️⃣ Deposit ka screenshot yahan WhatsApp par bhejein\n4️⃣ Verification form submit karein\n\n48 hours ke andar aapko add kar diya jayega ✅\n\nKaunsa broker pasand karenge?"));
   brokerButtons(false);
 }
 
@@ -100,7 +101,7 @@ function brokerButtons(existing){
 
 async function brokerLink(b){
   const link=b==='Exness'?LINKS.exness:LINKS.dprime, code=b==='Exness'?'eatgh2cl7y':'45031';
-  await bot(t(`Perfect! Create your ${b} account here 👇\n${link}\n\nReferral / partner code: *${code}*\n\nAfter depositing $100–$500, send your deposit screenshot here, then submit the verification form:\n${LINKS.form}\n\nYou'll be added within 48 hours of form submission ✅`,`Perfect! Apna ${b} account yahan banayein 👇\n${link}\n\nReferral / partner code: *${code}*\n\n$100–$500 deposit ke baad screenshot yahan bhejein, phir verification form submit karein:\n${LINKS.form}\n\nForm ke 48 hours ke andar aapko add kar diya jayega ✅`));
+  await bot(t(`Perfect! Create your ${b} account here 👇\n${link}\n\nReferral / partner code: *${code}*\n\nAfter depositing $500, send your deposit screenshot here, then submit the verification form:\n${LINKS.form}\n\nYou'll be added within 48 hours of form submission ✅`,`Perfect! Apna ${b} account yahan banayein 👇\n${link}\n\nReferral / partner code: *${code}*\n\n$500 deposit ke baad screenshot yahan bhejein, phir verification form submit karein:\n${LINKS.form}\n\nForm ke 48 hours ke andar aapko add kar diya jayega ✅`));
   afterFlow();
 }
 
@@ -125,7 +126,7 @@ async function courseFlow(){
 }
 
 async function premiumFlow(){
-  await bot(t(`💎 *Premium options:*\n\n1. FREE route — join under our IB link (Exness/Dprime), deposit $100–$500, and get signals free.\n2. Keep your own broker — paid premium membership (fee details from the team).\n\nDiscuss directly on WhatsApp: ${LINKS.wa}`,`💎 *Premium options:*\n\n1. FREE tareeqa — hamari IB link se join karein (Exness/Dprime), $100–$500 deposit, signals bilkul free.\n2. Apna broker rakhein — paid premium membership (fees team se confirm karein).\n\nWhatsApp par direct baat karein: ${LINKS.wa}`));
+  await bot(t(`💎 *Premium options:*\n\n1. FREE route — join under our IB link (Exness/Dprime), deposit $500, and get signals free.\n2. Keep your own broker — paid premium membership (fee details from the team).\n\nDiscuss directly on WhatsApp: ${LINKS.wa}`,`💎 *Premium options:*\n\n1. FREE tareeqa — hamari IB link se join karein (Exness/Dprime), $500 deposit, signals bilkul free.\n2. Apna broker rakhein — paid premium membership (fees team se confirm karein).\n\nWhatsApp par direct baat karein: ${LINKS.wa}`));
   afterFlow();
 }
 
@@ -143,7 +144,7 @@ function afterFlow(){
 
 // Free-text FAQ engine
 const FAQ=[
- {k:/premium.*free|free.*premium/i,en:`Free access is via our IB route: create your account through our link + deposit $100–$500 + submit the form. That's the no-fee path ✅`,ru:`Free access hamari IB link se milta hai: account hamari link se + $100–$500 deposit + form submit. Ye bilkul free tareeqa hai ✅`},
+ {k:/premium.*free|free.*premium/i,en:`Free access is via our IB route: create your account through our link + deposit $500 + submit the form. That's the no-fee path ✅`,ru:`Free access hamari IB link se milta hai: account hamari link se + $500 deposit + form submit. Ye bilkul free tareeqa hai ✅`},
  {k:/join|add me|premium group|signal group|group me|group mein/i,en:null,ru:null,fn:joinFlow},
  {k:/course|batch|mentorship|class/i,fn:courseFlow},
  {k:/how many signal|kitne signal|signals recv|signals receive/i,en:"Signals are shared daily based on market conditions — we focus on quality setups, not a fixed count. 📊",ru:"Signals market ke mutabiq daily share hote hain — hum quality setups par focus karte hain, fixed number par nahi. 📊"},
@@ -153,11 +154,11 @@ const FAQ=[
  {k:/screenshot.*(share|send|bhej|kar diya)|deposit.*screenshot/i,en:"Great! Once your screenshot + verification form are received, you'll be added within 48 hours ✅",ru:"Zabardast! Screenshot + verification form milne ke baad 48 hours ke andar aapko add kar diya jayega ✅"},
  {k:/update|kab add|add kab|kab tak|when.*add/i,en:"You're added within 48 hours of form submission. If 48 hours have passed, send your form submission screenshot and the team will check. 🕐",ru:"Form submit hone ke 48 hours ke andar add kiya jata hai. Agar 48 hours guzar gaye hain to form submission ka screenshot bhejein, team check karegi. 🕐"},
  {k:/fees pay|paid.*course|course.*pay/i,en:`Send your payment proof on WhatsApp ${LINKS.wa} — you'll be added with the next batch schedule. 🎓`,ru:`Payment proof WhatsApp par bhejein ${LINKS.wa} — next batch ke schedule ke sath add kar diya jayega. 🎓`},
- {k:/minimum deposit|min.*deposit|deposit.*minimum|kitna deposit/i,en:"Minimum deposit is $100 (recommended range $100–$500). This stays in YOUR account as trading capital. 💵",ru:"Minimum deposit $100 hai (range $100–$500). Ye aapke apne account mein trading capital rehta hai. 💵"},
- {k:/free or paid|free ya paid|is.*free/i,en:"The signal group is FREE when you join under Team Badar's IB link. A paid premium exists if you keep your own broker. ✅",ru:"Signal group FREE hai jab aap Team Badar ki IB link se join karte hain. Apna broker rakhne par paid premium option hai. ✅"},
+ {k:/minimum deposit|min.*deposit|deposit.*minimum|kitna deposit/i,en:"Minimum deposit is a flat $500 — not a range. This stays in YOUR account as trading capital. 💵",ru:"Minimum deposit flat $500 hai — range nahi. Ye aapke apne account mein trading capital rehta hai. 💵"},
+ {k:/free or paid|free ya paid|is.*free/i,en:"The Free Premium Signals Group By Badar Tanveer is FREE when you join under Team Badar's IB link. A paid premium exists if you keep your own broker. ✅",ru:"Free Premium Signals Group By Badar Tanveer FREE hai jab aap Team Badar ki IB link se join karte hain. Apna broker rakhne par paid premium option hai. ✅"},
  {k:/deposit.*withdraw|withdraw|nikaal/i,en:"Deposits & withdrawals happen inside your broker app (Exness / Dprime): Wallet → Deposit/Withdraw with local payment methods. Team can guide you step by step. 🏦",ru:"Deposit aur withdraw aapke broker app (Exness / Dprime) ke andar hote hain: Wallet → Deposit/Withdraw, local payment methods ke sath. Team step by step guide kar sakti hai. 🏦"},
  {k:/partner|referral.*change|ib change|previous.*change/i,fn:existingFlow},
- {k:/joining fee|kitni fees|what.*fee|fee kya/i,en:"Signal group: FREE via the IB route (the $100–$500 deposit is your own capital, not a fee). Course: $200. 💰",ru:"Signal group: IB route se FREE ($100–$500 deposit aapka apna capital hai, fee nahi). Course: $200. 💰"},
+ {k:/joining fee|kitni fees|what.*fee|fee kya/i,en:"Signal group: FREE via the IB route (the $500 deposit is your own capital, not a fee). Course: $200. 💰",ru:"Signal group: IB route se FREE ($500 deposit aapka apna capital hai, fee nahi). Course: $200. 💰"},
  {k:/exness.*link|link.*exness/i,en:`Exness: ${LINKS.exness} (code: eatgh2cl7y)`,ru:`Exness: ${LINKS.exness} (code: eatgh2cl7y)`},
  {k:/prime.*link|link.*prime|dprime|d prime/i,en:`Dprime: ${LINKS.dprime} (code: 45031)`,ru:`Dprime: ${LINKS.dprime} (code: 45031)`},
  {k:/form/i,en:`Verification form: ${LINKS.form}\nYou'll be added within 48 hours ✅`,ru:`Verification form: ${LINKS.form}\n48 hours ke andar add kar diya jayega ✅`},
@@ -183,7 +184,7 @@ async function send(){
   // No FAQ matched — count it as a failed attempt. Two in a row → hand to a human.
   misses++;
   if(misses>=2){await escalate('stuck: 2 unanswered questions in a row');return;}
-  await bot(t(`Sorry, I didn't quite get that 🙏 Could you rephrase — or pick an option from the menu below?`,`Maaf kijiye, samajh nahi aaya 🙏 Dobara likhein — ya neeche menu se option chunein.`));
+  await bot(t(`This is Team Badar Tanvir. We are ever ready to serve for our brand's purpose. We're really sorry, but we couldn't quite understand your message. 🙏 Please pick an option from the menu below.`,`Yeh Team Badar Tanvir hai. Hum hamesha aapki khidmat ke liye tayyar hain. Maazrat, hum aapka paigham samajh nahi paye. 🙏 Barah-e-karam neeche menu se option chunein.`));
   quick([{label:t('⬅️ Main menu','⬅️ Wapis menu'),fn:mainMenu}]);
 }
 

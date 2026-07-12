@@ -26,7 +26,7 @@
       width: 220px;
       min-height: 100vh;
       background: #0f172a;
-      padding: 0;
+      padding: 0 0 46px; /* reserve room for the fixed market ticker, so it never covers the sidebar footer */
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
@@ -571,7 +571,7 @@
         and <code>YOUR_SUPABASE_ANON_KEY</code> with those values.</li>
     <li>Create your admin user: <strong>Authentication → Users → Add User</strong>.<br>
         Email + password of your choice.<br>
-        <em>User Metadata:</em> <code>{"full_name": "Badar Tanveer", "role": "admin"}</code></li>
+        <em>User Metadata:</em> <code>{"full_name": "Badar Tanvir", "role": "admin"}</code></li>
     <li>Refresh this page — you should see the login screen.</li>
   </ol>
   <p style="margin-top:14px;color:#555;font-size:0.8rem">
@@ -897,6 +897,14 @@
       <div class="conv-list-panel">
         <div class="conv-search">
           <input type="text" id="conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations()" />
+        </div>
+        <div class="conv-filter-tabs" id="conv-filter-tabs" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid #e2e8f0">
+          <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">All</button>
+          <button class="conv-filter-tab" data-tier="new" onclick="setConvFilter('new')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🆕 New</button>
+          <button class="conv-filter-tab" data-tier="unread" onclick="setConvFilter('unread')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">📩 Unread</button>
+          <button class="conv-filter-tab" data-tier="warm" onclick="setConvFilter('warm')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🌤 Warm</button>
+          <button class="conv-filter-tab" data-tier="hot" onclick="setConvFilter('hot')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🔥 Hot</button>
+          <button class="conv-filter-tab" data-tier="closed" onclick="setConvFilter('closed')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">✅ Closed</button>
         </div>
         <div class="conv-list" id="conv-list"></div>
       </div>
@@ -4025,6 +4033,42 @@ const _DEMO_CONVERSATIONS = [
 ];
 let _activeConvId = null;
 let _convRealtimeSub = null;
+let _activeConvFilter = 'all';
+let _lastConvs = []; // cache of the last rendered conversation rows, so switching tabs doesn't re-fetch
+
+// Classifies a lead into one of: new, warm, hot, closed. "unread" is checked
+// separately (is_unread) since it can apply on top of any of these.
+function computeLeadTier(lead) {
+  const status = lead?.status || 'new';
+  if (status === 'qualified' || status === 'converted') return 'closed';
+  const botStage = lead?.bot_stage || 'awaiting_language';
+  const needsHuman = !!lead?.needs_human;
+  const handoffReason = lead?.handoff_reason || '';
+  if (botStage === 'awaiting_deposit_confirm' || (needsHuman && /deposit/i.test(handoffReason))) return 'hot';
+  if (botStage === 'awaiting_language' || botStage === 'awaiting_menu') return 'new';
+  return 'warm';
+}
+
+function tierBadge(tier) {
+  const map = {
+    new:    '<span style="background:#e0e7ff;color:#4338ca;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">NEW</span>',
+    warm:   '<span style="background:#fef3c7;color:#b45309;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">WARM</span>',
+    hot:    '<span style="background:#fee2e2;color:#b91c1c;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">🔥 HOT</span>',
+    closed: '<span style="background:#dcfce7;color:#15803d;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">CLOSED</span>',
+  };
+  return map[tier] || '';
+}
+
+function setConvFilter(tier) {
+  _activeConvFilter = tier;
+  document.querySelectorAll('.conv-filter-tab').forEach(btn => {
+    const active = btn.dataset.tier === tier;
+    btn.style.background = active ? '#1e293b' : '#fff';
+    btn.style.color = active ? '#fff' : '#475569';
+    btn.style.borderColor = active ? '#1e293b' : '#cbd5e1';
+  });
+  filterConversations();
+}
 
 function fmtConvTime(isoStr) {
   if (!isoStr) return '';
@@ -4052,8 +4096,10 @@ async function renderConversations() {
     }
     listEl.innerHTML = convs.map(c => {
       const initials = c.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+      // Demo rows only carry a simple status, so map that to the closest tier for preview purposes.
+      const tier = c.status === 'converted' ? 'closed' : c.status === 'contacted' ? 'warm' : 'new';
       return `
-        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" onclick="openConversation('${c.id}')">
+        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="false" onclick="openConversation('${c.id}')">
           <div class="conv-avatar">${initials}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(c.name)}</div>
@@ -4061,10 +4107,11 @@ async function renderConversations() {
           </div>
           <div style="flex-shrink:0;text-align:right">
             <div class="conv-time">${c.lastTime}</div>
-            <div style="margin-top:4px">${statusBadge(c.status)}</div>
+            <div style="margin-top:4px">${tierBadge(tier)}</div>
           </div>
         </div>`;
     }).join('');
+    filterConversations();
     return;
   }
 
@@ -4073,7 +4120,7 @@ async function renderConversations() {
   try {
     const { data: comms, error } = await sb
       .from('communications')
-      .select('lead_id, body, direction, created_at, leads(full_name, phone, status)')
+      .select('lead_id, body, direction, created_at, leads(full_name, phone, status, is_unread, bot_stage, needs_human, handoff_reason)')
       .eq('type', 'whatsapp')
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -4083,6 +4130,7 @@ async function renderConversations() {
     }
     const seen = new Set();
     const convs = comms.filter(c => { if (seen.has(c.lead_id)) return false; seen.add(c.lead_id); return true; });
+    _lastConvs = convs;
     // Update sidebar badge
     const navBadge = document.getElementById('conv-nav-badge');
     if (navBadge) { navBadge.textContent = convs.length; navBadge.style.display = convs.length ? 'inline-block' : 'none'; }
@@ -4090,19 +4138,22 @@ async function renderConversations() {
       const name = c.leads?.full_name || 'Unknown';
       const initials = name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
       const preview = (c.direction === 'inbound' ? '↩ ' : '↪ ') + c.body;
+      const tier = computeLeadTier(c.leads);
+      const isUnread = !!c.leads?.is_unread;
       return `
-        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" onclick="openConversation('${c.lead_id}')">
+        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" onclick="openConversation('${c.lead_id}')">
           <div class="conv-avatar">${initials}</div>
           <div class="conv-info">
-            <div class="conv-name">${esc(name)}</div>
+            <div class="conv-name">${esc(name)}${isUnread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
             <div class="conv-preview">${esc(preview.slice(0,60))}</div>
           </div>
           <div style="flex-shrink:0;text-align:right">
             <div class="conv-time">${fmtConvTime(c.created_at)}</div>
-            <div style="margin-top:4px">${statusBadge(c.leads?.status || 'new')}</div>
+            <div style="margin-top:4px">${tierBadge(tier)}</div>
           </div>
         </div>`;
     }).join('');
+    filterConversations();
   } catch(err) {
     listEl.innerHTML = `<div style="padding:24px;text-align:center;color:#ef4444;font-size:0.85rem">Error: ${esc(err.message)}</div>`;
   }
@@ -4111,7 +4162,13 @@ async function renderConversations() {
 function filterConversations() {
   const q = (document.getElementById('conv-search-input')?.value || '').toLowerCase();
   document.querySelectorAll('#conv-list .conv-item').forEach(el => {
-    el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none';
+    const matchesText = el.textContent.toLowerCase().includes(q);
+    const matchesTier = _activeConvFilter === 'all'
+      ? true
+      : _activeConvFilter === 'unread'
+        ? el.dataset.unread === 'true'
+        : el.dataset.tier === _activeConvFilter;
+    el.style.display = (matchesText && matchesTier) ? '' : 'none';
   });
 }
 
