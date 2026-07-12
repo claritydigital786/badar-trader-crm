@@ -2710,7 +2710,7 @@ function buildKycTab(lead, leadId, ctx, isAdmin, kycRows) {
   const docsTable = `
     <table>
       <thead><tr>
-        <th>Type</th><th>Status</th><th>Uploaded</th><th>Reviewed By</th><th>Notes</th>${isAdmin ? '<th></th>' : ''}
+        <th>Type</th><th>Status</th><th>Uploaded</th><th>Reviewed By</th><th>Notes</th><th>File</th>${isAdmin ? '<th></th>' : ''}
       </tr></thead>
       <tbody>
         ${kycRows.length ? kycRows.map(d => `
@@ -2720,12 +2720,13 @@ function buildKycTab(lead, leadId, ctx, isAdmin, kycRows) {
             <td style="font-size:0.8rem;color:#666">${fmtDate(d.uploaded_at)}</td>
             <td>${esc(d.reviewer?.full_name || '—')}</td>
             <td style="color:#aaa">${esc(d.notes || '—')}</td>
+            <td>${d.file_path ? `<button class="btn btn-secondary btn-sm" onclick="viewKycFile('${d.file_path}')">View</button>` : '—'}</td>
             ${isAdmin ? `<td style="white-space:nowrap">
               <button class="btn btn-secondary btn-sm" onclick="reviewKycDocument('${d.id}','verified','${leadId}','${ctx}')">Verify</button>
               <button class="btn btn-secondary btn-sm" onclick="reviewKycDocument('${d.id}','rejected','${leadId}','${ctx}')">Reject</button>
             </td>` : ''}
           </tr>`).join('')
-        : `<tr><td colspan="${isAdmin ? 6 : 5}" class="empty-state">No documents recorded yet.</td></tr>`}
+        : `<tr><td colspan="${isAdmin ? 7 : 6}" class="empty-state">No documents recorded yet.</td></tr>`}
       </tbody>
     </table>`;
 
@@ -2742,9 +2743,10 @@ function buildKycTab(lead, leadId, ctx, isAdmin, kycRows) {
         </select>
       </div>
     </div>
-    <label>Notes / File Reference</label>
-    <textarea id="det-kyc-notes" rows="2"
-      placeholder="Reference or filename — actual upload arrives in Phase 3"></textarea>
+    <label>File (optional)</label>
+    <input type="file" id="det-kyc-file" />
+    <label>Notes</label>
+    <textarea id="det-kyc-notes" rows="2" placeholder="Optional notes"></textarea>
     <div class="form-actions">
       <button class="btn btn-primary btn-inline" onclick="addKycDocument('${leadId}','${ctx}')">Add Document Record</button>
       <span class="success-msg" id="det-kyc-add-msg"></span>
@@ -2776,12 +2778,27 @@ async function saveKycStatus(leadId, ctx) {
 async function addKycDocument(leadId, ctx) {
   const docType = v('det-kyc-doctype');
   const notes   = v('det-kyc-notes');
+  const file    = document.getElementById('det-kyc-file')?.files?.[0] || null;
   const msgEl   = document.getElementById('det-kyc-add-msg');
-  const { error } = await sb.from('kyc_documents').insert({
-    client_id: leadId, document_type: docType, notes: notes || null,
-  });
+
+  const { data: doc, error } = await sb.from('kyc_documents')
+    .insert({ client_id: leadId, document_type: docType, notes: notes || null })
+    .select().single();
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
+
+  if (file) {
+    const path = `${leadId}/${doc.id}_${file.name}`;
+    const { error: uploadError } = await sb.storage.from('kyc-documents').upload(path, file);
+    if (uploadError) { setMsg(msgEl, `Document saved, but file upload failed: ${uploadError.message}`, 'err'); await openDetail(leadId, ctx); return; }
+    await sb.from('kyc_documents').update({ file_path: path }).eq('id', doc.id);
+  }
   await openDetail(leadId, ctx);
+}
+
+async function viewKycFile(path) {
+  const { data, error } = await sb.storage.from('kyc-documents').createSignedUrl(path, 60);
+  if (error) { alert('Could not open file: ' + error.message); return; }
+  window.open(data.signedUrl, '_blank');
 }
 
 async function reviewKycDocument(docId, decision, leadId, ctx) {

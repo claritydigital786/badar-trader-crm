@@ -554,3 +554,39 @@ SELECT cron.schedule(
 
 -- ── DONE (Phase 4) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 6 Schema (KYC document file upload)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 24. KYC document storage ────────────────────────────────
+-- Private bucket; objects are stored at {client_id}/{doc_id}_{filename} so
+-- the agent-select policy can join back to leads.assigned_agent_id without
+-- a denormalized column. Matches the existing kyc_documents RLS: admins
+-- full access, agents read-only for their own clients' files.
+ALTER TABLE public.kyc_documents ADD COLUMN IF NOT EXISTS file_path TEXT;
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('kyc-documents', 'kyc-documents', false)
+ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "kyc-documents: admin full access" ON storage.objects;
+CREATE POLICY "kyc-documents: admin full access" ON storage.objects
+  FOR ALL USING (bucket_id = 'kyc-documents' AND public.is_admin())
+  WITH CHECK (bucket_id = 'kyc-documents' AND public.is_admin());
+
+DROP POLICY IF EXISTS "kyc-documents: agent select own clients" ON storage.objects;
+CREATE POLICY "kyc-documents: agent select own clients" ON storage.objects
+  FOR SELECT USING (
+    bucket_id = 'kyc-documents' AND
+    EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id::text = (storage.foldername(name))[1]
+      AND l.assigned_agent_id = auth.uid()
+    )
+  );
+
+-- ── DONE (Phase 6) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
