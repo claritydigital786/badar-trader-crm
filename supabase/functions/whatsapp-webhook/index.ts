@@ -185,6 +185,15 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
 
         const sb = makeSupabase();
 
+        // Rotation agents message the business number too (acknowledging their
+        // "new lead assigned" ping) — route those separately so an agent never
+        // gets processed as if they were a customer lead.
+        const agent = AGENT_ROTATION.find((a) => normalisePhone(a.phone) === senderPhone);
+        if (agent) {
+          await handleAgentReply(sb, agent, input);
+          continue;
+        }
+
         const { lead, wasCreated } = await upsertLead(sb, senderPhone, contactName, timestamp);
         if (!lead) continue;
 
@@ -294,12 +303,21 @@ async function upsertLead(
 
   // Notifying the agent is internal housekeeping — it must never delay the
   // customer's own greeting, which waits on this function returning. Fired
-  // in the background via waitUntil rather than awaited inline.
+  // in the background via waitUntil rather than awaited inline. The ping is a
+  // tappable button (not plain text) carrying the lead ID, so the agent's
+  // acknowledgement is unambiguous even if several leads are pinged at once —
+  // see handleAgentReply(). nudge-agents re-sends this same button every 5
+  // minutes until agent_acknowledged_at is set.
   const notifyAgent = (async () => {
-    const pingResult = await sendText(
+    const pingResult = await sendButtons(
       agent.phone,
       `🔔 New lead assigned to you: ${newLead.full_name} (${newLead.phone}). Please follow up.`,
+      [{ id: `ack_${newLead.id}`, title: "✅ I've got this" }],
     );
+    await sb.from("leads").update({
+      agent_ping_count: 1,
+      agent_last_pinged_at: new Date().toISOString(),
+    }).eq("id", newLead.id);
     await insertCommunication(
       sb,
       newLead.id,
@@ -627,6 +645,33 @@ async function escalate(
     lead.id,
     result.ok ? `[escalated to human: ${reason}]` : `[SEND FAILED: escalation message (still escalated: ${reason}) — ${result.error}]`,
   );
+}
+
+// ---------------------------------------------------------------------------
+// handleAgentReply
+// A rotation agent messaged the business number — the only reply we act on is
+// tapping the "I've got this" button from a round-robin ping (id `ack_<leadId>`).
+// That stops nudge-agents from re-pinging for this specific lead. Anything
+// else from an agent (a stray text, an old/duplicate tap) is just ignored;
+// agents never get run through the customer bot flow.
+// ---------------------------------------------------------------------------
+async function handleAgentReply(
+  sb: SupabaseClient,
+  agent: { id: string; name: string; phone: string },
+  input: UserInput,
+): Promise<void> {
+  const leadId = input.selectionId?.startsWith("ack_") ? input.selectionId.slice(4) : null;
+  if (!leadId) {
+    console.log(`Message from agent ${agent.name} was not an ack button — ignoring.`);
+    return;
+  }
+
+  const { data: lead } = await sb.from("leads").select("id, full_name, agent_acknowledged_at").eq("id", leadId).maybeSingle();
+  if (!lead || lead.agent_acknowledged_at) return;
+
+  await sb.from("leads").update({ agent_acknowledged_at: new Date().toISOString() }).eq("id", lead.id);
+  await insertCommunication(sb, lead.id, "outbound", `[agent ${agent.name} acknowledged assignment]`, new Date().toISOString());
+  await sendText(agent.phone, `✅ Got it — ${lead.full_name} marked as picked up.`);
 }
 
 async function sendDepositConfirm(to: string, sb: SupabaseClient, leadId: string, brokerChoice: string): Promise<SendResult> {

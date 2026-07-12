@@ -521,5 +521,36 @@ ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS handoff_reason TEXT;
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS is_unread BOOLEAN NOT NULL DEFAULT false;
 
+-- ── 22. LEADS: agent round-robin ping tracking (Phase 5) ────────
+-- Tracks the repeat-until-acknowledged reminder loop for the round-robin
+-- "new lead assigned" ping (see supabase/functions/whatsapp-webhook/index.ts
+-- and supabase/functions/nudge-agents/index.ts). agent_acknowledged_at is
+-- set when the assigned agent taps the "I've got this" button; until then,
+-- nudge-agents re-pings every 5 minutes and escalates to the rest of the
+-- team after 3 unanswered pings.
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS agent_ping_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS agent_last_pinged_at TIMESTAMPTZ;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS agent_acknowledged_at TIMESTAMPTZ;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS agent_escalated BOOLEAN NOT NULL DEFAULT false;
+
+-- ── 23. Cron: fire nudge-agents every 5 minutes ─────────────────
+-- nudge-agents is deployed with --no-verify-jwt (same as whatsapp-webhook),
+-- so this plain POST needs no auth header. cron.schedule upserts by job
+-- name, so this is safe to re-run.
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_net;
+
+SELECT cron.schedule(
+  'nudge-agents-every-5-min',
+  '*/5 * * * *',
+  $$
+  SELECT net.http_post(
+    url     := 'https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/nudge-agents',
+    headers := '{"Content-Type": "application/json"}'::jsonb,
+    body    := '{}'::jsonb
+  );
+  $$
+);
+
 -- ── DONE (Phase 4) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
