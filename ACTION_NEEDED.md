@@ -1,4 +1,92 @@
-# CRM Status — Updated 2026-07-05 (5:30 AM)
+# CRM Status — Updated 2026-07-09 (9:55 PM)
+
+## WhatsApp Lead-Automation Bot — session handoff, read here first
+
+---
+
+## What this project is
+
+Building a WhatsApp lead-qualification bot for the Meta Ads campaign hook:
+*"Invest $500 with Badar Tanvir, get his $250 course free."* Leads message
+a WhatsApp number, the bot asks broker choice → trader experience → confirms
+the $500 deposit, then either sends the signup link (qualified) or falls
+back to a free-signals offer (declined) — never just dropping the lead.
+
+---
+
+## ✅ DONE
+
+- **Bot logic fully written and deployed** — `supabase/functions/whatsapp-webhook/index.ts`
+  (currently version 7, ACTIVE on project `vfskqzgphrunjxquqpks`). State machine
+  driven by `leads.bot_stage`. Flow: broker (Exness/Do Prime) → new/experienced
+  (+ "traded before?" if new) → $500 deposit confirm → qualified (signup link +
+  course unlock, `status='qualified'`) or declined (free-signals fallback, stays
+  in the funnel).
+- **Schema migrated** — `leads` table has new columns: `bot_stage`, `broker_choice`,
+  `trader_experience`, `ready_to_deposit`. Applied directly to the live DB and
+  mirrored in `supabase/schema.sql` under "Phase 4".
+- **README updated** — `supabase/functions/whatsapp-webhook/README.md` reflects
+  the new required secrets and bot behavior.
+- **Rep-notification decision**: qualified leads write into the CRM (`leads` +
+  `communications` tables) — no separate rep phone number involved. After a lead
+  qualifies, a human rep should manually add them to the WhatsApp community via
+  **+971 50 262 9138** (the "signalling" number) — Cloud API numbers can't do
+  WhatsApp Groups at all, so this stays a manual step. (Not yet added as an
+  automatic reminder line in the qualified-lead summary — still a nice-to-have.)
+- **`WHATSAPP_ACCESS_TOKEN`** — already generated (System User "Crmbot", full
+  access to the Trade Campus WABA) and saved in Supabase Edge Function secrets.
+
+---
+
+## ⚠️ BLOCKED — this is the one thing stopping it from going fully live
+
+**+92 371 5773903** is the number leads actually land on from the Facebook
+campaign (confirmed by Badar/Ehsan — not to be changed to any other number).
+It needs to be registered on WhatsApp Cloud API under the **Trade Campus**
+WABA (ID `1342908727797643`, the one Crmbot's token has full access to) so it
+gets a **Phone Number ID** — that ID is the last value needed for the
+`WHATSAPP_PHONE_NUMBER_ID` secret.
+
+**The problem:** 3903 already has an active WhatsApp Business App account on
+it (with an existing WhatsApp group, brand history on Instagram/brochures).
+Registering it fresh on Cloud API requires either migrating or deleting that
+existing account first. We tried **migrating** repeatedly (WhatsApp Business
+App → Settings → Account → Migrate to Cloud API, both via manual access code
+and QR code) — it kept failing with **"Phone Number In Use"**
+(error ref `#2655122:WBxP-1149834188-1117030524`) even after the app-side
+toggle was clicked and after waiting the suggested 3+ minutes.
+
+**Decision made:** abandon migration, **delete the WhatsApp account on 3903**
+instead (WhatsApp Business App → Settings → Account → Delete my account →
+confirm with +92 371 5773903), then re-add it fresh in WhatsApp Manager →
+Trade Campus → Phone numbers → Add phone number, which should allow plain
+SMS OTP verification with no conflict. **Known cost of deleting:** loses all
+chat history/contacts/group membership on that number's app installation —
+already accepted since the group will move to being managed via 9138 instead.
+
+**Status as of this handoff:** waiting on Ehsan to actually execute the
+deletion and confirm. Once he does, the next steps are:
+1. Wait a few minutes, then WhatsApp Manager → Add phone number → 3903 → verify via SMS OTP
+2. Grab the resulting Phone Number ID
+3. Add `WHATSAPP_PHONE_NUMBER_ID` secret in Supabase (dashboard → Edge Functions → Secrets, project `vfskqzgphrunjxquqpks`) — Claude cannot enter this itself (won't type credentials into forms), user must paste it in
+4. Send a live test WhatsApp message to 3903 and confirm the bot replies through the full flow
+5. (Optional) add the "remind rep to add to community via 9138" line to the qualified-lead summary in the webhook code
+
+---
+
+## Other context from this session (lower priority, not blocking)
+
+- A separate, unrelated concern came up: Meta Business Suite briefly showed
+  an unfamiliar identity **"Shivam Jaysingh" / @bogdanovxan802** in the
+  business-switcher alongside Badar Trader's portfolios. User explicitly
+  deprioritized investigating this for now (chose to resume WhatsApp work
+  instead) — **worth revisiting later** to rule out unauthorized access
+  (check Business Settings → People for unrecognized users).
+- Numbers reference: **6541** (+971) = main WhatsApp Business API number,
+  Connected. **9138** (+971) = signalling/community number. **3903** (+92) =
+  lead-gen number, the one this whole handoff is about.
+
+---
 
 ## Chat is broken again — read here
 

@@ -470,3 +470,56 @@ CREATE POLICY "leads: anon insert"
 
 -- ── DONE ─────────────────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 4 Schema (WhatsApp lead-qualification bot)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- Run AFTER Phase 1-3 schema above. Safe to re-run.
+-- ============================================================
+
+-- ── 20. LEADS: bot conversation state columns ─────────────────
+-- Tracks each lead's position in the WhatsApp qualification flow
+-- (see supabase/functions/whatsapp-webhook/index.ts).
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS bot_stage TEXT NOT NULL DEFAULT 'awaiting_language'
+  CHECK (bot_stage IN ('awaiting_language','awaiting_menu','awaiting_broker','awaiting_experience','awaiting_traded_before','awaiting_deposit_confirm','qualified','declined'));
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS language TEXT CHECK (language IN ('en','ur'));
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS broker_choice TEXT CHECK (broker_choice IN ('exness','doprime'));
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS trader_experience TEXT CHECK (trader_experience IN ('new','experienced'));
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS ready_to_deposit BOOLEAN;
+
+-- ── 21. LEADS: bot→human handoff + unread tracking ─────────────
+-- needs_human/handoff_reason are set by escalate() when the bot hands a
+-- conversation to a person; retry_count tracks consecutive unmatched replies
+-- (see handleUnmatched()); is_unread flags leads with a new inbound message
+-- for the CRM conversation list (see index.html).
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS needs_human BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS handoff_reason TEXT;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS is_unread BOOLEAN NOT NULL DEFAULT false;
+
+-- ── PENDING SQL (Phase 4 — run this on the live DB before deploying the
+--    language/main-menu bot update) ─────────────────────────────────────
+-- The original Phase 4 migration above already ran against the live `leads`
+-- table (see ACTION_NEEDED.md), so ADD COLUMN IF NOT EXISTS is a no-op for
+-- bot_stage/language and won't widen its existing CHECK constraint. The new
+-- bot flow adds an `awaiting_language` / `awaiting_menu` step before
+-- `awaiting_broker`, so the live constraint + default need updating, and the
+-- handoff/unread columns need adding for the first time.
+--
+-- The DROP CONSTRAINT below assumes Postgres's default auto-generated name
+-- (<table>_<column>_check). If it doesn't match, find the real name first:
+--   SELECT conname FROM pg_constraint
+--   WHERE conrelid = 'public.leads'::regclass AND contype = 'c' AND conname LIKE '%bot_stage%';
+ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_bot_stage_check;
+ALTER TABLE public.leads ADD CONSTRAINT leads_bot_stage_check
+  CHECK (bot_stage IN ('awaiting_language','awaiting_menu','awaiting_broker','awaiting_experience','awaiting_traded_before','awaiting_deposit_confirm','qualified','declined'));
+ALTER TABLE public.leads ALTER COLUMN bot_stage SET DEFAULT 'awaiting_language';
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS language TEXT CHECK (language IN ('en','ur'));
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS needs_human BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS handoff_reason TEXT;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS is_unread BOOLEAN NOT NULL DEFAULT false;
+
+-- ── DONE (Phase 4) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════

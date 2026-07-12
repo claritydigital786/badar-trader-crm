@@ -31,7 +31,7 @@ advances a step (or, in the simulator, when the user taps the menu).
 4. Smoke test: WhatsApp the 3903 number, fumble the deposit question once → confirm it hands off and the bot stops replying.
 
 ## Open items / decisions
-1. **Name spelling** — used **Badar Tanveer** (matches the Meta ad account). Confirm or provide the exact spelling to change it in `simulator.html` + `whatsapp-webhook/index.ts`.
+1. ~~**Name spelling**~~ — RESOLVED 2026-07-11: confirmed **Badar Tanvir** (not Tanveer) directly by Badar. Fixed in `simulator.html`, `index.html`, `ACTION_NEEDED.md`.
 2. **No "Needs Human" alert/queue beyond the filter** — escalations set the flag and log into the lead's conversation, but there's no push notification. The Leads filter is the surfacing mechanism for now.
-3. **FAQ tier conflict (blocking before the 3 new Q&As go live in the bot copy):** "signal group" is free at $100–$500 in existing copy vs. the new $1,000 tier; course is $200 in the doc vs $250 in the webhook. Reconcile with Badar, then sync the three Q&As into `simulator.html` + `whatsapp-webhook`.
-4. **Push** — branch is local; the GitHub PAT was wiped this session. Re-paste it to push.
+3. **FAQ tier conflict — partially resolved 2026-07-11:** deposit amount confirmed flat **$500** (not $1,000) by Badar, matching the webhook; `docs/team-badar-faq.md` Q22/Q24 updated. Still open: course fee is $200 in the doc vs $250 in the webhook — needs Badar's confirmation before the 3 new Q&As sync into `simulator.html` + `whatsapp-webhook`.
+4. **Push** — new PAT generated and stored in macOS Keychain this session (old leaked one revoked); branch should now be pushable.
