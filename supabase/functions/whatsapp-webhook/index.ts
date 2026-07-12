@@ -292,19 +292,30 @@ async function upsertLead(
   await sb.from("leads").update({ assigned_agent_id: agent.id }).eq("id", newLead.id);
   newLead.assigned_agent_id = agent.id;
 
-  const pingResult = await sendText(
-    agent.phone,
-    `🔔 New lead assigned to you: ${newLead.full_name} (${newLead.phone}). Please follow up.`,
-  );
-  await insertCommunication(
-    sb,
-    newLead.id,
-    "outbound",
-    pingResult.ok
-      ? `[assigned to ${agent.name}, notified]`
-      : `[assigned to ${agent.name}, notification SEND FAILED — ${pingResult.error}]`,
-    new Date().toISOString(),
-  );
+  // Notifying the agent is internal housekeeping — it must never delay the
+  // customer's own greeting, which waits on this function returning. Fired
+  // in the background via waitUntil rather than awaited inline.
+  const notifyAgent = (async () => {
+    const pingResult = await sendText(
+      agent.phone,
+      `🔔 New lead assigned to you: ${newLead.full_name} (${newLead.phone}). Please follow up.`,
+    );
+    await insertCommunication(
+      sb,
+      newLead.id,
+      "outbound",
+      pingResult.ok
+        ? `[assigned to ${agent.name}, notified]`
+        : `[assigned to ${agent.name}, notification SEND FAILED — ${pingResult.error}]`,
+      new Date().toISOString(),
+    );
+  })();
+  const waitUntil = (globalThis as any).EdgeRuntime?.waitUntil;
+  if (waitUntil) {
+    waitUntil(notifyAgent);
+  } else {
+    notifyAgent.catch((err) => console.error("Agent notify failed:", err));
+  }
 
   return { lead: newLead, wasCreated: true };
 }
