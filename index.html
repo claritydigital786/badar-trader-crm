@@ -3512,6 +3512,8 @@ function editAutomationRuleLoad(id) {
   document.getElementById('ar-body').value    = rule.template_body || '';
   const condEl = document.getElementById('ar-condition');
   if (condEl) condEl.value = rule.condition_filter || '';
+  const agentEl = document.getElementById('ar-assign-agent');
+  if (agentEl) agentEl.value = rule.assign_agent_id || '';
   const titleEl = document.getElementById('automation-form-title');
   if (titleEl) titleEl.textContent = 'Edit Rule';
   toggleActionFields();
@@ -3531,11 +3533,15 @@ async function submitAutomationRule() {
   if (!name) { setMsg(msgEl, 'Rule name is required.', 'err'); return; }
   if (channel !== 'assign_agent' && !body) { setMsg(msgEl, 'Message template is required.', 'err'); return; }
 
+  const assignAgentId = v('ar-assign-agent');
+  if (channel === 'assign_agent' && !assignAgentId) { setMsg(msgEl, 'Select an agent to assign.', 'err'); return; }
+
   const payload = {
     name, trigger_event: trigger, channel,
     template_subject:  channel === 'email'        ? (subject   || null) : null,
     template_body:     channel !== 'assign_agent' ? (body      || null) : null,
     condition_filter:  condition || null,
+    assign_agent_id:   channel === 'assign_agent' ? assignAgentId : null,
   };
 
   if (demoMode) {

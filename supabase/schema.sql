@@ -626,3 +626,86 @@ CREATE POLICY "deposit-screenshots: agent select own clients" ON storage.objects
 
 -- ── DONE (Phase 7) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 8 Schema (real automation rule firing)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 26. Automation: real triggers, WhatsApp + assign-agent only ─
+-- automation_rules were previously pure CRUD — nothing fired them. These
+-- triggers call the fire-automation Edge Function (via pg_net, same
+-- pattern as nudge-agents) whenever the real event happens. Email/SMS
+-- channels are deliberately NOT sent for real yet — no Twilio/SendGrid
+-- account exists — fire-automation logs those as skipped instead of
+-- silently doing nothing, so it's easy to tell when that's ready to flip on.
+ALTER TABLE public.automation_rules ADD COLUMN IF NOT EXISTS assign_agent_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+CREATE OR REPLACE FUNCTION public.fire_automation_event(p_trigger_event TEXT, p_lead_id UUID)
+RETURNS VOID LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM net.http_post(
+    url     := 'https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/fire-automation',
+    headers := '{"Content-Type": "application/json"}'::jsonb,
+    body    := jsonb_build_object('trigger_event', p_trigger_event, 'lead_id', p_lead_id)
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.trg_leads_created()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM public.fire_automation_event('lead_created', NEW.id);
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS automation_lead_created ON public.leads;
+CREATE TRIGGER automation_lead_created
+  AFTER INSERT ON public.leads
+  FOR EACH ROW EXECUTE FUNCTION public.trg_leads_created();
+
+CREATE OR REPLACE FUNCTION public.trg_leads_status_changed()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.status IS DISTINCT FROM OLD.status THEN
+    PERFORM public.fire_automation_event('status_changed', NEW.id);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS automation_status_changed ON public.leads;
+CREATE TRIGGER automation_status_changed
+  AFTER UPDATE OF status ON public.leads
+  FOR EACH ROW EXECUTE FUNCTION public.trg_leads_status_changed();
+
+CREATE OR REPLACE FUNCTION public.trg_leads_kyc_verified()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.kyc_status = 'verified' AND NEW.kyc_status IS DISTINCT FROM OLD.kyc_status THEN
+    PERFORM public.fire_automation_event('kyc_verified', NEW.id);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS automation_kyc_verified ON public.leads;
+CREATE TRIGGER automation_kyc_verified
+  AFTER UPDATE OF kyc_status ON public.leads
+  FOR EACH ROW EXECUTE FUNCTION public.trg_leads_kyc_verified();
+
+CREATE OR REPLACE FUNCTION public.trg_transactions_deposit()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.type = 'deposit' THEN
+    PERFORM public.fire_automation_event('deposit_recorded', NEW.client_id);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS automation_deposit_recorded ON public.transactions;
+CREATE TRIGGER automation_deposit_recorded
+  AFTER INSERT ON public.transactions
+  FOR EACH ROW EXECUTE FUNCTION public.trg_transactions_deposit();
+
+-- ── DONE (Phase 8) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
