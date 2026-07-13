@@ -642,6 +642,16 @@ CREATE POLICY "deposit-screenshots: agent select own clients" ON storage.objects
 -- silently doing nothing, so it's easy to tell when that's ready to flip on.
 ALTER TABLE public.automation_rules ADD COLUMN IF NOT EXISTS assign_agent_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
 
+-- The original constraint only ever allowed channel IN ('email','sms'), even
+-- though the CRM form has offered 'whatsapp' and 'assign_agent' as options
+-- since it was built — every attempt to save one of those two would have been
+-- rejected by the database. template_body was also NOT NULL, which would
+-- reject assign_agent rules too (they have no message template).
+ALTER TABLE public.automation_rules DROP CONSTRAINT IF EXISTS automation_rules_channel_check;
+ALTER TABLE public.automation_rules ADD CONSTRAINT automation_rules_channel_check
+  CHECK (channel IN ('whatsapp','email','sms','assign_agent'));
+ALTER TABLE public.automation_rules ALTER COLUMN template_body DROP NOT NULL;
+
 CREATE OR REPLACE FUNCTION public.fire_automation_event(p_trigger_event TEXT, p_lead_id UUID)
 RETURNS VOID LANGUAGE plpgsql AS $$
 BEGIN
