@@ -1714,6 +1714,7 @@
       <div class="nav-item tab-btn active" data-tab="dashboard" onclick="agentTab('dashboard',this)"><span class="nav-icon">🏠</span> Dashboard</div>
       <div class="nav-item tab-btn" data-tab="my-leads" onclick="agentTab('my-leads',this)"><span class="nav-icon">👥</span> My Leads</div>
       <div class="nav-section-label">TOOLS</div>
+      <div class="nav-item tab-btn" data-tab="conversations" onclick="agentTab('conversations',this)"><span class="nav-icon">💬</span> Conversations <span id="agent-conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
       <div class="nav-item tab-btn" data-tab="log-activity" onclick="agentTab('log-activity',this)"><span class="nav-icon">📝</span> Log Activity</div>
     </div>
     <div class="sidebar-footer">
@@ -1786,6 +1787,36 @@
       </table>
     </div>
     <div id="agent-lead-detail" class="detail-panel" style="display:none"></div>
+  </div>
+
+  <!-- Conversations -->
+  <div id="agent-tab-conversations" class="tab-content">
+    <h3>Conversations</h3>
+    <div class="conversations-shell">
+      <!-- Left: Lead List -->
+      <div class="conv-list-panel">
+        <div class="conv-search">
+          <input type="text" id="agent-conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations('agent-')" />
+        </div>
+        <div class="conv-filter-tabs" id="agent-conv-filter-tabs" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid #e2e8f0">
+          <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">All</button>
+          <button class="conv-filter-tab" data-tier="new" onclick="setConvFilter('new','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🆕 New</button>
+          <button class="conv-filter-tab" data-tier="unread" onclick="setConvFilter('unread','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">📩 Unread</button>
+          <button class="conv-filter-tab" data-tier="warm" onclick="setConvFilter('warm','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🌤 Warm</button>
+          <button class="conv-filter-tab" data-tier="hot" onclick="setConvFilter('hot','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🔥 Hot</button>
+          <button class="conv-filter-tab" data-tier="closed" onclick="setConvFilter('closed','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">✅ Closed</button>
+        </div>
+        <div class="conv-list" id="agent-conv-list"></div>
+      </div>
+      <!-- Right: Chat View -->
+      <div class="conv-chat-panel" id="agent-conv-chat-panel">
+        <div class="conv-empty-chat">
+          <div style="font-size:2.5rem;margin-bottom:12px">💬</div>
+          <div style="font-weight:600;color:#64748b;margin-bottom:6px">Select a conversation</div>
+          <div style="font-size:0.8rem;color:#94a3b8">Click on a lead to view their messages</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Log Activity -->
@@ -2367,7 +2398,7 @@ async function initAgent() {
   await loadAgentLeads();
 }
 
-const AGENT_TAB_TITLES = { dashboard: 'Dashboard', 'my-leads': 'My Leads', 'log-activity': 'Log Activity' };
+const AGENT_TAB_TITLES = { dashboard: 'Dashboard', 'my-leads': 'My Leads', conversations: 'Conversations', 'log-activity': 'Log Activity' };
 
 function agentTab(name, btn) {
   if (window.innerWidth <= 768) toggleSidebar(false);
@@ -2381,6 +2412,7 @@ function agentTab(name, btn) {
   if (titleEl) titleEl.textContent = AGENT_TAB_TITLES[name] || name;
   closeDetail('agent');
   if (name === 'my-leads') loadAgentLeads();
+  if (name === 'conversations') { renderConversations('agent-'); startConvRealtime('agent-'); } else { stopConvRealtime(); }
 }
 
 async function loadAgentLeads() {
@@ -4172,6 +4204,7 @@ const _DEMO_CONVERSATIONS = [
 ];
 let _activeConvId = null;
 let _convRealtimeSub = null;
+let _convRealtimeScope = '';
 let _activeConvFilter = 'all';
 let _lastConvs = []; // cache of the last rendered conversation rows, so switching tabs doesn't re-fetch
 
@@ -4198,15 +4231,15 @@ function tierBadge(tier) {
   return map[tier] || '';
 }
 
-function setConvFilter(tier) {
+function setConvFilter(tier, scope = '') {
   _activeConvFilter = tier;
-  document.querySelectorAll('.conv-filter-tab').forEach(btn => {
+  document.querySelectorAll(`#${scope}conv-filter-tabs .conv-filter-tab`).forEach(btn => {
     const active = btn.dataset.tier === tier;
     btn.style.background = active ? '#1e293b' : '#fff';
     btn.style.color = active ? '#fff' : '#475569';
     btn.style.borderColor = active ? '#1e293b' : '#cbd5e1';
   });
-  filterConversations();
+  filterConversations(scope);
 }
 
 function fmtConvTime(isoStr) {
@@ -4223,8 +4256,8 @@ function fmtConvTime(isoStr) {
   return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
 }
 
-async function renderConversations() {
-  const listEl = document.getElementById('conv-list');
+async function renderConversations(scope = '') {
+  const listEl = document.getElementById(scope + 'conv-list');
   if (!listEl) return;
 
   if (demoMode) {
@@ -4238,7 +4271,7 @@ async function renderConversations() {
       // Demo rows only carry a simple status, so map that to the closest tier for preview purposes.
       const tier = c.status === 'converted' ? 'closed' : c.status === 'contacted' ? 'warm' : 'new';
       return `
-        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="false" onclick="openConversation('${c.id}')">
+        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="false" onclick="openConversation('${c.id}','${scope}')">
           <div class="conv-avatar">${initials}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(c.name)}</div>
@@ -4250,11 +4283,13 @@ async function renderConversations() {
           </div>
         </div>`;
     }).join('');
-    filterConversations();
+    filterConversations(scope);
     return;
   }
 
-  // Live mode — load from Supabase
+  // Live mode — load from Supabase. RLS scopes this automatically: admins see
+  // every lead's communications, agents only see communications for leads
+  // assigned to them (see "communications: agent select own" policy).
   listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:0.85rem">Loading…</div>';
   try {
     const { data: comms, error } = await sb
@@ -4272,7 +4307,7 @@ async function renderConversations() {
     _lastConvs = convs;
     const unreadCount = convs.filter(c => c.leads?.is_unread).length;
     // Update sidebar badge — counts unread conversations, not total conversations
-    const navBadge = document.getElementById('conv-nav-badge');
+    const navBadge = document.getElementById(scope + 'conv-nav-badge');
     if (navBadge) { navBadge.textContent = unreadCount; navBadge.style.display = unreadCount ? 'inline-block' : 'none'; }
     listEl.innerHTML = convs.map(c => {
       const name = c.leads?.full_name || 'Unknown';
@@ -4281,7 +4316,7 @@ async function renderConversations() {
       const tier = computeLeadTier(c.leads);
       const isUnread = !!c.leads?.is_unread;
       return `
-        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" onclick="openConversation('${c.lead_id}')">
+        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" onclick="openConversation('${c.lead_id}','${scope}')">
           <div class="conv-avatar">${initials}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(name)}${isUnread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
@@ -4293,15 +4328,15 @@ async function renderConversations() {
           </div>
         </div>`;
     }).join('');
-    filterConversations();
+    filterConversations(scope);
   } catch(err) {
     listEl.innerHTML = `<div style="padding:24px;text-align:center;color:#ef4444;font-size:0.85rem">Error: ${esc(err.message)}</div>`;
   }
 }
 
-function filterConversations() {
-  const q = (document.getElementById('conv-search-input')?.value || '').toLowerCase();
-  document.querySelectorAll('#conv-list .conv-item').forEach(el => {
+function filterConversations(scope = '') {
+  const q = (document.getElementById(scope + 'conv-search-input')?.value || '').toLowerCase();
+  document.querySelectorAll(`#${scope}conv-list .conv-item`).forEach(el => {
     const matchesText = el.textContent.toLowerCase().includes(q);
     const matchesTier = _activeConvFilter === 'all'
       ? true
@@ -4312,14 +4347,14 @@ function filterConversations() {
   });
 }
 
-async function openConversation(convId) {
+async function openConversation(convId, scope = '') {
   _activeConvId = convId;
 
   if (demoMode) {
     const conv = _DEMO_CONVERSATIONS.find(c => c.id === convId);
     if (!conv) return;
-    renderConversations();
-    const chatPanel = document.getElementById('conv-chat-panel');
+    renderConversations(scope);
+    const chatPanel = document.getElementById(scope + 'conv-chat-panel');
     if (!chatPanel) return;
     const initials = conv.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
     chatPanel.innerHTML = `
@@ -4339,8 +4374,8 @@ async function openConversation(convId) {
       </div>
       <div class="conv-input-bar">
         <input type="text" id="conv-msg-input" placeholder="Type a message…"
-          onkeydown="if(event.key==='Enter') sendConvMessage('${convId}')" />
-        <button class="btn btn-primary btn-sm" id="conv-send-btn" onclick="sendConvMessage('${convId}')">Send</button>
+          onkeydown="if(event.key==='Enter') sendConvMessage('${convId}','${scope}')" />
+        <button class="btn btn-primary btn-sm" id="conv-send-btn" onclick="sendConvMessage('${convId}','${scope}')">Send</button>
       </div>`;
     const msgArea = document.getElementById('conv-msgs-' + convId);
     if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
@@ -4348,10 +4383,10 @@ async function openConversation(convId) {
   }
 
   // Live mode
-  const chatPanel = document.getElementById('conv-chat-panel');
+  const chatPanel = document.getElementById(scope + 'conv-chat-panel');
   if (!chatPanel) return;
   chatPanel.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8">Loading conversation…</div>';
-  renderConversations(); // update sidebar active state
+  renderConversations(scope); // update sidebar active state
 
   try {
     const [leadRes, msgsRes] = await Promise.all([
@@ -4382,21 +4417,21 @@ async function openConversation(convId) {
       </div>
       <div class="conv-input-bar">
         <input type="text" id="conv-msg-input" placeholder="Type a WhatsApp message…"
-          onkeydown="if(event.key==='Enter') sendConvMessage('${convId}')" />
-        <button class="btn btn-primary btn-sm" id="conv-send-btn" onclick="sendConvMessage('${convId}')">Send ↗</button>
+          onkeydown="if(event.key==='Enter') sendConvMessage('${convId}','${scope}')" />
+        <button class="btn btn-primary btn-sm" id="conv-send-btn" onclick="sendConvMessage('${convId}','${scope}')">Send ↗</button>
       </div>`;
     const msgArea = document.getElementById('conv-msgs-' + convId);
     if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
     if (lead?.is_unread) {
       await sb.from('leads').update({ is_unread: false }).eq('id', convId);
-      renderConversations();
+      renderConversations(scope);
     }
   } catch(err) {
     chatPanel.innerHTML = `<div style="padding:24px;color:#ef4444">Error loading conversation: ${esc(err.message)}</div>`;
   }
 }
 
-async function sendConvMessage(convId) {
+async function sendConvMessage(convId, scope = '') {
   const input = document.getElementById('conv-msg-input');
   const text = (input?.value || '').trim();
   if (!text) return;
@@ -4414,7 +4449,7 @@ async function sendConvMessage(convId) {
       msgArea.scrollTop = msgArea.scrollHeight;
     }
     if (input) input.value = '';
-    renderConversations();
+    renderConversations(scope);
     return;
   }
 
@@ -4466,7 +4501,7 @@ async function sendConvMessage(convId) {
 
     if (input) input.value = '';
     showToast('Message sent ✓');
-    openConversation(convId); // refresh thread
+    openConversation(convId, scope); // refresh thread
   } catch(err) {
     showToast(`Send failed: ${err.message}`, 'err');
   } finally {
@@ -4475,16 +4510,18 @@ async function sendConvMessage(convId) {
   }
 }
 
-function startConvRealtime() {
+function startConvRealtime(scope = '') {
   if (_convRealtimeSub || demoMode) return;
+  _convRealtimeScope = scope;
   _convRealtimeSub = sb
     .channel('conv-live')
     .on('postgres_changes', {
       event: 'INSERT', schema: 'public', table: 'communications',
       filter: 'type=eq.whatsapp'
     }, payload => {
-      // Refresh sidebar list
-      renderConversations();
+      // Refresh sidebar list. RLS on the underlying subscription already
+      // restricts which INSERTs an agent receives to their own leads.
+      renderConversations(_convRealtimeScope);
       // If this conversation is currently open, append message live
       if (_activeConvId && _activeConvId === payload.new.lead_id) {
         const msgArea = document.getElementById('conv-msgs-' + _activeConvId);
