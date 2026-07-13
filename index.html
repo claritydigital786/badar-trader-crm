@@ -150,6 +150,19 @@
       height: 46px; overflow: hidden;
     }
 
+    /* On short viewports (small/split browser windows, landscape mobile),
+       a 46px fixed ticker plus the header leaves almost no room for actual
+       CRM content, and everything crowds into a thin band at the top. The
+       ticker is a nice-to-have, not core functionality, so it's dropped
+       below a height where the app itself would otherwise be unusable —
+       .app-shell/.sidebar fall back to occupying the full viewport since
+       there's no ticker height left to reserve room for. */
+    @media (max-height: 560px) {
+      .market-ticker { display: none; }
+      .app-shell { height: 100vh; margin-top: 0; }
+      .sidebar { height: 100vh; min-height: 100vh; top: 0; }
+    }
+
     /* ── Setup banner ── */
     #setup-banner {
       background: #0f172a;
