@@ -1,10 +1,11 @@
 // Badar Trader CRM — nudge-agents
 // Supabase Edge Function (Deno / TypeScript)
 //
-// Runs every 5 minutes (see the pg_cron job "nudge-agents-every-5-min" in
-// supabase/schema.sql). Repeats the round-robin "new lead assigned" ping to
-// whichever agent hasn't acknowledged it yet (leads.agent_acknowledged_at),
-// and after 3 unanswered pings (15 minutes) broadcasts the overdue lead to
+// Runs every 15 minutes, 9:00am-6:00pm PKT only (see the pg_cron jobs
+// "nudge-agents-every-15-min-business-hours" and "nudge-agents-6pm-pkt-close"
+// in supabase/schema.sql). Repeats the round-robin "new lead assigned" ping
+// to whichever agent hasn't acknowledged it yet (leads.agent_acknowledged_at),
+// and after 3 unanswered pings (45 minutes) broadcasts the overdue lead to
 // the rest of the team so it never falls through silently.
 //
 // Deploy: supabase functions deploy nudge-agents --no-verify-jwt
@@ -21,7 +22,7 @@ const AGENT_ROTATION = [
   { id: "2bc20292-76bb-467b-a2a1-7bfa0cad4421", name: "Muhammad Hanzala", phone: "923235163874" },
 ];
 
-const PING_INTERVAL_MINUTES = 5;
+const PING_INTERVAL_MINUTES = 15;
 const ESCALATE_AFTER_PINGS = 3;
 
 function makeSupabase(): SupabaseClient {

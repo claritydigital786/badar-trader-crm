@@ -569,16 +569,42 @@ ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS agent_last_pinged_at TIMESTAMP
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS agent_acknowledged_at TIMESTAMPTZ;
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS agent_escalated BOOLEAN NOT NULL DEFAULT false;
 
--- ── 23. Cron: fire nudge-agents every 5 minutes ─────────────────
+-- ── 23. Cron: fire nudge-agents every 15 minutes, 9am-6pm PKT ───
 -- nudge-agents is deployed with --no-verify-jwt (same as whatsapp-webhook),
 -- so this plain POST needs no auth header. cron.schedule upserts by job
 -- name, so this is safe to re-run.
+--
+-- pg_cron runs in UTC. PKT is UTC+5 (no DST), so 9:00am-6:00pm PKT is
+-- 4:00am-1:00pm UTC. Two jobs: one every 15 min across 4:00-12:45 UTC
+-- (9:00am-5:45pm PKT), plus a single tick at exactly 13:00 UTC (6:00pm
+-- PKT) so the window's closing edge is covered without running into 6:15pm+.
+--
+-- IMPORTANT: this job name was previously 'nudge-agents-every-5-min'. If
+-- you're re-running this against a project that still has that old job
+-- (or any other rogue nudge-agents cron entries — check with
+-- `SELECT jobname FROM cron.job;`), unschedule it explicitly first:
+--   SELECT cron.unschedule('nudge-agents-every-5-min');
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS pg_net;
 
+SELECT cron.unschedule('nudge-agents-every-5-min')
+WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'nudge-agents-every-5-min');
+
 SELECT cron.schedule(
-  'nudge-agents-every-5-min',
-  '*/5 * * * *',
+  'nudge-agents-every-15-min-business-hours',
+  '*/15 4-12 * * *',
+  $$
+  SELECT net.http_post(
+    url     := 'https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/nudge-agents',
+    headers := '{"Content-Type": "application/json"}'::jsonb,
+    body    := '{}'::jsonb
+  );
+  $$
+);
+
+SELECT cron.schedule(
+  'nudge-agents-6pm-pkt-close',
+  '0 13 * * *',
   $$
   SELECT net.http_post(
     url     := 'https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/nudge-agents',

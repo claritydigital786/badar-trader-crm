@@ -315,8 +315,8 @@ async function upsertLead(
   // in the background via waitUntil rather than awaited inline. The ping is a
   // tappable button (not plain text) carrying the lead ID, so the agent's
   // acknowledgement is unambiguous even if several leads are pinged at once —
-  // see handleAgentReply(). nudge-agents re-sends this same button every 5
-  // minutes until agent_acknowledged_at is set.
+  // see handleAgentReply(). nudge-agents re-sends this same button every 15
+  // minutes (9am-6pm PKT only) until agent_acknowledged_at is set.
   const notifyAgent = (async () => {
     const pingResult = await sendButtons(
       agent.phone,
