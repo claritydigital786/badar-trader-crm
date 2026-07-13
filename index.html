@@ -1976,7 +1976,7 @@ async function loadProfiles() {
 }
 
 function populateAgentDropdowns() {
-  const agents = cachedProfiles.filter(p => p.role === 'agent');
+  const agents = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended);
   ['nl-agent', 'filter-agent'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
@@ -2384,7 +2384,7 @@ async function openDetail(leadId, ctx) {
   const agentCell = ctx === 'admin'
     ? `<select id="det-agent" class="inline-select">
          <option value="">— Unassigned —</option>
-         ${cachedProfiles.filter(p => p.role === 'agent').map(a =>
+         ${cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended).map(a =>
            `<option value="${a.id}" ${lead.assigned_agent_id === a.id ? 'selected' : ''}>${esc(a.full_name)}</option>`
          ).join('')}
        </select>`
@@ -3567,7 +3567,7 @@ function testAutomationRule(id) {
 function populateArAgentDropdown() {
   const sel = document.getElementById('ar-assign-agent');
   if (!sel) return;
-  const agents = cachedProfiles.filter(p => p.role === 'agent');
+  const agents = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended);
   sel.innerHTML = '<option value="">— Select Agent —</option>';
   agents.forEach(a => {
     const o = document.createElement('option');
@@ -3820,7 +3820,7 @@ function showToast(msg, type = 'ok') {
 
 // ── ROUND-ROBIN ASSIGNMENT ─────────────────────────────────────
 async function getNextRoundRobinAgent() {
-  const agents = cachedProfiles.filter(p => p.role === 'agent');
+  const agents = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended);
   if (!agents.length) return null;
 
   if (demoMode) {
@@ -3864,7 +3864,7 @@ async function getNextRoundRobinAgent() {
 async function updateRoundRobinStatus() {
   const el = document.getElementById('rr-status-card');
   if (!el) return;
-  const agents = cachedProfiles.filter(p => p.role === 'agent');
+  const agents = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended);
   if (!agents.length) {
     el.innerHTML = '<span style="color:#555">No agents configured yet. Round-robin will activate once agents are added.</span>';
     return;
@@ -3929,7 +3929,7 @@ function renderDashboardStats() {
     if (el('dash-total-leads')) el('dash-total-leads').textContent = _DEMO_LEADS.length;
     if (el('dash-new-leads'))   el('dash-new-leads').textContent   = _DEMO_LEADS.filter(l => l.status === 'new').length;
     if (el('dash-converted'))   el('dash-converted').textContent   = _DEMO_LEADS.filter(l => l.status === 'converted').length;
-    if (el('dash-agents'))      el('dash-agents').textContent      = _DEMO_PROFILES.filter(p => p.role === 'agent').length;
+    if (el('dash-agents'))      el('dash-agents').textContent      = _DEMO_PROFILES.filter(p => p.role === 'agent' && !p.is_suspended).length;
     if (el('dash-revenue'))     el('dash-revenue').textContent     = '$47,250';
     // Demo follow-ups
     const listEl = el('dash-followups-list');
@@ -3947,7 +3947,7 @@ function renderDashboardStats() {
   if (el('dash-total-leads')) el('dash-total-leads').textContent = cachedLeads.length;
   if (el('dash-new-leads'))   el('dash-new-leads').textContent   = cachedLeads.filter(l => l.status === 'new').length;
   if (el('dash-converted'))   el('dash-converted').textContent   = cachedLeads.filter(l => l.status === 'converted').length;
-  if (el('dash-agents'))      el('dash-agents').textContent      = cachedProfiles.filter(p => p.role === 'agent').length;
+  if (el('dash-agents'))      el('dash-agents').textContent      = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended).length;
   const revenue = cachedLeads.reduce((s, l) => s + (Number(l.account_balance) || 0), 0);
   if (el('dash-revenue'))     el('dash-revenue').textContent     = '$' + fmtMoney(revenue);
   { const bp={}; (cachedLeads||[]).forEach(l=>{ if(l.deposit_platform && Number(l.account_balance)){ bp[l.deposit_platform]=(bp[l.deposit_platform]||0)+Number(l.account_balance);} }); const pl=Object.entries(bp).map(([k,v])=>k.toUpperCase()+': $'+fmtMoney(v)).join('   ·   '); if(el('dash-rev-platform')) el('dash-rev-platform').textContent = pl ? 'By platform — '+pl : ''; }
@@ -4335,7 +4335,7 @@ function stopConvRealtime() {
 }
 
 function renderPayrollSetup() {
-  const agents = (demoMode ? _DEMO_PROFILES : cachedProfiles).filter(p => p.role === 'agent');
+  const agents = (demoMode ? _DEMO_PROFILES : cachedProfiles).filter(p => p.role === 'agent' && !p.is_suspended);
   const tbody = document.getElementById('payroll-setup-tbody');
   if (!tbody) return;
   if (!agents.length) {
@@ -4354,7 +4354,7 @@ function calculatePayroll() {
   const period = document.getElementById('payroll-period')?.value || 'monthly';
   const mult   = { daily:1/30, weekly:1/4, biweekly:1/2, monthly:1 }[period] || 1;
   const pLabel = { daily:'Daily', weekly:'Weekly', biweekly:'Bi-weekly', monthly:'Monthly' }[period];
-  const agents = (demoMode ? _DEMO_PROFILES : cachedProfiles).filter(p => p.role === 'agent');
+  const agents = (demoMode ? _DEMO_PROFILES : cachedProfiles).filter(p => p.role === 'agent' && !p.is_suspended);
   const leads  = demoMode ? _DEMO_LEADS : cachedLeads;
   const txns   = demoMode ? _DEMO_TRANSACTIONS : [];
 
