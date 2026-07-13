@@ -652,6 +652,12 @@ ALTER TABLE public.automation_rules ADD CONSTRAINT automation_rules_channel_chec
   CHECK (channel IN ('whatsapp','email','sms','assign_agent'));
 ALTER TABLE public.automation_rules ALTER COLUMN template_body DROP NOT NULL;
 
+-- condition_filter was never a real column at all, despite the CRM form
+-- (submitAutomationRule) always including it in the save payload — meaning
+-- every single "Save Rule" click, for any channel, has always failed outright
+-- with a PostgREST "column not found" error. This is why the table was empty.
+ALTER TABLE public.automation_rules ADD COLUMN IF NOT EXISTS condition_filter TEXT;
+
 CREATE OR REPLACE FUNCTION public.fire_automation_event(p_trigger_event TEXT, p_lead_id UUID)
 RETURNS VOID LANGUAGE plpgsql AS $$
 BEGIN
