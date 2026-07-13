@@ -27,7 +27,7 @@
       width: 220px;
       min-height: calc(100vh - 46px);
       background: #0f172a;
-      padding: 0;
+      padding: 0 0 46px; /* reserve room for the fixed market ticker, so it never covers the sidebar footer */
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
@@ -586,7 +586,7 @@
         and <code>YOUR_SUPABASE_ANON_KEY</code> with those values.</li>
     <li>Create your admin user: <strong>Authentication → Users → Add User</strong>.<br>
         Email + password of your choice.<br>
-        <em>User Metadata:</em> <code>{"full_name": "Badar Tanveer", "role": "admin"}</code></li>
+        <em>User Metadata:</em> <code>{"full_name": "Badar Tanvir", "role": "admin"}</code></li>
     <li>Refresh this page — you should see the login screen.</li>
   </ol>
   <p style="margin-top:14px;color:#555;font-size:0.8rem">
@@ -802,6 +802,10 @@
         <option value="manual">Manual</option>
         <option value="other">Other</option>
       </select>
+      <select id="filter-human" onchange="loadAdminLeads()">
+        <option value="">All (bot + human)</option>
+        <option value="1">⚠ Needs Human</option>
+      </select>
     </div>
     <div class="card" style="padding:0">
       <table>
@@ -910,6 +914,14 @@
       <div class="conv-list-panel">
         <div class="conv-search">
           <input type="text" id="conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations()" />
+        </div>
+        <div class="conv-filter-tabs" id="conv-filter-tabs" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid #e2e8f0">
+          <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">All</button>
+          <button class="conv-filter-tab" data-tier="new" onclick="setConvFilter('new')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🆕 New</button>
+          <button class="conv-filter-tab" data-tier="unread" onclick="setConvFilter('unread')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">📩 Unread</button>
+          <button class="conv-filter-tab" data-tier="warm" onclick="setConvFilter('warm')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🌤 Warm</button>
+          <button class="conv-filter-tab" data-tier="hot" onclick="setConvFilter('hot')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🔥 Hot</button>
+          <button class="conv-filter-tab" data-tier="closed" onclick="setConvFilter('closed')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">✅ Closed</button>
         </div>
         <div class="conv-list" id="conv-list"></div>
       </div>
@@ -1841,7 +1853,7 @@ const _DEMO_PROFILES = [
   { id: 'demo-agent-2', full_name: 'Sara Khan',  email: 'sara.khan@badartrader.com',  role: 'agent', created_at: '2026-02-01T00:00:00Z' },
 ];
 const _DEMO_LEADS = [
-  { id:'dl1', full_name:'Omar Farooq',  phone:'+92 321 4567890', email:'omar@example.com',   source:'meta',     meta_campaign:'Apr_XAUUSD_Retargeting', instrument_type:'Forex',  status:'new',       assigned_agent_id:'demo-agent-1', created_at:'2026-06-20T09:15:00Z', notes:'Interested in gold trading.',     account_balance:0,     kyc_status:'not_started', risk_profile:null,     trading_plan:null,                      signal_group:null },
+  { id:'dl1', full_name:'Omar Farooq',  phone:'+92 321 4567890', email:'omar@example.com',   source:'meta',     meta_campaign:'Apr_XAUUSD_Retargeting', instrument_type:'Forex',  status:'new',       assigned_agent_id:'demo-agent-1', created_at:'2026-06-20T09:15:00Z', notes:'Interested in gold trading.', needs_human:true, handoff_reason:'stuck at deposit step',     account_balance:0,     kyc_status:'not_started', risk_profile:null,     trading_plan:null,                      signal_group:null },
   { id:'dl2', full_name:'Ayesha Malik', phone:'+92 300 9876543', email:'ayesha@example.com', source:'referral', meta_campaign:null,                      instrument_type:'Crypto', status:'contacted', assigned_agent_id:'demo-agent-1', created_at:'2026-06-18T11:30:00Z', notes:'Referred by existing client.',    account_balance:0,     kyc_status:'pending',    risk_profile:'medium', trading_plan:null,                      signal_group:null },
   { id:'dl3', full_name:'Hassan Raza',  phone:'+92 333 1234567', email:'hassan@example.com', source:'website',  meta_campaign:null,                      instrument_type:'Stocks', status:'qualified', assigned_agent_id:'demo-agent-2', created_at:'2026-06-15T14:00:00Z', notes:'Experienced stock trader.',       account_balance:5000,  kyc_status:'verified',   risk_profile:'low',    trading_plan:'Long-term equity index.', signal_group:'VIP Signals' },
   { id:'dl4', full_name:'Sana Ahmed',   phone:'+92 311 5551234', email:'sana@example.com',   source:'meta',     meta_campaign:'Jun_Crypto_Awareness',    instrument_type:'Crypto', status:'qualified', assigned_agent_id:'demo-agent-2', created_at:'2026-06-12T10:45:00Z', notes:'Looking to invest $10 000.',      account_balance:10000, kyc_status:'verified',   risk_profile:'high',   trading_plan:'Aggressive crypto.',      signal_group:'VIP Gold Signals' },
@@ -2116,12 +2128,14 @@ async function loadAdminLeads() {
   const status = document.getElementById('filter-status')?.value || '';
   const agent  = document.getElementById('filter-agent')?.value  || '';
   const source = document.getElementById('filter-source')?.value || '';
+  const human  = document.getElementById('filter-human')?.value  || '';
 
   if (demoMode) {
     let leads = _DEMO_LEADS.slice();
     if (status) leads = leads.filter(l => l.status === status);
     if (agent)  leads = leads.filter(l => l.assigned_agent_id === agent);
     if (source) leads = leads.filter(l => l.source === source);
+    if (human)  leads = leads.filter(l => l.needs_human);
     cachedLeads = leads;
     renderLeadsTable('admin-leads-tbody', cachedLeads, true);
     return;
@@ -2131,6 +2145,7 @@ async function loadAdminLeads() {
   if (status) q = q.eq('status', status);
   if (agent)  q = q.eq('assigned_agent_id', agent);
   if (source) q = q.eq('source', source);
+  if (human)  q = q.eq('needs_human', true);
 
   const { data, error } = await q;
   if (error) { console.error('loadAdminLeads:', error); return; }
@@ -2782,7 +2797,7 @@ function buildKycTab(lead, leadId, ctx, isAdmin, kycRows) {
   const docsTable = `
     <table>
       <thead><tr>
-        <th>Type</th><th>Status</th><th>Uploaded</th><th>Reviewed By</th><th>Notes</th>${isAdmin ? '<th></th>' : ''}
+        <th>Type</th><th>Status</th><th>Uploaded</th><th>Reviewed By</th><th>Notes</th><th>File</th>${isAdmin ? '<th></th>' : ''}
       </tr></thead>
       <tbody>
         ${kycRows.length ? kycRows.map(d => `
@@ -2792,12 +2807,13 @@ function buildKycTab(lead, leadId, ctx, isAdmin, kycRows) {
             <td style="font-size:0.8rem;color:#666">${fmtDate(d.uploaded_at)}</td>
             <td>${esc(d.reviewer?.full_name || '—')}</td>
             <td style="color:#aaa">${esc(d.notes || '—')}</td>
+            <td>${d.file_path ? `<button class="btn btn-secondary btn-sm" onclick="viewKycFile('${d.file_path}')">View</button>` : '—'}</td>
             ${isAdmin ? `<td style="white-space:nowrap">
               <button class="btn btn-secondary btn-sm" onclick="reviewKycDocument('${d.id}','verified','${leadId}','${ctx}')">Verify</button>
               <button class="btn btn-secondary btn-sm" onclick="reviewKycDocument('${d.id}','rejected','${leadId}','${ctx}')">Reject</button>
             </td>` : ''}
           </tr>`).join('')
-        : `<tr><td colspan="${isAdmin ? 6 : 5}" class="empty-state">No documents recorded yet.</td></tr>`}
+        : `<tr><td colspan="${isAdmin ? 7 : 6}" class="empty-state">No documents recorded yet.</td></tr>`}
       </tbody>
     </table>`;
 
@@ -2814,9 +2830,10 @@ function buildKycTab(lead, leadId, ctx, isAdmin, kycRows) {
         </select>
       </div>
     </div>
-    <label>Notes / File Reference</label>
-    <textarea id="det-kyc-notes" rows="2"
-      placeholder="Reference or filename — actual upload arrives in Phase 3"></textarea>
+    <label>File (optional)</label>
+    <input type="file" id="det-kyc-file" />
+    <label>Notes</label>
+    <textarea id="det-kyc-notes" rows="2" placeholder="Optional notes"></textarea>
     <div class="form-actions">
       <button class="btn btn-primary btn-inline" onclick="addKycDocument('${leadId}','${ctx}')">Add Document Record</button>
       <span class="success-msg" id="det-kyc-add-msg"></span>
@@ -2848,12 +2865,33 @@ async function saveKycStatus(leadId, ctx) {
 async function addKycDocument(leadId, ctx) {
   const docType = v('det-kyc-doctype');
   const notes   = v('det-kyc-notes');
+  const file    = document.getElementById('det-kyc-file')?.files?.[0] || null;
   const msgEl   = document.getElementById('det-kyc-add-msg');
-  const { error } = await sb.from('kyc_documents').insert({
-    client_id: leadId, document_type: docType, notes: notes || null,
-  });
+
+  const { data: doc, error } = await sb.from('kyc_documents')
+    .insert({ client_id: leadId, document_type: docType, notes: notes || null })
+    .select().single();
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
+
+  if (file) {
+    const path = `${leadId}/${doc.id}_${file.name}`;
+    const { error: uploadError } = await sb.storage.from('kyc-documents').upload(path, file);
+    if (uploadError) { setMsg(msgEl, `Document saved, but file upload failed: ${uploadError.message}`, 'err'); await openDetail(leadId, ctx); return; }
+    await sb.from('kyc_documents').update({ file_path: path }).eq('id', doc.id);
+  }
   await openDetail(leadId, ctx);
+}
+
+async function viewKycFile(path) {
+  const { data, error } = await sb.storage.from('kyc-documents').createSignedUrl(path, 60);
+  if (error) { alert('Could not open file: ' + error.message); return; }
+  window.open(data.signedUrl, '_blank');
+}
+
+async function viewDepositScreenshot(path) {
+  const { data, error } = await sb.storage.from('deposit-screenshots').createSignedUrl(path, 60);
+  if (error) { alert('Could not open file: ' + error.message); return; }
+  window.open(data.signedUrl, '_blank');
 }
 
 async function reviewKycDocument(docId, decision, leadId, ctx) {
@@ -2946,7 +2984,7 @@ async function loadClientCommunications(leadId) {
 function buildCommsTab(lead, leadId, ctx, commRows) {
   const commsTable = `
     <table>
-      <thead><tr><th>Date</th><th>Type</th><th>Direction</th><th>Subject / Preview</th><th>Logged By</th></tr></thead>
+      <thead><tr><th>Date</th><th>Type</th><th>Direction</th><th>Subject / Preview</th><th>Logged By</th><th>Attachment</th></tr></thead>
       <tbody>
         ${commRows.length ? commRows.map(c => `
           <tr>
@@ -2955,8 +2993,9 @@ function buildCommsTab(lead, leadId, ctx, commRows) {
             <td><span class="badge badge-${c.direction}">${directionLabel(c.direction)}</span></td>
             <td style="color:#aaa">${esc(c.subject || truncate(c.body, 60))}</td>
             <td>${esc(c.logger?.full_name || '—')}</td>
+            <td>${c.attachment_path ? `<button class="btn btn-secondary btn-sm" onclick="viewDepositScreenshot('${c.attachment_path}')">View</button>` : '—'}</td>
           </tr>`).join('')
-        : '<tr><td colspan="5" class="empty-state">No communications logged yet.</td></tr>'}
+        : '<tr><td colspan="6" class="empty-state">No communications logged yet.</td></tr>'}
       </tbody>
     </table>`;
 
@@ -3178,6 +3217,7 @@ function renderLeadsTable(tbodyId, leads, isAdmin) {
     return `<tr>
       <td>
         <strong style="color:#e0e0e0">${esc(l.full_name)}</strong>
+        ${l.needs_human ? `<br><span title="${esc(l.handoff_reason||'Needs human follow-up')}" style="font-size:0.72rem;color:#fff;background:#dc2626;padding:1px 7px;border-radius:8px;display:inline-block;margin-top:2px">⚠ Needs Human</span>` : ''}
         ${l.instrument_type ? `<br><span style="font-size:0.72rem;color:#94a3b8;background:#0f172a;padding:1px 7px;border-radius:8px;display:inline-block;margin-top:2px">${esc(l.instrument_type)}</span>` : ''}
       </td>
       <td>${esc(l.phone||'—')}</td>
@@ -3559,6 +3599,8 @@ function editAutomationRuleLoad(id) {
   document.getElementById('ar-body').value    = rule.template_body || '';
   const condEl = document.getElementById('ar-condition');
   if (condEl) condEl.value = rule.condition_filter || '';
+  const agentEl = document.getElementById('ar-assign-agent');
+  if (agentEl) agentEl.value = rule.assign_agent_id || '';
   const titleEl = document.getElementById('automation-form-title');
   if (titleEl) titleEl.textContent = 'Edit Rule';
   toggleActionFields();
@@ -3578,11 +3620,15 @@ async function submitAutomationRule() {
   if (!name) { setMsg(msgEl, 'Rule name is required.', 'err'); return; }
   if (channel !== 'assign_agent' && !body) { setMsg(msgEl, 'Message template is required.', 'err'); return; }
 
+  const assignAgentId = v('ar-assign-agent');
+  if (channel === 'assign_agent' && !assignAgentId) { setMsg(msgEl, 'Select an agent to assign.', 'err'); return; }
+
   const payload = {
     name, trigger_event: trigger, channel,
     template_subject:  channel === 'email'        ? (subject   || null) : null,
     template_body:     channel !== 'assign_agent' ? (body      || null) : null,
     condition_filter:  condition || null,
+    assign_agent_id:   channel === 'assign_agent' ? assignAgentId : null,
   };
 
   if (demoMode) {
@@ -4126,6 +4172,42 @@ const _DEMO_CONVERSATIONS = [
 ];
 let _activeConvId = null;
 let _convRealtimeSub = null;
+let _activeConvFilter = 'all';
+let _lastConvs = []; // cache of the last rendered conversation rows, so switching tabs doesn't re-fetch
+
+// Classifies a lead into one of: new, warm, hot, closed. "unread" is checked
+// separately (is_unread) since it can apply on top of any of these.
+function computeLeadTier(lead) {
+  const status = lead?.status || 'new';
+  if (status === 'qualified' || status === 'converted') return 'closed';
+  const botStage = lead?.bot_stage || 'awaiting_language';
+  const needsHuman = !!lead?.needs_human;
+  const handoffReason = lead?.handoff_reason || '';
+  if (botStage === 'awaiting_deposit_confirm' || (needsHuman && /deposit/i.test(handoffReason))) return 'hot';
+  if (botStage === 'awaiting_language' || botStage === 'awaiting_menu') return 'new';
+  return 'warm';
+}
+
+function tierBadge(tier) {
+  const map = {
+    new:    '<span style="background:#e0e7ff;color:#4338ca;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">NEW</span>',
+    warm:   '<span style="background:#fef3c7;color:#b45309;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">WARM</span>',
+    hot:    '<span style="background:#fee2e2;color:#b91c1c;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">🔥 HOT</span>',
+    closed: '<span style="background:#dcfce7;color:#15803d;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">CLOSED</span>',
+  };
+  return map[tier] || '';
+}
+
+function setConvFilter(tier) {
+  _activeConvFilter = tier;
+  document.querySelectorAll('.conv-filter-tab').forEach(btn => {
+    const active = btn.dataset.tier === tier;
+    btn.style.background = active ? '#1e293b' : '#fff';
+    btn.style.color = active ? '#fff' : '#475569';
+    btn.style.borderColor = active ? '#1e293b' : '#cbd5e1';
+  });
+  filterConversations();
+}
 
 function fmtConvTime(isoStr) {
   if (!isoStr) return '';
@@ -4153,8 +4235,10 @@ async function renderConversations() {
     }
     listEl.innerHTML = convs.map(c => {
       const initials = c.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+      // Demo rows only carry a simple status, so map that to the closest tier for preview purposes.
+      const tier = c.status === 'converted' ? 'closed' : c.status === 'contacted' ? 'warm' : 'new';
       return `
-        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" onclick="openConversation('${c.id}')">
+        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="false" onclick="openConversation('${c.id}')">
           <div class="conv-avatar">${initials}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(c.name)}</div>
@@ -4162,10 +4246,11 @@ async function renderConversations() {
           </div>
           <div style="flex-shrink:0;text-align:right">
             <div class="conv-time">${c.lastTime}</div>
-            <div style="margin-top:4px">${statusBadge(c.status)}</div>
+            <div style="margin-top:4px">${tierBadge(tier)}</div>
           </div>
         </div>`;
     }).join('');
+    filterConversations();
     return;
   }
 
@@ -4174,7 +4259,7 @@ async function renderConversations() {
   try {
     const { data: comms, error } = await sb
       .from('communications')
-      .select('lead_id, body, direction, created_at, leads(full_name, phone, status, is_unread)')
+      .select('lead_id, body, direction, created_at, leads(full_name, phone, status, is_unread, bot_stage, needs_human, handoff_reason)')
       .eq('type', 'whatsapp')
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -4184,6 +4269,7 @@ async function renderConversations() {
     }
     const seen = new Set();
     const convs = comms.filter(c => { if (seen.has(c.lead_id)) return false; seen.add(c.lead_id); return true; });
+    _lastConvs = convs;
     const unreadCount = convs.filter(c => c.leads?.is_unread).length;
     // Update sidebar badge — counts unread conversations, not total conversations
     const navBadge = document.getElementById('conv-nav-badge');
@@ -4192,22 +4278,22 @@ async function renderConversations() {
       const name = c.leads?.full_name || 'Unknown';
       const initials = name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
       const preview = (c.direction === 'inbound' ? '↩ ' : '↪ ') + c.body;
-      const unreadBadge = c.leads?.is_unread
-        ? '<span class="badge" style="background:#dbeafe;color:#1d4ed8;font-weight:700">● Unread</span>'
-        : '';
+      const tier = computeLeadTier(c.leads);
+      const isUnread = !!c.leads?.is_unread;
       return `
-        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" onclick="openConversation('${c.lead_id}')">
+        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" onclick="openConversation('${c.lead_id}')">
           <div class="conv-avatar">${initials}</div>
           <div class="conv-info">
-            <div class="conv-name">${esc(name)}</div>
+            <div class="conv-name">${esc(name)}${isUnread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
             <div class="conv-preview">${esc(preview.slice(0,60))}</div>
           </div>
           <div style="flex-shrink:0;text-align:right">
             <div class="conv-time">${fmtConvTime(c.created_at)}</div>
-            <div style="margin-top:4px">${unreadBadge}</div>
+            <div style="margin-top:4px">${tierBadge(tier)}</div>
           </div>
         </div>`;
     }).join('');
+    filterConversations();
   } catch(err) {
     listEl.innerHTML = `<div style="padding:24px;text-align:center;color:#ef4444;font-size:0.85rem">Error: ${esc(err.message)}</div>`;
   }
@@ -4216,7 +4302,13 @@ async function renderConversations() {
 function filterConversations() {
   const q = (document.getElementById('conv-search-input')?.value || '').toLowerCase();
   document.querySelectorAll('#conv-list .conv-item').forEach(el => {
-    el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none';
+    const matchesText = el.textContent.toLowerCase().includes(q);
+    const matchesTier = _activeConvFilter === 'all'
+      ? true
+      : _activeConvFilter === 'unread'
+        ? el.dataset.unread === 'true'
+        : el.dataset.tier === _activeConvFilter;
+    el.style.display = (matchesText && matchesTier) ? '' : 'none';
   });
 }
 
