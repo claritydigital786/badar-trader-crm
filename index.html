@@ -1663,49 +1663,104 @@
 </div><!-- /#admin-dashboard -->
 
 <!-- ═══ AGENT DASHBOARD ═══ -->
-<div id="agent-dashboard" style="display:none">
-  <header>
-    <h2>Badar Trader CRM</h2>
-    <div class="header-right">
-      <span class="user-info">
-        <span id="agent-name"></span>&nbsp;<span class="badge badge-agent">Agent</span>
-      </span>
-      <button class="btn btn-danger btn-sm" onclick="handleLogout()">Logout</button>
-    </div>
-  </header>
+<div id="agent-dashboard" style="display:none" class="app-shell">
 
-  <!-- Agent Quick Stats -->
-  <div id="agent-stats-bar" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 16px;background:#0f172a;border-bottom:1px solid #1e293b">
-    <div style="background:#1e293b;border-radius:8px;padding:10px 16px;text-align:center;min-width:90px">
-      <div style="font-size:1.4rem;font-weight:700;color:#e2e8f0" id="agent-stat-total">—</div>
-      <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em">My Leads</div>
-    </div>
-    <div style="background:#1e293b;border-radius:8px;padding:10px 16px;text-align:center;min-width:90px">
-      <div style="font-size:1.4rem;font-weight:700;color:#f59e0b" id="agent-stat-new">—</div>
-      <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em">New</div>
-    </div>
-    <div style="background:#1e293b;border-radius:8px;padding:10px 16px;text-align:center;min-width:90px">
-      <div style="font-size:1.4rem;font-weight:700;color:#10b981" id="agent-stat-converted">—</div>
-      <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em">Converted</div>
-    </div>
-    <div style="background:#1e293b;border-radius:8px;padding:10px 16px;text-align:center;min-width:90px">
-      <div style="font-size:1.4rem;font-weight:700;color:#0ea5e9" id="agent-stat-revenue">—</div>
-      <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em">AUM ($)</div>
+  <!-- ── Fixed market ticker (same as admin) ── -->
+  <div class="market-ticker">
+    <div class="tradingview-widget-container">
+      <div class="tradingview-widget-container__widget"></div>
+      <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>
+      {
+        "symbols": [
+          { "proName": "OANDA:XAUUSD", "title": "Gold" },
+          { "proName": "FX:EURUSD", "title": "EUR/USD" },
+          { "proName": "FX:GBPUSD", "title": "GBP/USD" },
+          { "proName": "FX:USDJPY", "title": "USD/JPY" },
+          { "proName": "TVC:USOIL", "title": "WTI Oil" },
+          { "proName": "BINANCE:BTCUSDT", "title": "BTC/USD" },
+          { "proName": "BINANCE:ETHUSDT", "title": "ETH/USD" },
+          { "proName": "PSX:KSE100", "title": "KSE 100" }
+        ],
+        "showSymbolLogo": true,
+        "colorTheme": "dark",
+        "isTransparent": false,
+        "displayMode": "adaptive",
+        "locale": "en"
+      }
+      </script>
     </div>
   </div>
 
-  <div class="tabs" id="agent-tabs">
-    <button class="tab-btn active" onclick="agentTab('my-leads',this)">My Leads</button>
-    <button class="tab-btn"        onclick="agentTab('log-activity',this)">Log Activity</button>
+  <!-- ── Sidebar ── -->
+  <div class="sidebar">
+    <div class="sidebar-brand">
+      <h1>BADAR TRADER</h1>
+      <p>Lead Management CRM</p>
+    </div>
+    <div id="agent-tabs" class="sidebar-nav">
+      <div class="nav-section-label">MAIN</div>
+      <div class="nav-item tab-btn active" data-tab="dashboard" onclick="agentTab('dashboard',this)"><span class="nav-icon">🏠</span> Dashboard</div>
+      <div class="nav-item tab-btn" data-tab="my-leads" onclick="agentTab('my-leads',this)"><span class="nav-icon">👥</span> My Leads</div>
+      <div class="nav-section-label">TOOLS</div>
+      <div class="nav-item tab-btn" data-tab="log-activity" onclick="agentTab('log-activity',this)"><span class="nav-icon">📝</span> Log Activity</div>
+    </div>
+    <div class="sidebar-footer">
+      <div class="user-avatar" id="agent-sidebar-initials">A</div>
+      <div class="user-info">
+        <p id="agent-name"></p>
+        <span>Agent</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Main content ── -->
+  <div class="main-content">
+    <div class="sidebar-overlay" onclick="toggleSidebar(false)"></div>
+    <div class="content-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Menu">&#9776;</button>
+        <h2 id="agent-current-tab-title" class="page-title">Dashboard</h2>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-danger btn-sm" onclick="handleLogout()">Logout</button>
+      </div>
+    </div>
+    <div class="content-body">
+
+  <!-- Dashboard -->
+  <div id="agent-tab-dashboard" class="tab-content active">
+    <h3>Dashboard</h3>
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">My Leads</div>
+        <div class="stat-value" id="agent-stat-total">—</div>
+        <div class="stat-trend">All time</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">New</div>
+        <div class="stat-value" id="agent-stat-new">—</div>
+        <div class="stat-trend">Awaiting contact</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Converted</div>
+        <div class="stat-value" id="agent-stat-converted">—</div>
+        <div class="stat-trend" style="color:#0ea5e9">Paying clients</div>
+      </div>
+      <div class="stat-card" style="border-left:4px solid #10b981">
+        <div class="stat-label" style="color:#10b981">AUM</div>
+        <div class="stat-value" style="color:#10b981" id="agent-stat-revenue">—</div>
+        <div class="stat-trend">Approved deposits</div>
+      </div>
+    </div>
   </div>
 
   <!-- My Leads -->
-  <div id="agent-tab-my-leads" class="tab-content active">
+  <div id="agent-tab-my-leads" class="tab-content">
     <h3>My Leads</h3>
     <div class="filter-bar">
       <input type="text" id="agent-lead-search" placeholder="🔍 Search name, phone…"
              oninput="filterAgentLeadsLocal()"
-             style="flex:1;min-width:180px;max-width:280px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:0.85rem;outline:none" />
+             style="flex:1;min-width:180px;max-width:280px" />
     </div>
     <div class="card" style="padding:0">
       <table>
@@ -1754,7 +1809,10 @@
       </div>
     </div>
   </div>
-</div>
+
+    </div><!-- /content-body -->
+  </div><!-- /main-content -->
+</div><!-- /#agent-dashboard -->
 
 <!-- ═══ SCRIPTS ═══ -->
 <script>
@@ -1928,13 +1986,16 @@ async function initAdmin() {
 }
 
 function toggleSidebar(forceOpen) {
-  const sidebar  = document.querySelector('.sidebar');
-  const overlay  = document.getElementById('sidebar-overlay');
-  if (!sidebar || !overlay) return;
-  const isOpen = sidebar.classList.contains('open');
+  // Admin and agent dashboards each have their own .sidebar/.sidebar-overlay —
+  // only one is ever visible at a time (the other is display:none), so
+  // toggling all matches is harmless and avoids caring which one is active.
+  const sidebars = document.querySelectorAll('.sidebar');
+  const overlays = document.querySelectorAll('.sidebar-overlay');
+  if (!sidebars.length) return;
+  const isOpen = sidebars[0].classList.contains('open');
   const open   = forceOpen !== undefined ? forceOpen : !isOpen;
-  sidebar.classList.toggle('open', open);
-  overlay.classList.toggle('open', open);
+  sidebars.forEach(s => s.classList.toggle('open', open));
+  overlays.forEach(o => o.classList.toggle('open', open));
 }
 
 function adminTab(name, el) {
@@ -2284,18 +2345,25 @@ function copyWebhookUrl() {
 // ── AGENT ─────────────────────────────────────────────────────
 async function initAgent() {
   document.getElementById('agent-dashboard').style.display = 'block';
-  document.getElementById('agent-name').textContent =
-    currentProfile.full_name || currentUser.email;
+  const name = currentProfile.full_name || currentUser.email;
+  document.getElementById('agent-name').textContent = name;
+  const initialsEl = document.getElementById('agent-sidebar-initials');
+  if (initialsEl) initialsEl.textContent = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   await loadAgentLeads();
 }
 
+const AGENT_TAB_TITLES = { dashboard: 'Dashboard', 'my-leads': 'My Leads', 'log-activity': 'Log Activity' };
+
 function agentTab(name, btn) {
+  if (window.innerWidth <= 768) toggleSidebar(false);
   document.querySelectorAll('#agent-dashboard .tab-content')
     .forEach(el => el.classList.remove('active'));
   document.querySelectorAll('#agent-tabs .tab-btn')
     .forEach(el => el.classList.remove('active'));
   document.getElementById('agent-tab-' + name).classList.add('active');
   btn.classList.add('active');
+  const titleEl = document.getElementById('agent-current-tab-title');
+  if (titleEl) titleEl.textContent = AGENT_TAB_TITLES[name] || name;
   closeDetail('agent');
   if (name === 'my-leads') loadAgentLeads();
 }
