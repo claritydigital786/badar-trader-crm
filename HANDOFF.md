@@ -1,90 +1,145 @@
 # Badar Trader CRM — Handoff
 
-_Last updated: 2026-07-13, end of session._
+_Last updated: 2026-07-13, end of session. Written for a fresh Claude Code session with
+zero memory of prior conversations — everything you need to orient should be here._
 
-This replaces the previous handoff doc, which was stale (dated 2026-07-10 and describing
-version 7 of the webhook — the live one is now version 27+). Everything below was verified
-against the live Supabase project and the actual deployed code, not assumed from memory.
-
----
-
-## The product in one paragraph
-
-A Meta Ads campaign drives people to WhatsApp number **+92 371 5773903**. A bot greets
-them, asks their language, shows a main menu, then walks qualifying leads through broker
-choice → trading experience → a **$500 account balance** requirement (Exness or Do Prime)
-in exchange for Badar's **Premium Signals Group + a $250 Forex course, both free**. New
-leads round-robin to two agents (Ehsan, Hanzala), who get a tappable WhatsApp reminder that
-repeats every 5 minutes until acknowledged. Deposit screenshots sent back to the bot are now
-received, stored, and shown in the CRM. Everything is live on branch
-`feat/bot-human-handoff` (14 commits ahead of `main`, not yet merged).
+This replaces the previous version of this doc (also dated 2026-07-13, earlier the same
+day). That version was itself accurate but became incomplete once this session discovered
+and fixed a much bigger problem: **`main` and `feat/bot-human-handoff` had silently
+diverged for ~2 weeks**, so most of what that doc called "done and verified live" was live
+only on the Supabase *backend* — the CRM frontend on production had none of it. See below.
 
 ---
 
-## ✅ Done and verified live this session
+## Start here: repo state right now
 
-- **Schema/code drift fixed**: the live DB's `bot_stage` constraint was missing values the
-  deployed bot actually used (`awaiting_language`, `awaiting_menu`) — this was a real,
-  silent production bug, not a hypothetical. Fixed and migrated live.
-- **Language/main-menu bot flow** — deployed, confirmed working with real lead
-  conversations end to end (language → menu → broker → experience → deposit → qualified).
-- **Round-robin agent assignment**: Ehsan Wazir + Muhammad Hanzala only (Syed Hamza removed
-  from rotation and his CRM login suspended, per Badar's request). Batch size raised from 5
-  to 10 consecutive leads per agent.
-- **Agent ping is non-blocking**: previously a slow/failed agent notification could delay
-  the customer's own greeting; now fired via `EdgeRuntime.waitUntil` and never blocks it.
-- **Agent pings contain no lead PII** (name/phone) — just "a lead is waiting," per Badar's
-  explicit instruction. Agents check the CRM for details.
-- **Repeat-until-acknowledged reminders**: the round-robin ping is now a tappable "✅ I've
-  got this" button. `nudge-agents` (new Edge Function, cron every 5 min via pg_cron) re-pings
-  the assigned agent until they tap it, and broadcasts to the rest of the team + admin once
-  after 3 unanswered pings (15 min).
-- **Deposit screenshots now work.** Previously the bot asked customers to send a screenshot
-  and then silently dropped every image message it received — no ack, no CRM record, no
-  agent notified. Now: downloaded from Meta, stored in a private `deposit-screenshots`
-  bucket, logged against the lead with a **View** button in the CRM's Communications tab,
-  customer gets an ack, assigned agent gets notified.
-- **KYC document file upload** — real Supabase Storage upload/download replacing the old
-  "notes as file reference" placeholder, with a **View** button in the KYC tab.
-- **Real bull/arrow favicon** — replaced the placeholder SVG with the actual logo.
-- **CRM conversation tier filter tabs** (All/New/Unread/Warm/Hot/Closed).
-- **Meta app published** — was stuck in "Development" mode; confirmed via Meta for
-  Developers dashboard and published to Live.
-- **Repo cleanup**: removed a stray nested duplicate git repo (including an accidental
-  gitlink commit), an unused/undeployed `lead-capture` function, and a stale draft message
-  file that had a plaintext CRM password in it.
+```
+$ git branch -v
+  feat/bot-human-handoff              35bc329 [ahead 15] Redesign agent dashboard...
+* integration/merge-bot-human-handoff c703d2c Merge feat/bot-human-handoff into...
+  main                                15a7bf0 Redesign agent dashboard...
+```
+
+- **You are (or should be) on `integration/merge-bot-human-handoff`.** This branch is based
+  off `main` with `feat/bot-human-handoff` merged into it. It has **not** been pushed to
+  `origin`, and `main` has **not** been touched.
+- There's one stash: `stash@{0}: On feat/bot-human-handoff: local claude settings before
+  merge work` — just a local `.claude/settings.local.json` diff (Claude Code permissions,
+  not product code). Safe to `git stash drop` whenever, or `git stash pop` if you care about
+  those specific permission grants.
+- Working tree is otherwise clean (`git status --short` shows nothing outside
+  `node_modules/`, which is now gitignored).
+- Remote: `https://github.com/claritydigital786/badar-trader-crm.git`, branch `main` is what
+  Vercel auto-deploys to **https://crm.badartrader.com**.
+
+## The actual problem this session found and fixed
+
+`main` and `feat/bot-human-handoff` diverged on 2026-07-07 at commit `051cae4` and grew
+apart independently for the following two weeks:
+- `feat/bot-human-handoff` gained 20 commits `main` never got: the WhatsApp bot's
+  language/menu flow, agent round-robin + nudge reminders, bot→human handoff (2-miss
+  escalation), KYC/deposit-screenshot file storage, and **real** automation-rule firing
+  (Postgres triggers → Edge Function → actual WhatsApp send / actual agent assignment).
+- `main` gained 26 commits `feat` never got: Meta Ads dashboard fixes, a full branding pass
+  (bull+chart favicon across pages), a thank-you page, a public track-record page, a ticker
+  layout fix, and a fix for the conversations list's unread-state logic.
+
+**Concretely verified** (not assumed) by loading the live production site: production's
+`simulator.html` still shows pre-divergence bot copy, and the Leads tab has no "Needs Human"
+filter — none of `feat`'s CRM-facing work had reached real users. Only the Supabase Edge
+Functions and DB schema were live, because those get deployed straight from the CLI,
+independent of git/Vercel.
+
+**This session merged the two branches** into `integration/merge-bot-human-handoff`.
+Real conflicts were confined to three files — `index.html`, `simulator.html`,
+`supabase/schema.sql` — resolved as follows:
+
+- **Conversations list** (`index.html`, `renderConversations()`): both branches edited the
+  same function for unrelated reasons (`main` added an accurate unread-count nav badge,
+  `feat` added tier filtering/`computeLeadTier`). Combined — both features coexist.
+- **Simulator copy**: kept `main`'s live wording (Premium Signalling Group naming,
+  no-asterisk referral codes, the real hosted `join.html` form URL — `feat` still pointed at
+  a Google Form placeholder) and layered `feat`'s 2-miss handoff logic (`misses`,
+  `handedOff`, `escalate()`) on top.
+- **Dropped** `feat`'s unused `premiumFlow()` function and its course copy ($200/3-month) —
+  it conflicts with *both* `main`'s version (free, no price stated, 1-month) *and* this
+  doc's earlier claim of $250. **None of the three agree on the actual course price/duration
+  — this is unresolved, flagged for Badar, not decided unilaterally.**
+- **Schema**: `main`'s `signals` table (powers the track-record page) and `feat`'s Phase
+  4/6/7/8 additions (bot state columns, KYC/deposit storage policies, automation triggers)
+  are independent additive sections — kept both, no actual conflict in substance.
+- **Cleanup, dropped from the merge as junk** (not product code): `node_modules/` (688 files
+  had been accidentally committed on `feat`, no `.gitignore` existed anywhere — added one
+  now), a stray base64-encoded HTML dump (`_push.txt`), four one-off local push/deploy
+  AppleScripts, a random screenshot, a stale "delete me" marker file.
+
+### Verified on the merged branch (with evidence, locally — not production)
+- `node --check` on the extracted inline `<script>` of both `index.html` and
+  `simulator.html` — no syntax errors.
+- Demo mode (`enterDemoMode()` in the browser console — there's no UI button for it, it's
+  dead-but-present code) on a local static server: Leads tab shows the "⚠ Needs Human" badge
+  and filter; Automation tab's `submitAutomationRule` function includes the
+  `assign_agent_id` fix; Conversations tab renders without console errors.
+- **Clicked through the simulator end-to-end**: language → menu → two unanswerable
+  messages → header badge flips to **HANDED OFF**, escalation message with the WhatsApp
+  number appears, a third message gets no bot reply (silent, as designed). Screenshotted at
+  each step.
+
+### NOT verified — and exactly why
+- **Saving a whatsapp/assign_agent automation rule against the real database** — needs an
+  authenticated admin session. Claude Code will not type a password into a login form
+  (hard rule, applies even to your own site) — this needs a human to click through it once,
+  or a service-role key handed to a script.
+- **The full trigger chain firing live** (lead insert → Postgres trigger → `fire-automation`
+  Edge Function → real WhatsApp send) — testable, but only by writing a test lead into the
+  production DB, which wasn't done without explicit go-ahead (and needs a decision on what
+  phone number to use so nothing real gets messaged by accident).
+- **Live WhatsApp round-trip** — needs an actual message sent to +92 371 5773903 from a
+  real phone; outside what a coding session can do by itself.
 
 ---
 
-## 🔴 Open items
+## 🔴 Open items, in rough priority order
 
-### 1. Branch not merged to `main`
-`feat/bot-human-handoff` is 14 commits ahead of `main`, fully deployed and tested live, but
-never merged/PR'd. Worth doing now that it's proven stable.
+### 1. Push `integration/merge-bot-human-handoff` — decide when/how
+This is the biggest lever available: right now the branch is fully reconciled and locally
+tested, sitting on disk, not pushed. Options, cheapest first:
+- Push the branch to origin (`git push -u origin integration/merge-bot-human-handoff`), open
+  a PR into `main`, let Badar/whoever review, then merge normally.
+- Or just merge it straight into local `main` and push `main` — higher trust, no PR step.
+Either way, merging into `main` triggers an immediate Vercel production deploy, so this
+should be a deliberate, confirmed decision, not something to do reflexively.
 
-### 2. Automation rules don't actually send anything
-The CRM's Automation tab (rules: trigger event → channel → template) is pure CRUD today.
-Nothing listens for real events (`lead_created`, `status_changed`, `kyc_verified`,
-`deposit_recorded`) and fires a rule — the only way to "see" a rule work is the ▶ Test
-button, which just simulates against a fake lead and logs to console. To make this real,
-two things are needed: (a) Twilio (SMS) / SendGrid (email) credentials — WhatsApp can reuse
-the bot's existing Cloud API creds — and (b) actual trigger-firing code, which doesn't
-exist yet in any form.
+### 2. Course price/duration mismatch (see above) — needs Badar's answer
+Three different claims exist across the codebase's history: $200/3-months (old `feat` copy,
+now dropped from the merge), free/no-price/1-month (current `main` copy, what the merge
+kept), $250/free (this doc's own earlier — possibly also stale — claim). Get a real answer
+from Badar and make the simulator, the webhook's fallback copy, and this doc all agree.
 
-### 3. Ad creatives — copy finalized, images not yet generated
+### 3. Automation rules: real firing exists now, but is genuinely untested end-to-end
+The Postgres triggers + `fire-automation` Edge Function are real code (not the pure-CRUD
+"Test button only" state described in the prior version of this doc), deployed to the live
+Supabase project. But nobody has watched a real lead event actually produce a real WhatsApp
+send or a real agent reassignment. Worth a deliberate, permissioned test before trusting it.
+
+### 4. Ad creatives — copy finalized, images not yet generated
 Five Meta ad creative prompts are finalized (Batch 24, "Forex Mastery Programme" as the
-course name, leads with the Premium Signals Group + free course offer, "$500 in your
-account" instead of "deposit" so it also covers traders already on Exness/Do Prime, no em
-dashes, footer stripped to logo only, "FREE" as an enlarged badge). Muhammad still needs to
-run these through an image generator and confirm the results look right — the last one
-tested was creative #5 (Scarcity/Batch 24 angle); #1–#4 haven't been re-tested with the
-latest fixes (no dashes, stripped footer, short CTA + small qualifier line under it).
+course name — note this conflicts with whatever gets decided in item 2 above — leads with
+the Premium Signals Group + free course offer, "$500 in your account" instead of "deposit",
+no em dashes, footer stripped to logo only, "FREE" as an enlarged badge). Muhammad still
+needs to run these through an image generator and confirm the results — the last one tested
+was creative #5; #1–#4 haven't been re-tested with the latest copy fixes.
+
+### 5. `.claude/settings.local.json` stash
+Trivial, but don't forget it's sitting in `git stash list` — local Claude Code permission
+grants, not product code. Pop or drop whenever convenient.
 
 ---
 
 ## Key facts & where things live
 
-- **Production site:** https://crm.badartrader.com (Vercel, deploys from `main`).
+- **Production site:** https://crm.badartrader.com (Vercel, deploys from `main` only —
+  not from any feature branch, confirmed this session).
 - **Supabase project:** `vfskqzgphrunjxquqpks`. WhatsApp credentials live in the
   `public.settings` table (`wa_access_token`, `wa_phone_number_id`) — not Edge Function
   secrets, though the secrets are also kept updated as a fallback.
@@ -93,15 +148,24 @@ latest fixes (no dashes, stripped footer, short CTA + small qualifier line under
 - **Agents:** Ehsan Wazir, Muhammad Hanzala. Syed Hamza removed/suspended.
 - **Referral links:** Exness `https://one.exnesstrack.org/a/eatgh2cl7y` (code eatgh2cl7y);
   Do Prime `https://my.dooprime.com/links/go/45031` (code 45031).
-- **Public simulator:** [simulator.html](simulator.html) — browser demo of the bot flow,
-  kept in sync with the live webhook copy.
+- **Public simulator:** [simulator.html](simulator.html) — browser demo of the bot flow.
+  On `integration/merge-bot-human-handoff` this now includes the 2-miss handoff logic; on
+  `main` (production) it currently does not.
 - **Storage buckets:** `kyc-documents`, `deposit-screenshots` — both private, admin full
   access + agent read-only for their own assigned leads.
 - **Cron job:** `nudge-agents-every-5-min` (pg_cron + pg_net), fires `nudge-agents` Edge
-  Function every 5 minutes.
+  Function every 5 minutes. (Existence of the cron job itself wasn't independently
+  re-verified this session — inherited claim from the prior handoff doc.)
+- **Anon/publishable key is hardcoded in `index.html`/`simulator.html`/`landing.html`** —
+  this is intentional (RLS protects the actual data; the anon key is meant to be public for
+  a Supabase-backed static site), not a leak.
+- **`.claude/launch.json`** now exists (added by the `feat` branch, carried through the
+  merge) — a `static` config that runs `python3 -m http.server 8743` for local testing via
+  the Browser pane's `preview_start`.
 
 ## Demo script (no WhatsApp needed)
 
-Open [simulator.html](simulator.html): pick a language, walk the main menu → Start Trading
-→ pick a broker → trading experience → the $500 requirement → see the Premium Signals
-Group + free course confirmation. Matches the live bot's copy exactly.
+Open [simulator.html](simulator.html) (on `integration/merge-bot-human-handoff` or after it
+reaches production): pick a language, walk the main menu → join flow → pick a broker → the
+$500 requirement → see the Premium Signalling Group confirmation. Send two messages the FAQ
+engine can't match in a row to see the bot hand off to a human and go silent.
