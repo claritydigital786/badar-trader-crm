@@ -810,3 +810,34 @@ ALTER TABLE public.kyc_documents ADD CONSTRAINT kyc_documents_document_type_chec
 
 -- ── DONE (Phase 9) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 10 Schema (fix conversion-hook)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 28. Let service-role Edge Functions past the admin-only guard ──
+-- guard_leads_admin_only_columns() blocked ALL writes to account_balance/
+-- kyc_status unless is_admin() (auth.uid() in profiles with role='admin').
+-- Service-role connections (Edge Functions like conversion-hook) have no
+-- auth.uid() at all, so this was blocking every single deposit
+-- confirmation through join.html — silently, since join.html swallowed
+-- the error and redirected to thankyou.html regardless of success.
+-- Confirmed by reproducing it directly against a real test lead before
+-- this fix, and confirming it succeeds after.
+CREATE OR REPLACE FUNCTION public.guard_leads_admin_only_columns()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NOT public.is_admin() AND auth.role() IS DISTINCT FROM 'service_role' THEN
+    IF NEW.account_balance IS DISTINCT FROM OLD.account_balance
+       OR NEW.kyc_status IS DISTINCT FROM OLD.kyc_status THEN
+      RAISE EXCEPTION 'Only admins may change account_balance or kyc_status';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- ── DONE (Phase 10) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
