@@ -138,9 +138,27 @@ to authenticated users. **Not applied yet** — needs the §30 block pasted into
 SQL Editor (no service-role access from these sessions). Agent `communications` INSERT
 policies were checked and are fine — the settings read is the only blocker, so sends
 should work immediately after the paste. UNVERIFIED until an actual agent send succeeds.
+UPDATE, same day: §30 was pasted and ran ("Success. No rows returned") — the unblock is
+LIVE on production. Awaiting an agent's confirmation of an actual successful send.
 Known trade-off, flagged to Badar: with §30 applied, any agent's browser can read the raw
-WhatsApp access token. Proper follow-up: move sending into an Edge Function proxy
-(service-role reads the token; browser never sees it), then drop the §30 policy again.
+WhatsApp access token.
+
+The proper follow-up is now BUILT but NOT DEPLOYED: `supabase/functions/send-wa-message`
+is a JWT-verified Edge Function proxy (checks caller is admin or the lead's assigned
+agent, reads credentials server-side via the same env-first/settings-fallback pattern as
+whatsapp-webhook, sends, logs to communications; failures go to communication_logs).
+`sendConvMessage` in index.html now tries it first and falls back to the legacy
+in-browser send when the function is unreachable. Fallback detection was verified against
+the live project: an undeployed function surfaces in the browser as a CORS/fetch failure
+with NO http status (not a 404!) — the code treats any response-less error as
+"unavailable". Page loads clean, all send functions defined, zero console errors.
+To finish (in order, after the frontend branch is deployed):
+1. `supabase login && supabase functions deploy send-wa-message` (keep JWT verification
+   ON, i.e. no --no-verify-jwt flag) — or paste the function in Dashboard → Edge Functions.
+2. Have one agent and one admin send successfully (their sends now go through the proxy).
+3. Drop the §30 policy: `DROP POLICY "settings: agents read wa send creds" ON public.settings;`
+   Agents keep sending fine (via the proxy); the token disappears from their browsers.
+Do NOT do step 3 before steps 1-2 or agents are blocked again.
 
 ---
 

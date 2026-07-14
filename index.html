@@ -4622,51 +4622,22 @@ async function sendConvMessage(convId, scope = '') {
     return;
   }
 
-  // Live mode — send via WhatsApp Cloud API, then save to DB
+  // Live mode — prefer the server-side send (supabase/functions/send-wa-message
+  // keeps the WhatsApp token in the backend); fall back to the legacy in-browser
+  // send until that function is deployed. Once it's deployed and confirmed, the
+  // fallback and the schema §30 settings-read policy can both be removed.
   const sendBtn = document.getElementById('conv-send-btn');
   if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending…'; }
   if (input) input.disabled = true;
 
   try {
-    const [leadRes, settingsRes] = await Promise.all([
-      sb.from('leads').select('phone').eq('id', convId).maybeSingle(),
-      sb.from('settings').select('key, value').in('key', ['wa_phone_number_id', 'wa_access_token'])
-    ]);
-    if (leadRes.error) throw leadRes.error;
-
-    const getS = k => (settingsRes.data?.find(r => r.key === k) || {}).value || '';
-    const phoneNumberId = getS('wa_phone_number_id');
-    const accessToken   = getS('wa_access_token');
-
-    if (!phoneNumberId || !accessToken) {
-      showToast('WhatsApp token not set — go to Meta Integration and save your credentials first.', 'err');
-      return;
+    const viaFunction = await sendWaViaFunction(convId, text);
+    if (viaFunction === 'unavailable') {
+      const sent = await sendWaViaBrowser(convId, text);
+      if (!sent) return; // credentials toast already shown by the legacy path
+    } else if (viaFunction.warning) {
+      showToast(viaFunction.warning, 'err');
     }
-
-    const phoneDigits = (leadRes.data?.phone || '').replace(/\D/g, '');
-    const waResp = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to: phoneDigits,
-        type: 'text',
-        text: { body: text }
-      })
-    });
-    if (!waResp.ok) {
-      const errData = await waResp.json().catch(() => ({}));
-      throw new Error(errData?.error?.message || `WhatsApp API error ${waResp.status}`);
-    }
-
-    // Save outbound message to communications table
-    await sb.from('communications').insert({
-      lead_id:   convId,
-      type:      'whatsapp',
-      direction: 'outbound',
-      body:      text,
-      logged_by: currentUser?.id || null
-    });
 
     if (input) input.value = '';
     showToast('Message sent ✓');
@@ -4685,6 +4656,82 @@ async function sendConvMessage(convId, scope = '') {
     if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send ↗'; }
     if (input) input.disabled = false;
   }
+}
+
+// Server-side send. Returns { warning? } on success, the string 'unavailable'
+// if the Edge Function can't be reached (not deployed yet, or the functions
+// endpoint is down → caller uses the legacy path), and throws on real
+// failures with the server's error message.
+async function sendWaViaFunction(convId, text) {
+  let data, error;
+  try {
+    ({ data, error } = await sb.functions.invoke('send-wa-message', {
+      body: { lead_id: convId, text }
+    }));
+  } catch (_) {
+    return 'unavailable';
+  }
+  if (error) {
+    // An undeployed function never produces an HTTP response in the browser:
+    // its CORS preflight 404s without CORS headers, so invoke reports a
+    // fetch failure with no status (verified live before first deploy).
+    const status = error.context?.status;
+    if (typeof status !== 'number' || status === 404) return 'unavailable';
+    let msg = error.message || 'Send failed';
+    try {
+      const body = await error.context.json();
+      if (body?.error) msg = body.error;
+    } catch (_) { /* keep the generic message */ }
+    throw new Error(msg);
+  }
+  if (!data?.ok) throw new Error(data?.error || 'Send failed');
+  return { warning: data.warning };
+}
+
+// Legacy in-browser send — requires the schema §30 policy so agents can read
+// the two WhatsApp credential settings. Returns false if credentials are
+// unreadable/unset (after showing the toast), true once sent and logged.
+async function sendWaViaBrowser(convId, text) {
+  const [leadRes, settingsRes] = await Promise.all([
+    sb.from('leads').select('phone').eq('id', convId).maybeSingle(),
+    sb.from('settings').select('key, value').in('key', ['wa_phone_number_id', 'wa_access_token'])
+  ]);
+  if (leadRes.error) throw leadRes.error;
+
+  const getS = k => (settingsRes.data?.find(r => r.key === k) || {}).value || '';
+  const phoneNumberId = getS('wa_phone_number_id');
+  const accessToken   = getS('wa_access_token');
+
+  if (!phoneNumberId || !accessToken) {
+    showToast('WhatsApp token not set — go to Meta Integration and save your credentials first.', 'err');
+    return false;
+  }
+
+  const phoneDigits = (leadRes.data?.phone || '').replace(/\D/g, '');
+  const waResp = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: phoneDigits,
+      type: 'text',
+      text: { body: text }
+    })
+  });
+  if (!waResp.ok) {
+    const errData = await waResp.json().catch(() => ({}));
+    throw new Error(errData?.error?.message || `WhatsApp API error ${waResp.status}`);
+  }
+
+  // Save outbound message to communications table
+  await sb.from('communications').insert({
+    lead_id:   convId,
+    type:      'whatsapp',
+    direction: 'outbound',
+    body:      text,
+    logged_by: currentUser?.id || null
+  });
+  return true;
 }
 
 function startConvRealtime(scope = '') {
