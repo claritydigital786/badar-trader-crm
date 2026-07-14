@@ -19,21 +19,25 @@
     }
 
     /* ── App Shell ── */
-    .app-shell { display: flex; height: calc(100vh - 46px); margin-top: 46px; overflow: hidden; position: relative; }
+    /* --ticker-h is kept in sync with the TradingView iframe's real height by a
+       script near the ticker markup: the widget renders 46px on wide screens but
+       74px (two-row mode) below ~1280px, and a fixed 46px assumption cuts it off. */
+    :root { --ticker-h: 46px; }
+    .app-shell { display: flex; height: calc(100vh - var(--ticker-h)); margin-top: var(--ticker-h); overflow: hidden; position: relative; }
     .app-shell::before { content:""; position: fixed; top:50%; left:58%; transform:translate(-50%,-50%); width:640px; height:640px; background:url('/assets/bull.svg') center/contain no-repeat; opacity:0.06; pointer-events:none; z-index:0; }
 
     /* ── Sidebar (GHL style) ── */
     .sidebar {
       width: 220px;
-      min-height: calc(100vh - 46px);
+      min-height: calc(100vh - var(--ticker-h));
       background: #0f172a;
       padding: 0 0 46px; /* reserve room for the fixed market ticker, so it never covers the sidebar footer */
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
-      height: calc(100vh - 46px);
+      height: calc(100vh - var(--ticker-h));
       position: fixed;
-      left: 0; top: 46px;
+      left: 0; top: var(--ticker-h);
       z-index: 20;
     }
     .sidebar-brand {
@@ -121,7 +125,7 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      height: calc(100vh - 46px);
+      height: calc(100vh - var(--ticker-h));
       overflow: hidden;
       min-width: 0;
     }
@@ -147,7 +151,7 @@
     .market-ticker {
       position: fixed; top: 0; left: 0; right: 0; z-index: 40;
       background: #131722; border-bottom: 1px solid #2a2e39;
-      height: 46px; overflow: hidden;
+      height: var(--ticker-h); overflow: hidden;
     }
 
     /* On short viewports (small/split browser windows, landscape mobile),
@@ -4618,51 +4622,22 @@ async function sendConvMessage(convId, scope = '') {
     return;
   }
 
-  // Live mode — send via WhatsApp Cloud API, then save to DB
+  // Live mode — prefer the server-side send (supabase/functions/send-wa-message
+  // keeps the WhatsApp token in the backend); fall back to the legacy in-browser
+  // send until that function is deployed. Once it's deployed and confirmed, the
+  // fallback and the schema §30 settings-read policy can both be removed.
   const sendBtn = document.getElementById('conv-send-btn');
   if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending…'; }
   if (input) input.disabled = true;
 
   try {
-    const [leadRes, settingsRes] = await Promise.all([
-      sb.from('leads').select('phone').eq('id', convId).maybeSingle(),
-      sb.from('settings').select('key, value').in('key', ['wa_phone_number_id', 'wa_access_token'])
-    ]);
-    if (leadRes.error) throw leadRes.error;
-
-    const getS = k => (settingsRes.data?.find(r => r.key === k) || {}).value || '';
-    const phoneNumberId = getS('wa_phone_number_id');
-    const accessToken   = getS('wa_access_token');
-
-    if (!phoneNumberId || !accessToken) {
-      showToast('WhatsApp token not set — go to Meta Integration and save your credentials first.', 'err');
-      return;
+    const viaFunction = await sendWaViaFunction(convId, text);
+    if (viaFunction === 'unavailable') {
+      const sent = await sendWaViaBrowser(convId, text);
+      if (!sent) return; // credentials toast already shown by the legacy path
+    } else if (viaFunction.warning) {
+      showToast(viaFunction.warning, 'err');
     }
-
-    const phoneDigits = (leadRes.data?.phone || '').replace(/\D/g, '');
-    const waResp = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to: phoneDigits,
-        type: 'text',
-        text: { body: text }
-      })
-    });
-    if (!waResp.ok) {
-      const errData = await waResp.json().catch(() => ({}));
-      throw new Error(errData?.error?.message || `WhatsApp API error ${waResp.status}`);
-    }
-
-    // Save outbound message to communications table
-    await sb.from('communications').insert({
-      lead_id:   convId,
-      type:      'whatsapp',
-      direction: 'outbound',
-      body:      text,
-      logged_by: currentUser?.id || null
-    });
 
     if (input) input.value = '';
     showToast('Message sent ✓');
@@ -4681,6 +4656,82 @@ async function sendConvMessage(convId, scope = '') {
     if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send ↗'; }
     if (input) input.disabled = false;
   }
+}
+
+// Server-side send. Returns { warning? } on success, the string 'unavailable'
+// if the Edge Function can't be reached (not deployed yet, or the functions
+// endpoint is down → caller uses the legacy path), and throws on real
+// failures with the server's error message.
+async function sendWaViaFunction(convId, text) {
+  let data, error;
+  try {
+    ({ data, error } = await sb.functions.invoke('send-wa-message', {
+      body: { lead_id: convId, text }
+    }));
+  } catch (_) {
+    return 'unavailable';
+  }
+  if (error) {
+    // An undeployed function never produces an HTTP response in the browser:
+    // its CORS preflight 404s without CORS headers, so invoke reports a
+    // fetch failure with no status (verified live before first deploy).
+    const status = error.context?.status;
+    if (typeof status !== 'number' || status === 404) return 'unavailable';
+    let msg = error.message || 'Send failed';
+    try {
+      const body = await error.context.json();
+      if (body?.error) msg = body.error;
+    } catch (_) { /* keep the generic message */ }
+    throw new Error(msg);
+  }
+  if (!data?.ok) throw new Error(data?.error || 'Send failed');
+  return { warning: data.warning };
+}
+
+// Legacy in-browser send — requires the schema §30 policy so agents can read
+// the two WhatsApp credential settings. Returns false if credentials are
+// unreadable/unset (after showing the toast), true once sent and logged.
+async function sendWaViaBrowser(convId, text) {
+  const [leadRes, settingsRes] = await Promise.all([
+    sb.from('leads').select('phone').eq('id', convId).maybeSingle(),
+    sb.from('settings').select('key, value').in('key', ['wa_phone_number_id', 'wa_access_token'])
+  ]);
+  if (leadRes.error) throw leadRes.error;
+
+  const getS = k => (settingsRes.data?.find(r => r.key === k) || {}).value || '';
+  const phoneNumberId = getS('wa_phone_number_id');
+  const accessToken   = getS('wa_access_token');
+
+  if (!phoneNumberId || !accessToken) {
+    showToast('WhatsApp token not set — go to Meta Integration and save your credentials first.', 'err');
+    return false;
+  }
+
+  const phoneDigits = (leadRes.data?.phone || '').replace(/\D/g, '');
+  const waResp = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: phoneDigits,
+      type: 'text',
+      text: { body: text }
+    })
+  });
+  if (!waResp.ok) {
+    const errData = await waResp.json().catch(() => ({}));
+    throw new Error(errData?.error?.message || `WhatsApp API error ${waResp.status}`);
+  }
+
+  // Save outbound message to communications table
+  await sb.from('communications').insert({
+    lead_id:   convId,
+    type:      'whatsapp',
+    direction: 'outbound',
+    body:      text,
+    logged_by: currentUser?.id || null
+  });
+  return true;
 }
 
 function startConvRealtime(scope = '') {
@@ -5502,6 +5553,38 @@ function syncAccuracyTracker() {
     </tr>`;
   }).join('');
 }
+</script>
+
+<script>
+/* Keep --ticker-h in sync with the TradingView ticker's real rendered height.
+   The widget is 46px on wide screens but switches to a 74px two-row layout
+   below ~1280px; the layout offsets (.app-shell, .sidebar, .main-content)
+   all derive from --ticker-h so nothing gets cut off or overlapped. */
+(function () {
+  function syncTickerHeight() {
+    let h = 0;
+    document.querySelectorAll('.market-ticker').forEach(function (t) {
+      if (getComputedStyle(t).display === 'none') return; // hidden on short viewports
+      const f = t.querySelector('iframe');
+      h = Math.max(h, 46, f ? f.getBoundingClientRect().height : 0);
+    });
+    document.documentElement.style.setProperty('--ticker-h', Math.round(h) + 'px');
+  }
+  const ro = new ResizeObserver(syncTickerHeight);
+  function watchIframes() {
+    document.querySelectorAll('.market-ticker iframe').forEach(function (f) { ro.observe(f); });
+    syncTickerHeight();
+  }
+  // The TradingView embed script injects its iframe asynchronously, and the
+  // dashboards are toggled via style attributes on login — watch both, plus a
+  // low-frequency poll as a backstop (the iframe can resize itself without
+  // triggering either observer reliably).
+  new MutationObserver(watchIframes).observe(document.body,
+    { subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class'] });
+  window.addEventListener('resize', function () { setTimeout(syncTickerHeight, 250); });
+  setInterval(syncTickerHeight, 1500);
+  watchIframes();
+})();
 </script>
 </body>
 </html>
