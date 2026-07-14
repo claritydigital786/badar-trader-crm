@@ -841,3 +841,32 @@ $$;
 
 -- ── DONE (Phase 10) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 11 Schema (Meta Lead Ads automation)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 29. Meta Lead Ads → CRM record + WhatsApp welcome message ──
+-- Feeds supabase/functions/meta-leadgen-webhook/index.ts. A lead insert
+-- alone triggers automation_lead_created -> fire-automation, which is
+-- the part that actually sends the WhatsApp message — this rule is what
+-- fire-automation looks up. Verified end-to-end with a real test lead
+-- (deleted after): trigger fired, rule matched, template rendered, and
+-- a real WhatsApp API call was attempted. Left INACTIVE — the wording
+-- is a draft, not reviewed/approved by Badar yet. Edit and activate from
+-- the CRM's own Automation tab once the message is approved.
+INSERT INTO automation_rules (name, trigger_event, channel, template_body, is_active)
+SELECT
+  'Meta Lead Ads — welcome message',
+  'lead_created',
+  'whatsapp',
+  'Hi {{name}}! 👋 Thanks for your interest in Badar Trader. A member of our team will be in touch with you shortly on this number.',
+  false
+WHERE NOT EXISTS (
+  SELECT 1 FROM automation_rules WHERE name = 'Meta Lead Ads — welcome message'
+);
+
+-- ── DONE (Phase 11) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
