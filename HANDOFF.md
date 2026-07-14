@@ -75,13 +75,22 @@ correctly). Test lead + rule cleaned up afterward.
   Trader. A member of our team will be in touch with you shortly on this number."*
   Editable/activatable from the Automation tab whenever approved.
 
-### 3. Agent dashboard ticker cut-off — UNVERIFIED, unresolved
-User reports it's "still cut" after a claimed fix attempt. The browser verification tool
-had an outage during the prior session (tried 3 times, stayed down) — so the only check
-done was a **code-level diff** between admin's and agent's ticker markup, which came back
-byte-identical. That rules out a code difference but does **not** confirm the ticker
-actually renders correctly — this needs a real screenshot check with the browser tool,
-which hasn't happened yet. Don't assume this is fixed.
+### 3. Agent dashboard ticker cut-off — FIXED and verified in-browser (2026-07-14)
+Root cause found by finally rendering it live: the TradingView ticker-tape widget is 46px
+on wide screens but switches to a **74px two-row layout below ~1280px viewport width**
+(confirmed 74px at 1024px, 700px, and 375px). The CRM hard-coded 46px for the bar and
+every layout offset (.app-shell, .sidebar, .main-content), so on laptops/mobile the
+price row was clipped in half — identical markup for admin and agent, which is why the
+old code diff came back clean. Fix (index.html): all offsets now derive from a
+`--ticker-h` CSS variable, kept in sync with the iframe's real rendered height by a small
+script before `</body>` (ResizeObserver + MutationObserver + 1.5s backstop poll). Verified
+by screenshot at 1280 (46px, single row), 1024 and 375 (74px, both rows fully visible,
+content shifted down, no overlap), and ≤560px-height viewports (ticker hidden, var goes
+to 0, app fills the screen — pre-existing behavior preserved). NOT yet deployed — lives
+on this unpushed branch like everything else.
+Separate cosmetic issue spotted: the `PSX:KSE100` symbol shows a red error badge — Meta
+widget can't resolve PSX data. Ask Badar whether to drop it or pick a substitute; left
+as-is deliberately (don't change user-facing content without showing him first).
 
 ### 4. Task 1 from the handover doc (Agents Dashboard audit) — IN PROGRESS, cut off mid-check
 Was auditing the agent login/init flow, the follow-ups widget, dashboard stats population,
