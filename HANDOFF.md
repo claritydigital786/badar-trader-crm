@@ -162,6 +162,30 @@ Do NOT do step 3 before steps 1-2 or agents are blocked again.
 
 ---
 
+### 7. Bot dead-ends + bot/agent crosstalk (both reported by Badar with video/screenshot evidence, 2026-07-14 evening)
+Two distinct bot problems surfaced from live usage:
+(a) **Resolved-lead dead end — FIXED in code, NOT DEPLOYED.** Once a lead hits `declined`
+(said no to the $500), every later message — even "Hi" days later — got the canned
+"[post-resolution acknowledgement]" ("a team member will follow up") forever, and no
+team member ever does (reminders are off). Badar's brother hit this testing the bot.
+Badar's decision: within 24h of the decline keep the polite ack; after 24h+ of silence a
+returning declined lead RESTARTS the flow from scratch (greeting + language picker).
+Implemented in whatsapp-webhook `runBotStep` default case (`DECLINED_RESTART_HOURS = 24`,
+gap measured off `leads.updated_at`, which the is_unread bump keeps at last-interaction
+time; the lead object is read BEFORE that bump so the current message doesn't reset its
+own gap). `qualified` leads deliberately exempt — they hold concrete next steps and may
+return with a deposit screenshot. esbuild parse-checked; UNVERIFIED live until the
+webhook is redeployed (`supabase functions deploy whatsapp-webhook --no-verify-jwt` —
+it must keep --no-verify-jwt, Meta calls it unauthenticated).
+NOTE: the <24h ack still says "a team member will follow up shortly", which stays untrue
+while reminders are off — wording change not made (user-facing copy needs Badar's OK).
+(b) **Bot/agent crosstalk — NOT FIXED, awaiting Badar's go-ahead.** Video evidence (lead
+"MNA"): agent manually messaged a lead mid-bot-flow; the lead's replies to the agent were
+consumed by the bot's stage machine (confused apology, then decline fallback). Proposed
+fix: agent/admin manual send (both send paths) sets a takeover flag the webhook respects,
+e.g. needs_human + a handoff_reason the auto-expiry treats like an explicit request.
+Offered to Badar; he pivoted to (a) without answering — ask again before building.
+
 ## Open items carried over from the 07-13 merge (still open)
 
 1. **Push `integration/merge-bot-human-handoff` to `main`** — still not done. 10 more

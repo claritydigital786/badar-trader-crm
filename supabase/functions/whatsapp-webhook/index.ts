@@ -20,6 +20,14 @@ const GRAPH_VERSION = "v21.0";
 // bot flow resumed (explicit agent requests are exempt — see runBotStep).
 const HANDOFF_STALE_HOURS = 2;
 
+// A DECLINED lead who comes back after this long is treated as a fresh
+// opportunity: the flow restarts from the greeting instead of dead-ending
+// every message in the "a team member will follow up" acknowledgement
+// (which promised a follow-up nobody was making — Badar, 2026-07-14).
+// Within the window the polite acknowledgement stands, so someone who just
+// said "not right now" isn't immediately re-pitched.
+const DECLINED_RESTART_HOURS = 24;
+
 let cachedWaToken: string | null = null;
 let cachedWaPhoneId: string | null = null;
 
@@ -610,8 +618,28 @@ async function runBotStep(
     }
 
     default: {
-      // qualified / declined — conversation already resolved. Acknowledge and let
-      // an agent follow up; do NOT flag for handoff (avoids silent leads).
+      // qualified / declined — conversation already resolved.
+
+      // Declined leads returning after a day restart from scratch (greeting +
+      // language picker), same shape as the wasCreated flow. Qualified leads
+      // are exempt: they already hold concrete next steps (deposit + send the
+      // screenshot here) and restarting would wipe that context.
+      const hoursSinceTouch = (Date.now() - lastTouch) / 3600000;
+      if (lead.bot_stage === "declined" && hoursSinceTouch >= DECLINED_RESTART_HOURS) {
+        await sb.from("leads").update({ bot_stage: "awaiting_language", retry_count: 0 }).eq("id", lead.id);
+        const greeting = matchGreeting(input) ?? "hello";
+        const r1 = await sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY);
+        const r2 = await sendLanguageCard(to);
+        const ok = r1.ok && r2.ok;
+        const errorDetail = [!r1.ok ? r1.error : null, !r2.ok ? r2.error : null].filter(Boolean).join("; ");
+        await logOutbound(sb, lead.id, ok
+          ? "[declined lead returned after 24h+ — flow restarted: greeting + language picker sent]"
+          : `[SEND FAILED: 24h restart greeting — ${errorDetail}]`);
+        return;
+      }
+
+      // Otherwise acknowledge and let an agent follow up; do NOT flag for
+      // handoff (avoids silent leads).
       const greeting = matchGreeting(input);
       const prefix = greeting ? `${greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY} ` : "";
       const r = await sendText(to, `${prefix}Thanks for the message! 🙏 A team member will follow up with you shortly.`);
