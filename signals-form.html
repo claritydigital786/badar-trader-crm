@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Join the Premium Signals Group — Badar Trader</title>
+<link rel="icon" type="image/svg+xml" href="/assets/bull.svg">
+<style>
+  :root { color-scheme: light; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#0d0d1a; color:#e2e8f0; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .card { background:#1a1a2e; border:1px solid #2a2a44; border-radius:18px; max-width:480px; width:100%; padding:32px 28px; }
+  .brand { color:#c9a84c; font-weight:800; letter-spacing:1px; font-size:13px; text-align:center; margin-bottom:6px; }
+  .price { text-align:center; color:#c9a84c; font-size:28px; font-weight:800; margin-bottom:2px; }
+  .price span { font-size:14px; color:#94a3b8; font-weight:600; }
+  h1 { font-size:20px; color:#fff; text-align:center; margin-bottom:6px; }
+  .sub { color:#94a3b8; font-size:13px; text-align:center; margin-bottom:22px; line-height:1.5; }
+  label { display:block; font-size:12px; color:#c9a84c; font-weight:600; margin:14px 0 5px; }
+  input, select { width:100%; padding:11px 12px; border-radius:9px; border:1px solid #2a2a44; background:#12121f; color:#e2e8f0; font-size:14px; font-family:inherit; }
+  input[type=file] { padding:9px 10px; font-size:12.5px; }
+  .row { display:flex; gap:12px; }
+  .row > div { flex:1; }
+  .hint { font-size:11.5px; color:#64748b; margin-top:5px; line-height:1.5; }
+  .hint strong { color:#c9a84c; }
+  button { width:100%; margin-top:22px; padding:13px; border:none; border-radius:10px; background:#c9a84c; color:#0d0d1a; font-weight:800; font-size:15px; cursor:pointer; }
+  button:disabled { opacity:0.6; cursor:default; }
+  .note { font-size:11px; color:#64748b; margin-top:14px; line-height:1.5; text-align:center; }
+  .err { color:#ef6b6b; font-size:12.5px; margin-top:12px; text-align:center; min-height:16px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">🐂 BADAR TRADER</div>
+    <div class="price">FREE<span> · Premium Signals Group</span></div>
+    <h1>Join the Signals Group</h1>
+    <p class="sub">Deposit $500 with our partner broker (Exness or Do Prime) — this is your own trading capital, not a fee. You'll be added to the group within 48 hours of verification.</p>
+
+    <form id="f">
+      <div class="row">
+        <div>
+          <label>First Name *</label>
+          <input id="first_name" required autocomplete="given-name" />
+        </div>
+        <div>
+          <label>Last Name</label>
+          <input id="last_name" autocomplete="family-name" />
+        </div>
+      </div>
+
+      <label>Email Address *</label>
+      <input id="email" type="email" required autocomplete="email" />
+
+      <label>WhatsApp Number *</label>
+      <input id="phone" required inputmode="tel" placeholder="+92 3XX XXXXXXX" autocomplete="tel" />
+
+      <label>Broker Account ID *</label>
+      <input id="broker_id" required placeholder="Your Exness / Do Prime account number" />
+
+      <label>Deposit Screenshot *</label>
+      <input id="screenshot" type="file" accept="image/*" required />
+      <p class="hint"><strong>Must clearly show:</strong> your Account ID and the deposit amount on your Exness or Do Prime dashboard. Screenshots that don't show this will be rejected on review — please don't upload unrelated photos.</p>
+
+      <button type="submit" id="btn">Submit for Verification</button>
+      <div class="err" id="err"></div>
+    </form>
+    <p class="note">Trading involves risk. We verify each deposit via the broker's IB portal before adding you to the group. No payment is made to Badar Trader.</p>
+  </div>
+<script>
+(function () {
+  var ENDPOINT = 'https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/submit-lead-form';
+  var MAX_BYTES = 10 * 1024 * 1024;
+  var f = document.getElementById('f');
+  var btn = document.getElementById('btn');
+  var err = document.getElementById('err');
+
+  f.addEventListener('submit', function (e) {
+    e.preventDefault();
+    err.textContent = '';
+
+    var firstName = document.getElementById('first_name').value.trim();
+    var lastName  = document.getElementById('last_name').value.trim();
+    var email     = document.getElementById('email').value.trim();
+    var phone     = document.getElementById('phone').value.trim();
+    var brokerId  = document.getElementById('broker_id').value.trim();
+    var fileInput = document.getElementById('screenshot');
+    var file      = fileInput.files[0];
+
+    if (!firstName || !email || !phone || !brokerId) { err.textContent = 'Please fill all required fields.'; return; }
+    if (!file) { err.textContent = 'Please upload your deposit screenshot.'; return; }
+    if (!/^image\//.test(file.type)) { err.textContent = 'Screenshot must be an image file (JPG, PNG, etc).'; return; }
+    if (file.size > MAX_BYTES) { err.textContent = 'Screenshot file is too large (max 10MB).'; return; }
+
+    btn.disabled = true; btn.textContent = 'Submitting…';
+
+    var fd = new FormData();
+    fd.append('form_type', 'signals');
+    fd.append('first_name', firstName);
+    fd.append('last_name', lastName);
+    fd.append('email', email);
+    fd.append('phone', phone);
+    fd.append('broker_id', brokerId);
+    fd.append('screenshot', file);
+
+    fetch(ENDPOINT, { method: 'POST', body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) { err.textContent = d.error || 'Something went wrong — please try again.'; btn.disabled = false; btn.textContent = 'Submit for Verification'; return; }
+        location.href = 'thankyou.html?src=form';
+      })
+      .catch(function () {
+        err.textContent = 'Network error — please try again or contact us on WhatsApp.';
+        btn.disabled = false; btn.textContent = 'Submit for Verification';
+      });
+  });
+})();
+</script>
+</body>
+</html>

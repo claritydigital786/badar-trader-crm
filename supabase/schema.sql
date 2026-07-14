@@ -787,3 +787,26 @@ CREATE TRIGGER automation_deposit_recorded
 
 -- ── DONE (Phase 8) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 9 Schema (public form submissions)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 27. Public lead-capture forms (signals-form.html, course-form.html) ─
+-- Badar wants first/last name tracked separately (rest of the CRM keeps
+-- using leads.full_name, kept in sync by the submit-lead-form Edge
+-- Function). deposit_account_ref already covers "Broker ID". Screenshots
+-- are stored as kyc_documents rows (document_type='deposit_screenshot')
+-- in the existing deposit-screenshots bucket, reusing the existing
+-- Verify/Reject review workflow instead of building a new one.
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS first_name TEXT;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS last_name TEXT;
+
+ALTER TABLE public.kyc_documents DROP CONSTRAINT IF EXISTS kyc_documents_document_type_check;
+ALTER TABLE public.kyc_documents ADD CONSTRAINT kyc_documents_document_type_check
+  CHECK (document_type = ANY (ARRAY['passport','national_id','utility_bill','deposit_screenshot','other']));
+
+-- ── DONE (Phase 9) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════

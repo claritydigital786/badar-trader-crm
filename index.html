@@ -2896,7 +2896,7 @@ function buildKycTab(lead, leadId, ctx, isAdmin, kycRows) {
             <td style="font-size:0.8rem;color:#666">${fmtDate(d.uploaded_at)}</td>
             <td>${esc(d.reviewer?.full_name || '—')}</td>
             <td style="color:#aaa">${esc(d.notes || '—')}</td>
-            <td>${d.file_path ? `<button class="btn btn-secondary btn-sm" onclick="viewKycFile('${d.file_path}')">View</button>` : '—'}</td>
+            <td>${d.file_path ? `<button class="btn btn-secondary btn-sm" onclick="${d.document_type === 'deposit_screenshot' ? 'viewDepositScreenshot' : 'viewKycFile'}('${d.file_path}')">View</button>` : '—'}</td>
             ${isAdmin ? `<td style="white-space:nowrap">
               <button class="btn btn-secondary btn-sm" onclick="reviewKycDocument('${d.id}','verified','${leadId}','${ctx}')">Verify</button>
               <button class="btn btn-secondary btn-sm" onclick="reviewKycDocument('${d.id}','rejected','${leadId}','${ctx}')">Reject</button>
@@ -2915,6 +2915,7 @@ function buildKycTab(lead, leadId, ctx, isAdmin, kycRows) {
           <option value="passport">Passport</option>
           <option value="national_id">National ID</option>
           <option value="utility_bill">Utility Bill</option>
+          <option value="deposit_screenshot">Deposit Screenshot</option>
           <option value="other">Other</option>
         </select>
       </div>
@@ -3586,7 +3587,7 @@ function kycStatusLabel(s) {
 }
 function riskLabel(r) { return { low:'Low', medium:'Medium', high:'High' }[r] || r; }
 function docTypeLabel(t) {
-  return { passport:'Passport', national_id:'National ID', utility_bill:'Utility Bill', other:'Other' }[t] || t;
+  return { passport:'Passport', national_id:'National ID', utility_bill:'Utility Bill', deposit_screenshot:'💰 Deposit Screenshot', other:'Other' }[t] || t;
 }
 function commTypeLabel(t) {
   return { email:'✉️ Email', whatsapp:'💬 WhatsApp', call:'📞 Call', sms:'📱 SMS' }[t] || t;
