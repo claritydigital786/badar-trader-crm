@@ -92,6 +92,28 @@ next: grep for where agent-vs-admin views branch on KYC/Comms tab rendering and 
 agents can't hit admin-only actions (e.g. approving their own KYC, seeing other agents'
 comms) through the UI.
 
+### 5. `nudge-agents` was spamming agents' personal WhatsApp — cron unscheduled, ROOT CAUSE NOT FOUND
+2026-07-14: Badar reported agents (screenshot evidence: Muhammad Hanzala's phone) getting
+**duplicate** "Reminder: a lead in the CRM is still waiting on you" messages — 4 identical
+ones stamped 2:30pm, 2 more at 2:45pm, none acknowledged. That's not the intended ~15-min
+cadence; something is causing multiple sends per cron invocation (or multiple overlapping
+cron entries). Immediate action taken: both cron jobs were unscheduled live —
+```sql
+SELECT cron.unschedule(jobname) FROM cron.job WHERE jobname LIKE 'nudge-agents%';
+```
+— confirmed via the SQL Editor returning 2 rows, both `true`. **No reminders fire at all
+right now, to anyone.** The `nudge-agents` Edge Function itself is still deployed (nothing
+else in the codebase calls it directly, so this is safe), just not scheduled.
+**Explicitly deferred by Badar — root cause not investigated yet.** Before ever
+re-scheduling this: check for duplicate/overlapping `cron.job` entries (the schema has a
+history of stale job names — see the `nudge-agents-every-5-min` vs `-every-15-min` rename in
+`supabase/schema.sql` §23), and check whether `nudge-agents/index.ts` itself can send more
+than one message per invocation per lead (e.g. a loop bug, or querying the same
+not-yet-acknowledged lead more than once). Also worth revisiting whether pinging agents'
+*personal* WhatsApp numbers this way was ever explicitly signed off by Badar at all, versus
+just being an assumed-reasonable default from an earlier build session — surfaced as a
+direct concern this session, not resolved.
+
 ---
 
 ## Open items carried over from the 07-13 merge (still open)
