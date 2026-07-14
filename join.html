@@ -82,13 +82,22 @@
     if (!name || !phone || !platform || !account || !amount) { err.textContent = 'Please fill all required fields.'; return; }
 
     btn.disabled = true; btn.textContent = 'Submitting…';
-    var qp = new URLSearchParams({ phone: phone, platform: platform, amount: amount, account: account }).toString();
+    var qp = new URLSearchParams({ name: name, phone: phone, platform: platform, amount: amount, account: account }).toString();
     fetch(HOOK + '?' + qp)
-      .catch(function () {})
-      .finally(function () {
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok) {
+          err.textContent = (d && d.error) || 'Something went wrong — please try again or contact us on WhatsApp.';
+          btn.disabled = false; btn.textContent = 'Submit for Verification';
+          return;
+        }
         location.href = 'thankyou.html?' + new URLSearchParams({
-          phone: phone, platform: platform, amount: amount
+          lead_id: d.lead_id || '', phone: phone, platform: platform, amount: amount
         }).toString();
+      })
+      .catch(function () {
+        err.textContent = 'Network error — please try again or contact us on WhatsApp.';
+        btn.disabled = false; btn.textContent = 'Submit for Verification';
       });
   });
 })();
