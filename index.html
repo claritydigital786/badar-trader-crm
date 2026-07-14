@@ -4750,11 +4750,13 @@ function calculatePayroll() {
 function exportLeadsCSV() {
   const leads = cachedLeads || [];
   if (!leads.length) { alert('No leads to export.'); return; }
-  const headers = ['Name','Phone','Email','Source','Campaign','Status','Instrument','Agent','Deposit ($)','Date Added'];
+  const headers = ['First Name','Last Name','Name','Phone','Email','Broker ID','Source','Campaign','Status','Instrument','Agent','Deposit ($)','Date Added'];
   const rows = leads.map(l => {
     const agent = cachedProfiles.find(p => p.id === l.assigned_agent_id);
     return [
+      l.first_name || '', l.last_name || '',
       l.full_name || '', l.phone || '', l.email || '',
+      l.deposit_account_ref || '',
       l.source || '', l.meta_campaign || '', l.status || '',
       l.instrument_type || '', agent ? agent.full_name : 'Unassigned',
       l.account_balance || 0,
