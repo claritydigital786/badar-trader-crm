@@ -4449,7 +4449,7 @@ async function openConversation(convId, scope = '') {
   try {
     const [leadRes, msgsRes] = await Promise.all([
       sb.from('leads').select('full_name, phone, status, is_unread').eq('id', convId).maybeSingle(),
-      sb.from('communications').select('body, direction, created_at')
+      sb.from('communications').select('body, direction, created_at, attachment_path')
         .eq('lead_id', convId).eq('type', 'whatsapp').order('created_at', { ascending: true })
     ]);
     if (leadRes.error) throw leadRes.error;
@@ -4466,9 +4466,12 @@ async function openConversation(convId, scope = '') {
       </div>
       <div class="conv-messages" id="conv-msgs-${convId}">
         ${messages.length
-          ? messages.map(m => `
+          ? messages.map((m, i) => `
               <div class="msg-wrapper${m.direction === 'outbound' ? ' outgoing' : ''}">
-                <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}">${esc(m.body)}</div>
+                <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}">
+                  ${esc(m.body)}
+                  ${m.attachment_path ? `<div class="msg-attachment" id="conv-att-${convId}-${i}" data-path="${esc(m.attachment_path)}" style="margin-top:8px;cursor:pointer;color:inherit">🖼 Loading image…</div>` : ''}
+                </div>
                 <div class="msg-time${m.direction === 'outbound' ? ' outgoing' : ''}">${fmtConvTime(m.created_at)}</div>
               </div>`).join('')
           : '<div style="text-align:center;color:#64748b;font-size:0.85rem;padding:32px">No messages yet.</div>'}
@@ -4480,6 +4483,7 @@ async function openConversation(convId, scope = '') {
       </div>`;
     const msgArea = document.getElementById('conv-msgs-' + convId);
     if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
+    loadConvAttachmentThumbs(convId, messages);
     if (lead?.is_unread) {
       await sb.from('leads').update({ is_unread: false }).eq('id', convId);
       renderConversations(scope);
@@ -4487,6 +4491,22 @@ async function openConversation(convId, scope = '') {
   } catch(err) {
     chatPanel.innerHTML = `<div style="padding:24px;color:#ef4444">Error loading conversation: ${esc(err.message)}</div>`;
   }
+}
+
+// Screenshots the bot receives are logged with communications.attachment_path
+// (deposit-screenshots bucket) but that bucket is private, so each message
+// bubble gets a real inline thumbnail via a short-lived signed URL instead
+// of embedding the (inaccessible) raw path.
+async function loadConvAttachmentThumbs(convId, messages) {
+  await Promise.all(messages.map(async (m, i) => {
+    if (!m.attachment_path) return;
+    const el = document.getElementById(`conv-att-${convId}-${i}`);
+    if (!el) return;
+    const { data, error } = await sb.storage.from('deposit-screenshots').createSignedUrl(m.attachment_path, 300);
+    if (error || !data) { el.textContent = '🖼 Screenshot (failed to load — tap to retry)'; el.onclick = () => loadConvAttachmentThumbs(convId, [m].map((mm,ii)=>mm)); return; }
+    el.innerHTML = `<img src="${esc(data.signedUrl)}" alt="Screenshot" style="max-width:220px;max-height:220px;border-radius:8px;display:block" />`;
+    el.onclick = () => window.open(data.signedUrl, '_blank');
+  }));
 }
 
 async function sendConvMessage(convId, scope = '') {

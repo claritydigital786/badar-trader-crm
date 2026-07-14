@@ -1,14 +1,9 @@
 // Badar Trader CRM — WhatsApp Cloud API Webhook
 // Supabase Edge Function (Deno / TypeScript)
 //
-// Required environment variables (set in Supabase Dashboard → Settings → Edge Functions → Secrets):
-//   WHATSAPP_VERIFY_TOKEN     — must match what you enter in Meta Developer Portal
-//   WHATSAPP_ACCESS_TOKEN     — System User permanent token (whatsapp_business_messaging + whatsapp_business_management)
-//   WHATSAPP_PHONE_NUMBER_ID  — Phone Number ID of the number leads message (currently +92 371 5773903)
-//   SUPABASE_URL              — automatically injected by Supabase
-//   SUPABASE_SERVICE_ROLE_KEY — from Supabase Dashboard → Settings → API (use the service_role key, NOT anon)
-//
-// Deploy: supabase functions deploy whatsapp-webhook --no-verify-jwt
+// Handoff behaviour (v28): confusion/inactivity handoffs auto-expire so a lead
+// who returns after a gap resumes the bot flow from where they left off; only
+// explicit "talk to an agent" requests keep the bot silent for a human.
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -20,10 +15,11 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "
 
 const GRAPH_VERSION = "v21.0";
 
-// The real WhatsApp credentials live in the `settings` table (wa_access_token,
-// wa_phone_number_id) rather than as Edge Function secrets. Env vars are tried
-// first (in case they get configured properly later) and the settings table is
-// the fallback that actually has working values today. Cached per warm instance.
+// How long before a confusion/inactivity handoff is considered stale. A lead
+// who returns after this many hours has their needs_human flag cleared and the
+// bot flow resumed (explicit agent requests are exempt — see runBotStep).
+const HANDOFF_STALE_HOURS = 2;
+
 let cachedWaToken: string | null = null;
 let cachedWaPhoneId: string | null = null;
 
@@ -42,7 +38,6 @@ async function getWaCredentials(): Promise<{ token: string; phoneId: string }> {
   return { token: cachedWaToken, phoneId: cachedWaPhoneId };
 }
 
-// Referral links — kept in sync with simulator.html
 const LINKS = {
   exness: "https://one.exnesstrack.org/a/eatgh2cl7y",
   exnessCode: "eatgh2cl7y",
@@ -77,48 +72,33 @@ function makeSupabase(): SupabaseClient {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Entry point
-// ---------------------------------------------------------------------------
 Deno.serve(async (req: Request): Promise<Response> => {
   const url = new URL(req.url);
 
-  // ── GET: Webhook verification handshake (Meta calls this once on setup) ──
   if (req.method === "GET") {
     const mode      = url.searchParams.get("hub.mode");
     const token     = url.searchParams.get("hub.verify_token");
     const challenge = url.searchParams.get("hub.challenge");
 
     if (mode === "subscribe" && token === WHATSAPP_VERIFY_TOKEN) {
-      console.log("Webhook verified successfully.");
       return new Response(challenge, { status: 200 });
     }
-
-    console.error("Webhook verification failed — token mismatch or wrong mode.");
     return new Response("Forbidden", { status: 403 });
   }
 
-  // ── POST: Incoming WhatsApp message notification ─────────────────────────
   if (req.method === "POST") {
     try {
       const body = await req.json();
       await handleIncomingMessage(body);
     } catch (err) {
-      // Log but never return non-200 to Meta (it would retry endlessly).
       console.error("Error processing WhatsApp webhook payload:", err);
     }
-
     return new Response("OK", { status: 200 });
   }
 
   return new Response("Method Not Allowed", { status: 405 });
 });
 
-// ---------------------------------------------------------------------------
-// handleIncomingMessage
-// Parses the WhatsApp Cloud API payload, upserts the lead, logs the inbound
-// message, then drives the qualification bot's next step.
-// ---------------------------------------------------------------------------
 async function handleIncomingMessage(payload: unknown): Promise<void> {
   const entries = (payload as any)?.entry ?? [];
 
@@ -130,10 +110,6 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
       const contacts: any[] = change?.value?.contacts ?? [];
       const statuses: any[] = change?.value?.statuses ?? [];
 
-      // Meta reports delivery outcome (sent/delivered/read/failed) asynchronously via
-      // this same webhook, separately from the initial "accepted" response to our send
-      // call. Previously nothing read this, so a send that Meta accepted but later
-      // failed to deliver looked identical, in our logs, to a successful one.
       for (const status of statuses) {
         const recipientPhone = normalisePhone(status.recipient_id ?? "");
         const statusType: string = status.status ?? "unknown";
@@ -177,9 +153,6 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
 
         const sb = makeSupabase();
 
-        // Rotation agents message the business number too (acknowledging their
-        // "new lead assigned" ping) — route those separately so an agent never
-        // gets processed as if they were a customer lead.
         const agent = AGENT_ROTATION.find((a) => normalisePhone(a.phone) === senderPhone);
 
         if (message.type === "image") {
@@ -215,11 +188,6 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// extractUserInput
-// Normalises a text message, a button reply, or a list reply into a single
-// shape the bot logic can match against.
-// ---------------------------------------------------------------------------
 type UserInput = { text: string; selectionId: string | null };
 
 function extractUserInput(message: any): UserInput | null {
@@ -241,11 +209,6 @@ function extractUserInput(message: any): UserInput | null {
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// Round-robin lead assignment
-// Every ROTATION_BATCH_SIZE new leads go to the same agent, then rotation
-// moves to the next one in AGENT_ROTATION, looping back to the start.
-// ---------------------------------------------------------------------------
 const AGENT_ROTATION = [
   { id: "9bfb2f92-658b-4868-90b9-dd041515d111", name: "Ehsan Wazir", phone: "923342224925" },
   { id: "2bc20292-76bb-467b-a2a1-7bfa0cad4421", name: "Muhammad Hanzala", phone: "923235163874" },
@@ -259,11 +222,6 @@ async function assignAgentRoundRobin(sb: SupabaseClient): Promise<typeof AGENT_R
   return AGENT_ROTATION[agentIndex];
 }
 
-// ---------------------------------------------------------------------------
-// upsertLead
-// Looks up an existing lead by phone number; creates a new one if not found.
-// Returns the full lead row plus whether it was just created.
-// ---------------------------------------------------------------------------
 async function upsertLead(
   sb: SupabaseClient,
   phone: string,
@@ -310,13 +268,6 @@ async function upsertLead(
   await sb.from("leads").update({ assigned_agent_id: agent.id }).eq("id", newLead.id);
   newLead.assigned_agent_id = agent.id;
 
-  // Notifying the agent is internal housekeeping — it must never delay the
-  // customer's own greeting, which waits on this function returning. Fired
-  // in the background via waitUntil rather than awaited inline. The ping is a
-  // tappable button (not plain text) carrying the lead ID, so the agent's
-  // acknowledgement is unambiguous even if several leads are pinged at once —
-  // see handleAgentReply(). nudge-agents re-sends this same button every 15
-  // minutes (9am-6pm PKT only) until agent_acknowledged_at is set.
   const notifyAgent = (async () => {
     const pingResult = await sendButtons(
       agent.phone,
@@ -347,9 +298,6 @@ async function upsertLead(
   return { lead: newLead, wasCreated: true };
 }
 
-// ---------------------------------------------------------------------------
-// insertCommunication
-// ---------------------------------------------------------------------------
 async function insertCommunication(
   sb: SupabaseClient,
   leadId: string,
@@ -372,15 +320,6 @@ async function insertCommunication(
   }
 }
 
-// ---------------------------------------------------------------------------
-// handleImageMessage
-// The bot explicitly asks qualified leads to send a deposit screenshot back
-// on this same number — until now nothing handled image messages at all, so
-// every screenshot sent was silently dropped (no ack, no CRM record, no agent
-// notified). This downloads the image from Meta, stores it privately, logs
-// it against the lead with a viewable path, acknowledges the customer, and
-// pings the assigned agent (no lead details in the ping, per policy).
-// ---------------------------------------------------------------------------
 async function handleImageMessage(
   sb: SupabaseClient,
   message: any,
@@ -463,13 +402,6 @@ async function downloadAndStoreMedia(
   }
 }
 
-// ---------------------------------------------------------------------------
-// runBotStep
-// The qualification state machine. `lead.bot_stage` tracks which question
-// we're waiting on an answer for. A brand-new lead gets a greeting plus the
-// language picker immediately, without trying to interpret their first
-// message beyond checking whether it was itself a greeting.
-// ---------------------------------------------------------------------------
 async function runBotStep(
   sb: SupabaseClient,
   lead: any,
@@ -478,9 +410,28 @@ async function runBotStep(
 ): Promise<void> {
   const to = lead.phone.replace(/^\+/, "");
 
-  // Once a conversation has been handed to a human, the bot stays silent so it
-  // never talks over the agent. The inbound message is still logged for the CRM.
-  if (lead.needs_human) return;
+  // Handoff behaviour:
+  //  - Explicit "talk to an agent" requests keep the bot silent (human owns it).
+  //  - Confusion/inactivity handoffs auto-expire: a lead returning after a gap
+  //    has the flag cleared and resumes the flow from their current stage, so a
+  //    lead who got stuck once (and whom no agent answered) is never left mute.
+  const lastTouch = new Date(lead.updated_at ?? lead.created_at ?? Date.now()).getTime();
+  const returningAfterGap = (Date.now() - lastTouch) / 3600000 >= HANDOFF_STALE_HOURS;
+
+  if (lead.needs_human) {
+    const explicitRequest = /requested human agent/i.test(lead.handoff_reason ?? "");
+    if (explicitRequest || !returningAfterGap) return;
+    await sb.from("leads").update({ needs_human: false, handoff_reason: null, retry_count: 0 }).eq("id", lead.id);
+    lead.needs_human = false;
+    lead.retry_count = 0;
+  }
+
+  // A returning lead's old near-limit retry count shouldn't instantly re-escalate
+  // them on the first message back — give the resumed flow a fresh count.
+  if (returningAfterGap && (lead.retry_count ?? 0) > 0) {
+    await sb.from("leads").update({ retry_count: 0 }).eq("id", lead.id);
+    lead.retry_count = 0;
+  }
 
   if (wasCreated) {
     const greeting = matchGreeting(input) ?? "hello";
@@ -536,7 +487,6 @@ async function runBotStep(
         return;
       }
 
-      // faqs — answer, then resend the menu so they can pick again
       {
         const r1 = await sendText(to, faqText(lang));
         const r2 = await sendMainMenuCard(to, lang);
@@ -613,9 +563,9 @@ async function runBotStep(
     case "awaiting_deposit_confirm": {
       const yesNo = matchYesNo(input);
       if (!yesNo) {
-        // Highest-value moment: if someone hesitates or asks a question right when
-        // asked to deposit $500, get a human on immediately (threshold 1, not 2).
-        await handleUnmatched(sb, lead, to, input, 1, "deposit confirmation", () =>
+        // Give one clarifying re-prompt before handing off, so a single question
+        // at the deposit step doesn't instantly escalate a hot lead.
+        await handleUnmatched(sb, lead, to, input, 2, "deposit confirmation", () =>
           sendButtons(to, "Sorry, just a Yes or No — are you ready to proceed with the $500 deposit?", [
             { id: "deposit_yes", title: "Yes, I'm ready" },
             { id: "deposit_no", title: "Not right now" },
@@ -648,7 +598,6 @@ async function runBotStep(
         return;
       }
 
-      // No — fall back to the free-signals path instead of losing the lead
       await sb.from("leads").update({
         ready_to_deposit: false,
         bot_stage: "declined",
@@ -661,7 +610,8 @@ async function runBotStep(
     }
 
     default: {
-      // qualified / declined — conversation already resolved, hand off to a human
+      // qualified / declined — conversation already resolved. Acknowledge and let
+      // an agent follow up; do NOT flag for handoff (avoids silent leads).
       const greeting = matchGreeting(input);
       const prefix = greeting ? `${greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY} ` : "";
       const r = await sendText(to, `${prefix}Thanks for the message! 🙏 A team member will follow up with you shortly.`);
@@ -671,17 +621,6 @@ async function runBotStep(
   }
 }
 
-// ---------------------------------------------------------------------------
-// handleUnmatched
-// Called when the user's reply doesn't match what the current step expects.
-// A plain greeting ("Hi", "Aoa", "Salam", ...) is never treated as a wrong
-// answer — it gets a matching greeting reply and the current question is
-// simply re-sent, with no effect on the retry counter. Anything else counts
-// as a miss: the per-step retry counter increments (reset to 0 whenever a
-// lead advances a stage), and once it reaches `limit` the lead is escalated
-// to a human instead of being re-prompted again. `limit` is 2 for most steps,
-// 1 for the deposit step (see runBotStep).
-// ---------------------------------------------------------------------------
 async function handleUnmatched(
   sb: SupabaseClient,
   lead: any,
@@ -720,12 +659,6 @@ async function handleUnmatched(
   await logOutbound(sb, lead.id, ok ? `[confused apology + re-prompt: ${label}]` : `[SEND FAILED: confused apology + re-prompt: ${label} — ${errorDetail}]`);
 }
 
-// ---------------------------------------------------------------------------
-// escalate
-// Hands the conversation to a human: flags the lead, tells the user a person is
-// taking over, and (via the needs_human guard in runBotStep) stops the bot from
-// replying further so it never talks over the agent.
-// ---------------------------------------------------------------------------
 async function escalate(
   sb: SupabaseClient,
   lead: any,
@@ -749,14 +682,6 @@ async function escalate(
   );
 }
 
-// ---------------------------------------------------------------------------
-// handleAgentReply
-// A rotation agent messaged the business number — the only reply we act on is
-// tapping the "I've got this" button from a round-robin ping (id `ack_<leadId>`).
-// That stops nudge-agents from re-pinging for this specific lead. Anything
-// else from an agent (a stray text, an old/duplicate tap) is just ignored;
-// agents never get run through the customer bot flow.
-// ---------------------------------------------------------------------------
 async function handleAgentReply(
   sb: SupabaseClient,
   agent: { id: string; name: string; phone: string },
@@ -837,9 +762,6 @@ async function logOutbound(sb: SupabaseClient, leadId: string, body: string): Pr
   await insertCommunication(sb, leadId, "outbound", body, new Date().toISOString());
 }
 
-// ---------------------------------------------------------------------------
-// Matchers — accept either a button/list reply id or loose free-text
-// ---------------------------------------------------------------------------
 function matchGreeting(input: UserInput): "hello" | "walaikum" | null {
   const t = input.text.trim();
   if (/^(hi+|hello+|hey+)[\s!.]*$/i.test(t)) return "hello";
@@ -891,9 +813,6 @@ function matchYesNo(input: UserInput): "yes" | "no" | null {
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// WhatsApp Cloud API senders
-// ---------------------------------------------------------------------------
 async function sendText(to: string, body: string): Promise<SendResult> {
   return await callGraphApi({
     messaging_product: "whatsapp",
@@ -951,10 +870,6 @@ async function callGraphApi(payload: unknown): Promise<SendResult> {
     return { ok: false, error: msg };
   }
 
-  // Wrapped in try/catch deliberately: a non-2xx response from Meta is handled below,
-  // but fetch() itself can throw (network blip, timeout, DNS) — without this, that
-  // exception would propagate all the way up and abort the bot step entirely, with
-  // no record of the send ever having been attempted.
   try {
     const res = await fetch(
       `https://graph.facebook.com/${GRAPH_VERSION}/${phoneId}/messages`,
@@ -981,9 +896,6 @@ async function callGraphApi(payload: unknown): Promise<SendResult> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// normalisePhone
-// ---------------------------------------------------------------------------
 function normalisePhone(raw: string): string {
   if (!raw) return "";
   return raw.startsWith("+") ? raw : `+${raw}`;
