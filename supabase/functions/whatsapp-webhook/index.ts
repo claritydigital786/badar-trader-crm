@@ -188,7 +188,7 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         const { lead, wasCreated } = await upsertLead(sb, senderPhone, contactName, timestamp);
         if (!lead) continue;
 
-        await insertCommunication(sb, lead.id, "inbound", input.text, timestamp);
+        await insertCommunication(sb, lead.id, "inbound", input.text, timestamp, undefined, message.id);
 
         await runBotStep(sb, lead, wasCreated, input);
       }
@@ -313,6 +313,7 @@ async function insertCommunication(
   body: string,
   timestamp: string,
   attachmentPath?: string,
+  waMessageId?: string,
 ): Promise<void> {
   const { error } = await sb.from("communications").insert({
     lead_id:         leadId,
@@ -321,6 +322,7 @@ async function insertCommunication(
     body:            body,
     created_at:      timestamp,
     attachment_path: attachmentPath ?? null,
+    wa_message_id:   waMessageId ?? null,
   });
 
   if (error) {
@@ -354,6 +356,7 @@ async function handleImageMessage(
     stored.ok ? "[deposit screenshot received]" : `[image received — FAILED to store: ${stored.error}]`,
     timestamp,
     stored.ok ? stored.path : undefined,
+    message.id,
   );
 
   const ackResult = await sendText(

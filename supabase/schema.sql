@@ -898,3 +898,19 @@ CREATE POLICY "settings: agents read wa send creds" ON public.settings
 
 -- ── DONE (Phase 12) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 13 Schema (quote-reply to a specific message)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 31. Store WhatsApp's own message ID per communication ──────
+-- Needed for Meta's "context.message_id" quote-reply field — without the
+-- original wamid there's nothing to reply to. Captured on inbound in
+-- whatsapp-webhook (message.id) and on outbound in send-wa-message /
+-- the legacy browser send path (Meta's own response.messages[0].id).
+ALTER TABLE public.communications ADD COLUMN IF NOT EXISTS wa_message_id TEXT;
+
+-- ── DONE (Phase 13) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
