@@ -4529,6 +4529,19 @@ async function openConversation(convId, scope = '') {
     const lead = leadRes.data;
     const messages = msgsRes.data || [];
     const initials = (lead?.full_name || '?').split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+
+    // WhatsApp only allows free-form replies within 24h of the lead's last
+    // inbound message — outside that window Meta rejects the send outright,
+    // which is what was silently confusing agents (the failure gave no clue
+    // why). Warn up front instead of letting them hit it blind.
+    const lastInbound = [...messages].reverse().find(m => m.direction === 'inbound');
+    const hoursSinceInbound = lastInbound ? (Date.now() - new Date(lastInbound.created_at)) / 3600000 : Infinity;
+    const outsideWindow = hoursSinceInbound >= 24;
+    const windowWarning = outsideWindow ? `
+      <div style="background:#fef3c7;color:#92400e;font-size:0.78rem;padding:8px 14px;border-top:1px solid #fde68a">
+        ⚠ It's been over 24 hours since ${esc(lead?.full_name || 'this lead')} last messaged — WhatsApp will likely reject a free-form reply until they message again first. Send them a template message instead, or wait for them to reply.
+      </div>` : '';
+
     chatPanel.innerHTML = `
       <div class="conv-chat-header">
         <div class="conv-avatar">${initials}</div>
@@ -4549,6 +4562,7 @@ async function openConversation(convId, scope = '') {
               </div>`).join('')
           : '<div style="text-align:center;color:#64748b;font-size:0.85rem;padding:32px">No messages yet.</div>'}
       </div>
+      ${windowWarning}
       <div class="conv-input-bar">
         <input type="text" id="conv-msg-input" placeholder="Type a WhatsApp message…"
           onkeydown="if(event.key==='Enter') sendConvMessage('${convId}','${scope}')" />
@@ -4655,6 +4669,14 @@ async function sendConvMessage(convId, scope = '') {
     openConversation(convId, scope); // refresh thread
   } catch(err) {
     showToast(`Send failed: ${err.message}`, 'err');
+    // Previously this error only ever appeared in a toast and vanished —
+    // nobody (including future debugging) could see what actually went
+    // wrong. Persist it so failures are diagnosable after the fact.
+    await sb.from('communication_logs').insert({
+      lead_id: convId, type: 'whatsapp',
+      message: `[SEND FAILED] ${err.message}`,
+      created_by: currentUser?.id || null,
+    }).then(() => {}, () => {});
   } finally {
     if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send ↗'; }
     if (input) input.disabled = false;
