@@ -1217,7 +1217,7 @@
       <select id="cl-lead-filter" style="min-width:200px;width:auto" onchange="renderCommLog()">
         <option value="">All Contacts</option>
       </select>
-      <div style="display:flex;gap:4px;flex-wrap:wrap">
+      <div id="cl-type-btns" style="display:flex;gap:4px;flex-wrap:wrap">
         <button class="cl-type-btn btn btn-sm active" onclick="filterCommLog(this,'')">All</button>
         <button class="cl-type-btn btn btn-sm" onclick="filterCommLog(this,'whatsapp')">💬 WhatsApp</button>
         <button class="cl-type-btn btn btn-sm" onclick="filterCommLog(this,'email')">✉️ Email</button>
@@ -1715,6 +1715,7 @@
       <div class="nav-item tab-btn" data-tab="my-leads" onclick="agentTab('my-leads',this)"><span class="nav-icon">👥</span> My Leads</div>
       <div class="nav-section-label">TOOLS</div>
       <div class="nav-item tab-btn" data-tab="conversations" onclick="agentTab('conversations',this)"><span class="nav-icon">💬</span> Conversations <span id="agent-conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
+      <div class="nav-item tab-btn" data-tab="comm-log" onclick="agentTab('comm-log',this)"><span class="nav-icon">🕐</span> Comm Log</div>
       <div class="nav-item tab-btn" data-tab="log-activity" onclick="agentTab('log-activity',this)"><span class="nav-icon">📝</span> Log Activity</div>
     </div>
     <div class="sidebar-footer">
@@ -1816,6 +1817,61 @@
           <div style="font-size:0.8rem;color:#94a3b8">Click on a lead to view their messages</div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Comm Log -->
+  <div id="agent-tab-comm-log" class="tab-content">
+    <h3>Communication Log</h3>
+
+    <!-- Filters + Add Note -->
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+      <select id="agent-cl-lead-filter" style="min-width:200px;width:auto" onchange="renderCommLog('agent-')">
+        <option value="">All Contacts</option>
+      </select>
+      <div id="agent-cl-type-btns" style="display:flex;gap:4px;flex-wrap:wrap">
+        <button class="cl-type-btn btn btn-sm active" onclick="filterCommLog(this,'','agent-')">All</button>
+        <button class="cl-type-btn btn btn-sm" onclick="filterCommLog(this,'whatsapp','agent-')">💬 WhatsApp</button>
+        <button class="cl-type-btn btn btn-sm" onclick="filterCommLog(this,'email','agent-')">✉️ Email</button>
+        <button class="cl-type-btn btn btn-sm" onclick="filterCommLog(this,'call','agent-')">📞 Call</button>
+        <button class="cl-type-btn btn btn-sm" onclick="filterCommLog(this,'note','agent-')">📝 Note</button>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="showAddNoteForm('agent-')" style="margin-left:auto">+ Add Note</button>
+    </div>
+
+    <!-- Add Note Form -->
+    <div id="agent-cl-note-form" class="card" style="display:none;margin-bottom:16px;border-left:3px solid #0ea5e9">
+      <p style="color:#0f172a;font-weight:700;margin-bottom:14px">➕ Add Interaction Note</p>
+      <div class="form-row">
+        <div>
+          <label>Contact *</label>
+          <select id="agent-cl-note-lead">
+            <option value="">— Select Contact —</option>
+          </select>
+        </div>
+        <div>
+          <label>Interaction Type *</label>
+          <select id="agent-cl-note-type">
+            <option value="note">📝 Note</option>
+            <option value="whatsapp">💬 WhatsApp</option>
+            <option value="email">✉️ Email</option>
+            <option value="call">📞 Call</option>
+            <option value="sms">📱 SMS</option>
+          </select>
+        </div>
+      </div>
+      <label>Message / Notes *</label>
+      <textarea id="agent-cl-note-message" rows="3" placeholder="What happened? What was discussed? Any outcome?"></textarea>
+      <div class="form-actions">
+        <button class="btn btn-primary btn-inline" onclick="addCommNote('agent-')">Save</button>
+        <button class="btn btn-secondary btn-inline" onclick="document.getElementById('agent-cl-note-form').style.display='none'">Cancel</button>
+        <span class="success-msg" id="agent-cl-note-msg"></span>
+      </div>
+    </div>
+
+    <!-- Timeline -->
+    <div id="agent-cl-timeline">
+      <div class="empty-state" style="padding:40px">Loading…</div>
     </div>
   </div>
 
@@ -2398,7 +2454,7 @@ async function initAgent() {
   await loadAgentLeads();
 }
 
-const AGENT_TAB_TITLES = { dashboard: 'Dashboard', 'my-leads': 'My Leads', conversations: 'Conversations', 'log-activity': 'Log Activity' };
+const AGENT_TAB_TITLES = { dashboard: 'Dashboard', 'my-leads': 'My Leads', conversations: 'Conversations', 'comm-log': 'Communication Log', 'log-activity': 'Log Activity' };
 
 function agentTab(name, btn) {
   if (window.innerWidth <= 768) toggleSidebar(false);
@@ -2413,6 +2469,7 @@ function agentTab(name, btn) {
   closeDetail('agent');
   if (name === 'my-leads') loadAgentLeads();
   if (name === 'conversations') { renderConversations('agent-'); startConvRealtime('agent-'); } else { stopConvRealtime(); }
+  if (name === 'comm-log') loadCommLog('agent-');
 }
 
 async function loadAgentLeads() {
@@ -4638,13 +4695,15 @@ function exportPayrollCSV() {
 let _cachedCommLogs   = [];
 let _commLogTypeFilter = '';
 
-async function loadCommLog() {
+async function loadCommLog(scope = '') {
   if (demoMode) {
     _cachedCommLogs = _DEMO_COMM_LOGS.slice();
-    populateClLeadFilter();
-    renderCommLog();
+    populateClLeadFilter(scope);
+    renderCommLog(scope);
     return;
   }
+  // Live mode — RLS scopes this automatically: admins see every lead's logs,
+  // agents only see logs for leads assigned to them (comm_logs_agent_select_own).
   const [manualRes, autoRes] = await Promise.all([
     sb.from('communication_logs')
       .select('*, lead:leads!lead_id(full_name), creator:profiles!created_by(full_name)')
@@ -4670,15 +4729,15 @@ async function loadCommLog() {
     created_by_name: r.direction === 'inbound' ? (r.leads?.full_name || 'Lead') : 'Bot',
   }));
   _cachedCommLogs = manual.concat(auto).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  populateClLeadFilter();
-  renderCommLog();
+  populateClLeadFilter(scope);
+  renderCommLog(scope);
 }
 
-function populateClLeadFilter() {
+function populateClLeadFilter(scope = '') {
   const leads = demoMode ? _DEMO_LEADS : cachedLeads;
 
   // Main filter dropdown
-  const filterSel = document.getElementById('cl-lead-filter');
+  const filterSel = document.getElementById(scope + 'cl-lead-filter');
   if (filterSel) {
     const prev = filterSel.value;
     filterSel.innerHTML = '<option value="">All Contacts</option>';
@@ -4691,7 +4750,7 @@ function populateClLeadFilter() {
   }
 
   // Add-note lead selector
-  const noteSel = document.getElementById('cl-note-lead');
+  const noteSel = document.getElementById(scope + 'cl-note-lead');
   if (noteSel) {
     noteSel.innerHTML = '<option value="">— Select Contact —</option>';
     leads.forEach(l => {
@@ -4702,18 +4761,18 @@ function populateClLeadFilter() {
   }
 }
 
-function filterCommLog(btn, type) {
+function filterCommLog(btn, type, scope = '') {
   _commLogTypeFilter = type;
-  document.querySelectorAll('.cl-type-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll(`#${scope}cl-type-btns .cl-type-btn`).forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  renderCommLog();
+  renderCommLog(scope);
 }
 
-function renderCommLog() {
-  const el = document.getElementById('cl-timeline');
+function renderCommLog(scope = '') {
+  const el = document.getElementById(scope + 'cl-timeline');
   if (!el) return;
 
-  const leadFilter = document.getElementById('cl-lead-filter')?.value || '';
+  const leadFilter = document.getElementById(scope + 'cl-lead-filter')?.value || '';
   let logs = _cachedCommLogs;
   if (leadFilter)           logs = logs.filter(l => l.lead_id === leadFilter);
   if (_commLogTypeFilter)   logs = logs.filter(l => l.type   === _commLogTypeFilter);
@@ -4749,19 +4808,19 @@ function renderCommLog() {
     </div>`).join('');
 }
 
-function showAddNoteForm() {
-  const el = document.getElementById('cl-note-form');
+function showAddNoteForm(scope = '') {
+  const el = document.getElementById(scope + 'cl-note-form');
   if (!el) return;
   const isVisible = el.style.display !== 'none';
   el.style.display = isVisible ? 'none' : 'block';
-  if (!isVisible) populateClLeadFilter();
+  if (!isVisible) populateClLeadFilter(scope);
 }
 
-async function addCommNote() {
-  const leadId = v('cl-note-lead');
-  const type   = v('cl-note-type');
-  const msg    = v('cl-note-message');
-  const msgEl  = document.getElementById('cl-note-msg');
+async function addCommNote(scope = '') {
+  const leadId = v(scope + 'cl-note-lead');
+  const type   = v(scope + 'cl-note-type');
+  const msg    = v(scope + 'cl-note-message');
+  const msgEl  = document.getElementById(scope + 'cl-note-msg');
 
   if (!leadId || !msg) { setMsg(msgEl, 'Select a contact and enter a message.', 'err'); return; }
 
@@ -4776,10 +4835,10 @@ async function addCommNote() {
       created_at:      new Date().toISOString(),
     });
     _cachedCommLogs = _DEMO_COMM_LOGS.slice();
-    document.getElementById('cl-note-message').value = '';
-    document.getElementById('cl-note-form').style.display = 'none';
+    document.getElementById(scope + 'cl-note-message').value = '';
+    document.getElementById(scope + 'cl-note-form').style.display = 'none';
     setMsg(msgEl, 'Note logged. (demo)', 'ok');
-    renderCommLog();
+    renderCommLog(scope);
     return;
   }
 
@@ -4787,10 +4846,10 @@ async function addCommNote() {
     lead_id: leadId, type, message: msg, created_by: currentUser.id,
   });
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
-  document.getElementById('cl-note-message').value = '';
-  document.getElementById('cl-note-form').style.display = 'none';
+  document.getElementById(scope + 'cl-note-message').value = '';
+  document.getElementById(scope + 'cl-note-form').style.display = 'none';
   setMsg(msgEl, 'Note logged.', 'ok');
-  await loadCommLog();
+  await loadCommLog(scope);
 }
 
 // Enter key on login form
