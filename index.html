@@ -1226,6 +1226,15 @@
       </div>
       <button class="btn btn-primary btn-sm" onclick="showAddNoteForm()" style="margin-left:auto">+ Add Note</button>
     </div>
+    <div id="cl-status-btns" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px">
+      <span style="font-size:0.72rem;color:#94a3b8;font-weight:600;align-self:center;margin-right:2px">Lead status:</span>
+      <button class="cl-status-btn btn btn-sm active" onclick="filterCommLogStatus(this,'')">All</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'new')">New</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'contacted')">Contacted</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'qualified')">Qualified</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'converted')">Converted</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'lost')">Lost</button>
+    </div>
 
     <!-- Add Note Form -->
     <div id="cl-note-form" class="card" style="display:none;margin-bottom:16px;border-left:3px solid #0ea5e9">
@@ -1766,6 +1775,15 @@
         <div class="stat-trend">Approved deposits</div>
       </div>
     </div>
+
+    <!-- Upcoming Follow-ups -->
+    <div class="card" style="margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="font-weight:700;font-size:0.95rem;color:#e2e8f0">📅 Upcoming Follow-ups</div>
+        <span style="font-size:0.75rem;color:#64748b">Next 7 days</span>
+      </div>
+      <div id="agent-dash-followups-list"><div style="color:#64748b;font-size:0.85rem;padding:8px 0">Loading…</div></div>
+    </div>
   </div>
 
   <!-- My Leads -->
@@ -1793,6 +1811,16 @@
   <!-- Conversations -->
   <div id="agent-tab-conversations" class="tab-content">
     <h3>Conversations</h3>
+
+    <!-- Quick Links — copy/paste into a chat without leaving the tab -->
+    <div class="card" id="agent-quick-links" style="margin-bottom:14px;padding:12px 16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleQuickLinks()">
+        <div style="font-weight:700;font-size:0.85rem;color:#0f172a">🔗 Quick Links</div>
+        <span id="agent-quick-links-caret" style="color:#94a3b8;font-size:0.8rem">▾</span>
+      </div>
+      <div id="agent-quick-links-body" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>
+    </div>
+
     <div class="conversations-shell">
       <!-- Left: Lead List -->
       <div class="conv-list-panel">
@@ -1837,6 +1865,15 @@
         <button class="cl-type-btn btn btn-sm" onclick="filterCommLog(this,'note','agent-')">📝 Note</button>
       </div>
       <button class="btn btn-primary btn-sm" onclick="showAddNoteForm('agent-')" style="margin-left:auto">+ Add Note</button>
+    </div>
+    <div id="agent-cl-status-btns" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px">
+      <span style="font-size:0.72rem;color:#94a3b8;font-weight:600;align-self:center;margin-right:2px">Lead status:</span>
+      <button class="cl-status-btn btn btn-sm active" onclick="filterCommLogStatus(this,'','agent-')">All</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'new','agent-')">New</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'contacted','agent-')">Contacted</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'qualified','agent-')">Qualified</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'converted','agent-')">Converted</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'lost','agent-')">Lost</button>
     </div>
 
     <!-- Add Note Form -->
@@ -2452,9 +2489,45 @@ async function initAgent() {
   const initialsEl = document.getElementById('agent-sidebar-initials');
   if (initialsEl) initialsEl.textContent = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   await loadAgentLeads();
+  loadUpcomingFollowups('agent-');
 }
 
 const AGENT_TAB_TITLES = { dashboard: 'Dashboard', 'my-leads': 'My Leads', conversations: 'Conversations', 'comm-log': 'Communication Log', 'log-activity': 'Log Activity' };
+
+// Kept in sync with LINKS in supabase/functions/whatsapp-webhook/index.ts and
+// simulator.html. Ehsan asked for these to be copy-pasteable from the
+// Conversations tab so agents never have to switch windows mid-chat.
+const QUICK_LINKS = [
+  { label: 'Exness (referral)',       value: 'https://one.exnesstrack.org/a/eatgh2cl7y' },
+  { label: 'Exness code',             value: 'eatgh2cl7y' },
+  { label: 'Do Prime (referral)',     value: 'https://my.dooprime.com/links/go/45031' },
+  { label: 'Do Prime code',           value: '45031' },
+  { label: 'Verification form',       value: 'https://crm.badartrader.com/join.html' },
+  { label: 'Course enrollment',       value: 'https://badartrader.com/check-3/' },
+  { label: 'Discord community',       value: 'https://discord.gg/ph6f78DFJm' },
+  { label: 'WhatsApp support number', value: '+923715773903' },
+];
+
+function renderQuickLinks(scope) {
+  const el = document.getElementById(scope + 'quick-links-body');
+  if (!el) return;
+  el.innerHTML = QUICK_LINKS.map((l, i) => `
+    <div style="display:flex;align-items:center;gap:8px;font-size:0.78rem">
+      <span style="color:#64748b;min-width:150px;flex-shrink:0">${esc(l.label)}</span>
+      <span style="color:#0f172a;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(l.value)}</span>
+      <button class="btn btn-secondary btn-sm" style="padding:2px 10px;font-size:0.72rem;flex-shrink:0" id="${scope}ql-btn-${i}"
+        onclick="navigator.clipboard.writeText('${esc(l.value)}').then(()=>{const b=document.getElementById('${scope}ql-btn-${i}');b.textContent='✓ Copied';setTimeout(()=>b.textContent='Copy',1200)})">Copy</button>
+    </div>`).join('');
+}
+
+function toggleQuickLinks() {
+  const body  = document.getElementById('agent-quick-links-body');
+  const caret = document.getElementById('agent-quick-links-caret');
+  if (!body) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'flex';
+  if (caret) caret.textContent = isOpen ? '▸' : '▾';
+}
 
 function agentTab(name, btn) {
   if (window.innerWidth <= 768) toggleSidebar(false);
@@ -2468,7 +2541,7 @@ function agentTab(name, btn) {
   if (titleEl) titleEl.textContent = AGENT_TAB_TITLES[name] || name;
   closeDetail('agent');
   if (name === 'my-leads') loadAgentLeads();
-  if (name === 'conversations') { renderConversations('agent-'); startConvRealtime('agent-'); } else { stopConvRealtime(); }
+  if (name === 'conversations') { renderConversations('agent-'); startConvRealtime('agent-'); renderQuickLinks('agent-'); } else { stopConvRealtime(); }
   if (name === 'comm-log') loadCommLog('agent-');
 }
 
@@ -4193,8 +4266,8 @@ async function loadDashMetaAds(){
   }catch(e){}
 }
 
-async function loadUpcomingFollowups() {
-  const listEl = document.getElementById('dash-followups-list');
+async function loadUpcomingFollowups(scope = '') {
+  const listEl = document.getElementById(scope + 'dash-followups-list');
   if (!listEl) return;
   const today = new Date().toISOString().slice(0,10);
   const in7   = new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0,10);
@@ -4715,10 +4788,21 @@ function exportPayrollCSV() {
 // ── COMMUNICATION LOG (admin only) ────────────────────────────
 let _cachedCommLogs   = [];
 let _commLogTypeFilter = '';
+let _commLogStatusFilter = '';
+
+function filterCommLogStatus(btn, status, scope = '') {
+  _commLogStatusFilter = status;
+  document.querySelectorAll(`#${scope}cl-status-btns .cl-status-btn`).forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCommLog(scope);
+}
 
 async function loadCommLog(scope = '') {
   if (demoMode) {
-    _cachedCommLogs = _DEMO_COMM_LOGS.slice();
+    _cachedCommLogs = _DEMO_COMM_LOGS.map(r => ({
+      ...r,
+      lead_status: (_DEMO_LEADS.find(l => l.id === r.lead_id) || {}).status || '',
+    }));
     populateClLeadFilter(scope);
     renderCommLog(scope);
     return;
@@ -4727,10 +4811,10 @@ async function loadCommLog(scope = '') {
   // agents only see logs for leads assigned to them (comm_logs_agent_select_own).
   const [manualRes, autoRes] = await Promise.all([
     sb.from('communication_logs')
-      .select('*, lead:leads!lead_id(full_name), creator:profiles!created_by(full_name)')
+      .select('*, lead:leads!lead_id(full_name, status), creator:profiles!created_by(full_name)')
       .order('created_at', { ascending: false }),
     sb.from('communications')
-      .select('id, lead_id, type, body, direction, created_at, leads(full_name)')
+      .select('id, lead_id, type, body, direction, created_at, leads(full_name, status)')
       .order('created_at', { ascending: false }),
   ]);
   if (manualRes.error) console.error('loadCommLog (manual):', manualRes.error);
@@ -4738,6 +4822,7 @@ async function loadCommLog(scope = '') {
   const manual = (manualRes.data || []).map(r => ({
     ...r,
     lead_name:       r.lead?.full_name    || '—',
+    lead_status:     r.lead?.status       || '',
     created_by_name: r.creator?.full_name || '—',
   }));
   const auto = (autoRes.data || []).map(r => ({
@@ -4747,6 +4832,7 @@ async function loadCommLog(scope = '') {
     message:         (r.direction === 'inbound' ? '↩ ' : '↪ ') + (r.body || ''),
     created_at:      r.created_at,
     lead_name:       r.leads?.full_name || '—',
+    lead_status:     r.leads?.status    || '',
     created_by_name: r.direction === 'inbound' ? (r.leads?.full_name || 'Lead') : 'Bot',
   }));
   _cachedCommLogs = manual.concat(auto).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -4795,8 +4881,9 @@ function renderCommLog(scope = '') {
 
   const leadFilter = document.getElementById(scope + 'cl-lead-filter')?.value || '';
   let logs = _cachedCommLogs;
-  if (leadFilter)           logs = logs.filter(l => l.lead_id === leadFilter);
-  if (_commLogTypeFilter)   logs = logs.filter(l => l.type   === _commLogTypeFilter);
+  if (leadFilter)           logs = logs.filter(l => l.lead_id     === leadFilter);
+  if (_commLogTypeFilter)   logs = logs.filter(l => l.type        === _commLogTypeFilter);
+  if (_commLogStatusFilter) logs = logs.filter(l => l.lead_status === _commLogStatusFilter);
 
   if (!logs.length) {
     el.innerHTML = `<div class="card" style="text-align:center;color:#94a3b8;padding:40px">
