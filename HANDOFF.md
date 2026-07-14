@@ -123,6 +123,25 @@ not-yet-acknowledged lead more than once). Also worth revisiting whether pinging
 just being an assumed-reasonable default from an earlier build session — surfaced as a
 direct concern this session, not resolved.
 
+### 6. ALL agents blocked from sending WhatsApp replies — ROOT CAUSE FOUND, SQL fix ready, needs one paste
+2026-07-14: Badar's team escalated hard (10+ pings, screenshot from Muhammad Hanzala's
+agent account): every Send attempt in Conversations shows *"WhatsApp token not set — go to
+Meta Integration and save your credentials first."* The token IS set — that message is a
+red herring. Real cause: `sendConvMessage()` (index.html ~line 4631) fetches
+`wa_phone_number_id`/`wa_access_token` from `public.settings` **in the agent's browser
+session**, but the `"settings: admin only"` RLS policy (schema §"SETTINGS: admin only")
+hides every settings row from non-admins. RLS denial on SELECT returns zero rows, *not an
+error*, so the code falls into its "credentials empty" branch. Admin sends work; every
+agent fails. Bot sends were never affected (edge functions use the service role).
+Fix written as **schema.sql §30 (Phase 12)**: an RLS policy exposing only those two keys
+to authenticated users. **Not applied yet** — needs the §30 block pasted into Supabase
+SQL Editor (no service-role access from these sessions). Agent `communications` INSERT
+policies were checked and are fine — the settings read is the only blocker, so sends
+should work immediately after the paste. UNVERIFIED until an actual agent send succeeds.
+Known trade-off, flagged to Badar: with §30 applied, any agent's browser can read the raw
+WhatsApp access token. Proper follow-up: move sending into an Edge Function proxy
+(service-role reads the token; browser never sees it), then drop the §30 policy again.
+
 ---
 
 ## Open items carried over from the 07-13 merge (still open)

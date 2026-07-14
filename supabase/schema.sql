@@ -870,3 +870,31 @@ WHERE NOT EXISTS (
 
 -- ── DONE (Phase 11) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 12 Schema (agents can send WhatsApp replies)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 30. Let agents read the two WhatsApp send credentials ──────
+-- Incident (2026-07-14): every agent hitting Send in Conversations got
+-- "WhatsApp token not set" even though the credentials WERE saved.
+-- sendConvMessage (index.html) reads wa_phone_number_id/wa_access_token
+-- from public.settings in the agent's own browser session, but §"settings:
+-- admin only" RLS hides all settings rows from non-admins — the select
+-- returns zero rows (not an error), so agents saw the misleading toast
+-- while admin sends worked fine.
+-- This policy exposes ONLY those two keys to logged-in users; every other
+-- settings row stays admin-only. Trade-off, accepted for now: any agent's
+-- browser can technically read the raw access token. The cleaner design is
+-- an Edge Function proxy that keeps the token server-side — see HANDOFF.md.
+DROP POLICY IF EXISTS "settings: agents read wa send creds" ON public.settings;
+CREATE POLICY "settings: agents read wa send creds" ON public.settings
+  FOR SELECT USING (
+    auth.uid() IS NOT NULL
+    AND key IN ('wa_phone_number_id', 'wa_access_token')
+  );
+
+-- ── DONE (Phase 12) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
