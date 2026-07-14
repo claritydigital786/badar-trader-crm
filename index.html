@@ -4342,6 +4342,7 @@ let _activeConvId = null;
 let _convRealtimeSub = null;
 let _convRealtimeScope = '';
 let _activeConvFilter = 'all';
+let _replyTarget = null; // { waMessageId, preview } — set when an agent taps "reply" on a specific message
 let _lastConvs = []; // cache of the last rendered conversation rows, so switching tabs doesn't re-fetch
 
 // Classifies a lead into one of: new, warm, hot, closed. "unread" is checked
@@ -4485,6 +4486,7 @@ function filterConversations(scope = '') {
 
 async function openConversation(convId, scope = '') {
   _activeConvId = convId;
+  _replyTarget = null; // switching leads should never carry a reply target over
 
   if (demoMode) {
     const conv = _DEMO_CONVERSATIONS.find(c => c.id === convId);
@@ -4528,7 +4530,7 @@ async function openConversation(convId, scope = '') {
   try {
     const [leadRes, msgsRes] = await Promise.all([
       sb.from('leads').select('full_name, phone, status, is_unread').eq('id', convId).maybeSingle(),
-      sb.from('communications').select('body, direction, created_at, attachment_path')
+      sb.from('communications').select('body, direction, created_at, attachment_path, wa_message_id')
         .eq('lead_id', convId).eq('type', 'whatsapp').order('created_at', { ascending: true })
     ]);
     if (leadRes.error) throw leadRes.error;
@@ -4560,15 +4562,20 @@ async function openConversation(convId, scope = '') {
         ${messages.length
           ? messages.map((m, i) => `
               <div class="msg-wrapper${m.direction === 'outbound' ? ' outgoing' : ''}">
-                <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}">
+                <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}" style="position:relative">
                   ${esc(m.body)}
                   ${m.attachment_path ? `<div class="msg-attachment" id="conv-att-${convId}-${i}" data-path="${esc(m.attachment_path)}" style="margin-top:8px;cursor:pointer;color:inherit">🖼 Loading image…</div>` : ''}
+                  ${m.wa_message_id ? `<button type="button" title="Reply to this message" onclick="setReplyTarget('${esc(m.wa_message_id)}', ${JSON.stringify(truncate(m.body || '', 60))})" style="position:absolute;top:-10px;${m.direction === 'outbound' ? 'left' : 'right'}:-10px;width:22px;height:22px;border-radius:50%;border:1px solid #cbd5e1;background:#fff;color:#475569;font-size:0.7rem;cursor:pointer;line-height:1">↩</button>` : ''}
                 </div>
                 <div class="msg-time${m.direction === 'outbound' ? ' outgoing' : ''}">${fmtConvTime(m.created_at)}</div>
               </div>`).join('')
           : '<div style="text-align:center;color:#64748b;font-size:0.85rem;padding:32px">No messages yet.</div>'}
       </div>
       ${windowWarning}
+      <div id="conv-reply-preview" style="display:none;background:#f1f5f9;border-top:1px solid #e2e8f0;padding:6px 14px;font-size:0.78rem;color:#475569;align-items:center;justify-content:space-between">
+        <span>Replying to: <em id="conv-reply-preview-text"></em></span>
+        <button type="button" onclick="clearReplyTarget()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:0.9rem">✕</button>
+      </div>
       <div class="conv-input-bar">
         <textarea class="conv-msg-textarea" id="conv-msg-input" placeholder="Type a WhatsApp message… (Shift+Enter for a new line)" rows="1"
           oninput="autoGrowConvInput(this)"
@@ -4601,6 +4608,21 @@ async function loadConvAttachmentThumbs(convId, messages) {
     el.innerHTML = `<img src="${esc(data.signedUrl)}" alt="Screenshot" style="max-width:220px;max-height:220px;border-radius:8px;display:block" />`;
     el.onclick = () => window.open(data.signedUrl, '_blank');
   }));
+}
+
+function setReplyTarget(waMessageId, preview) {
+  _replyTarget = { waMessageId, preview };
+  const strip = document.getElementById('conv-reply-preview');
+  const text = document.getElementById('conv-reply-preview-text');
+  if (text) text.textContent = preview;
+  if (strip) strip.style.display = 'flex';
+  document.getElementById('conv-msg-input')?.focus();
+}
+
+function clearReplyTarget() {
+  _replyTarget = null;
+  const strip = document.getElementById('conv-reply-preview');
+  if (strip) strip.style.display = 'none';
 }
 
 function autoGrowConvInput(el) {
@@ -4638,14 +4660,17 @@ async function sendConvMessage(convId, scope = '') {
   if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending…'; }
   if (input) input.disabled = true;
 
+  const replyToWaMessageId = _replyTarget?.waMessageId || null;
+
   try {
-    const viaFunction = await sendWaViaFunction(convId, text);
+    const viaFunction = await sendWaViaFunction(convId, text, replyToWaMessageId);
     if (viaFunction === 'unavailable') {
-      const sent = await sendWaViaBrowser(convId, text);
+      const sent = await sendWaViaBrowser(convId, text, replyToWaMessageId);
       if (!sent) return; // credentials toast already shown by the legacy path
     } else if (viaFunction.warning) {
       showToast(viaFunction.warning, 'err');
     }
+    clearReplyTarget();
 
     if (input) { input.value = ''; input.style.height = 'auto'; }
     showToast('Message sent ✓');
@@ -4670,11 +4695,11 @@ async function sendConvMessage(convId, scope = '') {
 // if the Edge Function can't be reached (not deployed yet, or the functions
 // endpoint is down → caller uses the legacy path), and throws on real
 // failures with the server's error message.
-async function sendWaViaFunction(convId, text) {
+async function sendWaViaFunction(convId, text, replyToWaMessageId) {
   let data, error;
   try {
     ({ data, error } = await sb.functions.invoke('send-wa-message', {
-      body: { lead_id: convId, text }
+      body: { lead_id: convId, text, reply_to_wa_message_id: replyToWaMessageId || undefined }
     }));
   } catch (_) {
     return 'unavailable';
@@ -4699,7 +4724,7 @@ async function sendWaViaFunction(convId, text) {
 // Legacy in-browser send — requires the schema §30 policy so agents can read
 // the two WhatsApp credential settings. Returns false if credentials are
 // unreadable/unset (after showing the toast), true once sent and logged.
-async function sendWaViaBrowser(convId, text) {
+async function sendWaViaBrowser(convId, text, replyToWaMessageId) {
   const [leadRes, settingsRes] = await Promise.all([
     sb.from('leads').select('phone').eq('id', convId).maybeSingle(),
     sb.from('settings').select('key, value').in('key', ['wa_phone_number_id', 'wa_access_token'])
@@ -4723,13 +4748,16 @@ async function sendWaViaBrowser(convId, text) {
       messaging_product: 'whatsapp',
       to: phoneDigits,
       type: 'text',
-      text: { body: text }
+      text: { body: text },
+      ...(replyToWaMessageId ? { context: { message_id: replyToWaMessageId } } : {})
     })
   });
   if (!waResp.ok) {
     const errData = await waResp.json().catch(() => ({}));
     throw new Error(errData?.error?.message || `WhatsApp API error ${waResp.status}`);
   }
+  const waData = await waResp.json().catch(() => ({}));
+  const sentWaMessageId = waData?.messages?.[0]?.id || null;
 
   // Save outbound message to communications table
   await sb.from('communications').insert({
@@ -4737,7 +4765,8 @@ async function sendWaViaBrowser(convId, text) {
     type:      'whatsapp',
     direction: 'outbound',
     body:      text,
-    logged_by: currentUser?.id || null
+    logged_by: currentUser?.id || null,
+    wa_message_id: sentWaMessageId
   });
   return true;
 }

@@ -85,10 +85,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   let leadId = "";
   let text = "";
+  let replyToWaMessageId = "";
   try {
     const body = await req.json();
     leadId = String(body?.lead_id ?? "").trim();
     text = String(body?.text ?? "").trim();
+    replyToWaMessageId = String(body?.reply_to_wa_message_id ?? "").trim();
   } catch {
     return json({ ok: false, error: "Invalid request body" });
   }
@@ -130,6 +132,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       to: phoneDigits,
       type: "text",
       text: { body: text },
+      ...(replyToWaMessageId ? { context: { message_id: replyToWaMessageId } } : {}),
     }),
   });
 
@@ -147,12 +150,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error: message });
   }
 
+  const waData = await waResp.json().catch(() => ({}));
+  const sentWaMessageId: string | undefined = waData?.messages?.[0]?.id;
+
   const { error: insertError } = await sb.from("communications").insert({
     lead_id: leadId,
     type: "whatsapp",
     direction: "outbound",
     body: text,
     logged_by: user.id,
+    wa_message_id: sentWaMessageId ?? null,
   });
   if (insertError) {
     // Message DID go out — surface the logging failure rather than pretending
