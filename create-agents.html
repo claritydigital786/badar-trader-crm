@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Create Agent Accounts — Badar Trader CRM</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  body { font-family: system-ui; background: #0f172a; color: #f1f5f9; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 24px; box-sizing: border-box; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 32px; max-width: 500px; width: 100%; }
+  h1 { font-size: 20px; font-weight: 700; margin: 0 0 6px; }
+  p { color: #94a3b8; font-size: 13px; margin: 0 0 24px; }
+  .agent { background: #0f172a; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+  .agent-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .agent-email { font-size: 12px; color: #64748b; }
+  .status { font-size: 12px; margin-top: 8px; padding: 6px 10px; border-radius: 6px; display: none; }
+  .status.ok { background: #052e16; color: #4ade80; display: block; }
+  .status.err { background: #2d0707; color: #f87171; display: block; }
+  .status.info { background: #172554; color: #93c5fd; display: block; }
+  button { background: #d4a843; color: #0f172a; border: none; border-radius: 10px; padding: 14px 24px; font-size: 15px; font-weight: 700; cursor: pointer; width: 100%; margin-top: 8px; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .creds { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 16px; margin-top: 20px; display: none; }
+  .creds h2 { font-size: 14px; color: #d4a843; margin: 0 0 12px; }
+  .cred-row { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 0; border-bottom: 1px solid #1e293b; }
+  .cred-row:last-child { border-bottom: none; }
+  .label { color: #64748b; }
+  .val { color: #f1f5f9; font-family: monospace; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Create Agent Accounts</h1>
+  <p>This will create login accounts for both sales agents in Supabase.</p>
+
+  <div class="agent" id="agent1-box">
+    <div class="agent-name">Agent 1</div>
+    <div class="agent-email">Cjhanzla@gmail.com</div>
+    <div class="status" id="status1"></div>
+  </div>
+
+  <div class="agent" id="agent2-box">
+    <div class="agent-name">Agent 2</div>
+    <div class="agent-email">ehsanwazir8@gmail.com</div>
+    <div class="status" id="status2"></div>
+  </div>
+
+  <button id="btn" onclick="createAccounts()">Create Both Accounts</button>
+
+  <div class="creds" id="creds-box">
+    <h2>Login Credentials — share with agents</h2>
+    <div class="cred-row"><span class="label">URL</span><span class="val" id="cred-url"></span></div>
+    <div class="cred-row"><span class="label">Agent 1 email</span><span class="val">Cjhanzla@gmail.com</span></div>
+    <div class="cred-row"><span class="label">Agent 1 password</span><span class="val" id="cred-pw1"></span></div>
+    <div class="cred-row"><span class="label">Agent 2 email</span><span class="val">ehsanwazir8@gmail.com</span></div>
+    <div class="cred-row"><span class="label">Agent 2 password</span><span class="val" id="cred-pw2"></span></div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://vfskqzgphrunjxquqpks.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_5DS10RNCXLR26dRezQm6Gw_tEMxYuuR';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const PW1 = 'Badar@Agent1';
+const PW2 = 'Badar@Agent2';
+
+function setStatus(id, type, msg) {
+  const el = document.getElementById('status' + id);
+  el.className = 'status ' + type;
+  el.textContent = msg;
+}
+
+async function createAccounts() {
+  const btn = document.getElementById('btn');
+  btn.disabled = true;
+  btn.textContent = 'Creating accounts…';
+
+  setStatus(1, 'info', 'Creating…');
+  setStatus(2, 'info', 'Creating…');
+
+  const [r1, r2] = await Promise.all([
+    sb.auth.signUp({ email: 'Cjhanzla@gmail.com', password: PW1 }),
+    sb.auth.signUp({ email: 'ehsanwazir8@gmail.com', password: PW2 })
+  ]);
+
+  if (r1.error) {
+    setStatus(1, 'err', '❌ ' + r1.error.message);
+  } else {
+    setStatus(1, 'ok', '✅ Account created — check email to confirm');
+  }
+
+  if (r2.error) {
+    setStatus(2, 'err', '❌ ' + r2.error.message);
+  } else {
+    setStatus(2, 'ok', '✅ Account created — check email to confirm');
+  }
+
+  if (!r1.error || !r2.error) {
+    const credsBox = document.getElementById('creds-box');
+    credsBox.style.display = 'block';
+    document.getElementById('cred-url').textContent = 'crm.badartrader.com (or badar-trader-crm.vercel.app)';
+    document.getElementById('cred-pw1').textContent = PW1;
+    document.getElementById('cred-pw2').textContent = PW2;
+  }
+
+  btn.textContent = 'Done';
+}
+</script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BT Bot Simulator — v3</title>
+<title>Team Badar Assistant, Simulator v3</title>
 <link rel="icon" type="image/svg+xml" href="/assets/bull.svg">
 <style>
   :root{--wa:#075E54;--wa2:#128C7E;--bg:#0b141a;--in:#202c33;--out:#005c4b;--txt:#e9edef;--mut:#8696a0}
@@ -22,6 +22,9 @@
   .out{background:var(--out);align-self:flex-end;border-top-right-radius:2px}
   .msg a{color:#53bdeb}
   .time{font-size:.6rem;color:var(--mut);margin-top:4px;text-align:right}
+  .choices{display:flex;flex-wrap:wrap;gap:8px;align-self:flex-start;margin:2px 0 6px}
+  .choices button{background:var(--in);border:1px solid #2a3942;color:#53bdeb;border-radius:18px;padding:8px 14px;font-size:.8rem;cursor:pointer;font-weight:600}
+  .choices button:hover{background:#2a3942}
   .quick{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;background:#111b21;border-top:1px solid #222d34}
   .quick button{background:var(--in);border:1px solid #2a3942;color:#53bdeb;border-radius:18px;padding:8px 14px;font-size:.8rem;cursor:pointer;font-weight:600}
   .quick button:hover{background:#2a3942}
@@ -35,11 +38,11 @@
 <div class="phone">
   <div class="head">
     <div class="dp">🤖</div>
-    <div><div class="name">BT Bot — Team Badar</div><div class="sub">online</div></div>
+    <div><div class="name">Team Badar</div><div class="sub">online</div></div>
     <div class="badge">SIMULATOR v3</div>
   </div>
   <div class="chat" id="chat"></div>
-  <div class="typing" id="typing">BT Bot is typing…</div>
+  <div class="typing" id="typing">Team Badar is typing…</div>
   <div class="quick" id="quick"></div>
   <div class="inputbar">
     <input id="inp" placeholder="Type a message…" onkeydown="if(event.key==='Enter')send()">
@@ -49,24 +52,30 @@
 <script>
 const chat=document.getElementById('chat'),quickEl=document.getElementById('quick'),typingEl=document.getElementById('typing');
 let lang=null; // 'en' | 'ru'
+let misses=0;        // consecutive unmatched free-text messages (resets on a match or menu use)
+let handedOff=false; // true once the bot has escalated to a human
 const LINKS={exness:'https://one.exnesstrack.org/a/eatgh2cl7y',dprime:'https://my.dooprime.com/links/go/45031',form:'https://crm.badartrader.com/join.html',course:'https://badartrader.com/check-3/',discord:'https://discord.gg/ph6f78DFJm',wa:'+923715773903'};
 
 function now(){const d=new Date();return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});}
 function add(text,who){const m=document.createElement('div');m.className='msg '+who;m.innerHTML=text.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank">$1</a>').replace(/\*([^*\n]+)\*/g,'<b>$1</b>')+'<div class="time">'+now()+(who==='out'?' ✓✓':'')+'</div>';chat.appendChild(m);chat.scrollTop=chat.scrollHeight;}
 function bot(text,delay){return new Promise(res=>{typingEl.style.display='block';setTimeout(()=>{typingEl.style.display='none';add(text,'in');res();},delay||700);});}
 function quick(opts){quickEl.innerHTML='';opts.forEach(o=>{const b=document.createElement('button');b.textContent=o.label;b.onclick=()=>{add(o.label,'out');o.fn();};quickEl.appendChild(b);});}
+// Inline choices rendered inside the chat flow, directly under the preceding message.
+function chatChoices(opts){const row=document.createElement('div');row.className='choices';opts.forEach(o=>{const b=document.createElement('button');b.textContent=o.label;b.onclick=()=>{row.remove();add(o.label,'out');o.fn();};row.appendChild(b);});chat.appendChild(row);chat.scrollTop=chat.scrollHeight;}
 
 function t(en,ru){return lang==='ru'?ru:en;}
 
 async function start(){
-  await bot("Assalam o Alaikum! 🌟 This is *BT Bot* — Team Badar ka official assistant.\n\nPlease choose your language / Barah-e-karam apni zubaan chunein:");
-  quick([
-    {label:'1️⃣ English',fn:()=>{lang='en';mainMenu();}},
-    {label:'2️⃣ Roman Urdu',fn:()=>{lang='ru';mainMenu();}}
+  await bot("Hello! 👋");
+  await bot("Dear Customer\n\nWelcome to Team Badar's Self-Service.\n\nPlease select your preferred language from the Main Menu below.");
+  chatChoices([
+    {label:'English',fn:()=>{lang='en';mainMenu();}},
+    {label:'Roman Urdu',fn:()=>{lang='ru';mainMenu();}}
   ]);
 }
 
 async function mainMenu(){
+  misses=0; // navigating the menu means the user is unstuck — reset the counter
   await bot(t("Great! How can I help you today? 👇","Zabardast! Aaj mein aapki kya madad kar sakta hoon? 👇"));
   quick([
     {label:t('📈 Join Premium Signalling Group (FREE)','📈 Premium Signalling Group join karein (FREE)'),fn:joinFlow},
@@ -139,7 +148,7 @@ const FAQ=[
  {k:/screenshot.*(share|send|bhej|kar diya)|deposit.*screenshot/i,en:"Great! Once your screenshot + verification form are received, you'll be added within 48 hours ✅",ru:"Zabardast! Screenshot + verification form milne ke baad 48 hours ke andar aapko add kar diya jayega ✅"},
  {k:/update|kab add|add kab|kab tak|when.*add/i,en:"You're added within 48 hours of form submission. If 48 hours have passed, send your form submission screenshot and the team will check. 🕐",ru:"Form submit hone ke 48 hours ke andar add kiya jata hai. Agar 48 hours guzar gaye hain to form submission ka screenshot bhejein, team check karegi. 🕐"},
  {k:/fees pay|paid.*course|course.*pay/i,en:`Send your payment proof on WhatsApp ${LINKS.wa} — you'll be added with the next batch schedule. 🎓`,ru:`Payment proof WhatsApp par bhejein ${LINKS.wa} — next batch ke schedule ke sath add kar diya jayega. 🎓`},
- {k:/minimum deposit|min.*deposit|deposit.*minimum|kitna deposit/i,en:"The required deposit is $500. This stays in YOUR account as trading capital. 💵",ru:"Deposit $500 hai. Ye aapke apne account mein trading capital rehta hai. 💵"},
+ {k:/minimum deposit|min.*deposit|deposit.*minimum|kitna deposit/i,en:"Minimum deposit is a flat $500 — not a range. This stays in YOUR account as trading capital. 💵",ru:"Minimum deposit flat $500 hai — range nahi. Ye aapke apne account mein trading capital rehta hai. 💵"},
  {k:/free or paid|free ya paid|is.*free/i,en:"The Premium Signalling Group is FREE when you join under Team Badar's IB link with a $500 deposit. ✅",ru:"Premium Signalling Group FREE hai jab aap Team Badar ki IB link se $500 deposit ke sath join karte hain. ✅"},
  {k:/deposit.*withdraw|withdraw|nikaal/i,en:"Deposits & withdrawals happen inside your broker app (Exness / Dprime): Wallet → Deposit/Withdraw with local payment methods. Team can guide you step by step. 🏦",ru:"Deposit aur withdraw aapke broker app (Exness / Dprime) ke andar hote hain: Wallet → Deposit/Withdraw, local payment methods ke sath. Team step by step guide kar sakti hai. 🏦"},
  {k:/partner|referral.*change|ib change|previous.*change/i,fn:existingFlow},
@@ -150,14 +159,26 @@ const FAQ=[
  {k:/discord/i,en:`Discord Community: ${LINKS.discord}`,ru:`Discord Community: ${LINKS.discord}`},
 ];
 
+async function escalate(reason){
+  handedOff=true;
+  await bot(t(`🙋 Let me connect you with a team member who'll help you personally. Please hold on a moment.\n\nOr message us directly: ${LINKS.wa}`,`🙋 Aapko team member se connect kar raha hoon jo personally madad karenge. Thodi dair intezaar karein.\n\nYa direct message karein: ${LINKS.wa}`));
+  const sub=document.querySelector('.head .sub'); if(sub)sub.textContent=t('connecting to an agent…','agent se connect ho raha hai…');
+  const badge=document.querySelector('.badge'); if(badge){badge.textContent='HANDED OFF';badge.style.background='#8a3a12';}
+  quickEl.innerHTML='';
+}
+
 async function send(){
   const inp=document.getElementById('inp');const v=inp.value.trim();if(!v)return;
   add(v,'out');inp.value='';
+  if(handedOff)return; // bot stays silent once a human has taken over
   if(!lang){lang=/[a-z]/i.test(v)&&/(mein|hai|kya|kab|ka |ke |ki )/i.test(v)?'ru':'en';}
   for(const f of FAQ){
-    if(f.k.test(v)){ if(f.fn){await f.fn();} else {await bot(lang==='ru'?f.ru:f.en);afterFlow();} return; }
+    if(f.k.test(v)){ misses=0; if(f.fn){await f.fn();} else {await bot(lang==='ru'?f.ru:f.en);afterFlow();} return; }
   }
-  await bot(t(`Thanks for your message! 🙏 A team member will reply shortly. Meanwhile you can use the menu below, or contact us directly: ${LINKS.wa}`,`Aapke message ka shukriya! 🙏 Team member jald jawab denge. Filhaal neeche menu use karein ya direct rabta karein: ${LINKS.wa}`));
+  // No FAQ matched — count it as a failed attempt. Two in a row → hand to a human.
+  misses++;
+  if(misses>=2){await escalate('stuck: 2 unanswered questions in a row');return;}
+  await bot(t(`This is Team Badar Tanvir. We are ever ready to serve for our brand's purpose. We're really sorry, but we couldn't quite understand your message. 🙏 Please pick an option from the menu below.`,`Yeh Team Badar Tanvir hai. Hum hamesha aapki khidmat ke liye tayyar hain. Maazrat, hum aapka paigham samajh nahi paye. 🙏 Barah-e-karam neeche menu se option chunein.`));
   quick([{label:t('⬅️ Main menu','⬅️ Wapis menu'),fn:mainMenu}]);
 }
 

@@ -503,3 +503,310 @@ CREATE POLICY signals_auth_insert ON public.signals
 DROP POLICY IF EXISTS signals_auth_update ON public.signals;
 CREATE POLICY signals_auth_update ON public.signals
   FOR UPDATE TO authenticated USING (true);
+
+-- ── DONE ─────────────────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 4 Schema (WhatsApp lead-qualification bot)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- Run AFTER Phase 1-3 schema above. Safe to re-run.
+-- ============================================================
+
+-- ── 20. LEADS: bot conversation state columns ─────────────────
+-- Tracks each lead's position in the WhatsApp qualification flow
+-- (see supabase/functions/whatsapp-webhook/index.ts).
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS bot_stage TEXT NOT NULL DEFAULT 'awaiting_language'
+  CHECK (bot_stage IN ('awaiting_language','awaiting_menu','awaiting_broker','awaiting_experience','awaiting_traded_before','awaiting_deposit_confirm','qualified','declined'));
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS language TEXT CHECK (language IN ('en','ur'));
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS broker_choice TEXT CHECK (broker_choice IN ('exness','doprime'));
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS trader_experience TEXT CHECK (trader_experience IN ('new','experienced'));
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS ready_to_deposit BOOLEAN;
+
+-- ── 21. LEADS: bot→human handoff + unread tracking ─────────────
+-- needs_human/handoff_reason are set by escalate() when the bot hands a
+-- conversation to a person; retry_count tracks consecutive unmatched replies
+-- (see handleUnmatched()); is_unread flags leads with a new inbound message
+-- for the CRM conversation list (see index.html).
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS needs_human BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS handoff_reason TEXT;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS is_unread BOOLEAN NOT NULL DEFAULT false;
+
+-- ── PENDING SQL (Phase 4 — run this on the live DB before deploying the
+--    language/main-menu bot update) ─────────────────────────────────────
+-- The original Phase 4 migration above already ran against the live `leads`
+-- table (see ACTION_NEEDED.md), so ADD COLUMN IF NOT EXISTS is a no-op for
+-- bot_stage/language and won't widen its existing CHECK constraint. The new
+-- bot flow adds an `awaiting_language` / `awaiting_menu` step before
+-- `awaiting_broker`, so the live constraint + default need updating, and the
+-- handoff/unread columns need adding for the first time.
+--
+-- The DROP CONSTRAINT below assumes Postgres's default auto-generated name
+-- (<table>_<column>_check). If it doesn't match, find the real name first:
+--   SELECT conname FROM pg_constraint
+--   WHERE conrelid = 'public.leads'::regclass AND contype = 'c' AND conname LIKE '%bot_stage%';
+ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_bot_stage_check;
+ALTER TABLE public.leads ADD CONSTRAINT leads_bot_stage_check
+  CHECK (bot_stage IN ('awaiting_language','awaiting_menu','awaiting_broker','awaiting_experience','awaiting_traded_before','awaiting_deposit_confirm','qualified','declined'));
+ALTER TABLE public.leads ALTER COLUMN bot_stage SET DEFAULT 'awaiting_language';
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS language TEXT CHECK (language IN ('en','ur'));
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS needs_human BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS handoff_reason TEXT;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS is_unread BOOLEAN NOT NULL DEFAULT false;
+
+-- ── 22. LEADS: agent round-robin ping tracking (Phase 5) ────────
+-- Tracks the repeat-until-acknowledged reminder loop for the round-robin
+-- "new lead assigned" ping (see supabase/functions/whatsapp-webhook/index.ts
+-- and supabase/functions/nudge-agents/index.ts). agent_acknowledged_at is
+-- set when the assigned agent taps the "I've got this" button; until then,
+-- nudge-agents re-pings every 5 minutes and escalates to the rest of the
+-- team after 3 unanswered pings.
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS agent_ping_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS agent_last_pinged_at TIMESTAMPTZ;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS agent_acknowledged_at TIMESTAMPTZ;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS agent_escalated BOOLEAN NOT NULL DEFAULT false;
+
+-- ── 23. Cron: fire nudge-agents every 15 minutes, 9am-6pm PKT ───
+-- nudge-agents is deployed with --no-verify-jwt (same as whatsapp-webhook),
+-- so this plain POST needs no auth header. cron.schedule upserts by job
+-- name, so this is safe to re-run.
+--
+-- pg_cron runs in UTC. PKT is UTC+5 (no DST), so 9:00am-6:00pm PKT is
+-- 4:00am-1:00pm UTC. Two jobs: one every 15 min across 4:00-12:45 UTC
+-- (9:00am-5:45pm PKT), plus a single tick at exactly 13:00 UTC (6:00pm
+-- PKT) so the window's closing edge is covered without running into 6:15pm+.
+--
+-- IMPORTANT: this job name was previously 'nudge-agents-every-5-min'. If
+-- you're re-running this against a project that still has that old job
+-- (or any other rogue nudge-agents cron entries — check with
+-- `SELECT jobname FROM cron.job;`), unschedule it explicitly first:
+--   SELECT cron.unschedule('nudge-agents-every-5-min');
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_net;
+
+SELECT cron.unschedule('nudge-agents-every-5-min')
+WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'nudge-agents-every-5-min');
+
+SELECT cron.schedule(
+  'nudge-agents-every-15-min-business-hours',
+  '*/15 4-12 * * *',
+  $$
+  SELECT net.http_post(
+    url     := 'https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/nudge-agents',
+    headers := '{"Content-Type": "application/json"}'::jsonb,
+    body    := '{}'::jsonb
+  );
+  $$
+);
+
+SELECT cron.schedule(
+  'nudge-agents-6pm-pkt-close',
+  '0 13 * * *',
+  $$
+  SELECT net.http_post(
+    url     := 'https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/nudge-agents',
+    headers := '{"Content-Type": "application/json"}'::jsonb,
+    body    := '{}'::jsonb
+  );
+  $$
+);
+
+-- ── DONE (Phase 4) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 6 Schema (KYC document file upload)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 24. KYC document storage ────────────────────────────────
+-- Private bucket; objects are stored at {client_id}/{doc_id}_{filename} so
+-- the agent-select policy can join back to leads.assigned_agent_id without
+-- a denormalized column. Matches the existing kyc_documents RLS: admins
+-- full access, agents read-only for their own clients' files.
+ALTER TABLE public.kyc_documents ADD COLUMN IF NOT EXISTS file_path TEXT;
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('kyc-documents', 'kyc-documents', false)
+ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "kyc-documents: admin full access" ON storage.objects;
+CREATE POLICY "kyc-documents: admin full access" ON storage.objects
+  FOR ALL USING (bucket_id = 'kyc-documents' AND public.is_admin())
+  WITH CHECK (bucket_id = 'kyc-documents' AND public.is_admin());
+
+DROP POLICY IF EXISTS "kyc-documents: agent select own clients" ON storage.objects;
+CREATE POLICY "kyc-documents: agent select own clients" ON storage.objects
+  FOR SELECT USING (
+    bucket_id = 'kyc-documents' AND
+    EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id::text = (storage.foldername(name))[1]
+      AND l.assigned_agent_id = auth.uid()
+    )
+  );
+
+-- ── DONE (Phase 6) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 7 Schema (deposit screenshot capture)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 25. Deposit screenshot storage ──────────────────────────
+-- The bot previously had no handling at all for image messages — a
+-- customer's deposit screenshot (which the bot explicitly asks for) was
+-- silently dropped. Now stored at {lead_id}/{timestamp}.{ext}, same
+-- admin-full / agent-own-client pattern as kyc-documents.
+ALTER TABLE public.communications ADD COLUMN IF NOT EXISTS attachment_path TEXT;
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('deposit-screenshots', 'deposit-screenshots', false)
+ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "deposit-screenshots: admin full access" ON storage.objects;
+CREATE POLICY "deposit-screenshots: admin full access" ON storage.objects
+  FOR ALL USING (bucket_id = 'deposit-screenshots' AND public.is_admin())
+  WITH CHECK (bucket_id = 'deposit-screenshots' AND public.is_admin());
+
+DROP POLICY IF EXISTS "deposit-screenshots: agent select own clients" ON storage.objects;
+CREATE POLICY "deposit-screenshots: agent select own clients" ON storage.objects
+  FOR SELECT USING (
+    bucket_id = 'deposit-screenshots' AND
+    EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id::text = (storage.foldername(name))[1]
+      AND l.assigned_agent_id = auth.uid()
+    )
+  );
+
+-- ── DONE (Phase 7) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 8 Schema (real automation rule firing)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 26. Automation: real triggers, WhatsApp + assign-agent only ─
+-- automation_rules were previously pure CRUD — nothing fired them. These
+-- triggers call the fire-automation Edge Function (via pg_net, same
+-- pattern as nudge-agents) whenever the real event happens. Email/SMS
+-- channels are deliberately NOT sent for real yet — no Twilio/SendGrid
+-- account exists — fire-automation logs those as skipped instead of
+-- silently doing nothing, so it's easy to tell when that's ready to flip on.
+ALTER TABLE public.automation_rules ADD COLUMN IF NOT EXISTS assign_agent_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+-- The original constraint only ever allowed channel IN ('email','sms'), even
+-- though the CRM form has offered 'whatsapp' and 'assign_agent' as options
+-- since it was built — every attempt to save one of those two would have been
+-- rejected by the database. template_body was also NOT NULL, which would
+-- reject assign_agent rules too (they have no message template).
+ALTER TABLE public.automation_rules DROP CONSTRAINT IF EXISTS automation_rules_channel_check;
+ALTER TABLE public.automation_rules ADD CONSTRAINT automation_rules_channel_check
+  CHECK (channel IN ('whatsapp','email','sms','assign_agent'));
+ALTER TABLE public.automation_rules ALTER COLUMN template_body DROP NOT NULL;
+
+-- condition_filter was never a real column at all, despite the CRM form
+-- (submitAutomationRule) always including it in the save payload — meaning
+-- every single "Save Rule" click, for any channel, has always failed outright
+-- with a PostgREST "column not found" error. This is why the table was empty.
+ALTER TABLE public.automation_rules ADD COLUMN IF NOT EXISTS condition_filter TEXT;
+
+CREATE OR REPLACE FUNCTION public.fire_automation_event(p_trigger_event TEXT, p_lead_id UUID)
+RETURNS VOID LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM net.http_post(
+    url     := 'https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/fire-automation',
+    headers := '{"Content-Type": "application/json"}'::jsonb,
+    body    := jsonb_build_object('trigger_event', p_trigger_event, 'lead_id', p_lead_id)
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.trg_leads_created()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM public.fire_automation_event('lead_created', NEW.id);
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS automation_lead_created ON public.leads;
+CREATE TRIGGER automation_lead_created
+  AFTER INSERT ON public.leads
+  FOR EACH ROW EXECUTE FUNCTION public.trg_leads_created();
+
+CREATE OR REPLACE FUNCTION public.trg_leads_status_changed()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.status IS DISTINCT FROM OLD.status THEN
+    PERFORM public.fire_automation_event('status_changed', NEW.id);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS automation_status_changed ON public.leads;
+CREATE TRIGGER automation_status_changed
+  AFTER UPDATE OF status ON public.leads
+  FOR EACH ROW EXECUTE FUNCTION public.trg_leads_status_changed();
+
+CREATE OR REPLACE FUNCTION public.trg_leads_kyc_verified()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.kyc_status = 'verified' AND NEW.kyc_status IS DISTINCT FROM OLD.kyc_status THEN
+    PERFORM public.fire_automation_event('kyc_verified', NEW.id);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS automation_kyc_verified ON public.leads;
+CREATE TRIGGER automation_kyc_verified
+  AFTER UPDATE OF kyc_status ON public.leads
+  FOR EACH ROW EXECUTE FUNCTION public.trg_leads_kyc_verified();
+
+CREATE OR REPLACE FUNCTION public.trg_transactions_deposit()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.type = 'deposit' THEN
+    PERFORM public.fire_automation_event('deposit_recorded', NEW.client_id);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS automation_deposit_recorded ON public.transactions;
+CREATE TRIGGER automation_deposit_recorded
+  AFTER INSERT ON public.transactions
+  FOR EACH ROW EXECUTE FUNCTION public.trg_transactions_deposit();
+
+-- ── DONE (Phase 8) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 9 Schema (public form submissions)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 27. Public lead-capture forms (signals-form.html, course-form.html) ─
+-- Badar wants first/last name tracked separately (rest of the CRM keeps
+-- using leads.full_name, kept in sync by the submit-lead-form Edge
+-- Function). deposit_account_ref already covers "Broker ID". Screenshots
+-- are stored as kyc_documents rows (document_type='deposit_screenshot')
+-- in the existing deposit-screenshots bucket, reusing the existing
+-- Verify/Reject review workflow instead of building a new one.
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS first_name TEXT;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS last_name TEXT;
+
+ALTER TABLE public.kyc_documents DROP CONSTRAINT IF EXISTS kyc_documents_document_type_check;
+ALTER TABLE public.kyc_documents ADD CONSTRAINT kyc_documents_document_type_check
+  CHECK (document_type = ANY (ARRAY['passport','national_id','utility_bill','deposit_screenshot','other']));
+
+-- ── DONE (Phase 9) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════

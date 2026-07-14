@@ -27,7 +27,7 @@
       width: 220px;
       min-height: calc(100vh - 46px);
       background: #0f172a;
-      padding: 0;
+      padding: 0 0 46px; /* reserve room for the fixed market ticker, so it never covers the sidebar footer */
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
@@ -586,7 +586,7 @@
         and <code>YOUR_SUPABASE_ANON_KEY</code> with those values.</li>
     <li>Create your admin user: <strong>Authentication → Users → Add User</strong>.<br>
         Email + password of your choice.<br>
-        <em>User Metadata:</em> <code>{"full_name": "Badar Tanveer", "role": "admin"}</code></li>
+        <em>User Metadata:</em> <code>{"full_name": "Badar Tanvir", "role": "admin"}</code></li>
     <li>Refresh this page — you should see the login screen.</li>
   </ol>
   <p style="margin-top:14px;color:#555;font-size:0.8rem">
@@ -802,6 +802,10 @@
         <option value="manual">Manual</option>
         <option value="other">Other</option>
       </select>
+      <select id="filter-human" onchange="loadAdminLeads()">
+        <option value="">All (bot + human)</option>
+        <option value="1">⚠ Needs Human</option>
+      </select>
     </div>
     <div class="card" style="padding:0">
       <table>
@@ -910,6 +914,14 @@
       <div class="conv-list-panel">
         <div class="conv-search">
           <input type="text" id="conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations()" />
+        </div>
+        <div class="conv-filter-tabs" id="conv-filter-tabs" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid #e2e8f0">
+          <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">All</button>
+          <button class="conv-filter-tab" data-tier="new" onclick="setConvFilter('new')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🆕 New</button>
+          <button class="conv-filter-tab" data-tier="unread" onclick="setConvFilter('unread')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">📩 Unread</button>
+          <button class="conv-filter-tab" data-tier="warm" onclick="setConvFilter('warm')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🌤 Warm</button>
+          <button class="conv-filter-tab" data-tier="hot" onclick="setConvFilter('hot')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🔥 Hot</button>
+          <button class="conv-filter-tab" data-tier="closed" onclick="setConvFilter('closed')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">✅ Closed</button>
         </div>
         <div class="conv-list" id="conv-list"></div>
       </div>
@@ -1205,7 +1217,7 @@
       <select id="cl-lead-filter" style="min-width:200px;width:auto" onchange="renderCommLog()">
         <option value="">All Contacts</option>
       </select>
-      <div style="display:flex;gap:4px;flex-wrap:wrap">
+      <div id="cl-type-btns" style="display:flex;gap:4px;flex-wrap:wrap">
         <button class="cl-type-btn btn btn-sm active" onclick="filterCommLog(this,'')">All</button>
         <button class="cl-type-btn btn btn-sm" onclick="filterCommLog(this,'whatsapp')">💬 WhatsApp</button>
         <button class="cl-type-btn btn btn-sm" onclick="filterCommLog(this,'email')">✉️ Email</button>
@@ -1213,6 +1225,15 @@
         <button class="cl-type-btn btn btn-sm" onclick="filterCommLog(this,'note')">📝 Note</button>
       </div>
       <button class="btn btn-primary btn-sm" onclick="showAddNoteForm()" style="margin-left:auto">+ Add Note</button>
+    </div>
+    <div id="cl-status-btns" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px">
+      <span style="font-size:0.72rem;color:#94a3b8;font-weight:600;align-self:center;margin-right:2px">Lead status:</span>
+      <button class="cl-status-btn btn btn-sm active" onclick="filterCommLogStatus(this,'')">All</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'new')">New</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'contacted')">Contacted</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'qualified')">Qualified</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'converted')">Converted</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'lost')">Lost</button>
     </div>
 
     <!-- Add Note Form -->
@@ -1702,6 +1723,8 @@
       <div class="nav-item tab-btn active" data-tab="dashboard" onclick="agentTab('dashboard',this)"><span class="nav-icon">🏠</span> Dashboard</div>
       <div class="nav-item tab-btn" data-tab="my-leads" onclick="agentTab('my-leads',this)"><span class="nav-icon">👥</span> My Leads</div>
       <div class="nav-section-label">TOOLS</div>
+      <div class="nav-item tab-btn" data-tab="conversations" onclick="agentTab('conversations',this)"><span class="nav-icon">💬</span> Conversations <span id="agent-conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
+      <div class="nav-item tab-btn" data-tab="comm-log" onclick="agentTab('comm-log',this)"><span class="nav-icon">🕐</span> Comm Log</div>
       <div class="nav-item tab-btn" data-tab="log-activity" onclick="agentTab('log-activity',this)"><span class="nav-icon">📝</span> Log Activity</div>
     </div>
     <div class="sidebar-footer">
@@ -1752,6 +1775,15 @@
         <div class="stat-trend">Approved deposits</div>
       </div>
     </div>
+
+    <!-- Upcoming Follow-ups -->
+    <div class="card" style="margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="font-weight:700;font-size:0.95rem;color:#e2e8f0">📅 Upcoming Follow-ups</div>
+        <span style="font-size:0.75rem;color:#64748b">Next 7 days</span>
+      </div>
+      <div id="agent-dash-followups-list"><div style="color:#64748b;font-size:0.85rem;padding:8px 0">Loading…</div></div>
+    </div>
   </div>
 
   <!-- My Leads -->
@@ -1774,6 +1806,110 @@
       </table>
     </div>
     <div id="agent-lead-detail" class="detail-panel" style="display:none"></div>
+  </div>
+
+  <!-- Conversations -->
+  <div id="agent-tab-conversations" class="tab-content">
+    <h3>Conversations</h3>
+
+    <!-- Quick Links — copy/paste into a chat without leaving the tab -->
+    <div class="card" id="agent-quick-links" style="margin-bottom:14px;padding:12px 16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleQuickLinks()">
+        <div style="font-weight:700;font-size:0.85rem;color:#0f172a">🔗 Quick Links</div>
+        <span id="agent-quick-links-caret" style="color:#94a3b8;font-size:0.8rem">▾</span>
+      </div>
+      <div id="agent-quick-links-body" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>
+    </div>
+
+    <div class="conversations-shell">
+      <!-- Left: Lead List -->
+      <div class="conv-list-panel">
+        <div class="conv-search">
+          <input type="text" id="agent-conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations('agent-')" />
+        </div>
+        <div class="conv-filter-tabs" id="agent-conv-filter-tabs" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid #e2e8f0">
+          <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">All</button>
+          <button class="conv-filter-tab" data-tier="new" onclick="setConvFilter('new','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🆕 New</button>
+          <button class="conv-filter-tab" data-tier="unread" onclick="setConvFilter('unread','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">📩 Unread</button>
+          <button class="conv-filter-tab" data-tier="warm" onclick="setConvFilter('warm','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🌤 Warm</button>
+          <button class="conv-filter-tab" data-tier="hot" onclick="setConvFilter('hot','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🔥 Hot</button>
+          <button class="conv-filter-tab" data-tier="closed" onclick="setConvFilter('closed','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">✅ Closed</button>
+        </div>
+        <div class="conv-list" id="agent-conv-list"></div>
+      </div>
+      <!-- Right: Chat View -->
+      <div class="conv-chat-panel" id="agent-conv-chat-panel">
+        <div class="conv-empty-chat">
+          <div style="font-size:2.5rem;margin-bottom:12px">💬</div>
+          <div style="font-weight:600;color:#64748b;margin-bottom:6px">Select a conversation</div>
+          <div style="font-size:0.8rem;color:#94a3b8">Click on a lead to view their messages</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comm Log -->
+  <div id="agent-tab-comm-log" class="tab-content">
+    <h3>Communication Log</h3>
+
+    <!-- Filters + Add Note -->
+    <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+      <select id="agent-cl-lead-filter" style="min-width:200px;width:auto" onchange="renderCommLog('agent-')">
+        <option value="">All Contacts</option>
+      </select>
+      <div id="agent-cl-type-btns" style="display:flex;gap:4px;flex-wrap:wrap">
+        <button class="cl-type-btn btn btn-sm active" onclick="filterCommLog(this,'','agent-')">All</button>
+        <button class="cl-type-btn btn btn-sm" onclick="filterCommLog(this,'whatsapp','agent-')">💬 WhatsApp</button>
+        <button class="cl-type-btn btn btn-sm" onclick="filterCommLog(this,'email','agent-')">✉️ Email</button>
+        <button class="cl-type-btn btn btn-sm" onclick="filterCommLog(this,'call','agent-')">📞 Call</button>
+        <button class="cl-type-btn btn btn-sm" onclick="filterCommLog(this,'note','agent-')">📝 Note</button>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="showAddNoteForm('agent-')" style="margin-left:auto">+ Add Note</button>
+    </div>
+    <div id="agent-cl-status-btns" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px">
+      <span style="font-size:0.72rem;color:#94a3b8;font-weight:600;align-self:center;margin-right:2px">Lead status:</span>
+      <button class="cl-status-btn btn btn-sm active" onclick="filterCommLogStatus(this,'','agent-')">All</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'new','agent-')">New</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'contacted','agent-')">Contacted</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'qualified','agent-')">Qualified</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'converted','agent-')">Converted</button>
+      <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'lost','agent-')">Lost</button>
+    </div>
+
+    <!-- Add Note Form -->
+    <div id="agent-cl-note-form" class="card" style="display:none;margin-bottom:16px;border-left:3px solid #0ea5e9">
+      <p style="color:#0f172a;font-weight:700;margin-bottom:14px">➕ Add Interaction Note</p>
+      <div class="form-row">
+        <div>
+          <label>Contact *</label>
+          <select id="agent-cl-note-lead">
+            <option value="">— Select Contact —</option>
+          </select>
+        </div>
+        <div>
+          <label>Interaction Type *</label>
+          <select id="agent-cl-note-type">
+            <option value="note">📝 Note</option>
+            <option value="whatsapp">💬 WhatsApp</option>
+            <option value="email">✉️ Email</option>
+            <option value="call">📞 Call</option>
+            <option value="sms">📱 SMS</option>
+          </select>
+        </div>
+      </div>
+      <label>Message / Notes *</label>
+      <textarea id="agent-cl-note-message" rows="3" placeholder="What happened? What was discussed? Any outcome?"></textarea>
+      <div class="form-actions">
+        <button class="btn btn-primary btn-inline" onclick="addCommNote('agent-')">Save</button>
+        <button class="btn btn-secondary btn-inline" onclick="document.getElementById('agent-cl-note-form').style.display='none'">Cancel</button>
+        <span class="success-msg" id="agent-cl-note-msg"></span>
+      </div>
+    </div>
+
+    <!-- Timeline -->
+    <div id="agent-cl-timeline">
+      <div class="empty-state" style="padding:40px">Loading…</div>
+    </div>
   </div>
 
   <!-- Log Activity -->
@@ -1841,7 +1977,7 @@ const _DEMO_PROFILES = [
   { id: 'demo-agent-2', full_name: 'Sara Khan',  email: 'sara.khan@badartrader.com',  role: 'agent', created_at: '2026-02-01T00:00:00Z' },
 ];
 const _DEMO_LEADS = [
-  { id:'dl1', full_name:'Omar Farooq',  phone:'+92 321 4567890', email:'omar@example.com',   source:'meta',     meta_campaign:'Apr_XAUUSD_Retargeting', instrument_type:'Forex',  status:'new',       assigned_agent_id:'demo-agent-1', created_at:'2026-06-20T09:15:00Z', notes:'Interested in gold trading.',     account_balance:0,     kyc_status:'not_started', risk_profile:null,     trading_plan:null,                      signal_group:null },
+  { id:'dl1', full_name:'Omar Farooq',  phone:'+92 321 4567890', email:'omar@example.com',   source:'meta',     meta_campaign:'Apr_XAUUSD_Retargeting', instrument_type:'Forex',  status:'new',       assigned_agent_id:'demo-agent-1', created_at:'2026-06-20T09:15:00Z', notes:'Interested in gold trading.', needs_human:true, handoff_reason:'stuck at deposit step',     account_balance:0,     kyc_status:'not_started', risk_profile:null,     trading_plan:null,                      signal_group:null },
   { id:'dl2', full_name:'Ayesha Malik', phone:'+92 300 9876543', email:'ayesha@example.com', source:'referral', meta_campaign:null,                      instrument_type:'Crypto', status:'contacted', assigned_agent_id:'demo-agent-1', created_at:'2026-06-18T11:30:00Z', notes:'Referred by existing client.',    account_balance:0,     kyc_status:'pending',    risk_profile:'medium', trading_plan:null,                      signal_group:null },
   { id:'dl3', full_name:'Hassan Raza',  phone:'+92 333 1234567', email:'hassan@example.com', source:'website',  meta_campaign:null,                      instrument_type:'Stocks', status:'qualified', assigned_agent_id:'demo-agent-2', created_at:'2026-06-15T14:00:00Z', notes:'Experienced stock trader.',       account_balance:5000,  kyc_status:'verified',   risk_profile:'low',    trading_plan:'Long-term equity index.', signal_group:'VIP Signals' },
   { id:'dl4', full_name:'Sana Ahmed',   phone:'+92 311 5551234', email:'sana@example.com',   source:'meta',     meta_campaign:'Jun_Crypto_Awareness',    instrument_type:'Crypto', status:'qualified', assigned_agent_id:'demo-agent-2', created_at:'2026-06-12T10:45:00Z', notes:'Looking to invest $10 000.',      account_balance:10000, kyc_status:'verified',   risk_profile:'high',   trading_plan:'Aggressive crypto.',      signal_group:'VIP Gold Signals' },
@@ -2116,12 +2252,14 @@ async function loadAdminLeads() {
   const status = document.getElementById('filter-status')?.value || '';
   const agent  = document.getElementById('filter-agent')?.value  || '';
   const source = document.getElementById('filter-source')?.value || '';
+  const human  = document.getElementById('filter-human')?.value  || '';
 
   if (demoMode) {
     let leads = _DEMO_LEADS.slice();
     if (status) leads = leads.filter(l => l.status === status);
     if (agent)  leads = leads.filter(l => l.assigned_agent_id === agent);
     if (source) leads = leads.filter(l => l.source === source);
+    if (human)  leads = leads.filter(l => l.needs_human);
     cachedLeads = leads;
     renderLeadsTable('admin-leads-tbody', cachedLeads, true);
     return;
@@ -2131,6 +2269,7 @@ async function loadAdminLeads() {
   if (status) q = q.eq('status', status);
   if (agent)  q = q.eq('assigned_agent_id', agent);
   if (source) q = q.eq('source', source);
+  if (human)  q = q.eq('needs_human', true);
 
   const { data, error } = await q;
   if (error) { console.error('loadAdminLeads:', error); return; }
@@ -2350,9 +2489,45 @@ async function initAgent() {
   const initialsEl = document.getElementById('agent-sidebar-initials');
   if (initialsEl) initialsEl.textContent = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   await loadAgentLeads();
+  loadUpcomingFollowups('agent-');
 }
 
-const AGENT_TAB_TITLES = { dashboard: 'Dashboard', 'my-leads': 'My Leads', 'log-activity': 'Log Activity' };
+const AGENT_TAB_TITLES = { dashboard: 'Dashboard', 'my-leads': 'My Leads', conversations: 'Conversations', 'comm-log': 'Communication Log', 'log-activity': 'Log Activity' };
+
+// Kept in sync with LINKS in supabase/functions/whatsapp-webhook/index.ts and
+// simulator.html. Ehsan asked for these to be copy-pasteable from the
+// Conversations tab so agents never have to switch windows mid-chat.
+const QUICK_LINKS = [
+  { label: 'Exness (referral)',       value: 'https://one.exnesstrack.org/a/eatgh2cl7y' },
+  { label: 'Exness code',             value: 'eatgh2cl7y' },
+  { label: 'Do Prime (referral)',     value: 'https://my.dooprime.com/links/go/45031' },
+  { label: 'Do Prime code',           value: '45031' },
+  { label: 'Verification form',       value: 'https://crm.badartrader.com/join.html' },
+  { label: 'Course enrollment',       value: 'https://badartrader.com/check-3/' },
+  { label: 'Discord community',       value: 'https://discord.gg/ph6f78DFJm' },
+  { label: 'WhatsApp support number', value: '+923715773903' },
+];
+
+function renderQuickLinks(scope) {
+  const el = document.getElementById(scope + 'quick-links-body');
+  if (!el) return;
+  el.innerHTML = QUICK_LINKS.map((l, i) => `
+    <div style="display:flex;align-items:center;gap:8px;font-size:0.78rem">
+      <span style="color:#64748b;min-width:150px;flex-shrink:0">${esc(l.label)}</span>
+      <span style="color:#0f172a;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(l.value)}</span>
+      <button class="btn btn-secondary btn-sm" style="padding:2px 10px;font-size:0.72rem;flex-shrink:0" id="${scope}ql-btn-${i}"
+        onclick="navigator.clipboard.writeText('${esc(l.value)}').then(()=>{const b=document.getElementById('${scope}ql-btn-${i}');b.textContent='✓ Copied';setTimeout(()=>b.textContent='Copy',1200)})">Copy</button>
+    </div>`).join('');
+}
+
+function toggleQuickLinks() {
+  const body  = document.getElementById('agent-quick-links-body');
+  const caret = document.getElementById('agent-quick-links-caret');
+  if (!body) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'flex';
+  if (caret) caret.textContent = isOpen ? '▸' : '▾';
+}
 
 function agentTab(name, btn) {
   if (window.innerWidth <= 768) toggleSidebar(false);
@@ -2366,6 +2541,8 @@ function agentTab(name, btn) {
   if (titleEl) titleEl.textContent = AGENT_TAB_TITLES[name] || name;
   closeDetail('agent');
   if (name === 'my-leads') loadAgentLeads();
+  if (name === 'conversations') { renderConversations('agent-'); startConvRealtime('agent-'); renderQuickLinks('agent-'); } else { stopConvRealtime(); }
+  if (name === 'comm-log') loadCommLog('agent-');
 }
 
 async function loadAgentLeads() {
@@ -2782,7 +2959,7 @@ function buildKycTab(lead, leadId, ctx, isAdmin, kycRows) {
   const docsTable = `
     <table>
       <thead><tr>
-        <th>Type</th><th>Status</th><th>Uploaded</th><th>Reviewed By</th><th>Notes</th>${isAdmin ? '<th></th>' : ''}
+        <th>Type</th><th>Status</th><th>Uploaded</th><th>Reviewed By</th><th>Notes</th><th>File</th>${isAdmin ? '<th></th>' : ''}
       </tr></thead>
       <tbody>
         ${kycRows.length ? kycRows.map(d => `
@@ -2792,12 +2969,13 @@ function buildKycTab(lead, leadId, ctx, isAdmin, kycRows) {
             <td style="font-size:0.8rem;color:#666">${fmtDate(d.uploaded_at)}</td>
             <td>${esc(d.reviewer?.full_name || '—')}</td>
             <td style="color:#aaa">${esc(d.notes || '—')}</td>
+            <td>${d.file_path ? `<button class="btn btn-secondary btn-sm" onclick="${d.document_type === 'deposit_screenshot' ? 'viewDepositScreenshot' : 'viewKycFile'}('${d.file_path}')">View</button>` : '—'}</td>
             ${isAdmin ? `<td style="white-space:nowrap">
               <button class="btn btn-secondary btn-sm" onclick="reviewKycDocument('${d.id}','verified','${leadId}','${ctx}')">Verify</button>
               <button class="btn btn-secondary btn-sm" onclick="reviewKycDocument('${d.id}','rejected','${leadId}','${ctx}')">Reject</button>
             </td>` : ''}
           </tr>`).join('')
-        : `<tr><td colspan="${isAdmin ? 6 : 5}" class="empty-state">No documents recorded yet.</td></tr>`}
+        : `<tr><td colspan="${isAdmin ? 7 : 6}" class="empty-state">No documents recorded yet.</td></tr>`}
       </tbody>
     </table>`;
 
@@ -2810,13 +2988,15 @@ function buildKycTab(lead, leadId, ctx, isAdmin, kycRows) {
           <option value="passport">Passport</option>
           <option value="national_id">National ID</option>
           <option value="utility_bill">Utility Bill</option>
+          <option value="deposit_screenshot">Deposit Screenshot</option>
           <option value="other">Other</option>
         </select>
       </div>
     </div>
-    <label>Notes / File Reference</label>
-    <textarea id="det-kyc-notes" rows="2"
-      placeholder="Reference or filename — actual upload arrives in Phase 3"></textarea>
+    <label>File (optional)</label>
+    <input type="file" id="det-kyc-file" />
+    <label>Notes</label>
+    <textarea id="det-kyc-notes" rows="2" placeholder="Optional notes"></textarea>
     <div class="form-actions">
       <button class="btn btn-primary btn-inline" onclick="addKycDocument('${leadId}','${ctx}')">Add Document Record</button>
       <span class="success-msg" id="det-kyc-add-msg"></span>
@@ -2848,12 +3028,33 @@ async function saveKycStatus(leadId, ctx) {
 async function addKycDocument(leadId, ctx) {
   const docType = v('det-kyc-doctype');
   const notes   = v('det-kyc-notes');
+  const file    = document.getElementById('det-kyc-file')?.files?.[0] || null;
   const msgEl   = document.getElementById('det-kyc-add-msg');
-  const { error } = await sb.from('kyc_documents').insert({
-    client_id: leadId, document_type: docType, notes: notes || null,
-  });
+
+  const { data: doc, error } = await sb.from('kyc_documents')
+    .insert({ client_id: leadId, document_type: docType, notes: notes || null })
+    .select().single();
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
+
+  if (file) {
+    const path = `${leadId}/${doc.id}_${file.name}`;
+    const { error: uploadError } = await sb.storage.from('kyc-documents').upload(path, file);
+    if (uploadError) { setMsg(msgEl, `Document saved, but file upload failed: ${uploadError.message}`, 'err'); await openDetail(leadId, ctx); return; }
+    await sb.from('kyc_documents').update({ file_path: path }).eq('id', doc.id);
+  }
   await openDetail(leadId, ctx);
+}
+
+async function viewKycFile(path) {
+  const { data, error } = await sb.storage.from('kyc-documents').createSignedUrl(path, 60);
+  if (error) { alert('Could not open file: ' + error.message); return; }
+  window.open(data.signedUrl, '_blank');
+}
+
+async function viewDepositScreenshot(path) {
+  const { data, error } = await sb.storage.from('deposit-screenshots').createSignedUrl(path, 60);
+  if (error) { alert('Could not open file: ' + error.message); return; }
+  window.open(data.signedUrl, '_blank');
 }
 
 async function reviewKycDocument(docId, decision, leadId, ctx) {
@@ -2946,7 +3147,7 @@ async function loadClientCommunications(leadId) {
 function buildCommsTab(lead, leadId, ctx, commRows) {
   const commsTable = `
     <table>
-      <thead><tr><th>Date</th><th>Type</th><th>Direction</th><th>Subject / Preview</th><th>Logged By</th></tr></thead>
+      <thead><tr><th>Date</th><th>Type</th><th>Direction</th><th>Subject / Preview</th><th>Logged By</th><th>Attachment</th></tr></thead>
       <tbody>
         ${commRows.length ? commRows.map(c => `
           <tr>
@@ -2955,8 +3156,9 @@ function buildCommsTab(lead, leadId, ctx, commRows) {
             <td><span class="badge badge-${c.direction}">${directionLabel(c.direction)}</span></td>
             <td style="color:#aaa">${esc(c.subject || truncate(c.body, 60))}</td>
             <td>${esc(c.logger?.full_name || '—')}</td>
+            <td>${c.attachment_path ? `<button class="btn btn-secondary btn-sm" onclick="viewDepositScreenshot('${c.attachment_path}')">View</button>` : '—'}</td>
           </tr>`).join('')
-        : '<tr><td colspan="5" class="empty-state">No communications logged yet.</td></tr>'}
+        : '<tr><td colspan="6" class="empty-state">No communications logged yet.</td></tr>'}
       </tbody>
     </table>`;
 
@@ -3178,6 +3380,7 @@ function renderLeadsTable(tbodyId, leads, isAdmin) {
     return `<tr>
       <td>
         <strong style="color:#e0e0e0">${esc(l.full_name)}</strong>
+        ${l.needs_human ? `<br><span title="${esc(l.handoff_reason||'Needs human follow-up')}" style="font-size:0.72rem;color:#fff;background:#dc2626;padding:1px 7px;border-radius:8px;display:inline-block;margin-top:2px">⚠ Needs Human</span>` : ''}
         ${l.instrument_type ? `<br><span style="font-size:0.72rem;color:#94a3b8;background:#0f172a;padding:1px 7px;border-radius:8px;display:inline-block;margin-top:2px">${esc(l.instrument_type)}</span>` : ''}
       </td>
       <td>${esc(l.phone||'—')}</td>
@@ -3457,7 +3660,7 @@ function kycStatusLabel(s) {
 }
 function riskLabel(r) { return { low:'Low', medium:'Medium', high:'High' }[r] || r; }
 function docTypeLabel(t) {
-  return { passport:'Passport', national_id:'National ID', utility_bill:'Utility Bill', other:'Other' }[t] || t;
+  return { passport:'Passport', national_id:'National ID', utility_bill:'Utility Bill', deposit_screenshot:'💰 Deposit Screenshot', other:'Other' }[t] || t;
 }
 function commTypeLabel(t) {
   return { email:'✉️ Email', whatsapp:'💬 WhatsApp', call:'📞 Call', sms:'📱 SMS' }[t] || t;
@@ -3559,6 +3762,8 @@ function editAutomationRuleLoad(id) {
   document.getElementById('ar-body').value    = rule.template_body || '';
   const condEl = document.getElementById('ar-condition');
   if (condEl) condEl.value = rule.condition_filter || '';
+  const agentEl = document.getElementById('ar-assign-agent');
+  if (agentEl) agentEl.value = rule.assign_agent_id || '';
   const titleEl = document.getElementById('automation-form-title');
   if (titleEl) titleEl.textContent = 'Edit Rule';
   toggleActionFields();
@@ -3578,11 +3783,15 @@ async function submitAutomationRule() {
   if (!name) { setMsg(msgEl, 'Rule name is required.', 'err'); return; }
   if (channel !== 'assign_agent' && !body) { setMsg(msgEl, 'Message template is required.', 'err'); return; }
 
+  const assignAgentId = v('ar-assign-agent');
+  if (channel === 'assign_agent' && !assignAgentId) { setMsg(msgEl, 'Select an agent to assign.', 'err'); return; }
+
   const payload = {
     name, trigger_event: trigger, channel,
     template_subject:  channel === 'email'        ? (subject   || null) : null,
     template_body:     channel !== 'assign_agent' ? (body      || null) : null,
     condition_filter:  condition || null,
+    assign_agent_id:   channel === 'assign_agent' ? assignAgentId : null,
   };
 
   if (demoMode) {
@@ -4057,8 +4266,8 @@ async function loadDashMetaAds(){
   }catch(e){}
 }
 
-async function loadUpcomingFollowups() {
-  const listEl = document.getElementById('dash-followups-list');
+async function loadUpcomingFollowups(scope = '') {
+  const listEl = document.getElementById(scope + 'dash-followups-list');
   if (!listEl) return;
   const today = new Date().toISOString().slice(0,10);
   const in7   = new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0,10);
@@ -4126,6 +4335,43 @@ const _DEMO_CONVERSATIONS = [
 ];
 let _activeConvId = null;
 let _convRealtimeSub = null;
+let _convRealtimeScope = '';
+let _activeConvFilter = 'all';
+let _lastConvs = []; // cache of the last rendered conversation rows, so switching tabs doesn't re-fetch
+
+// Classifies a lead into one of: new, warm, hot, closed. "unread" is checked
+// separately (is_unread) since it can apply on top of any of these.
+function computeLeadTier(lead) {
+  const status = lead?.status || 'new';
+  if (status === 'qualified' || status === 'converted') return 'closed';
+  const botStage = lead?.bot_stage || 'awaiting_language';
+  const needsHuman = !!lead?.needs_human;
+  const handoffReason = lead?.handoff_reason || '';
+  if (botStage === 'awaiting_deposit_confirm' || (needsHuman && /deposit/i.test(handoffReason))) return 'hot';
+  if (botStage === 'awaiting_language' || botStage === 'awaiting_menu') return 'new';
+  return 'warm';
+}
+
+function tierBadge(tier) {
+  const map = {
+    new:    '<span style="background:#e0e7ff;color:#4338ca;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">NEW</span>',
+    warm:   '<span style="background:#fef3c7;color:#b45309;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">WARM</span>',
+    hot:    '<span style="background:#fee2e2;color:#b91c1c;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">🔥 HOT</span>',
+    closed: '<span style="background:#dcfce7;color:#15803d;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">CLOSED</span>',
+  };
+  return map[tier] || '';
+}
+
+function setConvFilter(tier, scope = '') {
+  _activeConvFilter = tier;
+  document.querySelectorAll(`#${scope}conv-filter-tabs .conv-filter-tab`).forEach(btn => {
+    const active = btn.dataset.tier === tier;
+    btn.style.background = active ? '#1e293b' : '#fff';
+    btn.style.color = active ? '#fff' : '#475569';
+    btn.style.borderColor = active ? '#1e293b' : '#cbd5e1';
+  });
+  filterConversations(scope);
+}
 
 function fmtConvTime(isoStr) {
   if (!isoStr) return '';
@@ -4141,8 +4387,8 @@ function fmtConvTime(isoStr) {
   return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
 }
 
-async function renderConversations() {
-  const listEl = document.getElementById('conv-list');
+async function renderConversations(scope = '') {
+  const listEl = document.getElementById(scope + 'conv-list');
   if (!listEl) return;
 
   if (demoMode) {
@@ -4153,8 +4399,10 @@ async function renderConversations() {
     }
     listEl.innerHTML = convs.map(c => {
       const initials = c.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+      // Demo rows only carry a simple status, so map that to the closest tier for preview purposes.
+      const tier = c.status === 'converted' ? 'closed' : c.status === 'contacted' ? 'warm' : 'new';
       return `
-        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" onclick="openConversation('${c.id}')">
+        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="false" onclick="openConversation('${c.id}','${scope}')">
           <div class="conv-avatar">${initials}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(c.name)}</div>
@@ -4162,19 +4410,22 @@ async function renderConversations() {
           </div>
           <div style="flex-shrink:0;text-align:right">
             <div class="conv-time">${c.lastTime}</div>
-            <div style="margin-top:4px">${statusBadge(c.status)}</div>
+            <div style="margin-top:4px">${tierBadge(tier)}</div>
           </div>
         </div>`;
     }).join('');
+    filterConversations(scope);
     return;
   }
 
-  // Live mode — load from Supabase
+  // Live mode — load from Supabase. RLS scopes this automatically: admins see
+  // every lead's communications, agents only see communications for leads
+  // assigned to them (see "communications: agent select own" policy).
   listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:0.85rem">Loading…</div>';
   try {
     const { data: comms, error } = await sb
       .from('communications')
-      .select('lead_id, body, direction, created_at, leads(full_name, phone, status, is_unread)')
+      .select('lead_id, body, direction, created_at, leads(full_name, phone, status, is_unread, bot_stage, needs_human, handoff_reason)')
       .eq('type', 'whatsapp')
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -4184,50 +4435,57 @@ async function renderConversations() {
     }
     const seen = new Set();
     const convs = comms.filter(c => { if (seen.has(c.lead_id)) return false; seen.add(c.lead_id); return true; });
+    _lastConvs = convs;
     const unreadCount = convs.filter(c => c.leads?.is_unread).length;
     // Update sidebar badge — counts unread conversations, not total conversations
-    const navBadge = document.getElementById('conv-nav-badge');
+    const navBadge = document.getElementById(scope + 'conv-nav-badge');
     if (navBadge) { navBadge.textContent = unreadCount; navBadge.style.display = unreadCount ? 'inline-block' : 'none'; }
     listEl.innerHTML = convs.map(c => {
       const name = c.leads?.full_name || 'Unknown';
       const initials = name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
       const preview = (c.direction === 'inbound' ? '↩ ' : '↪ ') + c.body;
-      const unreadBadge = c.leads?.is_unread
-        ? '<span class="badge" style="background:#dbeafe;color:#1d4ed8;font-weight:700">● Unread</span>'
-        : '';
+      const tier = computeLeadTier(c.leads);
+      const isUnread = !!c.leads?.is_unread;
       return `
-        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" onclick="openConversation('${c.lead_id}')">
+        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" onclick="openConversation('${c.lead_id}','${scope}')">
           <div class="conv-avatar">${initials}</div>
           <div class="conv-info">
-            <div class="conv-name">${esc(name)}</div>
+            <div class="conv-name">${esc(name)}${isUnread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
             <div class="conv-preview">${esc(preview.slice(0,60))}</div>
           </div>
           <div style="flex-shrink:0;text-align:right">
             <div class="conv-time">${fmtConvTime(c.created_at)}</div>
-            <div style="margin-top:4px">${unreadBadge}</div>
+            <div style="margin-top:4px">${tierBadge(tier)}</div>
           </div>
         </div>`;
     }).join('');
+    filterConversations(scope);
   } catch(err) {
     listEl.innerHTML = `<div style="padding:24px;text-align:center;color:#ef4444;font-size:0.85rem">Error: ${esc(err.message)}</div>`;
   }
 }
 
-function filterConversations() {
-  const q = (document.getElementById('conv-search-input')?.value || '').toLowerCase();
-  document.querySelectorAll('#conv-list .conv-item').forEach(el => {
-    el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none';
+function filterConversations(scope = '') {
+  const q = (document.getElementById(scope + 'conv-search-input')?.value || '').toLowerCase();
+  document.querySelectorAll(`#${scope}conv-list .conv-item`).forEach(el => {
+    const matchesText = el.textContent.toLowerCase().includes(q);
+    const matchesTier = _activeConvFilter === 'all'
+      ? true
+      : _activeConvFilter === 'unread'
+        ? el.dataset.unread === 'true'
+        : el.dataset.tier === _activeConvFilter;
+    el.style.display = (matchesText && matchesTier) ? '' : 'none';
   });
 }
 
-async function openConversation(convId) {
+async function openConversation(convId, scope = '') {
   _activeConvId = convId;
 
   if (demoMode) {
     const conv = _DEMO_CONVERSATIONS.find(c => c.id === convId);
     if (!conv) return;
-    renderConversations();
-    const chatPanel = document.getElementById('conv-chat-panel');
+    renderConversations(scope);
+    const chatPanel = document.getElementById(scope + 'conv-chat-panel');
     if (!chatPanel) return;
     const initials = conv.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
     chatPanel.innerHTML = `
@@ -4247,8 +4505,8 @@ async function openConversation(convId) {
       </div>
       <div class="conv-input-bar">
         <input type="text" id="conv-msg-input" placeholder="Type a message…"
-          onkeydown="if(event.key==='Enter') sendConvMessage('${convId}')" />
-        <button class="btn btn-primary btn-sm" id="conv-send-btn" onclick="sendConvMessage('${convId}')">Send</button>
+          onkeydown="if(event.key==='Enter') sendConvMessage('${convId}','${scope}')" />
+        <button class="btn btn-primary btn-sm" id="conv-send-btn" onclick="sendConvMessage('${convId}','${scope}')">Send</button>
       </div>`;
     const msgArea = document.getElementById('conv-msgs-' + convId);
     if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
@@ -4256,15 +4514,15 @@ async function openConversation(convId) {
   }
 
   // Live mode
-  const chatPanel = document.getElementById('conv-chat-panel');
+  const chatPanel = document.getElementById(scope + 'conv-chat-panel');
   if (!chatPanel) return;
   chatPanel.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8">Loading conversation…</div>';
-  renderConversations(); // update sidebar active state
+  renderConversations(scope); // update sidebar active state
 
   try {
     const [leadRes, msgsRes] = await Promise.all([
       sb.from('leads').select('full_name, phone, status, is_unread').eq('id', convId).maybeSingle(),
-      sb.from('communications').select('body, direction, created_at')
+      sb.from('communications').select('body, direction, created_at, attachment_path')
         .eq('lead_id', convId).eq('type', 'whatsapp').order('created_at', { ascending: true })
     ]);
     if (leadRes.error) throw leadRes.error;
@@ -4281,30 +4539,50 @@ async function openConversation(convId) {
       </div>
       <div class="conv-messages" id="conv-msgs-${convId}">
         ${messages.length
-          ? messages.map(m => `
+          ? messages.map((m, i) => `
               <div class="msg-wrapper${m.direction === 'outbound' ? ' outgoing' : ''}">
-                <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}">${esc(m.body)}</div>
+                <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}">
+                  ${esc(m.body)}
+                  ${m.attachment_path ? `<div class="msg-attachment" id="conv-att-${convId}-${i}" data-path="${esc(m.attachment_path)}" style="margin-top:8px;cursor:pointer;color:inherit">🖼 Loading image…</div>` : ''}
+                </div>
                 <div class="msg-time${m.direction === 'outbound' ? ' outgoing' : ''}">${fmtConvTime(m.created_at)}</div>
               </div>`).join('')
           : '<div style="text-align:center;color:#64748b;font-size:0.85rem;padding:32px">No messages yet.</div>'}
       </div>
       <div class="conv-input-bar">
         <input type="text" id="conv-msg-input" placeholder="Type a WhatsApp message…"
-          onkeydown="if(event.key==='Enter') sendConvMessage('${convId}')" />
-        <button class="btn btn-primary btn-sm" id="conv-send-btn" onclick="sendConvMessage('${convId}')">Send ↗</button>
+          onkeydown="if(event.key==='Enter') sendConvMessage('${convId}','${scope}')" />
+        <button class="btn btn-primary btn-sm" id="conv-send-btn" onclick="sendConvMessage('${convId}','${scope}')">Send ↗</button>
       </div>`;
     const msgArea = document.getElementById('conv-msgs-' + convId);
     if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
+    loadConvAttachmentThumbs(convId, messages);
     if (lead?.is_unread) {
       await sb.from('leads').update({ is_unread: false }).eq('id', convId);
-      renderConversations();
+      renderConversations(scope);
     }
   } catch(err) {
     chatPanel.innerHTML = `<div style="padding:24px;color:#ef4444">Error loading conversation: ${esc(err.message)}</div>`;
   }
 }
 
-async function sendConvMessage(convId) {
+// Screenshots the bot receives are logged with communications.attachment_path
+// (deposit-screenshots bucket) but that bucket is private, so each message
+// bubble gets a real inline thumbnail via a short-lived signed URL instead
+// of embedding the (inaccessible) raw path.
+async function loadConvAttachmentThumbs(convId, messages) {
+  await Promise.all(messages.map(async (m, i) => {
+    if (!m.attachment_path) return;
+    const el = document.getElementById(`conv-att-${convId}-${i}`);
+    if (!el) return;
+    const { data, error } = await sb.storage.from('deposit-screenshots').createSignedUrl(m.attachment_path, 300);
+    if (error || !data) { el.textContent = '🖼 Screenshot (failed to load — tap to retry)'; el.onclick = () => loadConvAttachmentThumbs(convId, [m].map((mm,ii)=>mm)); return; }
+    el.innerHTML = `<img src="${esc(data.signedUrl)}" alt="Screenshot" style="max-width:220px;max-height:220px;border-radius:8px;display:block" />`;
+    el.onclick = () => window.open(data.signedUrl, '_blank');
+  }));
+}
+
+async function sendConvMessage(convId, scope = '') {
   const input = document.getElementById('conv-msg-input');
   const text = (input?.value || '').trim();
   if (!text) return;
@@ -4322,7 +4600,7 @@ async function sendConvMessage(convId) {
       msgArea.scrollTop = msgArea.scrollHeight;
     }
     if (input) input.value = '';
-    renderConversations();
+    renderConversations(scope);
     return;
   }
 
@@ -4374,7 +4652,7 @@ async function sendConvMessage(convId) {
 
     if (input) input.value = '';
     showToast('Message sent ✓');
-    openConversation(convId); // refresh thread
+    openConversation(convId, scope); // refresh thread
   } catch(err) {
     showToast(`Send failed: ${err.message}`, 'err');
   } finally {
@@ -4383,16 +4661,18 @@ async function sendConvMessage(convId) {
   }
 }
 
-function startConvRealtime() {
+function startConvRealtime(scope = '') {
   if (_convRealtimeSub || demoMode) return;
+  _convRealtimeScope = scope;
   _convRealtimeSub = sb
     .channel('conv-live')
     .on('postgres_changes', {
       event: 'INSERT', schema: 'public', table: 'communications',
       filter: 'type=eq.whatsapp'
     }, payload => {
-      // Refresh sidebar list
-      renderConversations();
+      // Refresh sidebar list. RLS on the underlying subscription already
+      // restricts which INSERTs an agent receives to their own leads.
+      renderConversations(_convRealtimeScope);
       // If this conversation is currently open, append message live
       if (_activeConvId && _activeConvId === payload.new.lead_id) {
         const msgArea = document.getElementById('conv-msgs-' + _activeConvId);
@@ -4508,20 +4788,33 @@ function exportPayrollCSV() {
 // ── COMMUNICATION LOG (admin only) ────────────────────────────
 let _cachedCommLogs   = [];
 let _commLogTypeFilter = '';
+let _commLogStatusFilter = '';
 
-async function loadCommLog() {
+function filterCommLogStatus(btn, status, scope = '') {
+  _commLogStatusFilter = status;
+  document.querySelectorAll(`#${scope}cl-status-btns .cl-status-btn`).forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCommLog(scope);
+}
+
+async function loadCommLog(scope = '') {
   if (demoMode) {
-    _cachedCommLogs = _DEMO_COMM_LOGS.slice();
-    populateClLeadFilter();
-    renderCommLog();
+    _cachedCommLogs = _DEMO_COMM_LOGS.map(r => ({
+      ...r,
+      lead_status: (_DEMO_LEADS.find(l => l.id === r.lead_id) || {}).status || '',
+    }));
+    populateClLeadFilter(scope);
+    renderCommLog(scope);
     return;
   }
+  // Live mode — RLS scopes this automatically: admins see every lead's logs,
+  // agents only see logs for leads assigned to them (comm_logs_agent_select_own).
   const [manualRes, autoRes] = await Promise.all([
     sb.from('communication_logs')
-      .select('*, lead:leads!lead_id(full_name), creator:profiles!created_by(full_name)')
+      .select('*, lead:leads!lead_id(full_name, status), creator:profiles!created_by(full_name)')
       .order('created_at', { ascending: false }),
     sb.from('communications')
-      .select('id, lead_id, type, body, direction, created_at, leads(full_name)')
+      .select('id, lead_id, type, body, direction, created_at, leads(full_name, status)')
       .order('created_at', { ascending: false }),
   ]);
   if (manualRes.error) console.error('loadCommLog (manual):', manualRes.error);
@@ -4529,6 +4822,7 @@ async function loadCommLog() {
   const manual = (manualRes.data || []).map(r => ({
     ...r,
     lead_name:       r.lead?.full_name    || '—',
+    lead_status:     r.lead?.status       || '',
     created_by_name: r.creator?.full_name || '—',
   }));
   const auto = (autoRes.data || []).map(r => ({
@@ -4538,18 +4832,19 @@ async function loadCommLog() {
     message:         (r.direction === 'inbound' ? '↩ ' : '↪ ') + (r.body || ''),
     created_at:      r.created_at,
     lead_name:       r.leads?.full_name || '—',
+    lead_status:     r.leads?.status    || '',
     created_by_name: r.direction === 'inbound' ? (r.leads?.full_name || 'Lead') : 'Bot',
   }));
   _cachedCommLogs = manual.concat(auto).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  populateClLeadFilter();
-  renderCommLog();
+  populateClLeadFilter(scope);
+  renderCommLog(scope);
 }
 
-function populateClLeadFilter() {
+function populateClLeadFilter(scope = '') {
   const leads = demoMode ? _DEMO_LEADS : cachedLeads;
 
   // Main filter dropdown
-  const filterSel = document.getElementById('cl-lead-filter');
+  const filterSel = document.getElementById(scope + 'cl-lead-filter');
   if (filterSel) {
     const prev = filterSel.value;
     filterSel.innerHTML = '<option value="">All Contacts</option>';
@@ -4562,7 +4857,7 @@ function populateClLeadFilter() {
   }
 
   // Add-note lead selector
-  const noteSel = document.getElementById('cl-note-lead');
+  const noteSel = document.getElementById(scope + 'cl-note-lead');
   if (noteSel) {
     noteSel.innerHTML = '<option value="">— Select Contact —</option>';
     leads.forEach(l => {
@@ -4573,21 +4868,22 @@ function populateClLeadFilter() {
   }
 }
 
-function filterCommLog(btn, type) {
+function filterCommLog(btn, type, scope = '') {
   _commLogTypeFilter = type;
-  document.querySelectorAll('.cl-type-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll(`#${scope}cl-type-btns .cl-type-btn`).forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  renderCommLog();
+  renderCommLog(scope);
 }
 
-function renderCommLog() {
-  const el = document.getElementById('cl-timeline');
+function renderCommLog(scope = '') {
+  const el = document.getElementById(scope + 'cl-timeline');
   if (!el) return;
 
-  const leadFilter = document.getElementById('cl-lead-filter')?.value || '';
+  const leadFilter = document.getElementById(scope + 'cl-lead-filter')?.value || '';
   let logs = _cachedCommLogs;
-  if (leadFilter)           logs = logs.filter(l => l.lead_id === leadFilter);
-  if (_commLogTypeFilter)   logs = logs.filter(l => l.type   === _commLogTypeFilter);
+  if (leadFilter)           logs = logs.filter(l => l.lead_id     === leadFilter);
+  if (_commLogTypeFilter)   logs = logs.filter(l => l.type        === _commLogTypeFilter);
+  if (_commLogStatusFilter) logs = logs.filter(l => l.lead_status === _commLogStatusFilter);
 
   if (!logs.length) {
     el.innerHTML = `<div class="card" style="text-align:center;color:#94a3b8;padding:40px">
@@ -4620,19 +4916,19 @@ function renderCommLog() {
     </div>`).join('');
 }
 
-function showAddNoteForm() {
-  const el = document.getElementById('cl-note-form');
+function showAddNoteForm(scope = '') {
+  const el = document.getElementById(scope + 'cl-note-form');
   if (!el) return;
   const isVisible = el.style.display !== 'none';
   el.style.display = isVisible ? 'none' : 'block';
-  if (!isVisible) populateClLeadFilter();
+  if (!isVisible) populateClLeadFilter(scope);
 }
 
-async function addCommNote() {
-  const leadId = v('cl-note-lead');
-  const type   = v('cl-note-type');
-  const msg    = v('cl-note-message');
-  const msgEl  = document.getElementById('cl-note-msg');
+async function addCommNote(scope = '') {
+  const leadId = v(scope + 'cl-note-lead');
+  const type   = v(scope + 'cl-note-type');
+  const msg    = v(scope + 'cl-note-message');
+  const msgEl  = document.getElementById(scope + 'cl-note-msg');
 
   if (!leadId || !msg) { setMsg(msgEl, 'Select a contact and enter a message.', 'err'); return; }
 
@@ -4647,10 +4943,10 @@ async function addCommNote() {
       created_at:      new Date().toISOString(),
     });
     _cachedCommLogs = _DEMO_COMM_LOGS.slice();
-    document.getElementById('cl-note-message').value = '';
-    document.getElementById('cl-note-form').style.display = 'none';
+    document.getElementById(scope + 'cl-note-message').value = '';
+    document.getElementById(scope + 'cl-note-form').style.display = 'none';
     setMsg(msgEl, 'Note logged. (demo)', 'ok');
-    renderCommLog();
+    renderCommLog(scope);
     return;
   }
 
@@ -4658,10 +4954,10 @@ async function addCommNote() {
     lead_id: leadId, type, message: msg, created_by: currentUser.id,
   });
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
-  document.getElementById('cl-note-message').value = '';
-  document.getElementById('cl-note-form').style.display = 'none';
+  document.getElementById(scope + 'cl-note-message').value = '';
+  document.getElementById(scope + 'cl-note-form').style.display = 'none';
   setMsg(msgEl, 'Note logged.', 'ok');
-  await loadCommLog();
+  await loadCommLog(scope);
 }
 
 // Enter key on login form

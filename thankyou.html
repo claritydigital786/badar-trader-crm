@@ -29,8 +29,21 @@
   </div>
 <script>
 (function () {
-  var HOOK = 'https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/conversion-hook';
   var q = new URLSearchParams(location.search);
+
+  // src=form: arrived from signals-form.html / course-form.html, which
+  // already created the lead + kyc_documents row server-side (in
+  // submit-lead-form). Do NOT call conversion-hook here — that endpoint
+  // marks a lead "converted" and is only for the deposit-verification
+  // flow (join.html), not first-contact form submissions still pending
+  // review.
+  if (q.get('src') === 'form') {
+    document.getElementById('detail').textContent = '';
+    document.getElementById('status').textContent = 'Your deposit screenshot is pending review by our team.';
+    return;
+  }
+
+  var HOOK = 'https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/conversion-hook';
   var leadId   = q.get('lead_id') || '';
   var phone    = q.get('phone') || '';
   var platform = q.get('platform') || 'other';
