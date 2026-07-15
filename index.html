@@ -532,12 +532,15 @@
 
     /* ── Conversations ── */
     .conversations-shell {
-      display: flex; height: calc(100vh - 160px);
+      display: flex; height: calc(100vh - 160px); position: relative;
       border-radius: 10px; overflow: hidden;
       background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.1);
     }
     .conv-list-panel { width: 280px; border-right: 1px solid #f1f5f9; display: flex; flex-direction: column; flex-shrink: 0; }
-    .conv-search { padding: 12px; border-bottom: 1px solid #f1f5f9; }
+    .conv-search { padding: 12px; border-bottom: 1px solid #f1f5f9; display: flex; gap: 8px; align-items: center; }
+    .conv-search input { flex: 1; min-width: 0; }
+    .conv-show-list-btn { display: none; }
+    .conversations-shell.list-collapsed .conv-chat-header { padding-left: 56px; }
     .conv-search input { width:100%; background:#f8fafc; border:1px solid #e2e8f0; border-radius:20px; padding:8px 14px; font-size:0.85rem; outline:none; color:#0f172a; }
     .conv-search input:focus { border-color:#0ea5e9; }
     .conv-list { flex:1; overflow-y:auto; }
@@ -557,7 +560,7 @@
     .msg-wrapper { display:flex; flex-direction:column; }
     .msg-wrapper.outgoing { align-items:flex-end; }
     .msg-bubble { max-width:70%; padding:10px 14px; border-radius:14px; font-size:0.875rem; line-height:1.5; word-break:break-word; white-space:pre-wrap; }
-    .conv-msg-textarea { width:100%; resize:none; overflow-y:auto; max-height:120px; padding:10px 14px; border-radius:18px; border:1px solid #cbd5e1; font-family:inherit; font-size:0.875rem; line-height:1.4; }
+    .conv-msg-textarea { width:100%; resize:none; overflow-y:auto; min-height:64px; max-height:160px; padding:12px 14px; border-radius:14px; border:1px solid #cbd5e1; font-family:inherit; font-size:0.875rem; line-height:1.4; }
     .msg-bubble.incoming { background:#fff; color:#334155; border:1px solid #e2e8f0; border-bottom-left-radius:4px; }
     .msg-bubble.outgoing { background:#0ea5e9; color:#fff; border-bottom-right-radius:4px; }
     .msg-time { font-size:0.7rem; color:#94a3b8; margin-top:4px; padding:0 4px; }
@@ -914,10 +917,11 @@
   <!-- Conversations -->
   <div id="admin-tab-conversations" class="tab-content">
     <h3>Conversations</h3>
-    <div class="conversations-shell">
+    <div class="conversations-shell" id="conv-shell">
       <!-- Left: Lead List -->
-      <div class="conv-list-panel">
+      <div class="conv-list-panel" id="conv-list-panel">
         <div class="conv-search">
+          <button type="button" title="Hide the lead list" onclick="toggleConvListPanel('')" style="flex-shrink:0;border:1px solid #cbd5e1;background:#fff;border-radius:8px;width:34px;height:34px;cursor:pointer;color:#475569;font-size:0.9rem">☰</button>
           <input type="text" id="conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations()" />
         </div>
         <div class="conv-filter-tabs" id="conv-filter-tabs" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid #e2e8f0">
@@ -930,6 +934,7 @@
         </div>
         <div class="conv-list" id="conv-list"></div>
       </div>
+      <button type="button" class="conv-show-list-btn" title="Show the lead list" onclick="toggleConvListPanel('')" style="position:absolute;top:14px;left:14px;z-index:5;border:1px solid #cbd5e1;background:#fff;border-radius:8px;width:34px;height:34px;cursor:pointer;color:#475569;font-size:0.9rem;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.12)">☰</button>
       <!-- Right: Chat View -->
       <div class="conv-chat-panel" id="conv-chat-panel">
         <div class="conv-empty-chat">
@@ -1826,10 +1831,11 @@
       <div id="agent-quick-links-body" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>
     </div>
 
-    <div class="conversations-shell">
+    <div class="conversations-shell" id="agent-conv-shell">
       <!-- Left: Lead List -->
-      <div class="conv-list-panel">
+      <div class="conv-list-panel" id="agent-conv-list-panel">
         <div class="conv-search">
+          <button type="button" title="Hide the lead list" onclick="toggleConvListPanel('agent-')" style="flex-shrink:0;border:1px solid #cbd5e1;background:#fff;border-radius:8px;width:34px;height:34px;cursor:pointer;color:#475569;font-size:0.9rem">☰</button>
           <input type="text" id="agent-conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations('agent-')" />
         </div>
         <div class="conv-filter-tabs" id="agent-conv-filter-tabs" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid #e2e8f0">
@@ -1842,6 +1848,7 @@
         </div>
         <div class="conv-list" id="agent-conv-list"></div>
       </div>
+      <button type="button" class="conv-show-list-btn" title="Show the lead list" onclick="toggleConvListPanel('agent-')" style="position:absolute;top:12px;left:12px;z-index:5;border:1px solid #cbd5e1;background:#fff;border-radius:8px;width:34px;height:34px;cursor:pointer;color:#475569;font-size:0.9rem;align-items:center;justify-content:center">☰</button>
       <!-- Right: Chat View -->
       <div class="conv-chat-panel" id="agent-conv-chat-panel">
         <div class="conv-empty-chat">
@@ -4610,6 +4617,20 @@ async function loadConvAttachmentThumbs(convId, messages) {
   }));
 }
 
+function toggleConvListPanel(scope) {
+  const panel = document.getElementById(scope + 'conv-list-panel');
+  const shell = document.getElementById(scope === 'agent-' ? 'agent-conv-shell' : 'conv-shell');
+  const showBtn = shell?.querySelector('.conv-show-list-btn');
+  if (!panel) return;
+  const nowHiding = panel.style.display !== 'none';
+  panel.style.display = nowHiding ? 'none' : '';
+  if (showBtn) showBtn.style.display = nowHiding ? 'flex' : 'none';
+  // Class-based (not inline padding set once) so the reserved space for the
+  // floating "show list" button still applies correctly even when a new
+  // conversation's header gets injected later while the panel is collapsed.
+  if (shell) shell.classList.toggle('list-collapsed', nowHiding);
+}
+
 function setReplyTarget(waMessageId, preview) {
   _replyTarget = { waMessageId, preview };
   const strip = document.getElementById('conv-reply-preview');
@@ -4627,7 +4648,7 @@ function clearReplyTarget() {
 
 function autoGrowConvInput(el) {
   el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  el.style.height = Math.min(Math.max(el.scrollHeight, 64), 160) + 'px';
 }
 
 async function sendConvMessage(convId, scope = '') {
