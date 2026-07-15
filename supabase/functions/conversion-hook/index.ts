@@ -4,15 +4,7 @@
 // checking the broker IB portal. Stores platform, amount, broker account ref, and
 // stamps revenue (leads.account_balance, summed for Dashboard Total Revenue).
 //
-// Query params: lead_id (UUID) OR phone ; name ; platform ; amount ; account (broker acct ref)
-//
-// If neither lead_id nor a matching phone is found, a new lead is created instead
-// of failing — this used to silently 404, and join.html silently swallowed that
-// error and redirected to thankyou.html regardless, so anyone reaching this form
-// without an existing lead (e.g. a direct link, not via the WhatsApp bot) had
-// their submission dropped with no record anywhere. A missing lead_id specifically
-// (as opposed to a missing phone match) still 404s — that means a stale/wrong ID
-// was passed, which is a different, real error worth surfacing.
+// Query params: lead_id (UUID) OR phone ; platform ; amount ; account (broker acct ref)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -27,7 +19,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const q = new URL(req.url).searchParams;
     const leadId = (q.get("lead_id") || "").trim();
-    const name = (q.get("name") || "").trim();
     const phone = norm(q.get("phone") || "");
     let platform = (q.get("platform") || "other").trim().toLowerCase();
     if (!PLATFORMS.includes(platform)) platform = "other";
@@ -38,27 +29,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const sb = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
     let sel = sb.from("leads").select("id").limit(1);
     sel = leadId ? sel.eq("id", leadId) : sel.eq("phone", phone);
-    const { data: found, error: le } = await sel.maybeSingle();
+    const { data: lead, error: le } = await sel.maybeSingle();
     if (le) throw new Error(le.message);
-
-    let leadRowId: string;
-    if (found) {
-      leadRowId = found.id;
-    } else if (leadId) {
-      // A specific lead_id was passed but doesn't exist — that's a real error
-      // (stale link / wrong ID), not a "first contact" case.
-      return new Response(JSON.stringify({ ok: false, error: "lead not found" }), { status: 404, headers: CORS });
-    } else {
-      // No lead_id given and no existing lead matches this phone — create one
-      // instead of dropping the submission.
-      const { data: created, error: ce } = await sb
-        .from("leads")
-        .insert({ full_name: name || "Unknown", phone, source: "website", status: "new" })
-        .select("id")
-        .single();
-      if (ce) throw new Error(`lead creation failed: ${ce.message}`);
-      leadRowId = created.id;
-    }
+    if (!lead) return new Response(JSON.stringify({ ok: false, error: "lead not found" }), { status: 404, headers: CORS });
 
     const nowIso = new Date().toISOString();
     const { error: ue } = await sb.from("leads").update({
@@ -70,22 +43,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       account_balance: amount,
       converted_at: nowIso,
       updated_at: nowIso,
-    }).eq("id", leadRowId);
+    }).eq("id", lead.id);
     if (ue) throw new Error(ue.message);
 
-    // communication_logs, not communications — the latter's type check only
-    // allows email/whatsapp/call/sms, not 'note'. This insert was silently
-    // failing on every single call before (constraint violation swallowed by
-    // the old .then(()=>{},()=>{}) — confirmed by reproducing it directly).
-    const { error: logErr } = await sb.from("communication_logs").insert({
-      lead_id: leadRowId,
-      type: "note",
-      message: `Deposit confirmation submitted — ${platform} $${amount}${acct ? ", acct " + acct : ""} (pending IB-portal verification)`,
-      created_by: null,
-    });
-    if (logErr) console.error("communication_logs insert failed:", logErr.message);
+    await sb.from("communications").insert({ lead_id: lead.id, type: "note", direction: "inbound", body: `Deposit confirmation submitted — ${platform} $${amount}${acct ? ", acct " + acct : ""} (pending IB-portal verification)`, created_at: nowIso }).then(() => {}, () => {});
 
-    return new Response(JSON.stringify({ ok: true, lead_id: leadRowId, platform, amount, verified: false }), { headers: CORS });
+    return new Response(JSON.stringify({ ok: true, lead_id: lead.id, platform, amount, verified: false }), { headers: CORS });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500, headers: CORS });
   }
