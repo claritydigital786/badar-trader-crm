@@ -20,6 +20,14 @@ const GRAPH_VERSION = "v21.0";
 // bot flow resumed (explicit agent requests are exempt — see runBotStep).
 const HANDOFF_STALE_HOURS = 2;
 
+// A DECLINED lead who comes back after this long is treated as a fresh
+// opportunity: the flow restarts from the greeting instead of dead-ending
+// every message in the "a team member will follow up" acknowledgement
+// (which promised a follow-up nobody was making — Badar, 2026-07-14).
+// Within the window the polite acknowledgement stands, so someone who just
+// said "not right now" isn't immediately re-pitched.
+const DECLINED_RESTART_HOURS = 24;
+
 let cachedWaToken: string | null = null;
 let cachedWaPhoneId: string | null = null;
 
@@ -43,7 +51,9 @@ const LINKS = {
   exnessCode: "eatgh2cl7y",
   doprime: "https://my.dooprime.com/links/go/45031",
   doprimeCode: "45031",
-  form: "https://forms.gle/ivBDDYQSLPvKHzXM9",
+  // Was a Google Form placeholder that returns 401 Unauthorized (confirmed
+  // live) — this is the real, working, hosted form (Badar, 2026-07-14).
+  form: "https://crm.badartrader.com/join.html",
 };
 
 type Lang = "en" | "ur";
@@ -52,18 +62,27 @@ const HELLO_REPLY = "Hello! 👋";
 const WALAIKUM_REPLY = "Walaikum Assalam! 👋";
 const CONFUSED_REPLY = "This is Team Badar Tanvir. We are ever ready to serve for our brand's purpose. We're really sorry, but we couldn't quite understand your message. 🙏";
 
+// Finalized with Badar 2026-07-14: $250 course, 1 month, free once $500+ is
+// deposited with Exness or Do Prime — new OR existing account/deposit both
+// count. Leads with the Signals Group per Badar's stated campaign priority
+// (subscriber growth), course is the added incentive. The real, hosted
+// verification form (LINKS.form) replaces the old broken Google Form.
+// Switching an existing account to Badar's IB code is a real thing agents
+// help with manually — not a self-service bot flow yet — so that case routes
+// to "Talk to an Agent" instead of promising steps the bot can't actually walk
+// someone through.
 function freeSignalsText(lang: Lang): string {
   if (lang === "ur") {
-    return `Koi masla nahi! Aap phir bhi hamara Free Premium Signals Group By Badar Tanveer FREE join kar sakte hain:\n\n1️⃣ Hamare link se apna account banayein (zaroori)\n2️⃣ $500 deposit karein (ye aapka trading capital hai, fee nahi)\n3️⃣ Deposit ka screenshot yahan bhejein\n4️⃣ Verification form submit karein: ${LINKS.form}\n\nAap 48 ghanton mein add ho jayenge ✅`;
+    return `🎓 Badar ke Premium Signals Group mein FREE join karein, aur hamara Forex Trading Mastery Course ($250 ki value) bhi bilkul free unlock karein.\n\nYe kaise kaam karta hai:\n\n1️⃣ Apne Exness ya Do Prime trading account mein $500 deposit karein. Ye aapka apna paisa hai, aapke apne account mein — hamein koi payment nahi.\n2️⃣ Pehle se $500 ya zyada deposit hai Exness ya Do Prime mein? Aur bhi behtar, wo bhi chalega. $500 se kam hai? Bas $500 tak top up kar lein.\n3️⃣ Apne account ka screenshot bhejein jisme Account ID aur deposit amount saaf nazar aa raha ho.\n4️⃣ Hum verify karenge aur aap Premium Signals Group mein add ho jayenge aur poora Forex Trading Mastery Course bhi unlock ho jayega, dono bilkul free.\n\nExness ya Do Prime par naye hain? Hamare link se account banayein:\n${LINKS.exness} (Exness)\n${LINKS.doprime} (Do Prime)\n\nPehle se kisi aur partner ke tehet account hai? "Agent se Baat Karein" chunein, hum switch karne mein madad karenge.\n\nVerification form: ${LINKS.form}\n\nAap apna paisa kabhi bhi apne broker account se withdraw kar sakte hain. Hum kabhi paisa nahi lete ✅`;
   }
-  return `No problem at all! You can still join our Free Premium Signals Group By Badar Tanveer for FREE:\n\n1️⃣ Create your account through our link (mandatory)\n2️⃣ Deposit $500 (this is YOUR trading capital, not a fee)\n3️⃣ Send your deposit screenshot here\n4️⃣ Submit the verification form: ${LINKS.form}\n\nYou'll be added within 48 hours ✅`;
+  return `🎓 Join Badar's Premium Signals Group, FREE, plus unlock our Forex Trading Mastery Course (worth $250) at no cost.\n\nHere's how it works:\n\n1️⃣ Deposit $500 in your own Exness or Do Prime trading account. This is your money, in your own account — not a payment to us.\n2️⃣ Already have $500 or more deposited with Exness or Do Prime? Even better, that counts too. Have less than $500 already deposited? Just top it up to $500 and you're good to go.\n3️⃣ Send us a screenshot of your account showing your Account ID and the deposit amount clearly visible.\n4️⃣ We verify it and you're added to the Premium Signals Group and unlock the full Forex Trading Mastery Course, both completely free.\n\nNew to Exness or Do Prime? Create your account through our link:\n${LINKS.exness} (Exness)\n${LINKS.doprime} (Do Prime)\n\nAlready have an account under a different partner? Choose "Talk to an Agent" and we'll help you switch it over.\n\nVerification form: ${LINKS.form}\n\nYou can withdraw your funds anytime, directly from your own broker account. We never collect or hold your money ✅`;
 }
 
 function faqText(lang: Lang): string {
   if (lang === "ur") {
-    return `❓ Mukhtasar FAQs:\n\n• Kya $250 course waqai free hai? Haan — hamare partner broker ke saath $500 deposit karein, course khud unlock ho jayega.\n• Kya mera deposit mahfooz hai? Haan, ye aapke apne broker account mein rehta hai; Badar Trader kabhi khud payment nahi leta.\n• Withdraw kaise karoon? Seedha apne broker account se, kabhi bhi — hamari taraf se koi rok nahi.\n• Aur madad chahiye? "Talk to an Agent" chunein, hamari team se baat karein.`;
+    return `❓ Mukhtasar FAQs:\n\n• Kya $250 course waqai free hai? Haan — hamare partner broker ke saath $500 deposit karein, course khud unlock ho jayega.\n• Kya main $500 se kam deposit kar sakta hoon? Minimum $500 hai. Agar pehle se kam hai to top up kar lein — upar ki koi limit nahi hai.\n• Kya mera deposit mahfooz hai? Haan, ye aapke apne broker account mein rehta hai; Badar Trader kabhi khud payment nahi leta.\n• Withdraw kaise karoon? Seedha apne broker account se, kabhi bhi — hamari taraf se koi rok nahi.\n• Aur madad chahiye? "Talk to an Agent" chunein, hamari team se baat karein.`;
   }
-  return `❓ Quick FAQs:\n\n• Is the $250 course really free? Yes — deposit $500 with our partner broker and it unlocks automatically.\n• Is my deposit safe? Yes, it stays in your own broker account; Badar Trader never collects payments directly.\n• How do I withdraw? Directly from your broker account, anytime — no restrictions from us.\n• Need more help? Choose "Talk to an Agent" to reach our team.`;
+  return `❓ Quick FAQs:\n\n• Is the $250 course really free? Yes — deposit $500 with our partner broker and it unlocks automatically.\n• Can I deposit less than $500? The minimum is $500. If you already have less deposited, just top it up — there's no upper limit either.\n• Is my deposit safe? Yes, it stays in your own broker account; Badar Trader never collects payments directly.\n• How do I withdraw? Directly from your broker account, anytime — no restrictions from us.\n• Need more help? Choose "Talk to an Agent" to reach our team.`;
 }
 
 function makeSupabase(): SupabaseClient {
@@ -180,7 +199,7 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         const { lead, wasCreated } = await upsertLead(sb, senderPhone, contactName, timestamp);
         if (!lead) continue;
 
-        await insertCommunication(sb, lead.id, "inbound", input.text, timestamp);
+        await insertCommunication(sb, lead.id, "inbound", input.text, timestamp, undefined, message.id);
 
         await runBotStep(sb, lead, wasCreated, input);
       }
@@ -305,6 +324,7 @@ async function insertCommunication(
   body: string,
   timestamp: string,
   attachmentPath?: string,
+  waMessageId?: string,
 ): Promise<void> {
   const { error } = await sb.from("communications").insert({
     lead_id:         leadId,
@@ -313,6 +333,7 @@ async function insertCommunication(
     body:            body,
     created_at:      timestamp,
     attachment_path: attachmentPath ?? null,
+    wa_message_id:   waMessageId ?? null,
   });
 
   if (error) {
@@ -346,6 +367,7 @@ async function handleImageMessage(
     stored.ok ? "[deposit screenshot received]" : `[image received — FAILED to store: ${stored.error}]`,
     timestamp,
     stored.ok ? stored.path : undefined,
+    message.id,
   );
 
   const ackResult = await sendText(
@@ -563,6 +585,13 @@ async function runBotStep(
     case "awaiting_deposit_confirm": {
       const yesNo = matchYesNo(input);
       if (!yesNo) {
+        // A question about depositing less than $500 skips the re-prompt —
+        // that's a real objection needing a person's answer, not ambiguous
+        // input worth re-asking Yes/No over.
+        if (asksAboutLowerDeposit(input)) {
+          await escalate(sb, lead, to, "asked about depositing less than $500");
+          return;
+        }
         // Give one clarifying re-prompt before handing off, so a single question
         // at the deposit step doesn't instantly escalate a hot lead.
         await handleUnmatched(sb, lead, to, input, 2, "deposit confirmation", () =>
@@ -610,8 +639,36 @@ async function runBotStep(
     }
 
     default: {
-      // qualified / declined — conversation already resolved. Acknowledge and let
-      // an agent follow up; do NOT flag for handoff (avoids silent leads).
+      // qualified / declined — conversation already resolved.
+
+      // Declined leads returning after a day restart from scratch (greeting +
+      // language picker), same shape as the wasCreated flow. Qualified leads
+      // are exempt: they already hold concrete next steps (deposit + send the
+      // screenshot here) and restarting would wipe that context.
+      const hoursSinceTouch = (Date.now() - lastTouch) / 3600000;
+      if (lead.bot_stage === "declined" && hoursSinceTouch >= DECLINED_RESTART_HOURS) {
+        await sb.from("leads").update({ bot_stage: "awaiting_language", retry_count: 0 }).eq("id", lead.id);
+        const greeting = matchGreeting(input) ?? "hello";
+        const r1 = await sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY);
+        const r2 = await sendLanguageCard(to);
+        const ok = r1.ok && r2.ok;
+        const errorDetail = [!r1.ok ? r1.error : null, !r2.ok ? r2.error : null].filter(Boolean).join("; ");
+        await logOutbound(sb, lead.id, ok
+          ? "[declined lead returned after 24h+ — flow restarted: greeting + language picker sent]"
+          : `[SEND FAILED: 24h restart greeting — ${errorDetail}]`);
+        return;
+      }
+
+      // A question about depositing less than $500 needs a person, not a
+      // generic ack — escalate with a specific reason so the agent knows
+      // exactly what to answer instead of reconstructing context later.
+      if (asksAboutLowerDeposit(input)) {
+        await escalate(sb, lead, to, "asked about depositing less than $500");
+        return;
+      }
+
+      // Otherwise acknowledge and let an agent follow up; do NOT flag for
+      // handoff (avoids silent leads).
       const greeting = matchGreeting(input);
       const prefix = greeting ? `${greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY} ` : "";
       const r = await sendText(to, `${prefix}Thanks for the message! 🙏 A team member will follow up with you shortly.`);
@@ -760,6 +817,22 @@ async function sendMainMenuCard(to: string, lang: Lang): Promise<SendResult> {
 
 async function logOutbound(sb: SupabaseClient, leadId: string, body: string): Promise<void> {
   await insertCommunication(sb, leadId, "outbound", body, new Date().toISOString());
+}
+
+// A lead asking whether they can deposit less than $500 (or otherwise trying
+// to negotiate the amount) needs a real answer from a person, not the bot's
+// generic "a team member will follow up" ack — that ack doesn't tell the
+// agent WHY they're being pinged, so the agent has no context and (as
+// happened in practice) can end up giving inconsistent or wrong info hours
+// later. Requires both an amount mention and a "less/lower" word in the same
+// message, to avoid flagging unrelated messages that just happen to contain
+// "500" or "kam".
+function asksAboutLowerDeposit(input: UserInput): boolean {
+  const t = input.text.toLowerCase();
+  if (!t) return false;
+  const mentionsAmount = /\b(500|five\s*hundred)\b/.test(t);
+  const mentionsLess = /\b(kam|km|less|lower|under|kum|discount|reduce|negotiate)\b/.test(t);
+  return mentionsAmount && mentionsLess;
 }
 
 function matchGreeting(input: UserInput): "hello" | "walaikum" | null {
