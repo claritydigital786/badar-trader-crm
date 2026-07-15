@@ -914,3 +914,22 @@ ALTER TABLE public.communications ADD COLUMN IF NOT EXISTS wa_message_id TEXT;
 
 -- ── DONE (Phase 13) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 14 Schema (agent-editable lead tiers)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 32. Manual tier override (New/Warm/Hot/Closed) ──────────
+-- Badar, 2026-07-14: agents should set this themselves, not have it
+-- auto-computed from bot_stage — they know the real situation with each
+-- lead. computeLeadTier() in index.html checks this first, falling back
+-- to the old auto-computed guess only when nobody's set it manually yet.
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS manual_tier TEXT;
+ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_manual_tier_check;
+ALTER TABLE public.leads ADD CONSTRAINT leads_manual_tier_check
+  CHECK (manual_tier IS NULL OR manual_tier IN ('new','warm','hot','closed'));
+
+-- ── DONE (Phase 14) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════

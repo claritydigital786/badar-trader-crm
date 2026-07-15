@@ -4355,6 +4355,11 @@ let _lastConvs = []; // cache of the last rendered conversation rows, so switchi
 // Classifies a lead into one of: new, warm, hot, closed. "unread" is checked
 // separately (is_unread) since it can apply on top of any of these.
 function computeLeadTier(lead) {
+  // Agents set this themselves now (Badar, 2026-07-14: "the agent should be
+  // the one putting those into each of the sections... they know the exact
+  // situation"). Falls back to the old auto-computed guess only for leads
+  // nobody has manually classified yet.
+  if (lead?.manual_tier) return lead.manual_tier;
   const status = lead?.status || 'new';
   if (status === 'qualified' || status === 'converted') return 'closed';
   const botStage = lead?.bot_stage || 'awaiting_language';
@@ -4438,7 +4443,7 @@ async function renderConversations(scope = '') {
   try {
     const { data: comms, error } = await sb
       .from('communications')
-      .select('lead_id, body, direction, created_at, leads(full_name, phone, status, is_unread, bot_stage, needs_human, handoff_reason)')
+      .select('lead_id, body, direction, created_at, leads(full_name, phone, status, is_unread, bot_stage, needs_human, handoff_reason, manual_tier)')
       .eq('type', 'whatsapp')
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -4536,7 +4541,7 @@ async function openConversation(convId, scope = '') {
 
   try {
     const [leadRes, msgsRes] = await Promise.all([
-      sb.from('leads').select('full_name, phone, status, is_unread').eq('id', convId).maybeSingle(),
+      sb.from('leads').select('full_name, phone, status, is_unread, manual_tier').eq('id', convId).maybeSingle(),
       sb.from('communications').select('body, direction, created_at, attachment_path, wa_message_id')
         .eq('lead_id', convId).eq('type', 'whatsapp').order('created_at', { ascending: true })
     ]);
@@ -4557,6 +4562,7 @@ async function openConversation(convId, scope = '') {
         ⚠ It's been over 24 hours since ${esc(lead?.full_name || 'this lead')} last messaged — WhatsApp will likely reject a free-form reply until they message again first. Send them a template message instead, or wait for them to reply.
       </div>` : '';
 
+    const currentTier = computeLeadTier(lead);
     chatPanel.innerHTML = `
       <div class="conv-chat-header">
         <div class="conv-avatar">${initials}</div>
@@ -4564,6 +4570,12 @@ async function openConversation(convId, scope = '') {
           <h3>${esc(lead?.full_name || 'Unknown')}</h3>
           <p>${esc(lead?.phone || '')} ${statusBadge(lead?.status || 'new')}</p>
         </div>
+        <select title="Set this lead's tier yourself — you know the real situation" onchange="setLeadTier('${convId}', this.value, '${scope}')" style="margin-left:auto;border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;font-size:0.78rem;color:#475569;background:#fff">
+          <option value="new" ${currentTier==='new'?'selected':''}>🆕 New</option>
+          <option value="warm" ${currentTier==='warm'?'selected':''}>🌤 Warm</option>
+          <option value="hot" ${currentTier==='hot'?'selected':''}>🔥 Hot</option>
+          <option value="closed" ${currentTier==='closed'?'selected':''}>✅ Closed</option>
+        </select>
       </div>
       <div class="conv-messages" id="conv-msgs-${convId}">
         ${messages.length
@@ -4615,6 +4627,20 @@ async function loadConvAttachmentThumbs(convId, messages) {
     el.innerHTML = `<img src="${esc(data.signedUrl)}" alt="Screenshot" style="max-width:220px;max-height:220px;border-radius:8px;display:block" />`;
     el.onclick = () => window.open(data.signedUrl, '_blank');
   }));
+}
+
+async function setLeadTier(leadId, tier, scope) {
+  if (demoMode) {
+    const conv = _DEMO_CONVERSATIONS.find(c => c.id === leadId);
+    if (conv) conv.status = tier === 'closed' ? 'converted' : conv.status;
+    showToast('Tier updated (demo)');
+    renderConversations(scope);
+    return;
+  }
+  const { error } = await sb.from('leads').update({ manual_tier: tier }).eq('id', leadId);
+  if (error) { showToast(`Couldn't update tier: ${error.message}`, 'err'); return; }
+  showToast('Tier updated ✓');
+  renderConversations(scope);
 }
 
 function toggleConvListPanel(scope) {
