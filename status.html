@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Status - Badar Trader</title>
+<link rel="icon" type="image/svg+xml" href="/assets/bull.svg">
+<style>
+:root{color-scheme:dark}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d0d1a;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:32px 16px 60px;line-height:1.55}
+.wrap{max-width:900px;margin:0 auto}
+header{border-bottom:1px solid #2a2a44;padding-bottom:20px;margin-bottom:28px}
+.brand{color:#c9a84c;font-weight:800;letter-spacing:1.5px;font-size:13px}
+h1{font-size:30px;color:#fff;margin:6px 0 6px}
+.sub{color:#94a3b8;font-size:14px}
+.stamp{color:#64748b;font-size:12px;margin-top:10px}
+section{margin-bottom:30px}
+h2{color:#c9a84c;font-size:17px;margin-bottom:12px;font-weight:700}
+table{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:14px}
+th{background:#1a1a2e;color:#c9a84c;text-align:left;padding:9px 11px;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
+td{padding:9px 11px;border-bottom:1px solid #1e293b;color:#cbd5e1;vertical-align:top}
+tr:last-child td{border-bottom:none}
+b{color:#fff}
+ul,ol{margin-left:20px;color:#cbd5e1;font-size:14px}
+li{margin-bottom:5px}
+p{color:#cbd5e1;font-size:14px;margin-bottom:8px}
+.ok{color:#4ade80;font-weight:600}
+.warn{color:#fbbf24;font-weight:600}
+footer{border-top:1px solid #2a2a44;padding-top:18px;color:#64748b;font-size:12px;text-align:center;margin-top:36px}
+</style></head><body>
+<div class="wrap">
+<header><div class="brand">BADAR TRADER</div>
+<h1>Project Status</h1>
+<p class="sub">Always-current view of where the project stands. Updated after every completed task.</p>
+<p class="stamp">Last updated: 19 July 2026, 06:30 UTC &middot; by Clarity Digital LLC</p></header>
+<section><h2>At a glance</h2><table>
+<tr><th>Workstream</th><th>Status</th><th>Complete</th></tr>
+<tr><td>Live CRM operations</td><td>Active</td><td><b>~85%</b></td></tr>
+<tr><td>CRM v2 rebuild</td><td>Spec done, build not started</td><td><b>~10%</b></td></tr>
+<tr><td>Campaign / lead-gen</td><td>Running</td><td><b>~70%</b></td></tr>
+<tr><td>Documentation &amp; handover</td><td>Active</td><td><b>~80%</b></td></tr>
+</table>
+<p><b>Current phase:</b> Live-CRM hardening + v2 specification.</p>
+<p><b>Active task:</b> Status infrastructure, conversations UX verification, feature catalog.</p></section>
+<section><h2>Last 5 completed</h2><table>
+<tr><th>Date</th><th>Item</th></tr>
+<tr><td>19 Jul</td><td>send-wa-message v2 - fixed cross-agent reply block</td></tr>
+<tr><td>19 Jul</td><td>Full one-team writes (agents write any lead)</td></tr>
+<tr><td>19 Jul</td><td>One-team reads (agents see all leads/conversations)</td></tr>
+<tr><td>19 Jul</td><td>v2 Specification issued (19 pages)</td></tr>
+<tr><td>19 Jul</td><td>Repo transfer sync + regression repair</td></tr>
+</table></section>
+<section><h2>Next steps</h2><ol>
+<li>Deliver CRM Feature Catalog for review</li>
+<li>Resolve Decision 10 - agent signals visibility</li>
+<li>Resolve Decision 8 - WhatsApp token exposure</li>
+<li>Collect catalog annotations into the v2 spec</li>
+<li>On sign-off: begin v2 Phase 1</li>
+</ol></section>
+<section><h2>Key facts</h2><table>
+<tr><th>Item</th><th>Value</th></tr>
+<tr><td>Repo</td><td>ClarityDigital786/badar-trader-crm (main)</td></tr>
+<tr><td>Live CRM</td><td>crm.badartrader.com</td></tr>
+<tr><td>v2 staging</td><td>Not yet created</td></tr>
+<tr><td>Supabase project</td><td>vfskqzgphrunjxquqpks</td></tr>
+<tr><td>WhatsApp number</td><td>+92 371 5773903 (Meta app Live)</td></tr>
+<tr><td>Leads / Messages</td><td>70 / 2,331</td></tr>
+</table></section>
+<section><h2>Deployed functions</h2><table>
+<tr><th>Function</th><th>Ver</th><th>Role</th></tr>
+<tr><td>whatsapp-webhook</td><td>32</td><td>Bot brain</td></tr>
+<tr><td>conversion-hook</td><td>11</td><td>Deposit form intake</td></tr>
+<tr><td>nudge-agents</td><td>4</td><td>5-min agent chase</td></tr>
+<tr><td>send-wa-message</td><td>2</td><td>Server-side WA send</td></tr>
+<tr><td>submit-lead-form</td><td>3</td><td>join.html intake</td></tr>
+<tr><td>meta-leadgen-webhook</td><td>1</td><td>Meta lead capture</td></tr>
+<tr><td>fire-automation</td><td>2</td><td>Automation rules</td></tr>
+</table></section>
+<section><h2>Team &amp; permissions</h2><table>
+<tr><th>Person</th><th>Role</th><th>Status</th></tr>
+<tr><td>Badar Tanveer</td><td>Admin</td><td>Active</td></tr>
+<tr><td>Muhammad</td><td>Admin</td><td>Active</td></tr>
+<tr><td>Muhammad Hanzala</td><td>Agent</td><td>Active</td></tr>
+<tr><td>Ehsan Wazir</td><td>Agent</td><td>Active</td></tr>
+<tr><td>Syed Hamza</td><td>Agent</td><td>Suspended</td></tr>
+</table>
+<p><b>Full one-team:</b> all active staff read and write every lead, conversation and log. Money/KYC admin-only. Every action attributed.</p></section>
+<section><h2>Open decisions</h2><table>
+<tr><th>#</th><th>Decision</th><th>Status</th></tr>
+<tr><td>1</td><td>Agent view: 3-tab vs mirror-with-locks</td><td>Open</td></tr>
+<tr><td>2</td><td>Staging URL</td><td>Open</td></tr>
+<tr><td>3</td><td>Feature additions vs strict parity</td><td>Open</td></tr>
+<tr><td>4</td><td>OCR on screenshots (out of scope?)</td><td>Open</td></tr>
+<tr><td>5</td><td>Agent conversations</td><td class="ok">Resolved</td></tr>
+<tr><td>6</td><td>Payroll commission structure</td><td>Open</td></tr>
+<tr><td>7</td><td>Cutover sign-off</td><td>Open</td></tr>
+<tr><td>8</td><td>WhatsApp token exposure (recommend fix)</td><td class="warn">Open</td></tr>
+<tr><td>9</td><td>Replying on another agent lead</td><td class="ok">Resolved</td></tr>
+<tr><td>10</td><td>Agent signals visibility - needs data model</td><td class="warn">Open</td></tr>
+</table></section>
+<section><h2>Known issues</h2><ul>
+<li>All Leads status filters do not populate (fixed in v2 Phase 3)</li>
+<li>wa_access_token readable by any logged-in user (Decision 8)</li>
+<li>Unresponsive-agent reminders loop indefinitely</li>
+<li>Subscribers feature has no backing data model (Decision 10)</li>
+</ul></section>
+<footer>Clarity Digital LLC &middot; Powering Badar Trader Growth</footer>
+</div></body></html>
