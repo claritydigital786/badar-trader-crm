@@ -85,52 +85,78 @@ Deno.serve(async (): Promise<Response> => {
     if (!token || !phoneId) throw new Error("missing wa credentials in settings");
 
     const cutoff = new Date(Date.now() - PING_INTERVAL_MINUTES * 60_000).toISOString();
+    // or() re-includes leads whose agent_last_pinged_at is NULL (assignment
+    // notify failed before ever stamping it) — .lte() alone drops NULLs and
+    // those leads were never reminded at all.
     const { data: leads, error } = await sb
       .from("leads")
-      .select("id, assigned_agent_id, agent_ping_count, agent_escalated")
+      .select("id, full_name, phone, assigned_agent_id, agent_ping_count, agent_escalated")
       .not("assigned_agent_id", "is", null)
       .is("agent_acknowledged_at", null)
-      .lte("agent_last_pinged_at", cutoff);
+      .or(`agent_last_pinged_at.is.null,agent_last_pinged_at.lte.${cutoff}`);
     if (error) throw error;
 
+    // ONE message per agent per run, whatever the lead count. The old
+    // per-lead loop sent N identical "a lead is still waiting" texts when an
+    // agent had N waiting leads — Badar read that as duplicate spam
+    // (2026-07-14, Hanzala's screenshots) and the whole cron got unscheduled.
+    const byAgent = new Map<string, { agent: typeof AGENT_ROTATION[number]; leads: any[] }>();
     for (const lead of leads || []) {
       const agent = AGENT_ROTATION.find((a) => a.id === lead.assigned_agent_id);
       if (!agent) continue;
+      if (!byAgent.has(agent.id)) byAgent.set(agent.id, { agent, leads: [] });
+      byAgent.get(agent.id)!.leads.push(lead);
+    }
 
-      const nextCount = (lead.agent_ping_count ?? 0) + 1;
+    for (const { agent, leads: agentLeads } of byAgent.values()) {
+      const now = new Date().toISOString();
+      const leadLabel = (l: any) => l.full_name && l.full_name !== l.phone ? `${l.full_name} (${l.phone})` : l.phone;
 
-      if (!lead.agent_escalated && lead.agent_ping_count >= ESCALATE_AFTER_PINGS) {
-        // First cycle past the threshold: broadcast to the rest of the team once.
+      const toEscalate = agentLeads.filter((l) => !l.agent_escalated && (l.agent_ping_count ?? 0) >= ESCALATE_AFTER_PINGS);
+      if (toEscalate.length) {
+        // First cycle past the threshold: broadcast the overdue leads to the
+        // rest of the team once — one combined message per recipient, and
+        // targets deduped so admin_whatsapp_number matching an agent's own
+        // number can't double-send.
         const others = AGENT_ROTATION.filter((a) => a.id !== agent.id);
         const { data: adminRow } = await sb.from("settings").select("value").eq("key", "admin_whatsapp_number").maybeSingle();
         const adminPhone = adminRow?.value?.trim();
-        const targets = [...others.map((a) => a.phone), adminPhone].filter(Boolean) as string[];
+        const targets = [...new Set([...others.map((a) => a.phone), adminPhone].filter(Boolean))] as string[];
+        const listText = toEscalate.map(leadLabel).join(", ");
         for (const phone of targets) {
           await sendText(
             token, phoneId, phone,
-            `🚨 A lead assigned to ${agent.name} has gone unacknowledged for ${PING_INTERVAL_MINUTES * ESCALATE_AFTER_PINGS}+ minutes. Please check the CRM.`,
+            `🚨 ${toEscalate.length === 1 ? "A lead" : `${toEscalate.length} leads`} assigned to ${agent.name} ${toEscalate.length === 1 ? "has" : "have"} gone unacknowledged for ${PING_INTERVAL_MINUTES * ESCALATE_AFTER_PINGS}+ minutes: ${listText}. Please check the CRM.`,
           );
         }
-        await sb.from("leads").update({
-          agent_escalated: true, agent_ping_count: nextCount, agent_last_pinged_at: new Date().toISOString(),
-        }).eq("id", lead.id);
-        await logComm(sb, lead.id, `[escalated to team: ${agent.name} unresponsive after ${lead.agent_ping_count} ping(s)]`);
-        report[lead.id] = { escalated: true, targets };
-        continue;
+        for (const l of toEscalate) {
+          await sb.from("leads").update({
+            agent_escalated: true, agent_ping_count: (l.agent_ping_count ?? 0) + 1, agent_last_pinged_at: now,
+          }).eq("id", l.id);
+          await logComm(sb, l.id, `[escalated to team: ${agent.name} unresponsive after ${l.agent_ping_count} ping(s)]`);
+          report[l.id] = { escalated: true, targets };
+        }
       }
 
-      const r = await sendAckButton(
-        token, phoneId, agent.phone,
-        `⏰ Reminder: a lead in the CRM is still waiting on you.`,
-        lead.id,
-      );
+      const toRemind = agentLeads.filter((l) => !toEscalate.includes(l));
+      if (!toRemind.length) continue;
+      const names = toRemind.map(leadLabel).join(", ");
+      const bodyText = toRemind.length === 1
+        ? `⏰ Reminder: a lead in the CRM is still waiting on you: ${names}.`
+        : `⏰ Reminder: ${toRemind.length} leads in the CRM are still waiting on you: ${names}. Tap below to acknowledge the oldest — the CRM has the rest.`;
+      // The single ack button acknowledges the oldest lead; the next run
+      // re-lists whatever is still waiting (WhatsApp allows max 3 buttons,
+      // so one-summary-message + one-button is the spam-proof shape).
+      const r = await sendAckButton(token, phoneId, agent.phone, bodyText, toRemind[0].id);
       if (r.ok) {
-        await sb.from("leads").update({
-          agent_ping_count: nextCount, agent_last_pinged_at: new Date().toISOString(),
-        }).eq("id", lead.id);
-        await logComm(sb, lead.id, `[reminder #${nextCount} sent to ${agent.name}]`);
+        for (const l of toRemind) {
+          await sb.from("leads").update({
+            agent_ping_count: (l.agent_ping_count ?? 0) + 1, agent_last_pinged_at: now,
+          }).eq("id", l.id);
+          await logComm(sb, l.id, `[reminder #${(l.agent_ping_count ?? 0) + 1} sent to ${agent.name} (batched, ${toRemind.length} lead(s) in one message)]`);
+        }
       }
-      report[lead.id] = { ok: r.ok, error: r.error };
+      report[agent.id] = { ok: r.ok, error: r.error, reminded: toRemind.length };
     }
 
     return new Response(JSON.stringify({ ok: true, count: (leads || []).length, report }), { headers: { "Content-Type": "application/json" } });

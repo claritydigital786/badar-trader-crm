@@ -308,3 +308,25 @@ Status of each step will be recorded below as it completes.
    free-signals marked "declined", Q3 after-hours "hold on a moment" promise, Q4 IB-change
    walkthrough only exists in old simulator). AWAITING Muhammad's box-by-box review —
    no bot code changes until approved.
+
+**nudge-agents spam ROOT CAUSE FOUND + FIXED IN CODE (2026-07-20) — NOT YET DEPLOYED.**
+Root cause of the 07-14 "duplicate reminders" (Hanzala's screenshots): the reminder text
+was identical for every lead ("a lead is still waiting on you") and the loop sent one
+message PER unacknowledged lead — 4 waiting leads = 4 word-identical messages in one run.
+Not a double-send; a per-lead loop with indistinguishable text. (History also had an older
+'nudge-agents-every-5-min' cron name that could overlap if never unscheduled — schema.sql
+already guards against it.)
+Fix (committed): batch to ONE message per agent per run listing the waiting leads by name,
+single ack button acks the oldest; escalation broadcast also batched + targets deduped;
+NULL agent_last_pinged_at leads (never stamped because the assignment notify failed) are
+now included via .or() instead of being silently skipped forever. esbuild syntax-clean.
+UNVERIFIED live: not deployable from this machine yet.
+**To go live (needs Muhammad once):** `supabase login` → `supabase functions deploy
+nudge-agents --no-verify-jwt` → re-schedule the two cron jobs from schema.sql §23
+(unscheduled 07-14, STILL OFF).
+
+**WhatsApp channel health: client's business stopped — their new numbers get flagged.
+The official Cloud API number +92 371 5773903 already exists and is the answer.** Reading
+its status/quality/messaging-tier needs WhatsApp Manager (business.facebook.com) in a
+logged-in Chrome; then plan migrating client traffic onto the API number + Meta template
+submissions for re-opening 24h-stale conversations.
