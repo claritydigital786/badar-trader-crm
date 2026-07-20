@@ -330,3 +330,21 @@ The official Cloud API number +92 371 5773903 already exists and is the answer.*
 its status/quality/messaging-tier needs WhatsApp Manager (business.facebook.com) in a
 logged-in Chrome; then plan migrating client traffic onto the API number + Meta template
 submissions for re-opening 24h-stale conversations.
+
+**WhatsApp channel health CHECKED LIVE in WhatsApp Manager (2026-07-20, evening).**
+Login sees 4 WABAs under the "Badar Trader" business (business_id 3193435450841397):
+- WABA 1697502401503391: **+92 371 5773903 (PK), display name "Trade Campus" — Connected,
+  quality HIGH, messaging limit 250 business-initiated conversations/24h (tier 1).**
+  This is the CRM's number. Inbound/service conversations are NOT capped by the 250 —
+  replying to customers who message first is fine; the cap only limits outreach we start.
+- Path to 2,000/day shown in Messaging limits: EITHER business verification (documents
+  NOT yet submitted — "Get started" link live) OR 1,000 unique high-quality
+  business-initiated conversations in 7 days (currently 53/1,000). Upgrades ≤24h.
+- WABA 1488807239234168: +971 54 531 7493 (UAE) — **Unverified**, no quality rating, unusable.
+- WABA 2044162043127569 + "Trade Campus" WABA 789627347510140: zero phone numbers.
+- "Add phone number" button DISABLED in every WABA — consistent with the client's "Meta
+  restricts our new numbers" complaint; likely business-verification-gated or a
+  restriction on the business account. Exact cause not yet confirmed.
+**Client guidance derived:** their flagged personal numbers are the wrong channel; the
+API number is healthy and should carry the traffic. #1 unlock = submit business
+verification documents (client action, legal docs — cannot be done by Claude).
