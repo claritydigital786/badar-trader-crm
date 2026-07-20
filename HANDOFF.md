@@ -356,3 +356,11 @@ Manager so the agents can register it in the WhatsApp Business app with the SIM 
 Consequences (known, accepted): bot goes silent, no auto-replies to new leads, no CRM
 logging of new messages, CRM sends will fail. Reconnect path: re-register on Cloud API
 (two-step PIN if set), webhook infra left intact on purpose.
+
+**Disconnect findings (2026-07-20 late).** Two-step verification on 3903 is OFF (no PIN
+will block app takeover). Meta's UI has no deregister button; deregistration happens
+automatically when the number is registered in the WhatsApp Business app with SIM OTP.
+Phone number ID: 1150847781454379. Handover steps given to Muhammad for the client's
+team. The moment they register: bot silent, CRM sends fail (logged), inbound stops
+logging. Webhook + all infra left intact for later reconnect (remove from app,
+re-register on Cloud API, resume). CRM status: DISCONNECT PENDING on client's action.
