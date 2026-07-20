@@ -575,7 +575,7 @@
     .msg-wrapper { display:flex; flex-direction:column; }
     .msg-wrapper.outgoing { align-items:flex-end; }
     .msg-bubble { max-width:70%; padding:10px 14px; border-radius:14px; font-size:0.875rem; line-height:1.5; word-break:break-word; white-space:pre-wrap; }
-    .conv-msg-textarea { width:100%; resize:none; overflow-y:auto; min-height:64px; max-height:160px; padding:12px 14px; border-radius:14px; border:1px solid #cbd5e1; font-family:inherit; font-size:0.875rem; line-height:1.4; }
+    .conv-msg-textarea { width:100%; resize:none; overflow-y:auto; min-height:64px; max-height:320px; padding:12px 14px; border-radius:14px; border:1px solid #cbd5e1; font-family:inherit; font-size:0.875rem; line-height:1.4; }
     .msg-bubble.incoming { background:#fff; color:#334155; border:1px solid #e2e8f0; border-bottom-left-radius:4px; }
     .msg-bubble.outgoing { background:#0ea5e9; color:#fff; border-bottom-right-radius:4px; }
     .msg-time { font-size:0.7rem; color:#94a3b8; margin-top:4px; padding:0 4px; }
@@ -4730,8 +4730,13 @@ function clearReplyTarget() {
 }
 
 function autoGrowConvInput(el) {
+  // Grows with content like WhatsApp's compose box — capped relative to the
+  // chat panel's own height (not a small fixed pixel value) so a long message
+  // can take up real space without the input overrunning the panel.
   el.style.height = 'auto';
-  el.style.height = Math.min(Math.max(el.scrollHeight, 64), 160) + 'px';
+  const panel = el.closest('.conv-chat-panel');
+  const dynamicMax = panel ? Math.max(160, Math.floor(panel.clientHeight * 0.45)) : 320;
+  el.style.height = Math.min(Math.max(el.scrollHeight, 64), Math.min(dynamicMax, 320)) + 'px';
 }
 
 async function sendConvMessage(convId, scope = '') {
