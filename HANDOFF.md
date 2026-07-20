@@ -364,3 +364,37 @@ Phone number ID: 1150847781454379. Handover steps given to Muhammad for the clie
 team. The moment they register: bot silent, CRM sends fail (logged), inbound stops
 logging. Webhook + all infra left intact for later reconnect (remove from app,
 re-register on Cloud API, resume). CRM status: DISCONNECT PENDING on client's action.
+
+---
+
+## 2026-07-21 session — Phase A deploys, RLS drift caught, mobile/UI fixes, process change
+
+**Process change, per Muhammad tonight: this file gets updated as work happens, not just at session end or before risky work.** Keep doing that going forward, across accounts.
+
+**Phase A deployed live:** `send-wa-message`, the `nudge-agents` batching fix, and the `whatsapp-webhook` restart-on-return fix are all deployed to the live Supabase project. The two `nudge-agents` cron jobs were re-scheduled, then explicitly unscheduled again same day at Muhammad's direct request — reminders are OFF on purpose right now, not by accident. Don't re-enable without asking him first (see open items below, he wants to discuss timing for this last).
+
+**RLS drift discovered and fixed.** Auditing KYC/Comms admin-gating (using the committed `schema.sql` as reference) concluded everything was still agent-scoped — wrong. A previous, undocumented session had already broadened `leads` and `communications` to "any active staff member sees everything" via an `is_active_staff()` function and policies named `staff select all` / `staff update all`, live in the actual database, but never written back into `schema.sql`. The file and the live database had quietly diverged. Extended the same pattern to `kyc_documents`, `transactions`, and `lead_activity` (which had been missed, an agent could see a lead but not its KYC/ledger/activity unless it was their own), and documented all of it as Phase 15 in `schema.sql`. Lesson: check live `pg_policies`, not just the committed file, before concluding something is or isn't enforced.
+
+**index.html fixes shipped locally (not yet committed):**
+- Deleted the duplicate `saveLeadNotes` (was defined twice, byte-identical)
+- Wide tables (All Leads, Reports, any `.card`-wrapped table) now scroll horizontally on narrow screens instead of clipping columns off-screen with no way to reach them
+- Conversations two-panel view now auto-collapses to a full-screen single panel on mobile when a chat is opened, with a back button — was previously squeezing both panels side by side into an unusable sliver
+- All Leads search box was being silently dropped every time a filter dropdown changed (search text stayed visible, results didn't reflect it) — fixed
+- Added conversation short links: a 🔗 Copy Link button generates a `?conv=<leadId>` URL; opening it after login jumps straight to that thread
+- Header buttons (Export CSV / Add Lead / Logout) were shrink-wrapping to their own text length, creating an unintentional-looking size staircase — now equal-width at every screen size (first fix only covered mobile, had to redo it for the base/desktop rule too)
+- Conversation filter chips (All/New/Unread/Warm/Hot/Closed) were wrapping onto an uneven second row — now scroll in one row instead
+- Confirmed WhatsApp-shared screenshots already save into the CRM correctly (`handleImageMessage` in the webhook, built in an earlier session) — no new code needed, just closed out the backlog item
+
+**Nothing above is deployed to crm.badartrader.com yet.** All frontend changes exist only in the local working tree and the local test server (`localhost:8744` via `.claude/launch.json`). Waiting on Muhammad to say go before committing/pushing.
+
+**Roadmap/status tracking moved to a Claude Artifact**, not just this file: [Badar Trader CRM — V2 Build Roadmap](https://claude.ai/code/artifact/cfab81b9-d8bd-47d1-8ecc-425853a000b3). Muhammad tried to hand-check items on it and got confused when it didn't visually update — clarified checkboxes are per-viewer localStorage, not shared. Rebuilt it as a plain status board with no interactive checkboxes at all; Claude marks items done after verifying them, nobody clicks anything. Keep both this file and that artifact in sync going forward.
+
+**Open decisions, in the order Muhammad wants to take them (signal delivery + AI Signals now, bot flow map + nudge-agents timing last):**
+1. **Signal delivery mechanism** — clarified tonight: there are 3 WhatsApp Communities, the same message gets posted into each one 4-5 times a day. This is community-level broadcast, NOT individual 1:1 sends to each member — an earlier exchange suggesting per-subscriber Cloud API sends was a miscommunication (Muhammad said he was tired when that was discussed). Cloud API cannot post to Communities at all regardless, so this channel is inherently app-only, whatever gets decided. Still open: whether to keep pure community posting (accept the risk, apply pacing/wording mitigations already discussed) vs. some hybrid with individual Cloud API sends for anything subscriber-specific. Also still unknown: whether individual member phone numbers are captured anywhere outside the communities themselves.
+2. **AI Signals approach** — the pattern name and confidence % shown to clients are `Math.random()`, dressed up with a real live price. Three real options on the table: (a) genuine chart-pattern detection off real historical data, a real project, (b) real calculable technical indicators (moving averages, RSI, MACD, support/resistance) — honest, buildable, meaningfully less effort than (a), (c) human-picked signals, no automation claim at all. Awaiting Muhammad's lean.
+3. **Bot Flow Map review** (deferred to last, deliberately) — Muhammad found the bot behaving inconsistently when testing from different phone numbers (e.g., his younger brother's number showed different behavior than expected). Wants to investigate that properly before signing off on the Flow Map as the source of truth for the v2 rebuild. This is the reason Phase B stays blocked, not just "hasn't gotten to it yet."
+4. **When to re-enable `nudge-agents` reminders** (deferred to last, alongside the Flow Map discussion).
+
+**New requirement logged (2026-07-21, 2am): automated database backups.** Muhammad has access to the client's web hosting/domain and wants a script placed there that backs up the CRM's Supabase data automatically, 4 times a day (every 6 hours), so new leads/data are continuously captured for the client's own copy. Full design deferred to later ("we'll talk about it later on"), just recording the requirement now per his new process rule. Needs to know the hosting type (cPanel/shared with cron+SSH vs something else) before writing the actual script.
+
+**Ordering update:** the automated backup / web hosting item above is also deferred to the end, grouped with the Bot Flow Map review and the nudge-agents re-enable timing. Nothing on that trio gets worked on until Muhammad says so.

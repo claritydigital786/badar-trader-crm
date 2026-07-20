@@ -933,3 +933,71 @@ ALTER TABLE public.leads ADD CONSTRAINT leads_manual_tier_check
 
 -- ── DONE (Phase 14) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 15 Schema (all active staff see every lead)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 33. All active staff (any agent or admin) can see every lead ──
+-- Muhammad, 2026-07-21: agents should see everybody's leads, not just
+-- their own assigned ones. Someone had already applied this live to the
+-- `leads` and `communications` tables at some earlier point (policy names
+-- "staff select all" / "staff update all" / "staff insert any", gated by
+-- is_active_staff() below) but it was never written back into this file,
+-- so this file and the live database had quietly drifted apart — this
+-- section documents what's actually live and extends the same pattern to
+-- kyc_documents, transactions, and lead_activity, which had been missed
+-- (an agent could see a lead but not its KYC/ledger/activity history
+-- unless it was their own). Admin-only write actions (KYC verify/reject,
+-- balance edits) are unchanged — this only widens read (and, for leads,
+-- update) access, not who can approve compliance/financial records.
+CREATE OR REPLACE FUNCTION public.is_active_staff()
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles p
+    WHERE p.id = auth.uid()
+      AND COALESCE(p.is_suspended, false) = false
+  );
+$$;
+
+DROP POLICY IF EXISTS "leads: agent select own" ON public.leads;
+CREATE POLICY "leads: staff select all" ON public.leads
+  FOR SELECT TO authenticated USING (is_active_staff());
+
+DROP POLICY IF EXISTS "leads: agent update own" ON public.leads;
+CREATE POLICY "leads: staff update all" ON public.leads
+  FOR UPDATE TO authenticated
+  USING (is_active_staff()) WITH CHECK (is_active_staff());
+
+DROP POLICY IF EXISTS "communications: agent select own" ON public.communications;
+CREATE POLICY "communications: staff select all" ON public.communications
+  FOR SELECT TO authenticated USING (is_active_staff());
+
+DROP POLICY IF EXISTS "communications: agent insert own" ON public.communications;
+CREATE POLICY "communications: staff insert any" ON public.communications
+  FOR INSERT TO authenticated WITH CHECK (is_active_staff());
+
+DROP POLICY IF EXISTS "kyc: agent select own clients" ON public.kyc_documents;
+CREATE POLICY "kyc: staff select all" ON public.kyc_documents
+  FOR SELECT TO authenticated USING (is_active_staff());
+
+DROP POLICY IF EXISTS "transactions: agent select own clients" ON public.transactions;
+CREATE POLICY "transactions: staff select all" ON public.transactions
+  FOR SELECT TO authenticated USING (is_active_staff());
+
+DROP POLICY IF EXISTS "activity: agent select" ON public.lead_activity;
+CREATE POLICY "activity: staff select all" ON public.lead_activity
+  FOR SELECT TO authenticated USING (is_active_staff());
+
+-- NOTE: the guard_leads_admin_only_columns trigger (Phase 2) still blocks
+-- non-admins from changing account_balance/kyc_status even though they can
+-- now UPDATE the row otherwise, and KYC/financial write policies are still
+-- admin-only (see Phase 2/3 above) — only visibility changed, not who can
+-- approve or edit compliance and ledger data.
+
+-- ── DONE (Phase 15) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════

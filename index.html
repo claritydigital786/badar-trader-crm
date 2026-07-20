@@ -146,6 +146,10 @@
     }
     .page-title { color: #0f172a; font-size: 18px; font-weight: 600; margin: 0; }
     .header-actions { display: flex; align-items: center; gap: 8px; }
+    /* Equal-width pills at every screen size — three buttons that each
+       shrink-wrap to their own text length reads as unintentional, not a
+       deliberate hierarchy. */
+    .header-actions .btn { flex: 1; min-width: 0; text-align: center; }
 
     .content-body {
       flex: 1;
@@ -334,6 +338,7 @@
       padding: 20px;
       margin-bottom: 16px;
       box-shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+      overflow-x: auto; /* wide tables (leads, reports, etc.) scroll within the card on narrow screens instead of clipping */
     }
 
     /* ── Tables ── */
@@ -495,7 +500,10 @@
       .main-content { margin-left: 0 !important; }
       .hamburger-btn { display: block; }
       .header-actions { gap: 6px; }
-      .header-actions .btn { font-size: 0.75rem; padding: 5px 8px; }
+      /* Equal-width pills instead of each button shrink-wrapping to its own
+         text length — three buttons of visibly different sizes side by side
+         reads as unintentional, not a deliberate hierarchy. */
+      .header-actions .btn { font-size: 0.75rem; padding: 5px 8px; flex: 1; min-width: 0; text-align: center; }
       .content-header { padding: 12px 14px; }
       .content-body { padding: 12px; }
     }
@@ -549,6 +557,7 @@
     .conversations-shell.list-collapsed .conv-chat-header { padding-left: 56px; }
     .conv-search input { width:100%; background:#f8fafc; border:1px solid #e2e8f0; border-radius:20px; padding:8px 14px; font-size:0.85rem; outline:none; color:#0f172a; }
     .conv-search input:focus { border-color:#0ea5e9; }
+    .conv-filter-tab { flex-shrink: 0; } /* scroll the row instead of wrapping/squeezing chips onto a second line */
     .conv-list { flex:1; overflow-y:auto; }
     .conv-item { display:flex; align-items:center; gap:10px; padding:12px 14px; cursor:pointer; border-bottom:1px solid #f8fafc; transition:background .12s; }
     .conv-item:hover { background:#f1f5f9; }
@@ -575,6 +584,17 @@
     .conv-input-bar input { flex:1; border:1px solid #e2e8f0; border-radius:20px; padding:10px 16px; font-size:0.875rem; outline:none; color:#0f172a; }
     .conv-input-bar input:focus { border-color:#0ea5e9; box-shadow:0 0 0 3px rgba(14,165,233,.12); }
     .conv-empty-chat { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#94a3b8; }
+
+    /* ── Conversations: single-panel view on narrow screens ──
+       Reuses the existing list-collapsed toggle (desktop's manual "hide list"
+       button) — on mobile the list starts full-width and the chat panel is
+       hidden until a conversation is opened, which now auto-collapses the
+       list (see openConversation's collapseConvListOnMobile call). */
+    @media (max-width: 768px) {
+      .conv-list-panel { width: 100%; }
+      .conv-chat-panel { display: none; }
+      .conversations-shell.list-collapsed .conv-chat-panel { display: flex; }
+    }
 
     /* ── Payroll ── */
     .payroll-period-bar { display:flex; align-items:center; gap:16px; margin-top:20px; flex-wrap:wrap; }
@@ -930,7 +950,7 @@
           <button type="button" title="Hide the lead list" onclick="toggleConvListPanel('')" style="flex-shrink:0;border:1px solid #cbd5e1;background:#fff;border-radius:8px;width:34px;height:34px;cursor:pointer;color:#475569;font-size:0.9rem">☰</button>
           <input type="text" id="conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations()" />
         </div>
-        <div class="conv-filter-tabs" id="conv-filter-tabs" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid #e2e8f0">
+        <div class="conv-filter-tabs" id="conv-filter-tabs" style="display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;padding:8px 12px;border-bottom:1px solid #e2e8f0">
           <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">All</button>
           <button class="conv-filter-tab" data-tier="new" onclick="setConvFilter('new')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🆕 New</button>
           <button class="conv-filter-tab" data-tier="unread" onclick="setConvFilter('unread')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">📩 Unread</button>
@@ -1845,7 +1865,7 @@
           <button type="button" title="Hide the lead list" onclick="toggleConvListPanel('agent-')" style="flex-shrink:0;border:1px solid #cbd5e1;background:#fff;border-radius:8px;width:34px;height:34px;cursor:pointer;color:#475569;font-size:0.9rem">☰</button>
           <input type="text" id="agent-conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations('agent-')" />
         </div>
-        <div class="conv-filter-tabs" id="agent-conv-filter-tabs" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid #e2e8f0">
+        <div class="conv-filter-tabs" id="agent-conv-filter-tabs" style="display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;padding:8px 12px;border-bottom:1px solid #e2e8f0">
           <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">All</button>
           <button class="conv-filter-tab" data-tier="new" onclick="setConvFilter('new','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🆕 New</button>
           <button class="conv-filter-tab" data-tier="unread" onclick="setConvFilter('unread','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">📩 Unread</button>
@@ -2123,8 +2143,10 @@ async function afterLogin(user) {
   currentProfile = profile;
   document.getElementById('login-screen').style.display = 'none';
 
-  if (profile.role === 'admin') initAdmin();
-  else                          initAgent();
+  if (profile.role === 'admin') await initAdmin();
+  else                          await initAgent();
+
+  handleConvDeepLink(profile.role === 'admin' ? '' : 'agent-');
 }
 
 // ── ADMIN ─────────────────────────────────────────────────────
@@ -2280,7 +2302,7 @@ async function loadAdminLeads() {
     if (source) leads = leads.filter(l => l.source === source);
     if (human)  leads = leads.filter(l => l.needs_human);
     cachedLeads = leads;
-    renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+    filterLeadsLocal(); // re-apply any text still sitting in the search box
     return;
   }
 
@@ -2293,7 +2315,7 @@ async function loadAdminLeads() {
   const { data, error } = await q;
   if (error) { console.error('loadAdminLeads:', error); return; }
   cachedLeads = data || [];
-  renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+  filterLeadsLocal(); // re-apply any text still sitting in the search box
   // Update nav badge
   const badge = document.getElementById('leads-count-badge');
   if (badge) { badge.textContent = cachedLeads.length || ''; badge.style.display = cachedLeads.length ? '' : 'none'; }
@@ -2565,7 +2587,7 @@ function agentTab(name, btn) {
 }
 
 async function loadAgentLeads() {
-  // RLS ensures agents only receive their own assigned leads
+  // RLS grants any active staff member (agent or admin) all leads, not just their own — see schema.sql Phase 15
   const { data, error } = await sb
     .from('leads').select('*').order('created_at', { ascending: false });
   if (error) { console.error('loadAgentLeads:', error); return; }
@@ -3318,17 +3340,6 @@ async function rejectConversion(leadId, ctx) {
   showToast('❌ Conversion rejected — lead returned to Contacted.');
   renderLeadsTable('admin-leads-tbody', cachedLeads, true);
   await openDetail(leadId, ctx);
-}
-
-async function saveLeadNotes(leadId, ctx) {
-  const notes = (document.getElementById('det-notes')?.value || '').trim();
-  const msgEl = document.getElementById('det-notes-msg');
-  if (demoMode) { if (msgEl) { msgEl.textContent = 'Saved. (demo)'; setTimeout(() => msgEl.textContent = '', 2000); } return; }
-  const { error } = await sb.from('leads').update({ notes }).eq('id', leadId);
-  if (error) { if (msgEl) msgEl.textContent = error.message; return; }
-  const lead = cachedLeads.find(l => l.id === leadId);
-  if (lead) lead.notes = notes;
-  if (msgEl) { msgEl.textContent = 'Saved.'; setTimeout(() => msgEl.textContent = '', 2000); }
 }
 
 async function saveLeadNotes(leadId, ctx) {
@@ -4521,6 +4532,7 @@ async function openConversation(convId, scope = '') {
           <h3>${esc(conv.name)}</h3>
           <p>${esc(conv.phone)}&nbsp;&nbsp;${statusBadge(conv.status)}</p>
         </div>
+        <button type="button" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="margin-left:auto;border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:#475569;font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
       </div>
       <div class="conv-messages" id="conv-msgs-${convId}">
         ${conv.messages.map(m => `
@@ -4537,6 +4549,7 @@ async function openConversation(convId, scope = '') {
       </div>`;
     const msgArea = document.getElementById('conv-msgs-' + convId);
     if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
+    collapseConvListOnMobile(scope);
     return;
   }
 
@@ -4583,6 +4596,7 @@ async function openConversation(convId, scope = '') {
           <option value="hot" ${currentTier==='hot'?'selected':''}>🔥 Hot</option>
           <option value="closed" ${currentTier==='closed'?'selected':''}>✅ Closed</option>
         </select>
+        <button type="button" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:#475569;font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
       </div>
       <div class="conv-messages" id="conv-msgs-${convId}">
         ${messages.length
@@ -4615,6 +4629,7 @@ async function openConversation(convId, scope = '') {
       await sb.from('leads').update({ is_unread: false }).eq('id', convId);
       renderConversations(scope);
     }
+    collapseConvListOnMobile(scope);
   } catch(err) {
     chatPanel.innerHTML = `<div style="padding:24px;color:#ef4444">Error loading conversation: ${esc(err.message)}</div>`;
   }
@@ -4662,6 +4677,41 @@ function toggleConvListPanel(scope) {
   // floating "show list" button still applies correctly even when a new
   // conversation's header gets injected later while the panel is collapsed.
   if (shell) shell.classList.toggle('list-collapsed', nowHiding);
+}
+
+// On phones, opening a conversation should switch to a single full-width
+// chat view (like any normal messaging app) instead of squeezing both
+// panels side by side. Reuses the same collapse the desktop "☰ hide list"
+// button already does — the "show list" button then acts as the back button.
+// Conversation short links — a URL that jumps straight to one lead's thread
+// instead of making whoever opens it hunt for the lead manually.
+function copyConvLink(convId) {
+  const url = `${location.origin}${location.pathname}?conv=${convId}`;
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(url).then(
+      () => showToast('Link copied ✓'),
+      () => prompt('Copy this link:', url)
+    );
+  } else {
+    prompt('Copy this link:', url);
+  }
+}
+
+// Runs once after login — if the page was opened via a copied conversation
+// link (?conv=<leadId>), jump straight there instead of the default tab.
+// Works for whichever role opens it: RLS decides what they're allowed to see,
+// this just saves the manual navigation.
+async function handleConvDeepLink(scope) {
+  const convId = new URLSearchParams(location.search).get('conv');
+  if (!convId) return;
+  if (scope === 'agent-') agentTab('conversations'); else adminTab('conversations');
+  await openConversation(convId, scope);
+}
+
+function collapseConvListOnMobile(scope) {
+  if (window.innerWidth > 768) return;
+  const shell = document.getElementById(scope === 'agent-' ? 'agent-conv-shell' : 'conv-shell');
+  if (shell && !shell.classList.contains('list-collapsed')) toggleConvListPanel(scope);
 }
 
 function setReplyTarget(waMessageId, preview) {
