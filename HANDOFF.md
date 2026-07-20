@@ -348,3 +348,11 @@ Login sees 4 WABAs under the "Badar Trader" business (business_id 31934354508413
 **Client guidance derived:** their flagged personal numbers are the wrong channel; the
 API number is healthy and should carry the traffic. #1 unlock = submit business
 verification documents (client action, legal docs — cannot be done by Claude).
+
+**2026-07-20 late: Muhammad ordered +92 371 5773903 DISCONNECTED from the API/CRM.**
+Client (Badar) wants his agents using the number directly in the WhatsApp app NOW; CRM
+reconnect planned later. Executing: deregister the number from Cloud API via WhatsApp
+Manager so the agents can register it in the WhatsApp Business app with the SIM + OTP.
+Consequences (known, accepted): bot goes silent, no auto-replies to new leads, no CRM
+logging of new messages, CRM sends will fail. Reconnect path: re-register on Cloud API
+(two-step PIN if set), webhook infra left intact on purpose.
