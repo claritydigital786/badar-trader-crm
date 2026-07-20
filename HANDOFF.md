@@ -292,3 +292,19 @@ Planned steps, in order (written BEFORE doing them, per discipline):
 4. Deploy to production (figure out the deploy path: vercel CLI vs git-connected) and verify the branding fix live on crm.badartrader.com.
 5. Draft the bot Flow Map (numbered boxes, EN/UR, button destinations) for Muhammad's box-by-box review — no bot code before his approval.
 Status of each step will be recorded below as it completes.
+
+**Build steps 1-5 COMPLETED (2026-07-20, verified):**
+1. ✅ Branding fix committed (89684fe) on integration branch.
+2. ✅ Discovered origin/main already contained all integration work (PRs #2-#12 merged by
+   cloud sessions) + status.html + edge-function restore. Local main reset to origin/main,
+   branding merged cleanly (zero file overlap), pushed.
+3. ✅ Repo pushed: main + integration branch both on GitHub (claritydigital786/badar-trader-crm).
+   Memory note "branch not pushed" was STALE — cloud sessions had resolved the divergence.
+4. ✅ Deploy verified live on crm.badartrader.com: bull.svg serves new viewBox, favicon.svg
+   200, status.html shows 20 July + "V2 BUILD STARTED". Vercel auto-deploys on push to main.
+5. ✅ Bot Flow Map v1.0 drafted from live webhook code: docs/BOT_FLOW_MAP.md (source of
+   truth) + docs/Badar_Bot_Flow_Map.docx, live at crm.badartrader.com/docs/Badar_Bot_Flow_Map.docx.
+   Contains 12 boxes, 7 rules, 4 design questions (Q1 missing Urdu in boxes 3-6, Q2
+   free-signals marked "declined", Q3 after-hours "hold on a moment" promise, Q4 IB-change
+   walkthrough only exists in old simulator). AWAITING Muhammad's box-by-box review —
+   no bot code changes until approved.
