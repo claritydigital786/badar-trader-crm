@@ -520,7 +520,7 @@ CREATE POLICY signals_auth_update ON public.signals
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS bot_stage TEXT NOT NULL DEFAULT 'awaiting_language'
   CHECK (bot_stage IN ('awaiting_language','awaiting_menu','awaiting_broker','awaiting_experience','awaiting_traded_before','awaiting_deposit_confirm','qualified','declined'));
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS language TEXT CHECK (language IN ('en','ur'));
-ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS broker_choice TEXT CHECK (broker_choice IN ('exness','doprime'));
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS broker_choice TEXT CHECK (broker_choice IN ('exness','xm','doprime')); -- doprime kept for historical rows only, see Phase 16
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS trader_experience TEXT CHECK (trader_experience IN ('new','experienced'));
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS ready_to_deposit BOOLEAN;
 
@@ -1000,4 +1000,23 @@ CREATE POLICY "activity: staff select all" ON public.lead_activity
 -- approve or edit compliance and ledger data.
 
 -- ── DONE (Phase 15) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 16 Schema (Do Prime dropped, XM added)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 34. Broker choice: Do Prime out, XM in (Badar, 2026-07-21) ──
+-- Badar has stopped working with Do Prime and started with XM instead.
+-- Exness is unchanged. 'doprime' stays a legal value so existing historical
+-- leads aren't invalidated, but the bot (whatsapp-webhook) no longer offers
+-- it as a choice — only 'exness' and 'xm' are reachable going forward.
+-- XM referral link/code supplied by Ehsan, 20 July 2026 afternoon.
+ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_broker_choice_check;
+ALTER TABLE public.leads ADD CONSTRAINT leads_broker_choice_check
+  CHECK (broker_choice IN ('exness','xm','doprime'));
+
+-- ── DONE (Phase 16) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════

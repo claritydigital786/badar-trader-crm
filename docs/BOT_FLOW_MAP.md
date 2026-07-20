@@ -62,8 +62,8 @@ Also accepted typed: "trading"/"shuru" → 1; "signal" → 2; "agent"/"baat" →
 Text: "Which broker would you like to use?"
 (NOTE: English only today — no Urdu twin exists. Flagged for review.)
 
-Buttons: "Exness" → BOX 4 · "Do Prime" → BOX 4
-Also accepted typed: "exness", "do prime". Anything else → RULE R1
+Buttons: "Exness" → BOX 4 · "XM" → BOX 4
+Also accepted typed: "exness", "xm". Anything else → RULE R1
 (re-ask wording: "Sorry, I didn't catch that — which broker would you like
 to use?").
 
@@ -86,7 +86,7 @@ Anything else → RULE R1.
 
 ## BOX 6 — Deposit confirmation (buttons)
 
-Text: "This offer needs a $500 deposit with [Exness / Do Prime] to unlock
+Text: "This offer needs a $500 deposit with [Exness / XM] to unlock
 Badar's free $250 mentorship course. Ready to proceed?"
 (English only today — flagged.)
 
@@ -128,9 +128,9 @@ EN text (deployed 14 July, finalized with Badar):
 Mastery Course (worth $250) at no cost.
 
 Here's how it works:
-1️⃣ Deposit $500 in your own Exness or Do Prime trading account. This is your
+1️⃣ Deposit $500 in your own Exness or XM trading account. This is your
 money, in your own account — not a payment to us.
-2️⃣ Already have $500 or more deposited with Exness or Do Prime? Even better,
+2️⃣ Already have $500 or more deposited with Exness or XM? Even better,
 that counts too. Have less than $500 already deposited? Just top it up to
 $500 and you're good to go.
 3️⃣ Send us a screenshot of your account showing your Account ID and the
@@ -138,8 +138,8 @@ deposit amount clearly visible.
 4️⃣ We verify it and you're added to the Premium Signals Group and unlock the
 full Forex Trading Mastery Course, both completely free.
 
-New to Exness or Do Prime? Create your account through our link:
-[Exness link] · [Do Prime link]
+New to Exness or XM? Create your account through our link:
+[Exness link] · [XM link]
 
 Already have an account under a different partner? Choose 'Talk to an Agent'
 and we'll help you switch it over.
@@ -168,12 +168,18 @@ The lead is flagged for a human; the bot goes SILENT for this customer.
 
 ## BOX 10 — Qualified (the goal)
 
-Text: "Perfect! 🎉 Create your account with [Exness / Do Prime] here 👇
+Text (updated 21 July 2026, Badar — a lead may already be trading on this
+broker, so a fresh deposit and an existing $500+ balance both count; the
+screenshot is what actually matters, that's the real signal a lead has
+closed, not the verbal "yes"):
+"Perfect! 🎉 Deposit $500 in your own [Exness / XM] account using the link
+below 👇
 [link]
 Referral / partner code: [code]
-After depositing $500, send your deposit screenshot here — our team will
-confirm and unlock your free $250 mentorship course. A team member will
-follow up with you shortly!"
+Already trading with [Exness / XM] and have $500 or more deposited? Even
+better, that counts too. Either way, send your account screenshot showing
+the deposit here and our team will confirm and unlock your free $250
+mentorship course. A team member will follow up with you shortly!"
 
 Internally: lead status becomes QUALIFIED; a summary card (name, broker,
 experience, ready-for-deposit, phone) is logged for the team.
@@ -222,6 +228,15 @@ just get the BOX 12 acknowledgement.
 R5 — Deposit negotiation detector: a message mentioning the amount AND a
 "less/lower/kam/discount" word goes straight to a human with the reason
 attached, so the agent knows exactly what to answer.
+
+R6 — Mid-flow abandonment restart (added 21 July 2026, from a real bug found
+testing with multiple phone numbers): a customer sitting at BOX 2, 3, 4, 5,
+or 6 (main menu through deposit confirmation) who goes quiet and returns
+after 24+ hours gets a full restart at BOX 1, same shape as R4's declined
+restart, instead of having their new message misread as an answer to
+whatever question they left hanging days or weeks earlier. Before this
+rule, only declined customers ever restarted — anyone abandoned mid-flow
+stayed stuck on that question forever.
 
 R6 — New lead handling: every brand-new lead is auto-assigned to an agent
 (round-robin between Ehsan and Hanzala, switching every 10 leads) and the

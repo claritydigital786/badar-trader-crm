@@ -49,8 +49,8 @@ async function getWaCredentials(): Promise<{ token: string; phoneId: string }> {
 const LINKS = {
   exness: "https://one.exnesstrack.org/a/eatgh2cl7y",
   exnessCode: "eatgh2cl7y",
-  doprime: "https://my.dooprime.com/links/go/45031",
-  doprimeCode: "45031",
+  xm: "https://affs.click/a3Vrw",
+  xmCode: "YR4PD",
   // Was a Google Form placeholder that returns 401 Unauthorized (confirmed
   // live) — this is the real, working, hosted form (Badar, 2026-07-14).
   form: "https://crm.badartrader.com/join.html",
@@ -63,7 +63,7 @@ const WALAIKUM_REPLY = "Walaikum Assalam! 👋";
 const CONFUSED_REPLY = "This is Team Badar Tanvir. We are ever ready to serve for our brand's purpose. We're really sorry, but we couldn't quite understand your message. 🙏";
 
 // Finalized with Badar 2026-07-14: $250 course, 1 month, free once $500+ is
-// deposited with Exness or Do Prime — new OR existing account/deposit both
+// deposited with Exness or XM — new OR existing account/deposit both
 // count. Leads with the Signals Group per Badar's stated campaign priority
 // (subscriber growth), course is the added incentive. The real, hosted
 // verification form (LINKS.form) replaces the old broken Google Form.
@@ -71,11 +71,13 @@ const CONFUSED_REPLY = "This is Team Badar Tanvir. We are ever ready to serve fo
 // help with manually — not a self-service bot flow yet — so that case routes
 // to "Talk to an Agent" instead of promising steps the bot can't actually walk
 // someone through.
+// Do Prime dropped 2026-07-21 (Badar), replaced by XM — Ehsan supplied the
+// XM referral link/code.
 function freeSignalsText(lang: Lang): string {
   if (lang === "ur") {
-    return `🎓 Badar ke Premium Signals Group mein FREE join karein, aur hamara Forex Trading Mastery Course ($250 ki value) bhi bilkul free unlock karein.\n\nYe kaise kaam karta hai:\n\n1️⃣ Apne Exness ya Do Prime trading account mein $500 deposit karein. Ye aapka apna paisa hai, aapke apne account mein — hamein koi payment nahi.\n2️⃣ Pehle se $500 ya zyada deposit hai Exness ya Do Prime mein? Aur bhi behtar, wo bhi chalega. $500 se kam hai? Bas $500 tak top up kar lein.\n3️⃣ Apne account ka screenshot bhejein jisme Account ID aur deposit amount saaf nazar aa raha ho.\n4️⃣ Hum verify karenge aur aap Premium Signals Group mein add ho jayenge aur poora Forex Trading Mastery Course bhi unlock ho jayega, dono bilkul free.\n\nExness ya Do Prime par naye hain? Hamare link se account banayein:\n${LINKS.exness} (Exness)\n${LINKS.doprime} (Do Prime)\n\nPehle se kisi aur partner ke tehet account hai? "Agent se Baat Karein" chunein, hum switch karne mein madad karenge.\n\nVerification form: ${LINKS.form}\n\nAap apna paisa kabhi bhi apne broker account se withdraw kar sakte hain. Hum kabhi paisa nahi lete ✅`;
+    return `🎓 Badar ke Premium Signals Group mein FREE join karein, aur hamara Forex Trading Mastery Course ($250 ki value) bhi bilkul free unlock karein.\n\nYe kaise kaam karta hai:\n\n1️⃣ Apne Exness ya XM trading account mein $500 deposit karein. Ye aapka apna paisa hai, aapke apne account mein — hamein koi payment nahi.\n2️⃣ Pehle se $500 ya zyada deposit hai Exness ya XM mein? Aur bhi behtar, wo bhi chalega. $500 se kam hai? Bas $500 tak top up kar lein.\n3️⃣ Apne account ka screenshot bhejein jisme Account ID aur deposit amount saaf nazar aa raha ho.\n4️⃣ Hum verify karenge aur aap Premium Signals Group mein add ho jayenge aur poora Forex Trading Mastery Course bhi unlock ho jayega, dono bilkul free.\n\nExness ya XM par naye hain? Hamare link se account banayein:\n${LINKS.exness} (Exness)\n${LINKS.xm} (XM)\n\nPehle se kisi aur partner ke tehet account hai? "Agent se Baat Karein" chunein, hum switch karne mein madad karenge.\n\nVerification form: ${LINKS.form}\n\nAap apna paisa kabhi bhi apne broker account se withdraw kar sakte hain. Hum kabhi paisa nahi lete ✅`;
   }
-  return `🎓 Join Badar's Premium Signals Group, FREE, plus unlock our Forex Trading Mastery Course (worth $250) at no cost.\n\nHere's how it works:\n\n1️⃣ Deposit $500 in your own Exness or Do Prime trading account. This is your money, in your own account — not a payment to us.\n2️⃣ Already have $500 or more deposited with Exness or Do Prime? Even better, that counts too. Have less than $500 already deposited? Just top it up to $500 and you're good to go.\n3️⃣ Send us a screenshot of your account showing your Account ID and the deposit amount clearly visible.\n4️⃣ We verify it and you're added to the Premium Signals Group and unlock the full Forex Trading Mastery Course, both completely free.\n\nNew to Exness or Do Prime? Create your account through our link:\n${LINKS.exness} (Exness)\n${LINKS.doprime} (Do Prime)\n\nAlready have an account under a different partner? Choose "Talk to an Agent" and we'll help you switch it over.\n\nVerification form: ${LINKS.form}\n\nYou can withdraw your funds anytime, directly from your own broker account. We never collect or hold your money ✅`;
+  return `🎓 Join Badar's Premium Signals Group, FREE, plus unlock our Forex Trading Mastery Course (worth $250) at no cost.\n\nHere's how it works:\n\n1️⃣ Deposit $500 in your own Exness or XM trading account. This is your money, in your own account — not a payment to us.\n2️⃣ Already have $500 or more deposited with Exness or XM? Even better, that counts too. Have less than $500 already deposited? Just top it up to $500 and you're good to go.\n3️⃣ Send us a screenshot of your account showing your Account ID and the deposit amount clearly visible.\n4️⃣ We verify it and you're added to the Premium Signals Group and unlock the full Forex Trading Mastery Course, both completely free.\n\nNew to Exness or XM? Create your account through our link:\n${LINKS.exness} (Exness)\n${LINKS.xm} (XM)\n\nAlready have an account under a different partner? Choose "Talk to an Agent" and we'll help you switch it over.\n\nVerification form: ${LINKS.form}\n\nYou can withdraw your funds anytime, directly from your own broker account. We never collect or hold your money ✅`;
 }
 
 function faqText(lang: Lang): string {
@@ -467,6 +469,32 @@ async function runBotStep(
 
   const lang: Lang = lead.language === "ur" ? "ur" : "en";
 
+  // A lead abandoned mid-flow (never explicitly declined, just went quiet)
+  // has no restart rule today — only "declined" gets one. Anyone returning
+  // to any of these stages after a long gap has their new message
+  // misinterpreted as an answer to whatever question they left hanging,
+  // days or weeks ago, which reads as the bot behaving inconsistently
+  // between a fresh number and one with old test/lead history. Same
+  // restart shape as the declined-lead rule below, just covering every
+  // abandonable mid-flow stage instead of only one.
+  const MIDFLOW_RESTART_STAGES = [
+    "awaiting_menu", "awaiting_broker", "awaiting_experience",
+    "awaiting_traded_before", "awaiting_deposit_confirm",
+  ];
+  const hoursIdle = (Date.now() - lastTouch) / 3600000;
+  if (!wasCreated && MIDFLOW_RESTART_STAGES.includes(lead.bot_stage) && hoursIdle >= DECLINED_RESTART_HOURS) {
+    await sb.from("leads").update({ bot_stage: "awaiting_language", retry_count: 0 }).eq("id", lead.id);
+    const greeting = matchGreeting(input) ?? "hello";
+    const r1 = await sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY);
+    const r2 = await sendLanguageCard(to);
+    const ok = r1.ok && r2.ok;
+    const errorDetail = [!r1.ok ? r1.error : null, !r2.ok ? r2.error : null].filter(Boolean).join("; ");
+    await logOutbound(sb, lead.id, ok
+      ? `[stale mid-flow lead (was ${lead.bot_stage}) returned after 24h+ — flow restarted: greeting + language picker sent]`
+      : `[SEND FAILED: mid-flow restart — ${errorDetail}]`);
+    return;
+  }
+
   switch (lead.bot_stage) {
     case "awaiting_language": {
       const chosen = matchLanguage(input);
@@ -491,7 +519,7 @@ async function runBotStep(
         await sb.from("leads").update({ bot_stage: "awaiting_broker", retry_count: 0 }).eq("id", lead.id);
         const r = await sendButtons(to, "Which broker would you like to use?", [
           { id: "broker_exness", title: "Exness" },
-          { id: "broker_doprime", title: "Do Prime" },
+          { id: "broker_xm", title: "XM" },
         ]);
         await logOutbound(sb, lead.id, r.ok ? "[broker choice buttons sent]" : `[SEND FAILED: broker choice buttons — ${r.error}]`);
         return;
@@ -525,7 +553,7 @@ async function runBotStep(
         await handleUnmatched(sb, lead, to, input, 2, "broker choice", () =>
           sendButtons(to, "Sorry, I didn't catch that — which broker would you like to use?", [
             { id: "broker_exness", title: "Exness" },
-            { id: "broker_doprime", title: "Do Prime" },
+            { id: "broker_xm", title: "XM" },
           ]),
         );
         return;
@@ -604,8 +632,9 @@ async function runBotStep(
       }
 
       if (yesNo === "yes") {
-        const link = lead.broker_choice === "doprime" ? LINKS.doprime : LINKS.exness;
-        const code = lead.broker_choice === "doprime" ? LINKS.doprimeCode : LINKS.exnessCode;
+        const link = lead.broker_choice === "xm" ? LINKS.xm : LINKS.exness;
+        const code = lead.broker_choice === "xm" ? LINKS.xmCode : LINKS.exnessCode;
+        const brokerName = lead.broker_choice === "xm" ? "XM" : "Exness";
         await sb.from("leads").update({
           ready_to_deposit: true,
           bot_stage: "qualified",
@@ -619,9 +648,14 @@ async function runBotStep(
           subject: "Qualified lead summary", body: summary, created_at: new Date().toISOString(),
         });
 
+        // 2026-07-21 (Badar): don't assume every lead is starting from zero —
+        // some are already trading on this broker. Either a fresh $500
+        // deposit or an existing $500+ balance both count, the screenshot is
+        // what actually matters (it's the real signal a lead has closed, see
+        // handleImageMessage).
         const rQualified = await sendText(
           to,
-          `Perfect! 🎉 Create your account with ${lead.broker_choice === "doprime" ? "Do Prime" : "Exness"} here 👇\n${link}\n\nReferral / partner code: ${code}\n\nAfter depositing $500, send your deposit screenshot here — our team will confirm and unlock your free $250 mentorship course. A team member will follow up with you shortly!`,
+          `Perfect! 🎉 Deposit $500 in your own ${brokerName} account using the link below 👇\n${link}\n\nReferral / partner code: ${code}\n\nAlready trading with ${brokerName} and have $500 or more deposited? Even better, that counts too. Either way, send your account screenshot showing the deposit here and our team will confirm and unlock your free $250 mentorship course. A team member will follow up with you shortly!`,
         );
         await logOutbound(sb, lead.id, rQualified.ok ? "[qualified: signup link + course unlock sent]" : `[SEND FAILED: qualified signup link — ${rQualified.error}]`);
         return;
@@ -759,7 +793,7 @@ async function handleAgentReply(
 }
 
 async function sendDepositConfirm(to: string, sb: SupabaseClient, leadId: string, brokerChoice: string): Promise<SendResult> {
-  const brokerLabel = brokerChoice === "doprime" ? "Do Prime" : "Exness";
+  const brokerLabel = brokerChoice === "xm" ? "XM" : "Exness";
   const result = await sendButtons(
     to,
     `This offer needs a $500 deposit with ${brokerLabel} to unlock Badar's free $250 mentorship course. Ready to proceed?`,
@@ -862,11 +896,11 @@ function matchMenuChoice(input: UserInput): "start_trading" | "free_signals" | "
   return null;
 }
 
-function matchBroker(input: UserInput): "exness" | "doprime" | null {
+function matchBroker(input: UserInput): "exness" | "xm" | null {
   if (input.selectionId === "broker_exness") return "exness";
-  if (input.selectionId === "broker_doprime") return "doprime";
+  if (input.selectionId === "broker_xm") return "xm";
   if (/exness/i.test(input.text)) return "exness";
-  if (/do\s*prime|d\s*prime/i.test(input.text)) return "doprime";
+  if (/\bxm\b/i.test(input.text)) return "xm";
   return null;
 }
 

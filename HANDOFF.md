@@ -398,3 +398,19 @@ re-register on Cloud API, resume). CRM status: DISCONNECT PENDING on client's ac
 **New requirement logged (2026-07-21, 2am): automated database backups.** Muhammad has access to the client's web hosting/domain and wants a script placed there that backs up the CRM's Supabase data automatically, 4 times a day (every 6 hours), so new leads/data are continuously captured for the client's own copy. Full design deferred to later ("we'll talk about it later on"), just recording the requirement now per his new process rule. Needs to know the hosting type (cPanel/shared with cron+SSH vs something else) before writing the actual script.
 
 **Ordering update:** the automated backup / web hosting item above is also deferred to the end, grouped with the Bot Flow Map review and the nudge-agents re-enable timing. Nothing on that trio gets worked on until Muhammad says so.
+
+**Bot fixes shipped and deployed live (2026-07-21, ~2:30am):**
+1. **Mid-flow abandonment restart (real bug, found from your own testing).** Any lead stuck at the main menu, broker choice, experience, traded-before, or deposit-confirm stage for 24+ hours with no restart rule, only "declined" leads ever restarted. A lead returning to any of those stages just had their new message misread as an answer to a days/weeks-old question. Now they get a full restart at the greeting, same 24h threshold as the existing declined-restart rule. This is almost certainly what caused "different behavior" testing from different phone numbers, fresh numbers hit the greeting correctly, numbers with old leftover test state didn't restart.
+2. **Broker swap: Do Prime dropped, XM added.** Exness unchanged. Every bot message, button, and matcher updated (English + Roman Urdu). XM referral link/code supplied by Ehsan 20 July afternoon: `https://affs.click/a3Vrw`, code `YR4PD`. Historical leads with `broker_choice = 'doprime'` are left alone (DB constraint still permits the old value for existing rows; the bot itself no longer offers it as a choice going forward).
+3. **Qualified-lead wording changed.** Was "deposit $500, then send a screenshot" as one sequential requirement. Now covers leads who may already be trading and have an existing $500+ balance, same screenshot requirement either way — the screenshot itself is the real signal a lead has closed, not the verbal "yes" to depositing (Badar's framing, 21 July).
+
+All three deployed to the live Supabase project already. `docs/BOT_FLOW_MAP.md` updated to match (new Rule R6 for the restart, Box 3/6/8/10 broker text, Box 10 wording). Committing the source now so the repo matches what's live.
+
+**Known follow-up, not done yet:** `simulator.html` still says "Do Prime" in 2 places, it's already a separately drifted artifact (Phase B territory) and wasn't touched tonight since the priority was the real, live bot.
+
+**Still open from this same conversation, unresolved:**
+- Whether the qualified message should show both Exness and XM links regardless of which broker a lead picked, or just the one they chose (current behavior: just the one chosen, unchanged tonight)
+- The actual names for the new Conversations filter categories (Muhammad referenced wanting new ones but never sent the list)
+- Whether lead status should only flip to "closed/converted" once a screenshot actually arrives, rather than the moment they say "yes" to depositing
+- Whether there's a brand style guide (fonts/colors) to standardize across CRM/agent/client-facing surfaces, or match what's already in the CRM
+- The Lovable landing page (VSL video, XM branding) — blocked, Claude has no access to the private project
