@@ -216,3 +216,79 @@ Offered to Badar; he pivoted to (a) without answering — ask again before build
 Never say "Fixed" without end-to-end test evidence. Anything untestable gets labeled
 UNVERIFIED with the exact reason it couldn't be tested. Keep going through inspect →
 implement → test → correct until actually verified — don't stop at "should work."
+
+---
+
+## 2026-07-19 session — branding fix parked, signalling deferred to v2 build
+
+**Branding fix: DONE locally, verified in browser, deliberately NOT committed/deployed.**
+Muhammad's explicit instruction: note it now, ship it during the v2 build, not before.
+Uncommitted working-tree changes (keep them):
+- `assets/bull.svg` — removed baked-in white background path (fill rgb(254,254,254)),
+  tightened viewBox from `0 0 178 130` to `46 38 119 94` (artwork's true bbox).
+- `assets/favicon.svg` — NEW file: bull centered on #0f172a rounded-square tile.
+- `index.html` — `.sidebar-brand` now text-align:center + img rule (130px centered);
+  logo `<img>` added to the agent sidebar too (it had none); favicon link now points
+  to `/assets/favicon.svg?v=2`; both logo srcs cache-busted with `?v=2` (old white
+  SVG is cached in users' browsers, the query string is required).
+- ALSO INSTRUCTED (not yet implemented anywhere): the logo must appear on the CRM
+  dashboard itself, not only in the sidebar/favicon. Currently the login card is
+  text-only and the dashboard header has no logo. At build time: add it to the login
+  card and the dashboard top bar (confirm exact placement with Muhammad then).
+
+**Signalling section: investigated, real build deferred to v2.** Findings (verified in code):
+- `_subscribers` (~4,150) are fake, generated in-browser each load (index.html ~line 5141).
+  No subscribers table in DB. Adds/imports vanish on refresh.
+- `broadcastSignal()` demo mode fakes success ("Delivered to all N") after a 900ms timeout —
+  the #1 trap: success message with nothing sent. Real-token path would send from the
+  browser (CORS-blocked, hardcoded WABA id, fake numbers) — dead code in practice.
+- AI Signals tab = Math.random() simulation, admitted by its own disclaimer.
+- "Groups 1/2/3" are tags for individual sends, NOT WhatsApp group chats (Cloud API
+  cannot post to group chats at all — Meta restriction).
+- v2 go-live needs: real `subscribers` table, opt-in list (signals-form.html already
+  feeds leads with form_type 'signals'), server-side send via an edge function like
+  send-wa-message, Meta tier limits (~250/day unverified → verify + tier up for ~4k),
+  template approval for messages outside the 24h window.
+- OPEN QUESTION for Muhammad: does "Subscribers" mean everyone from the signals signup
+  form, or a separately managed paid list? Blocks the v2 design of this section.
+
+**WhatsApp bot v1 pain point (Muhammad, 2026-07-19) + agreed v2 approach.** v1 bot never
+matched his instructed flow. Root causes found in code: flow exists only as code (975-line
+webhook switch, wording inline in EN+UR); simulator.html ("Simulator v3") holds a DIFFERENT,
+drifted version of the flow than the deployed webhook; instructions were applied as spot
+patches with no shared map; no pre-live click-through. v2 approach he was given: a numbered
+Flow Map document as single source of truth (every screen = numbered box with exact EN/UR
+text, buttons, and destination box numbers + retry/resume/escalation rules), Muhammad
+instructs by box number, bot engine reads the flow as data (no hardcoding), simulator runs
+from the same map, and nothing goes live before he approves the map and click-through.
+
+**Mobile access (Muhammad, 2026-07-19).** Asked whether admin + agents can use the CRM on
+phones (Ehsan/Hanzala leave office 6pm PKT; after-hours leads went uncontacted in v1).
+Verified live at 375px: responsive layout already exists and works (cards stack, hamburger
+sidebar at <=768px, toggleSidebar()). Answer given: yes, same URL + login on any phone
+browser, nothing to install. V2 items filed: (a) full mobile usability pass tab-by-tab —
+wide tables (All Leads/Reports) and the Conversations two-panel screen are cramped on
+phones, never systematically tested; (b) after-hours coverage isn't just access: agents
+need a WhatsApp alert when a new lead arrives after 6pm — nudge-agents is still
+UNSCHEDULED due to the 07-14 duplicate-spam bug (root cause never found), fix it before
+re-enabling and add the after-hours new-lead alert.
+
+**"Subscribers" definition ANSWERED (Muhammad, 2026-07-20).** A subscriber = a member of
+one of the signalling communities (real WhatsApp communities). Separately managed list,
+but fed by the signals form: every signals-form signup is redirected into the subscribers'
+community. v2 design implication: signups create pending entries; community membership
+makes them subscribers; the CRM Subscribers section must mirror actual community
+membership grouped by community — not an auto-dump of form signups, not a standalone list.
+This unblocks the signalling section's v2 design (see 2026-07-19 findings above).
+
+---
+
+## 2026-07-20 — V2 BUILD STARTED (Muhammad gave explicit go-ahead)
+
+Planned steps, in order (written BEFORE doing them, per discipline):
+1. Commit the parked branding fix + these handoff notes on the integration branch.
+2. Merge integration/merge-bot-human-handoff into main.
+3. Push the repo to GitHub (check remote/gh auth first; if unavailable, record blocker and continue).
+4. Deploy to production (figure out the deploy path: vercel CLI vs git-connected) and verify the branding fix live on crm.badartrader.com.
+5. Draft the bot Flow Map (numbered boxes, EN/UR, button destinations) for Muhammad's box-by-box review — no bot code before his approval.
+Status of each step will be recorded below as it completes.
