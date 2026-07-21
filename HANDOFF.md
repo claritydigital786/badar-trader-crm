@@ -444,3 +444,11 @@ All three deployed to the live Supabase project already. `docs/BOT_FLOW_MAP.md` 
 **Important honest finding: this did NOT fix the overall 4-6s latency Hanzala flagged.** Total time from inbound message to the bot's response is still ~5+ seconds in the same range as before. The parallelized sends were never the dominant cost, most of the delay happens earlier in the pipeline (lead lookup/creation, round-robin assignment, related DB writes) before the bot even gets to sending a reply. That part has NOT been diagnosed or fixed yet, real further investigation needed, not something to claim as solved.
 
 Tradeoff noted on the parallelization itself: sending two messages concurrently instead of strictly in order carries a small theoretical risk Meta could deliver them out of order (language picker before the greeting, for example). In practice near-simultaneous requests to the same endpoint arrive in order the vast majority of the time, but it is not a hard guarantee like sequential sending was.
+
+**Latency investigation continued (2026-07-21) — found the real dominant cost.** Restructured the new-lead path: agent round-robin assignment now runs fully in the background (the customer's greeting never needed `assigned_agent_id` anyway), and the inbound message log now runs concurrently with the bot's reply instead of blocking it. Deployed and measured.
+
+Real finding: **cold start, not the code, was the dominant cost.** Isolated test calls (each one the first request in a while) consistently took ~5+ seconds. Firing 3 requests back-to-back, keeping the function warm, dropped total time to **2.3-3.0 seconds**. This matches how Supabase Edge Functions (serverless, Deno-based) behave, an idle function pays a real startup cost on its next invocation.
+
+Practical implication: in real usage with steady message traffic, the function likely stays warm most of the time and typical latency should be closer to 2-3 seconds, not 5-6. But a lead who messages after a quiet period will still hit a cold start. There is no code-level fix for this within the current architecture, keeping the function warm would need a separate scheduled "ping" to it every few minutes, which is a real option if this still isn't fast enough, not something built tonight.
+
+All test leads from tonight's latency investigation cleaned up.

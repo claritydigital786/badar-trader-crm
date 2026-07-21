@@ -206,9 +206,14 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         const { lead, wasCreated } = await upsertLead(sb, senderPhone, contactName, timestamp);
         if (!lead) continue;
 
-        await insertCommunication(sb, lead.id, "inbound", input.text, timestamp, undefined, message.id);
-
-        await runBotStep(sb, lead, wasCreated, input);
+        // Logging the inbound message doesn't need to finish before the bot
+        // can respond — neither depends on the other's result, so they run
+        // concurrently instead of adding the log write's time to the delay
+        // before the customer sees a reply.
+        await Promise.all([
+          insertCommunication(sb, lead.id, "inbound", input.text, timestamp, undefined, message.id),
+          runBotStep(sb, lead, wasCreated, input),
+        ]);
       }
     }
   }
@@ -290,11 +295,15 @@ async function upsertLead(
 
   console.log(`New lead created: ${newLead.id}`);
 
-  const agent = await assignAgentRoundRobin(sb);
-  await sb.from("leads").update({ assigned_agent_id: agent.id }).eq("id", newLead.id);
-  newLead.assigned_agent_id = agent.id;
-
+  // Agent assignment (round-robin count + update) and the notification below
+  // both run in the background, not awaited here — nothing the customer
+  // sees (the greeting in runBotStep) depends on assigned_agent_id, so
+  // there's no reason to make them wait on it. Shaves a full round-robin
+  // count query plus an update off the delay before the greeting goes out.
   const notifyAgent = (async () => {
+    const agent = await assignAgentRoundRobin(sb);
+    await sb.from("leads").update({ assigned_agent_id: agent.id }).eq("id", newLead.id);
+
     if (!NEW_LEAD_NOTIFICATIONS_ENABLED) {
       await insertCommunication(
         sb,
