@@ -105,7 +105,7 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d.ok) { err.textContent = d.error || 'Something went wrong — please try again.'; btn.disabled = false; btn.textContent = 'Submit for Verification'; return; }
-        location.href = 'thankyou.html?src=form';
+        location.href = 'thankyou.html?src=form&form_type=course';
       })
       .catch(function () {
         err.textContent = 'Network error — please try again or contact us on WhatsApp.';

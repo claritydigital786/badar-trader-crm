@@ -5,6 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Thank You — Badar Trader</title>
 <link rel="icon" type="image/svg+xml" href="/assets/bull.svg">
+<!-- Meta Pixel Code -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '1949685059057675');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=1949685059057675&ev=PageView&noscript=1"
+/></noscript>
+<!-- End Meta Pixel Code -->
 <style>
   :root { color-scheme: light; }
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -34,12 +51,25 @@
   // src=form: arrived from signals-form.html / course-form.html, which
   // already created the lead + kyc_documents row server-side (in
   // submit-lead-form). Do NOT call conversion-hook here — that endpoint
-  // marks a lead "converted" and is only for the deposit-verification
-  // flow (join.html), not first-contact form submissions still pending
-  // review.
+  // marks a lead "converted" (CRM status) and is only for the
+  // deposit-verification flow (join.html); form submissions here are still
+  // pending manual screenshot review, so CRM status stays untouched.
+  //
+  // The Meta Pixel event below is separate and deliberate (Badar, 21 July):
+  // he wants these two forms recorded as Ads Manager conversions the moment
+  // someone reaches this page, same as any standard lead-gen funnel — that's
+  // independent of whether the CRM later approves the deposit screenshot.
+  // form_type distinguishes which of the two forms this came from, so one
+  // physical thank-you page can fire the correct event for both.
   if (q.get('src') === 'form') {
     document.getElementById('detail').textContent = '';
     document.getElementById('status').textContent = 'Your deposit screenshot is pending review by our team.';
+    var formType = q.get('form_type');
+    if (formType === 'signals') {
+      fbq('track', 'Lead', { content_name: 'premium_signals_group' });
+    } else if (formType === 'course') {
+      fbq('track', 'CompleteRegistration', { content_name: 'free_course' });
+    }
     return;
   }
 
