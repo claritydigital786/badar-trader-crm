@@ -62,8 +62,8 @@ Also accepted typed: "trading"/"shuru" → 1; "signal" → 2; "agent"/"baat" →
 Text: "Which broker would you like to use?"
 (NOTE: English only today — no Urdu twin exists. Flagged for review.)
 
-Buttons: "Exness" → BOX 4 · "XM" → BOX 4
-Also accepted typed: "exness", "xm". Anything else → RULE R1
+Buttons: "Exness" → BOX 4 · "XM" → BOX 4 · "Both" → BOX 4
+Also accepted typed: "exness", "xm", "both". Anything else → RULE R1
 (re-ask wording: "Sorry, I didn't catch that — which broker would you like
 to use?").
 
@@ -180,6 +180,10 @@ Already trading with [Exness / XM] and have $500 or more deposited? Even
 better, that counts too. Either way, send your account screenshot showing
 the deposit here and our team will confirm and unlock your free $250
 mentorship course. A team member will follow up with you shortly!"
+
+If the customer picked "Both" at BOX 3 (added 21 July 2026, Muhammad): the
+[Exness / XM] label reads "Exness or XM", and both brokers' links and
+referral/partner codes are listed together instead of just one.
 
 Internally: lead status becomes QUALIFIED; a summary card (name, broker,
 experience, ready-for-deposit, phone) is logged for the team.

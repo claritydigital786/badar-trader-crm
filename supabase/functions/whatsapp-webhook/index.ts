@@ -520,6 +520,7 @@ async function runBotStep(
         const r = await sendButtons(to, "Which broker would you like to use?", [
           { id: "broker_exness", title: "Exness" },
           { id: "broker_xm", title: "XM" },
+          { id: "broker_both", title: "Both" },
         ]);
         await logOutbound(sb, lead.id, r.ok ? "[broker choice buttons sent]" : `[SEND FAILED: broker choice buttons — ${r.error}]`);
         return;
@@ -554,6 +555,7 @@ async function runBotStep(
           sendButtons(to, "Sorry, I didn't catch that — which broker would you like to use?", [
             { id: "broker_exness", title: "Exness" },
             { id: "broker_xm", title: "XM" },
+            { id: "broker_both", title: "Both" },
           ]),
         );
         return;
@@ -632,9 +634,15 @@ async function runBotStep(
       }
 
       if (yesNo === "yes") {
-        const link = lead.broker_choice === "xm" ? LINKS.xm : LINKS.exness;
-        const code = lead.broker_choice === "xm" ? LINKS.xmCode : LINKS.exnessCode;
-        const brokerName = lead.broker_choice === "xm" ? "XM" : "Exness";
+        // "Both" (added 21 July 2026, Badar) shows both brokers' links/codes
+        // together instead of picking one — a lead who wants to use both
+        // Exness and XM gets both referral links in the same message.
+        const brokerName = lead.broker_choice === "xm" ? "XM" : lead.broker_choice === "both" ? "Exness or XM" : "Exness";
+        const linkSection = lead.broker_choice === "both"
+          ? `Exness: ${LINKS.exness} (code: ${LINKS.exnessCode})\nXM: ${LINKS.xm} (code: ${LINKS.xmCode})`
+          : lead.broker_choice === "xm"
+            ? `${LINKS.xm}\n\nReferral / partner code: ${LINKS.xmCode}`
+            : `${LINKS.exness}\n\nReferral / partner code: ${LINKS.exnessCode}`;
         await sb.from("leads").update({
           ready_to_deposit: true,
           bot_stage: "qualified",
@@ -655,7 +663,7 @@ async function runBotStep(
         // handleImageMessage).
         const rQualified = await sendText(
           to,
-          `Perfect! 🎉 Deposit $500 in your own ${brokerName} account using the link below 👇\n${link}\n\nReferral / partner code: ${code}\n\nAlready trading with ${brokerName} and have $500 or more deposited? Even better, that counts too. Either way, send your account screenshot showing the deposit here and our team will confirm and unlock your free $250 mentorship course. A team member will follow up with you shortly!`,
+          `Perfect! 🎉 Deposit $500 in your own ${brokerName} account using the link below 👇\n${linkSection}\n\nAlready trading with ${brokerName} and have $500 or more deposited? Even better, that counts too. Either way, send your account screenshot showing the deposit here and our team will confirm and unlock your free $250 mentorship course. A team member will follow up with you shortly!`,
         );
         await logOutbound(sb, lead.id, rQualified.ok ? "[qualified: signup link + course unlock sent]" : `[SEND FAILED: qualified signup link — ${rQualified.error}]`);
         return;
@@ -793,7 +801,7 @@ async function handleAgentReply(
 }
 
 async function sendDepositConfirm(to: string, sb: SupabaseClient, leadId: string, brokerChoice: string): Promise<SendResult> {
-  const brokerLabel = brokerChoice === "xm" ? "XM" : "Exness";
+  const brokerLabel = brokerChoice === "xm" ? "XM" : brokerChoice === "both" ? "Exness or XM" : "Exness";
   const result = await sendButtons(
     to,
     `This offer needs a $500 deposit with ${brokerLabel} to unlock Badar's free $250 mentorship course. Ready to proceed?`,
@@ -896,9 +904,11 @@ function matchMenuChoice(input: UserInput): "start_trading" | "free_signals" | "
   return null;
 }
 
-function matchBroker(input: UserInput): "exness" | "xm" | null {
+function matchBroker(input: UserInput): "exness" | "xm" | "both" | null {
   if (input.selectionId === "broker_exness") return "exness";
   if (input.selectionId === "broker_xm") return "xm";
+  if (input.selectionId === "broker_both") return "both";
+  if (/\bboth\b/i.test(input.text)) return "both";
   if (/exness/i.test(input.text)) return "exness";
   if (/\bxm\b/i.test(input.text)) return "xm";
   return null;

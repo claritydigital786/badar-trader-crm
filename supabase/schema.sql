@@ -1020,3 +1020,20 @@ ALTER TABLE public.leads ADD CONSTRAINT leads_broker_choice_check
 
 -- ── DONE (Phase 16) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 17 Schema ("Both" broker option)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 35. Broker choice: "Both" added (Muhammad, 2026-07-21) ──
+-- A lead can now pick both Exness and XM instead of just one — the bot's
+-- Box 3 has a third button, and the qualified-lead message shows both
+-- brokers' referral links/codes together when this is chosen.
+ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_broker_choice_check;
+ALTER TABLE public.leads ADD CONSTRAINT leads_broker_choice_check
+  CHECK (broker_choice IN ('exness','xm','both','doprime'));
+
+-- ── DONE (Phase 17) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════

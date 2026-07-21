@@ -414,3 +414,5 @@ All three deployed to the live Supabase project already. `docs/BOT_FLOW_MAP.md` 
 - Whether lead status should only flip to "closed/converted" once a screenshot actually arrives, rather than the moment they say "yes" to depositing
 - Whether there's a brand style guide (fonts/colors) to standardize across CRM/agent/client-facing surfaces, or match what's already in the CRM
 - The Lovable landing page (VSL video, XM branding) — blocked, Claude has no access to the private project
+
+**"Both" broker option added and deployed (2026-07-21, ~3am).** A lead can now pick "Both" at the broker-choice step (Box 3), alongside Exness and XM. The qualified-lead message shows both brokers' referral links/codes together when this is picked, instead of just one. Deployed live, DB constraint updated (`broker_choice` now allows `'exness'|'xm'|'both'|'doprime'`), Flow Map doc updated to match.
