@@ -702,6 +702,7 @@
       <div class="nav-item" data-tab="meta"><span class="nav-icon">🔗</span> Meta Integration</div>
       <div class="nav-item" data-tab="notifications"><span class="nav-icon">🔔</span> Notifications</div>
       <div class="nav-item" data-tab="sites"><span class="nav-icon">🌐</span> Sites</div>
+      <div class="nav-item" data-tab="guide"><span class="nav-icon">📖</span> Guide</div>
     </div>
     <div class="sidebar-footer">
       <div class="user-avatar" id="sidebar-user-initials">BT</div>
@@ -1244,6 +1245,81 @@
     </div>
   </div>
 
+  <!-- Guide (admin sees every section, agents see their own subset — see agent-tab-guide) -->
+  <div id="admin-tab-guide" class="tab-content">
+    <h3>Guide</h3>
+    <p style="color:#64748b;font-size:0.85rem;margin-bottom:18px">What each section of this dashboard is for.</p>
+
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Dashboard</p>
+      <p style="color:#475569;font-size:0.88rem">Home screen: total leads, new leads, converted count, active agents, total revenue, upcoming follow-ups, and Meta Ads performance at a glance.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">All Leads</p>
+      <p style="color:#475569;font-size:0.88rem">The full list of every lead in the system, with filters by status, agent, and source, plus a search box. Open any lead here to see its full record.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">My Team</p>
+      <p style="color:#475569;font-size:0.88rem">The list of agents, their roles, and account status. Manage who has access here.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Meta Ads</p>
+      <p style="color:#475569;font-size:0.88rem">Live campaign metrics from Meta Ads Manager: impressions, clicks, cost per lead, spend, without leaving the CRM.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Add Lead</p>
+      <p style="color:#475569;font-size:0.88rem">Manually create a single lead, or bulk-import many at once via CSV.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Conversations</p>
+      <p style="color:#475569;font-size:0.88rem">The actual WhatsApp chat interface. Read and reply to leads directly here.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Comm Log</p>
+      <p style="color:#475569;font-size:0.88rem">A running log of every communication (WhatsApp, call, email, note) across all leads, a quick overview without opening each lead individually.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Reports</p>
+      <p style="color:#475569;font-size:0.88rem">Aggregated numbers: conversion rate, agent performance, lead source performance, financial summary.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Automation</p>
+      <p style="color:#475569;font-size:0.88rem">Where automated rule triggers live. Currently a stub, no real sending wired up yet.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Payroll</p>
+      <p style="color:#475569;font-size:0.88rem">Agent payroll and commission tracking tied to converted leads.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Broadcast Signal</p>
+      <p style="color:#475569;font-size:0.88rem">Where a trading signal gets composed and sent out to subscribers.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Subscribers</p>
+      <p style="color:#475569;font-size:0.88rem">The list of people who receive signals. Currently placeholder data, a real rebuild is pending a decision on delivery mechanism.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">AI Signals</p>
+      <p style="color:#475569;font-size:0.88rem">Automated signal generation. Currently a placeholder, pending a decision on whether to use real technical indicators or human-picked signals.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Meta Integration</p>
+      <p style="color:#475569;font-size:0.88rem">WhatsApp Business API credentials, access tokens, and webhook settings. Backend wiring, admin only.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Notifications</p>
+      <p style="color:#475569;font-size:0.88rem">Settings for what alerts fire and to whom.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Sites</p>
+      <p style="color:#475569;font-size:0.88rem">Public-facing landing pages and domains connected to this CRM.</p>
+    </div>
+    <div class="card" style="background:#eef2f7">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">A note on agent access</p>
+      <p style="color:#475569;font-size:0.88rem">Any active agent can see every lead now, not just their own assigned ones (changed 21 July 2026). Reports, Automation, Payroll, and Settings stay admin-only.</p>
+    </div>
+  </div>
+
   <!-- Communication Log -->
   <div id="admin-tab-comm-log" class="tab-content">
     <h3>Communication Log</h3>
@@ -1763,6 +1839,7 @@
       <div class="nav-item tab-btn" data-tab="conversations" onclick="agentTab('conversations',this)"><span class="nav-icon">💬</span> Conversations <span id="agent-conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
       <div class="nav-item tab-btn" data-tab="comm-log" onclick="agentTab('comm-log',this)"><span class="nav-icon">🕐</span> Comm Log</div>
       <div class="nav-item tab-btn" data-tab="log-activity" onclick="agentTab('log-activity',this)"><span class="nav-icon">📝</span> Log Activity</div>
+      <div class="nav-item tab-btn" data-tab="guide" onclick="agentTab('guide',this)"><span class="nav-icon">📖</span> Guide</div>
     </div>
     <div class="sidebar-footer">
       <div class="user-avatar" id="agent-sidebar-initials">A</div>
@@ -1985,6 +2062,37 @@
     </div>
   </div>
 
+  <!-- Guide (agent's own subset — admin sees every section, see admin-tab-guide) -->
+  <div id="agent-tab-guide" class="tab-content">
+    <h3>Guide</h3>
+    <p style="color:#64748b;font-size:0.85rem;margin-bottom:18px">What each section of your dashboard is for.</p>
+
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Dashboard</p>
+      <p style="color:#475569;font-size:0.88rem">Your home screen: quick stats on leads and your recent activity.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">My Leads</p>
+      <p style="color:#475569;font-size:0.88rem">Every lead in the system, not just your own assigned ones (changed 21 July 2026, any active agent can now see everybody's leads). Open any lead here for its full record.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Conversations</p>
+      <p style="color:#475569;font-size:0.88rem">The actual WhatsApp chat interface. Read and reply to leads directly here.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Comm Log</p>
+      <p style="color:#475569;font-size:0.88rem">A running log of every communication across all leads, a quick overview without opening each one individually.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Log Activity</p>
+      <p style="color:#475569;font-size:0.88rem">Record a call, WhatsApp message, email, or note against any lead, with an optional follow-up date.</p>
+    </div>
+    <div class="card" style="background:#eef2f7">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Not shown here</p>
+      <p style="color:#475569;font-size:0.88rem">Reports, Automation, Payroll, and Settings stay admin-only.</p>
+    </div>
+  </div>
+
     </div><!-- /content-body -->
   </div><!-- /main-content -->
 </div><!-- /#agent-dashboard -->
@@ -2198,7 +2306,8 @@ function adminTab(name, el) {
     payroll: 'Payroll', automation: 'Automation',
     notifications: 'Notifications', sites: 'Landing Pages', reports: 'Reports',
     'comm-log': 'Communication Log',
-    'signal-broadcast': 'Broadcast Signal', subscribers: 'Subscribers', 'ai-signals': 'AI Signals'
+    'signal-broadcast': 'Broadcast Signal', subscribers: 'Subscribers', 'ai-signals': 'AI Signals',
+    guide: 'Guide'
   };
   const titleEl = document.getElementById('current-tab-title');
   if (titleEl) titleEl.textContent = titles[name] || name;
@@ -2533,7 +2642,7 @@ async function initAgent() {
   loadUpcomingFollowups('agent-');
 }
 
-const AGENT_TAB_TITLES = { dashboard: 'Dashboard', 'my-leads': 'My Leads', conversations: 'Conversations', 'comm-log': 'Communication Log', 'log-activity': 'Log Activity' };
+const AGENT_TAB_TITLES = { dashboard: 'Dashboard', 'my-leads': 'My Leads', conversations: 'Conversations', 'comm-log': 'Communication Log', 'log-activity': 'Log Activity', guide: 'Guide' };
 
 // Kept in sync with LINKS in supabase/functions/whatsapp-webhook/index.ts and
 // simulator.html. Ehsan asked for these to be copy-pasteable from the
