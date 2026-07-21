@@ -577,9 +577,14 @@
     .conv-chat-header-info h3 { color:#0f172a; font-size:0.95rem; font-weight:700; margin:0 0 2px; }
     .conv-chat-header-info p { color:#64748b; font-size:0.78rem; margin:0; display:flex; align-items:center; gap:8px; }
     .conv-messages { flex:1; overflow-y:auto; padding:16px; background:#f8fafc; display:flex; flex-direction:column; gap:8px; }
-    .msg-wrapper { display:flex; flex-direction:column; }
+    /* No align-items here defaulted to "stretch", so every bubble was forced
+       to the full max-width below regardless of how short its text was —
+       a short reply's bubble still stretched to 70% width, which (combined
+       with outgoing being right-anchored) made short replies visually start
+       around the middle of the chat instead of hugging their own text. */
+    .msg-wrapper { display:flex; flex-direction:column; align-items:flex-start; }
     .msg-wrapper.outgoing { align-items:flex-end; }
-    .msg-bubble { max-width:70%; padding:10px 14px; border-radius:14px; font-size:0.875rem; line-height:1.5; word-break:break-word; white-space:pre-wrap; }
+    .msg-bubble { max-width:70%; width:fit-content; padding:10px 14px; border-radius:14px; font-size:0.875rem; line-height:1.5; word-break:break-word; white-space:pre-wrap; }
     .conv-msg-textarea { width:100%; resize:none; overflow-y:auto; min-height:64px; max-height:320px; padding:12px 14px; border-radius:14px; border:1px solid #cbd5e1; font-family:inherit; font-size:0.875rem; line-height:1.4; }
     .msg-bubble.incoming { background:#fff; color:#334155; border:1px solid #e2e8f0; border-bottom-left-radius:4px; }
     .msg-bubble.outgoing { background:#0ea5e9; color:#fff; border-bottom-right-radius:4px; }
