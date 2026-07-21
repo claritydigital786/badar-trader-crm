@@ -549,6 +549,17 @@ async function runBotStep(
     return;
   }
 
+  // A mistaken tap (wrong broker, wrong experience level, etc.) previously
+  // had no way back — the lead was stuck re-answering the current question
+  // or had to be manually reset. bot_stage_history is a stack of every stage
+  // this lead has moved forward through; "Back" pops one level and re-sends
+  // that stage's prompt, undoing whatever field that stage's forward
+  // transition had already saved (see goBack).
+  if (matchNavBack(input) && (lead.bot_stage_history?.length ?? 0) > 0) {
+    await goBack(sb, lead, to, lang);
+    return;
+  }
+
   switch (lead.bot_stage) {
     case "awaiting_language": {
       const chosen = matchLanguage(input);
@@ -556,7 +567,7 @@ async function runBotStep(
         await handleUnmatched(sb, lead, to, input, 2, "language choice", () => sendLanguageCard(to));
         return;
       }
-      await sb.from("leads").update({ language: chosen, bot_stage: "awaiting_menu", retry_count: 0 }).eq("id", lead.id);
+      await advanceStage(sb, lead, "awaiting_menu", { language: chosen });
       const rMenu = await sendMainMenuCard(to, chosen);
       await logOutbound(sb, lead.id, combineSendLog(rMenu));
       return;
@@ -570,20 +581,15 @@ async function runBotStep(
       }
 
       if (choice === "start_trading") {
-        await sb.from("leads").update({ bot_stage: "awaiting_broker", retry_count: 0 }).eq("id", lead.id);
-        const r = await sendButtons(to, "Which broker would you like to use?", [
-          { id: "broker_exness", title: "Exness" },
-          { id: "broker_xm", title: "XM" },
-          { id: "broker_both", title: "Both" },
-        ]);
+        await advanceStage(sb, lead, "awaiting_broker");
+        const r = await sendBrokerCard(to, "Which broker would you like to use?");
         await logOutbound(sb, lead.id, combineSendLog(r));
         return;
       }
 
       if (choice === "free_signals") {
         await sb.from("leads").update({ bot_stage: "declined", retry_count: 0 }).eq("id", lead.id);
-        const r = await sendText(to, freeSignalsText(lang));
-        await logOutbound(sb, lead.id, combineSendLog(r));
+        await escalate(sb, lead, to, "requested human agent for Premium Signalling Group");
         return;
       }
 
@@ -606,19 +612,12 @@ async function runBotStep(
       const broker = matchBroker(input);
       if (!broker) {
         await handleUnmatched(sb, lead, to, input, 2, "broker choice", () =>
-          sendButtons(to, "Sorry, I didn't catch that — which broker would you like to use?", [
-            { id: "broker_exness", title: "Exness" },
-            { id: "broker_xm", title: "XM" },
-            { id: "broker_both", title: "Both" },
-          ]),
+          sendBrokerCard(to, "Sorry, I didn't catch that — which broker would you like to use?"),
         );
         return;
       }
-      await sb.from("leads").update({ broker_choice: broker, bot_stage: "awaiting_experience", retry_count: 0 }).eq("id", lead.id);
-      const rExp = await sendButtons(to, "Great choice! Are you new to trading, or already experienced?", [
-        { id: "exp_new", title: "New to trading" },
-        { id: "exp_experienced", title: "Experienced" },
-      ]);
+      await advanceStage(sb, lead, "awaiting_experience", { broker_choice: broker });
+      const rExp = await sendExperienceButtons(to, "Great choice! Are you new to trading, or already experienced?");
       await logOutbound(sb, lead.id, combineSendLog(rExp));
       return;
     }
@@ -627,26 +626,21 @@ async function runBotStep(
       const experience = matchExperience(input);
       if (!experience) {
         await handleUnmatched(sb, lead, to, input, 2, "experience level", () =>
-          sendButtons(to, "Just to confirm — are you new to trading, or already experienced?", [
-            { id: "exp_new", title: "New to trading" },
-            { id: "exp_experienced", title: "Experienced" },
-          ]),
+          sendExperienceButtons(to, "Just to confirm — are you new to trading, or already experienced?"),
         );
         return;
       }
 
       if (experience === "new") {
-        await sb.from("leads").update({ bot_stage: "awaiting_traded_before", retry_count: 0 }).eq("id", lead.id);
-        const r = await sendButtons(to, "No problem! Have you traded before (with any broker)?", [
-          { id: "traded_yes", title: "Yes" },
-          { id: "traded_no", title: "No" },
-        ]);
+        await advanceStage(sb, lead, "awaiting_traded_before");
+        const r = await sendTradedBeforeButtons(to, "No problem! Have you traded before (with any broker)?");
         await logOutbound(sb, lead.id, combineSendLog(r));
         return;
       }
 
-      await sb.from("leads").update({ trader_experience: "experienced", bot_stage: "awaiting_deposit_confirm", retry_count: 0 }).eq("id", lead.id);
-      await sendDepositConfirm(to, sb, lead.id, lead.broker_choice);
+      await advanceStage(sb, lead, "awaiting_deposit_confirm", { trader_experience: "experienced" });
+      const rDep1 = await sendDepositConfirm(to, lead.broker_choice);
+      await logOutbound(sb, lead.id, combineSendLog(rDep1));
       return;
     }
 
@@ -654,15 +648,13 @@ async function runBotStep(
       const yesNo = matchYesNo(input);
       if (!yesNo) {
         await handleUnmatched(sb, lead, to, input, 2, "traded-before answer", () =>
-          sendButtons(to, "Sorry — have you traded before with any broker?", [
-            { id: "traded_yes", title: "Yes" },
-            { id: "traded_no", title: "No" },
-          ]),
+          sendTradedBeforeButtons(to, "Sorry — have you traded before with any broker?"),
         );
         return;
       }
-      await sb.from("leads").update({ trader_experience: "new", bot_stage: "awaiting_deposit_confirm", retry_count: 0 }).eq("id", lead.id);
-      await sendDepositConfirm(to, sb, lead.id, lead.broker_choice);
+      await advanceStage(sb, lead, "awaiting_deposit_confirm", { trader_experience: "new" });
+      const rDep2 = await sendDepositConfirm(to, lead.broker_choice);
+      await logOutbound(sb, lead.id, combineSendLog(rDep2));
       return;
     }
 
@@ -679,10 +671,7 @@ async function runBotStep(
         // Give one clarifying re-prompt before handing off, so a single question
         // at the deposit step doesn't instantly escalate a hot lead.
         await handleUnmatched(sb, lead, to, input, 2, "deposit confirmation", () =>
-          sendButtons(to, "Sorry, just a Yes or No — are you ready to proceed with the $500 deposit?", [
-            { id: "deposit_yes", title: "Yes, I'm ready" },
-            { id: "deposit_no", title: "Not right now" },
-          ]),
+          sendDepositConfirm(to, lead.broker_choice, "Sorry, just a Yes or No — are you ready to proceed with the $500 deposit?"),
         );
         return;
       }
@@ -802,6 +791,78 @@ async function handleUnmatched(
   await logOutbound(sb, lead.id, combineSendLog(apologyResult, rePromptResult));
 }
 
+// Every forward step in the funnel goes through this instead of a bare
+// `.update()` so bot_stage_history always has an accurate stack of where the
+// lead has been — that stack is what makes "Go Back" possible. extraFields
+// is whatever that transition saves alongside the stage change (broker
+// choice, trader experience, etc.); goBack() undoes exactly these when a
+// lead backs out of the stage that set them.
+async function advanceStage(
+  sb: SupabaseClient,
+  lead: any,
+  newStage: string,
+  extraFields: Record<string, unknown> = {},
+): Promise<void> {
+  const history = [...(lead.bot_stage_history ?? []), lead.bot_stage];
+  await sb.from("leads").update({
+    bot_stage: newStage,
+    bot_stage_history: history,
+    retry_count: 0,
+    ...extraFields,
+  }).eq("id", lead.id);
+  lead.bot_stage = newStage;
+  lead.bot_stage_history = history;
+  Object.assign(lead, extraFields);
+}
+
+// Pops one level off bot_stage_history and re-sends that stage's prompt.
+// Clears whatever field the stage being LEFT had saved on its way in, so a
+// lead who backs out and re-answers doesn't inherit a stale value from the
+// path they abandoned (e.g. backing out of "experienced" shouldn't leave
+// trader_experience set to "experienced" once they're back picking a broker).
+async function goBack(sb: SupabaseClient, lead: any, to: string, lang: Lang): Promise<void> {
+  const history = [...(lead.bot_stage_history ?? [])];
+  const prevStage = history.pop();
+  if (!prevStage) return;
+
+  const clearedFields: Record<string, unknown> = {};
+  if (lead.bot_stage === "awaiting_menu") clearedFields.language = null;
+  if (lead.bot_stage === "awaiting_experience") clearedFields.broker_choice = null;
+  if (lead.bot_stage === "awaiting_deposit_confirm") clearedFields.trader_experience = null;
+
+  await sb.from("leads").update({
+    bot_stage: prevStage,
+    bot_stage_history: history,
+    retry_count: 0,
+    ...clearedFields,
+  }).eq("id", lead.id);
+  lead.bot_stage = prevStage;
+  lead.bot_stage_history = history;
+  Object.assign(lead, clearedFields);
+
+  let result: SendResult;
+  switch (prevStage) {
+    case "awaiting_language":
+      result = await sendLanguageCard(to);
+      break;
+    case "awaiting_menu":
+      result = await sendMainMenuCard(to, lang);
+      break;
+    case "awaiting_broker":
+      result = await sendBrokerCard(to, "Sure — which broker would you like to use?");
+      break;
+    case "awaiting_experience":
+      result = await sendExperienceButtons(to, "No problem — are you new to trading, or already experienced?");
+      break;
+    case "awaiting_traded_before":
+      result = await sendTradedBeforeButtons(to, "Sure — have you traded before (with any broker)?");
+      break;
+    default:
+      result = await sendMainMenuCard(to, lang);
+  }
+  await logOutbound(sb, lead.id, `[went back to ${prevStage}]\n${combineSendLog(result)}`);
+}
+
 async function escalate(
   sb: SupabaseClient,
   lead: any,
@@ -844,18 +905,20 @@ async function handleAgentReply(
   await sendText(agent.phone, `✅ Got it — lead marked as picked up.`);
 }
 
-async function sendDepositConfirm(to: string, sb: SupabaseClient, leadId: string, brokerChoice: string): Promise<SendResult> {
+// Caller is responsible for logging the result (matches every other send*
+// helper) — this used to log internally, which double-logged when reused as
+// handleUnmatched's rePrompt (handleUnmatched logs its own combined result).
+async function sendDepositConfirm(to: string, brokerChoice: string, bodyText?: string): Promise<SendResult> {
   const brokerLabel = brokerChoice === "xm" ? "XM" : brokerChoice === "both" ? "Exness or XM" : "Exness";
-  const result = await sendButtons(
+  return await sendButtons(
     to,
-    `This offer needs a $500 deposit with ${brokerLabel} to unlock Badar's free $250 mentorship course. Ready to proceed?`,
+    bodyText ?? `This offer needs a $500 deposit with ${brokerLabel} to unlock Badar's free $250 mentorship course. Ready to proceed?`,
     [
       { id: "deposit_yes", title: "Yes, I'm ready" },
       { id: "deposit_no", title: "Not right now" },
+      { id: "nav_back", title: "⬅️ Go Back" },
     ],
   );
-  await logOutbound(sb, leadId, combineSendLog(result));
-  return result;
 }
 
 async function sendLanguageCard(to: string): Promise<SendResult> {
@@ -883,6 +946,7 @@ async function sendMainMenuCard(to: string, lang: Lang): Promise<SendResult> {
         { id: "menu_free_signals", title: "Free Signals Group", description: "By Badar Tanveer, bilkul free, deposit zaroori nahi" },
         { id: "menu_talk_agent", title: "Agent se Baat Karein", description: "Hamari team se rabta karein" },
         { id: "menu_faqs", title: "FAQs", description: "Aam sawalat ke jawabat" },
+        { id: "nav_back", title: "⬅️ Peeche Jayein", description: "Language selection par wapas jayein" },
       ],
     );
   }
@@ -897,8 +961,44 @@ async function sendMainMenuCard(to: string, lang: Lang): Promise<SendResult> {
       { id: "menu_free_signals", title: "Free Signals Group", description: "By Badar Tanveer, join for free, no deposit required" },
       { id: "menu_talk_agent", title: "Talk to an Agent", description: "Connect with our team" },
       { id: "menu_faqs", title: "FAQs", description: "Common questions answered" },
+      { id: "nav_back", title: "⬅️ Go Back", description: "Back to language selection" },
     ],
   );
+}
+
+// Broker choice already had 3 options (Exness/XM/Both) — WhatsApp caps
+// interactive button messages at 3, leaving no room for a 4th "Back" button,
+// so this step uses a list message instead (same pattern as the menu/language
+// cards) purely to fit the back option in.
+async function sendBrokerCard(to: string, bodyText: string): Promise<SendResult> {
+  return await sendList(
+    to,
+    "Choose Broker",
+    bodyText,
+    "Choose",
+    [
+      { id: "broker_exness", title: "Exness" },
+      { id: "broker_xm", title: "XM" },
+      { id: "broker_both", title: "Both" },
+      { id: "nav_back", title: "⬅️ Go Back" },
+    ],
+  );
+}
+
+async function sendExperienceButtons(to: string, bodyText: string): Promise<SendResult> {
+  return await sendButtons(to, bodyText, [
+    { id: "exp_new", title: "New to trading" },
+    { id: "exp_experienced", title: "Experienced" },
+    { id: "nav_back", title: "⬅️ Go Back" },
+  ]);
+}
+
+async function sendTradedBeforeButtons(to: string, bodyText: string): Promise<SendResult> {
+  return await sendButtons(to, bodyText, [
+    { id: "traded_yes", title: "Yes" },
+    { id: "traded_no", title: "No" },
+    { id: "nav_back", title: "⬅️ Go Back" },
+  ]);
 }
 
 async function logOutbound(sb: SupabaseClient, leadId: string, body: string): Promise<void> {
@@ -919,6 +1019,11 @@ function asksAboutLowerDeposit(input: UserInput): boolean {
   const mentionsAmount = /\b(500|five\s*hundred)\b/.test(t);
   const mentionsLess = /\b(kam|km|less|lower|under|kum|discount|reduce|negotiate)\b/.test(t);
   return mentionsAmount && mentionsLess;
+}
+
+function matchNavBack(input: UserInput): boolean {
+  if (input.selectionId === "nav_back") return true;
+  return /^\s*(back|previous|pichl?e|wapas)\s*$/i.test(input.text);
 }
 
 function matchGreeting(input: UserInput): "hello" | "walaikum" | null {
