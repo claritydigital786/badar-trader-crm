@@ -474,8 +474,14 @@ async function runBotStep(
 
   if (wasCreated) {
     const greeting = matchGreeting(input) ?? "hello";
-    const r1 = await sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY);
-    const r2 = await sendLanguageCard(to);
+    // Sent in parallel, not sequentially — halves this exchange's latency.
+    // Small tradeoff: Meta could in theory deliver these out of order, but
+    // in practice two near-simultaneous requests to the same endpoint
+    // arrive in order the overwhelming majority of the time.
+    const [r1, r2] = await Promise.all([
+      sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY),
+      sendLanguageCard(to),
+    ]);
     const ok = r1.ok && r2.ok;
     const errorDetail = [!r1.ok ? r1.error : null, !r2.ok ? r2.error : null].filter(Boolean).join("; ");
     await logOutbound(sb, lead.id, ok ? "[greeting + language picker card sent]" : `[SEND FAILED: greeting + language picker — ${errorDetail}]`);
@@ -500,8 +506,10 @@ async function runBotStep(
   if (!wasCreated && MIDFLOW_RESTART_STAGES.includes(lead.bot_stage) && hoursIdle >= DECLINED_RESTART_HOURS) {
     await sb.from("leads").update({ bot_stage: "awaiting_language", retry_count: 0 }).eq("id", lead.id);
     const greeting = matchGreeting(input) ?? "hello";
-    const r1 = await sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY);
-    const r2 = await sendLanguageCard(to);
+    const [r1, r2] = await Promise.all([
+      sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY),
+      sendLanguageCard(to),
+    ]);
     const ok = r1.ok && r2.ok;
     const errorDetail = [!r1.ok ? r1.error : null, !r2.ok ? r2.error : null].filter(Boolean).join("; ");
     await logOutbound(sb, lead.id, ok
@@ -554,8 +562,10 @@ async function runBotStep(
       }
 
       {
-        const r1 = await sendText(to, faqText(lang));
-        const r2 = await sendMainMenuCard(to, lang);
+        const [r1, r2] = await Promise.all([
+          sendText(to, faqText(lang)),
+          sendMainMenuCard(to, lang),
+        ]);
         const ok = r1.ok && r2.ok;
         const errorDetail = [!r1.ok ? r1.error : null, !r2.ok ? r2.error : null].filter(Boolean).join("; ");
         await logOutbound(sb, lead.id, ok ? "[faq answer + menu resent]" : `[SEND FAILED: faq answer + menu — ${errorDetail}]`);
@@ -706,8 +716,10 @@ async function runBotStep(
       if (lead.bot_stage === "declined" && hoursSinceTouch >= DECLINED_RESTART_HOURS) {
         await sb.from("leads").update({ bot_stage: "awaiting_language", retry_count: 0 }).eq("id", lead.id);
         const greeting = matchGreeting(input) ?? "hello";
-        const r1 = await sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY);
-        const r2 = await sendLanguageCard(to);
+        const [r1, r2] = await Promise.all([
+          sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY),
+          sendLanguageCard(to),
+        ]);
         const ok = r1.ok && r2.ok;
         const errorDetail = [!r1.ok ? r1.error : null, !r2.ok ? r2.error : null].filter(Boolean).join("; ");
         await logOutbound(sb, lead.id, ok
