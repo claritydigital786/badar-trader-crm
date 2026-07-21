@@ -416,3 +416,19 @@ All three deployed to the live Supabase project already. `docs/BOT_FLOW_MAP.md` 
 - The Lovable landing page (VSL video, XM branding) — blocked, Claude has no access to the private project
 
 **"Both" broker option added and deployed (2026-07-21, ~3am).** A lead can now pick "Both" at the broker-choice step (Box 3), alongside Exness and XM. The qualified-lead message shows both brokers' referral links/codes together when this is picked, instead of just one. Deployed live, DB constraint updated (`broker_choice` now allows `'exness'|'xm'|'both'|'doprime'`), Flow Map doc updated to match.
+
+**Flow Map review round completed (2026-07-21, ~3:15am) — v1.1.** Muhammad reviewed the whole document box by box. Key outcomes:
+- Bot's official name for the signals community: **Premium Signalling Group**. Use this name everywhere going forward, not "Free Signals Group."
+- Selecting the Premium Signalling Group option now routes to a human agent instead of an automatic text dump (after-hours: "our team will get back to you first thing tomorrow"). Doc updated; webhook code NOT yet updated for this specific routing change, still needs to be built.
+- New-lead WhatsApp ping to agents is **disabled in live code** (`NEW_LEAD_NOTIFICATIONS_ENABLED = false` in whatsapp-webhook/index.ts), deployed. Lead assignment itself still happens, only the notification is silenced. Re-enable only when told to.
+- Spelling standardized on **Tanvir**, not Tanveer, in bot-facing text. Note: the wider system (Supabase project name, some profile data) still says "Tanveer" elsewhere, that's a separate, bigger cleanup not done yet.
+- PROPOSED (not yet built): restructure Box 3 to ask "existing account or first-time" before broker choice, so existing account holders skip straight to the screenshot step. Needs Muhammad's final yes before building.
+- Greeting matching expanded to reply in-kind for Namaste, Sat Sri Akal (Sikh greeting), and Arabic greetings, drafted but flagged for native-speaker review before going live.
+- Screenshot fraud/authenticity (fake images submitted as "deposit screenshots") confirmed as a real, unresolved problem — proper fix needs Exness/XM API access to cross-verify deposits, a third-party dependency. Staying manual for now per Muhammad's call.
+- Design Q4 (IB-switch walkthrough) confirmed as the top priority for the next round, but blocked on getting Exness/XM's actual real account-switching steps, not something to fabricate.
+- `assets/Badar_Bot_Flow_Map.docx` regenerated to match v1.1, live at crm.badartrader.com/assets/Badar_Bot_Flow_Map.docx.
+
+**Still open from this review, unresolved:**
+- What "divide it into three" referred to in Box 2 feedback — couldn't identify it
+- Whether a second, separate verification form is actually wanted (only one exists: crm.badartrader.com/join.html)
+- Final wording for the Roman Urdu "Dear Customer" replacement (drafted as "Mohtaram Customer", needs Muhammad's confirm)

@@ -28,6 +28,11 @@ const HANDOFF_STALE_HOURS = 2;
 // said "not right now" isn't immediately re-pitched.
 const DECLINED_RESTART_HOURS = 24;
 
+// Muhammad, 21 July 2026: turn off the WhatsApp ping agents get on new-lead
+// assignment. Lead assignment itself still happens (round-robin, CRM record),
+// only the outbound notification is silenced. Flip back to true when told to.
+const NEW_LEAD_NOTIFICATIONS_ENABLED = false;
+
 let cachedWaToken: string | null = null;
 let cachedWaPhoneId: string | null = null;
 
@@ -290,6 +295,16 @@ async function upsertLead(
   newLead.assigned_agent_id = agent.id;
 
   const notifyAgent = (async () => {
+    if (!NEW_LEAD_NOTIFICATIONS_ENABLED) {
+      await insertCommunication(
+        sb,
+        newLead.id,
+        "outbound",
+        `[assigned to ${agent.name}, notification disabled — Muhammad, 21 July 2026]`,
+        new Date().toISOString(),
+      );
+      return;
+    }
     const pingResult = await sendButtons(
       agent.phone,
       `🔔 A new lead is waiting for you in the CRM. Please follow up.`,
