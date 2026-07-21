@@ -146,10 +146,14 @@
     }
     .page-title { color: #0f172a; font-size: 18px; font-weight: 600; margin: 0; }
     .header-actions { display: flex; align-items: center; gap: 8px; }
-    /* Equal-width pills at every screen size — three buttons that each
-       shrink-wrap to their own text length reads as unintentional, not a
-       deliberate hierarchy. */
-    .header-actions .btn { flex: 1; min-width: 0; text-align: center; }
+    /* Equal-width (flex:1) previously forced these three onto one shared
+       width, but at narrower viewports the longest label ("Export CSV")
+       wrapped to two lines while "Logout" stayed on one — different label
+       lengths under a forced equal width produced different heights, a
+       staircase. Un-forcing the width and just keeping every button on one
+       line (they already share the same height via .btn/.btn-sm padding)
+       fixes that without introducing clipped/overflowing text. */
+    .header-actions .btn { text-align: center; white-space: nowrap; }
 
     .content-body {
       flex: 1;
@@ -499,12 +503,13 @@
       .sidebar-overlay.open { display: block; }
       .main-content { margin-left: 0 !important; }
       .hamburger-btn { display: block; }
-      .header-actions { gap: 6px; }
-      /* Equal-width pills instead of each button shrink-wrapping to its own
-         text length — three buttons of visibly different sizes side by side
-         reads as unintentional, not a deliberate hierarchy. */
-      .header-actions .btn { font-size: 0.75rem; padding: 5px 8px; flex: 1; min-width: 0; text-align: center; }
-      .content-header { padding: 12px 14px; }
+      /* Title+hamburger and the 3 action buttons no longer fit on one row on
+         a real phone width once buttons aren't allowed to shrink-wrap (see
+         .header-actions .btn above) — wrap the action buttons onto their own
+         row instead of letting the last one (Logout) clip off-screen. */
+      .content-header { padding: 12px 14px; flex-wrap: wrap; row-gap: 8px; }
+      .header-actions { gap: 6px; width: 100%; justify-content: flex-end; }
+      .header-actions .btn { font-size: 0.75rem; padding: 5px 8px; text-align: center; white-space: nowrap; }
       .content-body { padding: 12px; }
     }
     .detail-row {
@@ -1322,8 +1327,6 @@
 
   <!-- Communication Log -->
   <div id="admin-tab-comm-log" class="tab-content">
-    <h3>Communication Log</h3>
-
     <!-- Filters + Add Note -->
     <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
       <select id="cl-lead-filter" style="min-width:200px;width:auto" onchange="renderCommLog()">
@@ -1966,8 +1969,6 @@
 
   <!-- Comm Log -->
   <div id="agent-tab-comm-log" class="tab-content">
-    <h3>Communication Log</h3>
-
     <!-- Filters + Add Note -->
     <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
       <select id="agent-cl-lead-filter" style="min-width:200px;width:auto" onchange="renderCommLog('agent-')">

@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS public.leads (
   meta_campaign     TEXT,
   instrument_type   TEXT,        -- forex / crypto / stocks etc. — free text
   status            TEXT        NOT NULL DEFAULT 'new'
-                                CHECK (status IN ('new','contacted','qualified','proposal_sent','converted','lost')),
+                                CHECK (status IN ('new','contacted','qualified','proposal_sent','pending_approval','converted','lost')),
   notes             TEXT,
   assigned_agent_id UUID        REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_by        UUID        REFERENCES public.profiles(id) ON DELETE SET NULL,
@@ -1036,4 +1036,25 @@ ALTER TABLE public.leads ADD CONSTRAINT leads_broker_choice_check
   CHECK (broker_choice IN ('exness','xm','both','doprime'));
 
 -- ── DONE (Phase 17) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM — Phase 18 Schema (pending_approval status fix)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 36. leads.status: allow 'pending_approval' (Muhammad, 2026-07-21) ──
+-- The frontend's lead-edit dropdown and the "agent marks lead closed, admin
+-- approves/rejects" workflow (approveConversion/rejectConversion, the
+-- notifyAdminPendingApproval WhatsApp ping) have all set status to
+-- 'pending_approval' since at least Phase 3, but the live check constraint
+-- was never updated to allow it — any agent picking that option would hit a
+-- raw Postgres constraint-violation error instead of it actually saving.
+-- Found while walking through the Comm Log status filters with Muhammad.
+ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_status_check;
+ALTER TABLE public.leads ADD CONSTRAINT leads_status_check
+  CHECK (status IN ('new','contacted','qualified','proposal_sent','pending_approval','converted','lost'));
+
+-- ── DONE (Phase 18) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
