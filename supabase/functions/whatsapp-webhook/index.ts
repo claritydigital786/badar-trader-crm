@@ -713,7 +713,7 @@ async function runBotStep(
         retry_count: 0,
       }).eq("id", lead.id);
 
-      await escalate(sb, lead, to, "requested human agent for Premium Signalling Group");
+      await escalate(sb, lead, to, "requested human agent after declining $500 deposit");
       return;
     }
 
