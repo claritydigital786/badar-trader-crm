@@ -281,7 +281,16 @@ async function upsertLead(
   }
 
   if (existing) {
-    await sb.from("leads").update({ is_unread: true }).eq("id", existing.id);
+    // Nothing downstream reads is_unread before responding to the customer —
+    // this was a full extra DB round-trip (~150-300ms to the project's
+    // ap-northeast-1 region) sitting in the critical path of every single
+    // message from a returning lead, the most common case by far. Same
+    // background pattern already used for agent notification below.
+    const markUnread = sb.from("leads").update({ is_unread: true }).eq("id", existing.id).then(
+      ({ error }) => { if (error) console.error("Error marking lead unread:", error.message); },
+    );
+    const waitUntil = (globalThis as any).EdgeRuntime?.waitUntil;
+    if (waitUntil) waitUntil(markUnread); else markUnread.catch((err: unknown) => console.error("markUnread failed:", err));
     return { lead: existing, wasCreated: false };
   }
 
@@ -752,9 +761,24 @@ async function runBotStep(
         return;
       }
 
-      // Otherwise acknowledge and let an agent follow up; do NOT flag for
-      // handoff (avoids silent leads).
+      // A lead whose conversation already resolved (declined/qualified) used
+      // to get this identical canned ack forever, no matter what they said —
+      // this was the actual cause behind "why do I keep getting the same
+      // reply" reports (Junaid, 21 July). Every other stuck point in the
+      // funnel escalates to a human after repeated messages via
+      // handleUnmatched; this branch never did. Same threshold (2) applied
+      // here now. Greetings are exempt from the count, same as elsewhere —
+      // someone just saying "hi" again isn't "stuck".
       const greeting = matchGreeting(input);
+      if (!greeting) {
+        const retries = (lead.retry_count ?? 0) + 1;
+        if (retries >= 2) {
+          await escalate(sb, lead, to, `sent ${retries} messages after conversation resolved (${lead.bot_stage})`);
+          return;
+        }
+        await sb.from("leads").update({ retry_count: retries }).eq("id", lead.id);
+      }
+
       const prefix = greeting ? `${greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY} ` : "";
       const r = await sendText(to, `${prefix}Thanks for the message! 🙏 A team member will follow up with you shortly.`);
       await logOutbound(sb, lead.id, combineSendLog(r));
