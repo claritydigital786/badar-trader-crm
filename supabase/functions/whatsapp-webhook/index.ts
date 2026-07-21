@@ -206,13 +206,23 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         const { lead, wasCreated } = await upsertLead(sb, senderPhone, contactName, timestamp);
         if (!lead) continue;
 
+        // Idle-time checks (handoff auto-expiry, 24h stage restarts) need the
+        // customer's actual last message time, not lead.updated_at — that
+        // column is bumped by ANY write to the row (an agent just opening the
+        // conversation flips is_unread, which touches updated_at via the
+        // leads_updated_at trigger), so it silently resets on CRM activity
+        // that has nothing to do with the conversation going stale. Read it
+        // before the inbound insert below so this always reflects the PRIOR
+        // message, never the one being logged in this same request.
+        const lastCustomerTouch = wasCreated ? null : await getLastInboundAt(sb, lead.id);
+
         // Logging the inbound message doesn't need to finish before the bot
         // can respond — neither depends on the other's result, so they run
         // concurrently instead of adding the log write's time to the delay
         // before the customer sees a reply.
         await Promise.all([
           insertCommunication(sb, lead.id, "inbound", input.text, timestamp, undefined, message.id),
-          runBotStep(sb, lead, wasCreated, input),
+          runBotStep(sb, lead, wasCreated, input, lastCustomerTouch),
         ]);
       }
     }
@@ -450,11 +460,23 @@ async function downloadAndStoreMedia(
   }
 }
 
+async function getLastInboundAt(sb: SupabaseClient, leadId: string): Promise<string | null> {
+  const { data } = await sb.from("communications")
+    .select("created_at")
+    .eq("lead_id", leadId)
+    .eq("direction", "inbound")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.created_at ?? null;
+}
+
 async function runBotStep(
   sb: SupabaseClient,
   lead: any,
   wasCreated: boolean,
   input: UserInput,
+  lastCustomerTouch: string | null,
 ): Promise<void> {
   const to = lead.phone.replace(/^\+/, "");
 
@@ -463,7 +485,13 @@ async function runBotStep(
   //  - Confusion/inactivity handoffs auto-expire: a lead returning after a gap
   //    has the flag cleared and resumes the flow from their current stage, so a
   //    lead who got stuck once (and whom no agent answered) is never left mute.
-  const lastTouch = new Date(lead.updated_at ?? lead.created_at ?? Date.now()).getTime();
+  //
+  // lastCustomerTouch (the prior inbound message's timestamp) is used here
+  // instead of lead.updated_at deliberately — updated_at is bumped by ANY
+  // write to the lead row (an agent opening the conversation, a note, a tag),
+  // not just real customer messages, which silently reset every idle-time
+  // check below whenever the CRM was merely looked at.
+  const lastTouch = new Date(lastCustomerTouch ?? lead.created_at ?? Date.now()).getTime();
   const returningAfterGap = (Date.now() - lastTouch) / 3600000 >= HANDOFF_STALE_HOURS;
 
   if (lead.needs_human) {
@@ -507,7 +535,7 @@ async function runBotStep(
   // abandonable mid-flow stage instead of only one.
   const MIDFLOW_RESTART_STAGES = [
     "awaiting_menu", "awaiting_broker", "awaiting_experience",
-    "awaiting_traded_before", "awaiting_deposit_confirm",
+    "awaiting_traded_before", "awaiting_deposit_confirm", "qualified",
   ];
   const hoursIdle = (Date.now() - lastTouch) / 3600000;
   if (!wasCreated && MIDFLOW_RESTART_STAGES.includes(lead.bot_stage) && hoursIdle >= DECLINED_RESTART_HOURS) {
@@ -711,8 +739,10 @@ async function runBotStep(
 
       // Declined leads returning after a day restart from scratch (greeting +
       // language picker), same shape as the wasCreated flow. Qualified leads
-      // are exempt: they already hold concrete next steps (deposit + send the
-      // screenshot here) and restarting would wipe that context.
+      // get the same 24h+ restart, but via MIDFLOW_RESTART_STAGES above (it
+      // runs before this switch), so they never actually reach this branch
+      // once stale — this check only fires for declined leads still within
+      // the window, or qualified leads that haven't gone stale yet.
       const hoursSinceTouch = (Date.now() - lastTouch) / 3600000;
       if (lead.bot_stage === "declined" && hoursSinceTouch >= DECLINED_RESTART_HOURS) {
         await sb.from("leads").update({ bot_stage: "awaiting_language", retry_count: 0 }).eq("id", lead.id);
