@@ -63,15 +63,15 @@ const LINKS = {
 
 type Lang = "en" | "ur";
 
-const HELLO_REPLY = "Hello! 👋";
-const WALAIKUM_REPLY = "Walaikum Assalam! 👋";
-const CONFUSED_REPLY = "This is Team Badar Tanvir. We are ever ready to serve for our brand's purpose. We're really sorry, but we couldn't quite understand your message. 🙏";
+const HELLO_REPLY = "Hello!";
+const WALAIKUM_REPLY = "Walaikum Assalam!";
+const CONFUSED_REPLY = "This is Team Badar Tanvir. We are ever ready to serve for our brand's purpose. We're really sorry, but we couldn't quite understand your message.";
 
 function faqText(lang: Lang): string {
   if (lang === "ur") {
-    return `❓ Mukhtasar FAQs:\n\n• Kya $250 course waqai free hai? Haan — hamare partner broker ke saath $500 deposit karein, course khud unlock ho jayega.\n• Kya main $500 se kam deposit kar sakta hoon? Minimum $500 hai. Agar pehle se kam hai to top up kar lein — upar ki koi limit nahi hai.\n• Kya mera deposit mahfooz hai? Haan, ye aapke apne broker account mein rehta hai; Badar Trader kabhi khud payment nahi leta.\n• Withdraw kaise karoon? Seedha apne broker account se, kabhi bhi — hamari taraf se koi rok nahi.\n• Aur madad chahiye? "Talk to an Agent" chunein, hamari team se baat karein.`;
+    return `Mukhtasar FAQs:\n\n• Kya $250 course waqai free hai? Haan, hamare partner broker ke saath $500 deposit karein, course khud unlock ho jayega.\n• Kya main $500 se kam deposit kar sakta hoon? Minimum $500 hai. Agar pehle se kam hai to top up kar lein, upar ki koi limit nahi hai.\n• Kya mera deposit mahfooz hai? Haan, ye aapke apne broker account mein rehta hai; Badar Trader kabhi khud payment nahi leta.\n• Withdraw kaise karoon? Seedha apne broker account se, kabhi bhi, hamari taraf se koi rok nahi.\n• Aur madad chahiye? "Talk to an Agent" chunein, hamari team se baat karein.`;
   }
-  return `❓ Quick FAQs:\n\n• Is the $250 course really free? Yes — deposit $500 with our partner broker and it unlocks automatically.\n• Can I deposit less than $500? The minimum is $500. If you already have less deposited, just top it up — there's no upper limit either.\n• Is my deposit safe? Yes, it stays in your own broker account; Badar Trader never collects payments directly.\n• How do I withdraw? Directly from your broker account, anytime — no restrictions from us.\n• Need more help? Choose "Talk to an Agent" to reach our team.`;
+  return `Quick FAQs:\n\n• Is the $250 course really free? Yes, deposit $500 with our partner broker and it unlocks automatically.\n• Can I deposit less than $500? The minimum is $500. If you already have less deposited, just top it up, there's no upper limit either.\n• Is my deposit safe? Yes, it stays in your own broker account; Badar Trader never collects payments directly.\n• How do I withdraw? Directly from your broker account, anytime, no restrictions from us.\n• Need more help? Choose "Talk to an Agent" to reach our team.`;
 }
 
 function makeSupabase(): SupabaseClient {
@@ -317,8 +317,8 @@ async function upsertLead(
     }
     const pingResult = await sendButtons(
       agent.phone,
-      `🔔 A new lead is waiting for you in the CRM. Please follow up.`,
-      [{ id: `ack_${newLead.id}`, title: "✅ I've got this" }],
+      `A new lead is waiting for you in the CRM. Please follow up.`,
+      [{ id: `ack_${newLead.id}`, title: "I've got this" }],
     );
     await sb.from("leads").update({
       agent_ping_count: 1,
@@ -399,14 +399,14 @@ async function handleImageMessage(
 
   const ackResult = await sendText(
     to,
-    "Got it! ✅ Your deposit screenshot has been received — our team will confirm it shortly.",
+    "Got it. Your deposit screenshot has been received, our team will confirm it shortly.",
   );
   await logOutbound(sb, lead.id, combineSendLog(ackResult));
 
   if (lead.assigned_agent_id) {
     const assignedAgent = AGENT_ROTATION.find((a) => a.id === lead.assigned_agent_id);
     if (assignedAgent) {
-      const pingResult = await sendText(assignedAgent.phone, "📸 A deposit screenshot just came in from a lead in the CRM. Please review.");
+      const pingResult = await sendText(assignedAgent.phone, "A deposit screenshot just came in from a lead in the CRM. Please review.");
       await insertCommunication(
         sb,
         lead.id,
@@ -603,7 +603,7 @@ async function runBotStep(
       const broker = matchBroker(input);
       if (!broker) {
         await handleUnmatched(sb, lead, to, input, 2, "broker choice", () =>
-          sendBrokerCard(to, "Sorry, I didn't catch that — which broker would you like to use?"),
+          sendBrokerCard(to, "Sorry, I didn't catch that. Which broker would you like to use?"),
         );
         return;
       }
@@ -617,7 +617,7 @@ async function runBotStep(
       const experience = matchExperience(input);
       if (!experience) {
         await handleUnmatched(sb, lead, to, input, 2, "experience level", () =>
-          sendExperienceButtons(to, "Just to confirm — are you new to trading, or already experienced?"),
+          sendExperienceButtons(to, "Just to confirm, are you new to trading, or already experienced?"),
         );
         return;
       }
@@ -639,7 +639,7 @@ async function runBotStep(
       const yesNo = matchYesNo(input);
       if (!yesNo) {
         await handleUnmatched(sb, lead, to, input, 2, "traded-before answer", () =>
-          sendTradedBeforeButtons(to, "Sorry — have you traded before with any broker?"),
+          sendTradedBeforeButtons(to, "Sorry, have you traded before with any broker?"),
         );
         return;
       }
@@ -662,7 +662,7 @@ async function runBotStep(
         // Give one clarifying re-prompt before handing off, so a single question
         // at the deposit step doesn't instantly escalate a hot lead.
         await handleUnmatched(sb, lead, to, input, 2, "deposit confirmation", () =>
-          sendDepositConfirm(to, lead.broker_choice, "Sorry, just a Yes or No — are you ready to proceed with the $500 deposit?"),
+          sendDepositConfirm(to, lead.broker_choice, "Sorry, just a Yes or No, are you ready to proceed with the $500 deposit?"),
         );
         return;
       }
@@ -684,7 +684,7 @@ async function runBotStep(
           retry_count: 0,
         }).eq("id", lead.id);
 
-        const summary = `🔔 New Lead — Badar Funnel\nName: ${lead.full_name}\nBroker: ${lead.broker_choice}\nTrader type: ${lead.trader_experience}\nReady for $500 deposit: Yes\nWhatsApp: ${lead.phone}`;
+        const summary = `New Lead, Badar Funnel\nName: ${lead.full_name}\nBroker: ${lead.broker_choice}\nTrader type: ${lead.trader_experience}\nReady for $500 deposit: Yes\nWhatsApp: ${lead.phone}`;
         await sb.from("communications").insert({
           lead_id: lead.id, type: "whatsapp", direction: "outbound",
           subject: "Qualified lead summary", body: summary, created_at: new Date().toISOString(),
@@ -697,7 +697,7 @@ async function runBotStep(
         // handleImageMessage).
         const rQualified = await sendText(
           to,
-          `Perfect! 🎉 Deposit $500 in your own ${brokerName} account using the link below 👇\n${linkSection}\n\nAlready trading with ${brokerName} and have $500 or more deposited? Even better, that counts too. Either way, send your account screenshot showing the deposit here and our team will confirm and unlock your free $250 mentorship course. A team member will follow up with you shortly!`,
+          `Perfect! Deposit $500 in your own ${brokerName} account using the link below:\n${linkSection}\n\nAlready trading with ${brokerName} and have $500 or more deposited? Even better, that counts too. Either way, send your account screenshot showing the deposit here and our team will confirm and unlock your free $250 mentorship course. A team member will follow up with you shortly!`,
         );
         await logOutbound(sb, lead.id, combineSendLog(rQualified));
         return;
@@ -765,7 +765,7 @@ async function runBotStep(
       }
 
       const prefix = greeting ? `${greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY} ` : "";
-      const r = await sendText(to, `${prefix}Thanks for the message! 🙏 A team member will follow up with you shortly.`);
+      const r = await sendText(to, `${prefix}Thanks for the message. A team member will follow up with you shortly.`);
       await logOutbound(sb, lead.id, combineSendLog(r));
       return;
     }
@@ -858,13 +858,13 @@ async function goBack(sb: SupabaseClient, lead: any, to: string, lang: Lang): Pr
       result = await sendMainMenuCard(to, lang);
       break;
     case "awaiting_broker":
-      result = await sendBrokerCard(to, "Sure — which broker would you like to use?");
+      result = await sendBrokerCard(to, "Sure, which broker would you like to use?");
       break;
     case "awaiting_experience":
-      result = await sendExperienceButtons(to, "No problem — are you new to trading, or already experienced?");
+      result = await sendExperienceButtons(to, "No problem, are you new to trading, or already experienced?");
       break;
     case "awaiting_traded_before":
-      result = await sendTradedBeforeButtons(to, "Sure — have you traded before (with any broker)?");
+      result = await sendTradedBeforeButtons(to, "Sure, have you traded before (with any broker)?");
       break;
     default:
       result = await sendMainMenuCard(to, lang);
@@ -886,7 +886,7 @@ async function escalate(
 
   const result = await sendText(
     to,
-    "Thanks for your patience! 🙏 Let me connect you with a team member who'll help you personally — please hold on a moment.",
+    "Thanks for your patience. Let me connect you with a team member who'll help you personally, please hold on a moment.",
   );
   await logOutbound(
     sb,
@@ -911,7 +911,7 @@ async function handleAgentReply(
 
   await sb.from("leads").update({ agent_acknowledged_at: new Date().toISOString() }).eq("id", lead.id);
   await insertCommunication(sb, lead.id, "outbound", `[agent ${agent.name} acknowledged assignment]`, new Date().toISOString());
-  await sendText(agent.phone, `✅ Got it — lead marked as picked up.`);
+  await sendText(agent.phone, `Got it, lead marked as picked up.`);
 }
 
 // Caller is responsible for logging the result (matches every other send*
@@ -925,7 +925,7 @@ async function sendDepositConfirm(to: string, brokerChoice: string, bodyText?: s
     [
       { id: "deposit_yes", title: "Yes, I'm ready" },
       { id: "deposit_no", title: "Not right now" },
-      { id: "nav_back", title: "⬅️ Go Back" },
+      { id: "nav_back", title: "Go Back" },
     ],
   );
 }
@@ -952,10 +952,10 @@ async function sendMainMenuCard(to: string, lang: Lang): Promise<SendResult> {
       "Menu",
       [
         { id: "menu_start_trading", title: "Trading Shuru Karein", description: "$500 offer + free mentorship course" },
-        { id: "menu_free_signals", title: "Free Signals Group", description: "By Badar Tanveer, bilkul free, deposit zaroori nahi" },
+        { id: "menu_free_signals", title: "Premium Signalling Group", description: "By Badar Tanvir, bilkul free, deposit zaroori nahi" },
         { id: "menu_talk_agent", title: "Agent se Baat Karein", description: "Hamari team se rabta karein" },
         { id: "menu_faqs", title: "FAQs", description: "Aam sawalat ke jawabat" },
-        { id: "nav_back", title: "⬅️ Peeche Jayein", description: "Language selection par wapas jayein" },
+        { id: "nav_back", title: "Peeche Jayein", description: "Language selection par wapas jayein" },
       ],
     );
   }
@@ -967,10 +967,10 @@ async function sendMainMenuCard(to: string, lang: Lang): Promise<SendResult> {
     "Menu",
     [
       { id: "menu_start_trading", title: "Start Trading", description: "$500 offer + free mentorship course" },
-      { id: "menu_free_signals", title: "Free Signals Group", description: "By Badar Tanveer, join for free, no deposit required" },
+      { id: "menu_free_signals", title: "Premium Signalling Group", description: "By Badar Tanvir, join for free, no deposit required" },
       { id: "menu_talk_agent", title: "Talk to an Agent", description: "Connect with our team" },
       { id: "menu_faqs", title: "FAQs", description: "Common questions answered" },
-      { id: "nav_back", title: "⬅️ Go Back", description: "Back to language selection" },
+      { id: "nav_back", title: "Go Back", description: "Back to language selection" },
     ],
   );
 }
@@ -989,7 +989,7 @@ async function sendBrokerCard(to: string, bodyText: string): Promise<SendResult>
       { id: "broker_exness", title: "Exness" },
       { id: "broker_xm", title: "XM" },
       { id: "broker_both", title: "Both" },
-      { id: "nav_back", title: "⬅️ Go Back" },
+      { id: "nav_back", title: "Go Back" },
     ],
   );
 }
@@ -998,7 +998,7 @@ async function sendExperienceButtons(to: string, bodyText: string): Promise<Send
   return await sendButtons(to, bodyText, [
     { id: "exp_new", title: "New to trading" },
     { id: "exp_experienced", title: "Experienced" },
-    { id: "nav_back", title: "⬅️ Go Back" },
+    { id: "nav_back", title: "Go Back" },
   ]);
 }
 
@@ -1006,7 +1006,7 @@ async function sendTradedBeforeButtons(to: string, bodyText: string): Promise<Se
   return await sendButtons(to, bodyText, [
     { id: "traded_yes", title: "Yes" },
     { id: "traded_no", title: "No" },
-    { id: "nav_back", title: "⬅️ Go Back" },
+    { id: "nav_back", title: "Go Back" },
   ]);
 }
 
