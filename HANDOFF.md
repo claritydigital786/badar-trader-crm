@@ -432,3 +432,9 @@ All three deployed to the live Supabase project already. `docs/BOT_FLOW_MAP.md` 
 - What "divide it into three" referred to in Box 2 feedback — couldn't identify it
 - Whether a second, separate verification form is actually wanted (only one exists: crm.badartrader.com/join.html)
 - Final wording for the Roman Urdu "Dear Customer" replacement (drafted as "Mohtaram Customer", needs Muhammad's confirm)
+
+**In-dashboard Guide tab added and deployed (2026-07-21).** Admin and agent dashboards both have a new "Guide" tab explaining what every section is for. Admin sees all sections explained; agents see their own subset plus a note on what stays admin-only.
+
+**Agent lead-visibility verified with a real RLS simulation, not just checking the policy exists** — logged in as Ehsan (32 leads actually assigned to him), confirmed he can see 73 leads total, everything. Suspended agent (Syed Hamza) correctly sees 0. The staff-wide visibility change from earlier is genuinely working, not just configured on paper.
+
+**Dead end found:** the "Badar Trader Hub" Lovable link in the Sites tab (`https://preview--profit-path-crm.lovable.app/`) just redirects to Lovable's own login page, not a working public preview. Not a path into the landing page project.
