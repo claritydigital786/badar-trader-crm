@@ -146,14 +146,14 @@
     }
     .page-title { color: #0f172a; font-size: 18px; font-weight: 600; margin: 0; }
     .header-actions { display: flex; align-items: center; gap: 8px; }
-    /* Equal-width (flex:1) previously forced these three onto one shared
-       width, but at narrower viewports the longest label ("Export CSV")
-       wrapped to two lines while "Logout" stayed on one — different label
-       lengths under a forced equal width produced different heights, a
-       staircase. Un-forcing the width and just keeping every button on one
-       line (they already share the same height via .btn/.btn-sm padding)
-       fixes that without introducing clipped/overflowing text. */
     .header-actions .btn { text-align: center; white-space: nowrap; }
+    /* Export CSV and Add Lead read as a pair, so they match each other's
+       width (a fixed min-width sized to fit the longer label, "Export CSV",
+       rather than flex:1, which broke under a differing 3rd button and
+       caused a wrap/stretch mess earlier). Logout is a separate, distinct
+       action — pushed to the far right corner via margin-left:auto on the
+       button itself, not grouped or size-matched with the other two. */
+    .header-btn-pair { min-width: 118px; }
 
     .content-body {
       flex: 1;
@@ -590,7 +590,7 @@
     .msg-bubble.outgoing { background:#0ea5e9; color:#fff; border-bottom-right-radius:4px; }
     .msg-time { font-size:0.7rem; color:#94a3b8; margin-top:4px; padding:0 4px; }
     .msg-time.outgoing { text-align:right; }
-    .conv-input-bar { padding:12px 16px; border-top:1px solid #f1f5f9; display:flex; gap:10px; align-items:center; background:#fff; }
+    .conv-input-bar { padding:12px 16px; border-top:1px solid #f1f5f9; display:flex; gap:10px; align-items:flex-end; background:#fff; }
     .conv-input-bar input { flex:1; border:1px solid #e2e8f0; border-radius:20px; padding:10px 16px; font-size:0.875rem; outline:none; color:#0f172a; }
     .conv-input-bar input:focus { border-color:#0ea5e9; box-shadow:0 0 0 3px rgba(14,165,233,.12); }
     .conv-empty-chat { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#94a3b8; }
@@ -733,9 +733,11 @@
       </div>
       <div class="header-actions">
         <span id="user-greeting" style="color:#64748b;font-size:13px;"></span>
-        <button class="btn btn-secondary btn-sm" onclick="exportLeadsCSV()">📥 Export CSV</button>
-        <button class="btn btn-primary btn-inline btn-sm" onclick="adminTab('add-lead')">+ Add Lead</button>
-        <button class="btn btn-danger btn-sm" onclick="handleLogout()">Logout</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary btn-sm header-btn-pair" onclick="exportLeadsCSV()">📥 Export CSV</button>
+          <button class="btn btn-primary btn-inline btn-sm header-btn-pair" onclick="adminTab('add-lead')">+ Add Lead</button>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="handleLogout()" style="margin-left:auto">Logout</button>
       </div>
     </div>
     <div class="content-body">
@@ -4995,6 +4997,13 @@ async function sendWaViaBrowser(convId, text, replyToWaMessageId) {
     logged_by: currentUser?.id || null,
     wa_message_id: sentWaMessageId
   });
+  // Same takeover flag send-wa-message sets on the primary path — an agent
+  // manually messaging a lead here means a human has taken over, the bot
+  // must stop treating the lead's replies as answers to its own flow.
+  await sb.from('leads').update({
+    needs_human: true,
+    handoff_reason: 'requested human agent, an agent manually took over this conversation',
+  }).eq('id', convId);
   return true;
 }
 

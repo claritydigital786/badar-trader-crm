@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Confirm Your Deposit — Badar Trader</title>
+<title>Confirm Your Deposit, Badar Trader</title>
 <link rel="icon" type="image/svg+xml" href="/assets/bull.svg">
 <style>
   :root { color-scheme: light; }
@@ -28,7 +28,7 @@
   <div class="card">
     <div class="brand">🐂 BADAR TRADER</div>
     <h1>Confirm Your Deposit</h1>
-    <p class="sub">You deposit into <strong>your own</strong> Exness / Do Prime account (opened under Badar's IB link) — we don't collect any payment. Submit your details and our team verifies your deposit through the IB portal, then unlocks your access.</p>
+    <p class="sub">You deposit into <strong>your own</strong> Exness / XM account (opened under Badar's IB link), we don't collect any payment. Submit your details and our team verifies your deposit through the IB portal, then unlocks your access.</p>
 
     <form id="f">
       <label>Full Name *</label>
@@ -43,7 +43,7 @@
           <select id="platform" required>
             <option value="">Select…</option>
             <option value="exness">Exness</option>
-            <option value="dooprime">Do Prime</option>
+            <option value="xm">XM</option>
             <option value="other">Other</option>
           </select>
         </div>
@@ -87,7 +87,7 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d || !d.ok) {
-          err.textContent = (d && d.error) || 'Something went wrong — please try again or contact us on WhatsApp.';
+          err.textContent = (d && d.error) || 'Something went wrong, please try again or contact us on WhatsApp.';
           btn.disabled = false; btn.textContent = 'Submit for Verification';
           return;
         }
@@ -96,7 +96,7 @@
         }).toString();
       })
       .catch(function () {
-        err.textContent = 'Network error — please try again or contact us on WhatsApp.';
+        err.textContent = 'Network error, please try again or contact us on WhatsApp.';
         btn.disabled = false; btn.textContent = 'Submit for Verification';
       });
   });

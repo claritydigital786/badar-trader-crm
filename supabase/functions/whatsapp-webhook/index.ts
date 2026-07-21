@@ -1027,7 +1027,12 @@ function asksAboutLowerDeposit(input: UserInput): boolean {
   if (!t) return false;
   const mentionsAmount = /\b(500|five\s*hundred)\b/.test(t);
   const mentionsLess = /\b(kam|km|less|lower|under|kum|discount|reduce|negotiate)\b/.test(t);
-  return mentionsAmount && mentionsLess;
+  // "What's the minimum deposit?" never mentions 500 or a "less/lower" word
+  // at all, so the check above missed one of the most natural phrasings of
+  // exactly this objection — found 21 July 2026 after a real lead asked
+  // this and the bot never escalated it.
+  const mentionsMinimumDeposit = /\bdeposit\b/.test(t) && /\b(minimum|kam se kam|kum se kum)\b/.test(t);
+  return (mentionsAmount && mentionsLess) || mentionsMinimumDeposit;
 }
 
 function matchNavBack(input: UserInput): boolean {

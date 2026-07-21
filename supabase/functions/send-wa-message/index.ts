@@ -165,6 +165,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
     logged_by: user.id,
     wa_message_id: sentWaMessageId ?? null,
   });
+
+  // An agent manually messaging a lead means a human has taken over this
+  // conversation — the bot must not keep processing the lead's replies as
+  // answers to its own stage machine. Uses the same needs_human flag the
+  // webhook's runBotStep already checks, with a reason matching the
+  // "requested human agent" pattern so it's a PERMANENT handoff (never
+  // auto-resumes after the usual gap), not a temporary one. Missed
+  // originally: a lead was lost 21 July 2026 evening when an agent
+  // (Hanzala) tried to step into an early-stage bot conversation and the
+  // bot kept consuming the lead's replies as if answering its own flow.
+  await sb.from("leads").update({
+    needs_human: true,
+    handoff_reason: "requested human agent, an agent manually took over this conversation",
+  }).eq("id", leadId);
+
   if (insertError) {
     // Message DID go out — surface the logging failure rather than pretending
     // the send failed (a retry would double-message the lead).

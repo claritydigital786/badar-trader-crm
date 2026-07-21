@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Join the Premium Signals Group — Badar Trader</title>
+<title>Join the Premium Signalling Group, Badar Trader</title>
 <link rel="icon" type="image/svg+xml" href="/assets/bull.svg">
 <style>
   :root { color-scheme: light; }
@@ -31,9 +31,9 @@
 <body>
   <div class="card">
     <div class="brand">🐂 BADAR TRADER</div>
-    <div class="price">FREE<span> · Premium Signals Group</span></div>
-    <h1>Join the Signals Group</h1>
-    <p class="sub">Deposit $500 with our partner broker (Exness or Do Prime) — this is your own trading capital, not a fee. You'll be added to the group within 48 hours of verification.</p>
+    <div class="price">FREE<span> · Premium Signalling Group</span></div>
+    <h1>Join the Signalling Group</h1>
+    <p class="sub">Deposit $500 with our partner broker (Exness or XM), this is your own trading capital, not a fee. You'll be added to the group within 48 hours of verification.</p>
 
     <form id="f">
       <div class="row">
@@ -54,11 +54,11 @@
       <input id="phone" required inputmode="tel" placeholder="+92 3XX XXXXXXX" autocomplete="tel" />
 
       <label>Broker Account ID *</label>
-      <input id="broker_id" required placeholder="Your Exness / Do Prime account number" />
+      <input id="broker_id" required placeholder="Your Exness / XM account number" />
 
       <label>Deposit Screenshot *</label>
       <input id="screenshot" type="file" accept="image/*" required />
-      <p class="hint"><strong>Must clearly show:</strong> your Account ID and the deposit amount on your Exness or Do Prime dashboard. Screenshots that don't show this will be rejected on review — please don't upload unrelated photos.</p>
+      <p class="hint"><strong>Must clearly show:</strong> your Account ID and the deposit amount on your Exness or XM dashboard. Screenshots that don't show this will be rejected on review, please don't upload unrelated photos.</p>
 
       <button type="submit" id="btn">Submit for Verification</button>
       <div class="err" id="err"></div>
@@ -104,11 +104,11 @@
     fetch(ENDPOINT, { method: 'POST', body: fd })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (!d.ok) { err.textContent = d.error || 'Something went wrong — please try again.'; btn.disabled = false; btn.textContent = 'Submit for Verification'; return; }
+        if (!d.ok) { err.textContent = d.error || 'Something went wrong, please try again.'; btn.disabled = false; btn.textContent = 'Submit for Verification'; return; }
         location.href = 'thankyou.html?src=form&form_type=signals';
       })
       .catch(function () {
-        err.textContent = 'Network error — please try again or contact us on WhatsApp.';
+        err.textContent = 'Network error, please try again or contact us on WhatsApp.';
         btn.disabled = false; btn.textContent = 'Submit for Verification';
       });
   });

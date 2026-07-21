@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Free Course Enrollment — Badar Trader</title>
+<title>Free Course Enrollment, Badar Trader</title>
 <link rel="icon" type="image/svg+xml" href="/assets/bull.svg">
 <style>
   :root { color-scheme: light; }
@@ -33,7 +33,7 @@
     <div class="brand">🐂 BADAR TRADER</div>
     <div class="price">FREE<span> · Advanced Liquidity Bootcamp</span></div>
     <h1>Enroll in the Free Course</h1>
-    <p class="sub">Deposit $500 with our partner broker (Exness or Do Prime) — the course unlocks automatically once your deposit is verified. No payment is made to Badar Trader.</p>
+    <p class="sub">Deposit $500 with our partner broker (Exness or XM), the course unlocks automatically once your deposit is verified. No payment is made to Badar Trader.</p>
 
     <form id="f">
       <div class="row">
@@ -54,11 +54,11 @@
       <input id="phone" required inputmode="tel" placeholder="+92 3XX XXXXXXX" autocomplete="tel" />
 
       <label>Broker Account ID *</label>
-      <input id="broker_id" required placeholder="Your Exness / Do Prime account number" />
+      <input id="broker_id" required placeholder="Your Exness / XM account number" />
 
       <label>Deposit Screenshot *</label>
       <input id="screenshot" type="file" accept="image/*" required />
-      <p class="hint"><strong>Must clearly show:</strong> your Account ID and the deposit amount on your Exness or Do Prime dashboard. Screenshots that don't show this will be rejected on review — please don't upload unrelated photos.</p>
+      <p class="hint"><strong>Must clearly show:</strong> your Account ID and the deposit amount on your Exness or XM dashboard. Screenshots that don't show this will be rejected on review, please don't upload unrelated photos.</p>
 
       <button type="submit" id="btn">Submit for Verification</button>
       <div class="err" id="err"></div>
@@ -104,11 +104,11 @@
     fetch(ENDPOINT, { method: 'POST', body: fd })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (!d.ok) { err.textContent = d.error || 'Something went wrong — please try again.'; btn.disabled = false; btn.textContent = 'Submit for Verification'; return; }
+        if (!d.ok) { err.textContent = d.error || 'Something went wrong, please try again.'; btn.disabled = false; btn.textContent = 'Submit for Verification'; return; }
         location.href = 'thankyou.html?src=form&form_type=course';
       })
       .catch(function () {
-        err.textContent = 'Network error — please try again or contact us on WhatsApp.';
+        err.textContent = 'Network error, please try again or contact us on WhatsApp.';
         btn.disabled = false; btn.textContent = 'Submit for Verification';
       });
   });
