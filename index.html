@@ -957,7 +957,7 @@
           <button class="conv-filter-tab" data-tier="unread" onclick="setConvFilter('unread')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">📩 Unread</button>
           <button class="conv-filter-tab" data-tier="warm" onclick="setConvFilter('warm')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🌤 Warm</button>
           <button class="conv-filter-tab" data-tier="hot" onclick="setConvFilter('hot')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🔥 Hot</button>
-          <button class="conv-filter-tab" data-tier="closed" onclick="setConvFilter('closed')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">✅ Closed</button>
+          <button class="conv-filter-tab" data-tier="closed" onclick="setConvFilter('closed')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">✅ Converted</button>
         </div>
         <div class="conv-list" id="conv-list"></div>
       </div>
@@ -1948,7 +1948,7 @@
           <button class="conv-filter-tab" data-tier="unread" onclick="setConvFilter('unread','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">📩 Unread</button>
           <button class="conv-filter-tab" data-tier="warm" onclick="setConvFilter('warm','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🌤 Warm</button>
           <button class="conv-filter-tab" data-tier="hot" onclick="setConvFilter('hot','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🔥 Hot</button>
-          <button class="conv-filter-tab" data-tier="closed" onclick="setConvFilter('closed','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">✅ Closed</button>
+          <button class="conv-filter-tab" data-tier="closed" onclick="setConvFilter('closed','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">✅ Converted</button>
         </div>
         <div class="conv-list" id="agent-conv-list"></div>
       </div>
@@ -4502,7 +4502,7 @@ function tierBadge(tier) {
     new:    '<span style="background:#e0e7ff;color:#4338ca;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">NEW</span>',
     warm:   '<span style="background:#fef3c7;color:#b45309;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">WARM</span>',
     hot:    '<span style="background:#fee2e2;color:#b91c1c;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">🔥 HOT</span>',
-    closed: '<span style="background:#dcfce7;color:#15803d;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">CLOSED</span>',
+    closed: '<span style="background:#dcfce7;color:#15803d;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">CONVERTED</span>',
   };
   return map[tier] || '';
 }
@@ -4703,7 +4703,7 @@ async function openConversation(convId, scope = '') {
           <option value="new" ${currentTier==='new'?'selected':''}>🆕 New</option>
           <option value="warm" ${currentTier==='warm'?'selected':''}>🌤 Warm</option>
           <option value="hot" ${currentTier==='hot'?'selected':''}>🔥 Hot</option>
-          <option value="closed" ${currentTier==='closed'?'selected':''}>✅ Closed</option>
+          <option value="closed" ${currentTier==='closed'?'selected':''}>✅ Converted</option>
         </select>
         <button type="button" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:#475569;font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
       </div>

@@ -67,24 +67,6 @@ const HELLO_REPLY = "Hello! 👋";
 const WALAIKUM_REPLY = "Walaikum Assalam! 👋";
 const CONFUSED_REPLY = "This is Team Badar Tanvir. We are ever ready to serve for our brand's purpose. We're really sorry, but we couldn't quite understand your message. 🙏";
 
-// Finalized with Badar 2026-07-14: $250 course, 1 month, free once $500+ is
-// deposited with Exness or XM — new OR existing account/deposit both
-// count. Leads with the Signals Group per Badar's stated campaign priority
-// (subscriber growth), course is the added incentive. The real, hosted
-// verification form (LINKS.form) replaces the old broken Google Form.
-// Switching an existing account to Badar's IB code is a real thing agents
-// help with manually — not a self-service bot flow yet — so that case routes
-// to "Talk to an Agent" instead of promising steps the bot can't actually walk
-// someone through.
-// Do Prime dropped 2026-07-21 (Badar), replaced by XM — Ehsan supplied the
-// XM referral link/code.
-function freeSignalsText(lang: Lang): string {
-  if (lang === "ur") {
-    return `🎓 Badar ke Premium Signals Group mein FREE join karein, aur hamara Forex Trading Mastery Course ($250 ki value) bhi bilkul free unlock karein.\n\nYe kaise kaam karta hai:\n\n1️⃣ Apne Exness ya XM trading account mein $500 deposit karein. Ye aapka apna paisa hai, aapke apne account mein — hamein koi payment nahi.\n2️⃣ Pehle se $500 ya zyada deposit hai Exness ya XM mein? Aur bhi behtar, wo bhi chalega. $500 se kam hai? Bas $500 tak top up kar lein.\n3️⃣ Apne account ka screenshot bhejein jisme Account ID aur deposit amount saaf nazar aa raha ho.\n4️⃣ Hum verify karenge aur aap Premium Signals Group mein add ho jayenge aur poora Forex Trading Mastery Course bhi unlock ho jayega, dono bilkul free.\n\nExness ya XM par naye hain? Hamare link se account banayein:\n${LINKS.exness} (Exness)\n${LINKS.xm} (XM)\n\nPehle se kisi aur partner ke tehet account hai? "Agent se Baat Karein" chunein, hum switch karne mein madad karenge.\n\nVerification form: ${LINKS.form}\n\nAap apna paisa kabhi bhi apne broker account se withdraw kar sakte hain. Hum kabhi paisa nahi lete ✅`;
-  }
-  return `🎓 Join Badar's Premium Signals Group, FREE, plus unlock our Forex Trading Mastery Course (worth $250) at no cost.\n\nHere's how it works:\n\n1️⃣ Deposit $500 in your own Exness or XM trading account. This is your money, in your own account — not a payment to us.\n2️⃣ Already have $500 or more deposited with Exness or XM? Even better, that counts too. Have less than $500 already deposited? Just top it up to $500 and you're good to go.\n3️⃣ Send us a screenshot of your account showing your Account ID and the deposit amount clearly visible.\n4️⃣ We verify it and you're added to the Premium Signals Group and unlock the full Forex Trading Mastery Course, both completely free.\n\nNew to Exness or XM? Create your account through our link:\n${LINKS.exness} (Exness)\n${LINKS.xm} (XM)\n\nAlready have an account under a different partner? Choose "Talk to an Agent" and we'll help you switch it over.\n\nVerification form: ${LINKS.form}\n\nYou can withdraw your funds anytime, directly from your own broker account. We never collect or hold your money ✅`;
-}
-
 function faqText(lang: Lang): string {
   if (lang === "ur") {
     return `❓ Mukhtasar FAQs:\n\n• Kya $250 course waqai free hai? Haan — hamare partner broker ke saath $500 deposit karein, course khud unlock ho jayega.\n• Kya main $500 se kam deposit kar sakta hoon? Minimum $500 hai. Agar pehle se kam hai to top up kar lein — upar ki koi limit nahi hai.\n• Kya mera deposit mahfooz hai? Haan, ye aapke apne broker account mein rehta hai; Badar Trader kabhi khud payment nahi leta.\n• Withdraw kaise karoon? Seedha apne broker account se, kabhi bhi — hamari taraf se koi rok nahi.\n• Aur madad chahiye? "Talk to an Agent" chunein, hamari team se baat karein.`;
@@ -721,14 +703,17 @@ async function runBotStep(
         return;
       }
 
+      // 21 July 2026 (Badar, live-tested): same fix as the Premium Signalling
+      // Group menu option — this used to auto-dump the full deposit
+      // instructions as a downsell pitch instead of a real handoff. Same
+      // treatment now: a human takes it from here.
       await sb.from("leads").update({
         ready_to_deposit: false,
         bot_stage: "declined",
         retry_count: 0,
       }).eq("id", lead.id);
 
-      const rDeclined = await sendText(to, freeSignalsText(lang));
-      await logOutbound(sb, lead.id, combineSendLog(rDeclined));
+      await escalate(sb, lead, to, "requested human agent for Premium Signalling Group");
       return;
     }
 
