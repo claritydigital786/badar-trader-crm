@@ -400,7 +400,7 @@ async function handleImageMessage(
     to,
     "Got it! ✅ Your deposit screenshot has been received — our team will confirm it shortly.",
   );
-  await logOutbound(sb, lead.id, ackResult.ok ? "[screenshot ack sent]" : `[SEND FAILED: screenshot ack — ${ackResult.error}]`);
+  await logOutbound(sb, lead.id, combineSendLog(ackResult));
 
   if (lead.assigned_agent_id) {
     const assignedAgent = AGENT_ROTATION.find((a) => a.id === lead.assigned_agent_id);
@@ -491,9 +491,7 @@ async function runBotStep(
       sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY),
       sendLanguageCard(to),
     ]);
-    const ok = r1.ok && r2.ok;
-    const errorDetail = [!r1.ok ? r1.error : null, !r2.ok ? r2.error : null].filter(Boolean).join("; ");
-    await logOutbound(sb, lead.id, ok ? "[greeting + language picker card sent]" : `[SEND FAILED: greeting + language picker — ${errorDetail}]`);
+    await logOutbound(sb, lead.id, combineSendLog(r1, r2));
     return;
   }
 
@@ -519,11 +517,7 @@ async function runBotStep(
       sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY),
       sendLanguageCard(to),
     ]);
-    const ok = r1.ok && r2.ok;
-    const errorDetail = [!r1.ok ? r1.error : null, !r2.ok ? r2.error : null].filter(Boolean).join("; ");
-    await logOutbound(sb, lead.id, ok
-      ? `[stale mid-flow lead (was ${lead.bot_stage}) returned after 24h+ — flow restarted: greeting + language picker sent]`
-      : `[SEND FAILED: mid-flow restart — ${errorDetail}]`);
+    await logOutbound(sb, lead.id, `[Stale mid-flow lead, was ${lead.bot_stage}, restarted after 24h+]\n${combineSendLog(r1, r2)}`);
     return;
   }
 
@@ -536,7 +530,7 @@ async function runBotStep(
       }
       await sb.from("leads").update({ language: chosen, bot_stage: "awaiting_menu", retry_count: 0 }).eq("id", lead.id);
       const rMenu = await sendMainMenuCard(to, chosen);
-      await logOutbound(sb, lead.id, rMenu.ok ? "[main menu card sent]" : `[SEND FAILED: main menu card — ${rMenu.error}]`);
+      await logOutbound(sb, lead.id, combineSendLog(rMenu));
       return;
     }
 
@@ -554,14 +548,14 @@ async function runBotStep(
           { id: "broker_xm", title: "XM" },
           { id: "broker_both", title: "Both" },
         ]);
-        await logOutbound(sb, lead.id, r.ok ? "[broker choice buttons sent]" : `[SEND FAILED: broker choice buttons — ${r.error}]`);
+        await logOutbound(sb, lead.id, combineSendLog(r));
         return;
       }
 
       if (choice === "free_signals") {
         await sb.from("leads").update({ bot_stage: "declined", retry_count: 0 }).eq("id", lead.id);
         const r = await sendText(to, freeSignalsText(lang));
-        await logOutbound(sb, lead.id, r.ok ? "[free signals info sent from menu]" : `[SEND FAILED: free signals info — ${r.error}]`);
+        await logOutbound(sb, lead.id, combineSendLog(r));
         return;
       }
 
@@ -575,9 +569,7 @@ async function runBotStep(
           sendText(to, faqText(lang)),
           sendMainMenuCard(to, lang),
         ]);
-        const ok = r1.ok && r2.ok;
-        const errorDetail = [!r1.ok ? r1.error : null, !r2.ok ? r2.error : null].filter(Boolean).join("; ");
-        await logOutbound(sb, lead.id, ok ? "[faq answer + menu resent]" : `[SEND FAILED: faq answer + menu — ${errorDetail}]`);
+        await logOutbound(sb, lead.id, combineSendLog(r1, r2));
       }
       return;
     }
@@ -599,7 +591,7 @@ async function runBotStep(
         { id: "exp_new", title: "New to trading" },
         { id: "exp_experienced", title: "Experienced" },
       ]);
-      await logOutbound(sb, lead.id, rExp.ok ? "[experience buttons sent]" : `[SEND FAILED: experience buttons — ${rExp.error}]`);
+      await logOutbound(sb, lead.id, combineSendLog(rExp));
       return;
     }
 
@@ -621,7 +613,7 @@ async function runBotStep(
           { id: "traded_yes", title: "Yes" },
           { id: "traded_no", title: "No" },
         ]);
-        await logOutbound(sb, lead.id, r.ok ? "[traded-before buttons sent]" : `[SEND FAILED: traded-before buttons — ${r.error}]`);
+        await logOutbound(sb, lead.id, combineSendLog(r));
         return;
       }
 
@@ -699,7 +691,7 @@ async function runBotStep(
           to,
           `Perfect! 🎉 Deposit $500 in your own ${brokerName} account using the link below 👇\n${linkSection}\n\nAlready trading with ${brokerName} and have $500 or more deposited? Even better, that counts too. Either way, send your account screenshot showing the deposit here and our team will confirm and unlock your free $250 mentorship course. A team member will follow up with you shortly!`,
         );
-        await logOutbound(sb, lead.id, rQualified.ok ? "[qualified: signup link + course unlock sent]" : `[SEND FAILED: qualified signup link — ${rQualified.error}]`);
+        await logOutbound(sb, lead.id, combineSendLog(rQualified));
         return;
       }
 
@@ -710,7 +702,7 @@ async function runBotStep(
       }).eq("id", lead.id);
 
       const rDeclined = await sendText(to, freeSignalsText(lang));
-      await logOutbound(sb, lead.id, rDeclined.ok ? "[declined $500: free-signals fallback sent]" : `[SEND FAILED: declined fallback — ${rDeclined.error}]`);
+      await logOutbound(sb, lead.id, combineSendLog(rDeclined));
       return;
     }
 
@@ -729,11 +721,7 @@ async function runBotStep(
           sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY),
           sendLanguageCard(to),
         ]);
-        const ok = r1.ok && r2.ok;
-        const errorDetail = [!r1.ok ? r1.error : null, !r2.ok ? r2.error : null].filter(Boolean).join("; ");
-        await logOutbound(sb, lead.id, ok
-          ? "[declined lead returned after 24h+ — flow restarted: greeting + language picker sent]"
-          : `[SEND FAILED: 24h restart greeting — ${errorDetail}]`);
+        await logOutbound(sb, lead.id, `[Declined lead returned after 24h+, restarted]\n${combineSendLog(r1, r2)}`);
         return;
       }
 
@@ -750,7 +738,7 @@ async function runBotStep(
       const greeting = matchGreeting(input);
       const prefix = greeting ? `${greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY} ` : "";
       const r = await sendText(to, `${prefix}Thanks for the message! 🙏 A team member will follow up with you shortly.`);
-      await logOutbound(sb, lead.id, r.ok ? "[post-resolution acknowledgement sent]" : `[SEND FAILED: post-resolution ack — ${r.error}]`);
+      await logOutbound(sb, lead.id, combineSendLog(r));
       return;
     }
   }
@@ -769,12 +757,7 @@ async function handleUnmatched(
   if (greeting) {
     const greetResult = await sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY);
     const rePromptResult = await rePrompt();
-    const ok = greetResult.ok && rePromptResult.ok;
-    const errorDetail = [
-      !greetResult.ok ? `greeting: ${greetResult.error}` : null,
-      !rePromptResult.ok ? `re-prompt: ${rePromptResult.error}` : null,
-    ].filter(Boolean).join("; ");
-    await logOutbound(sb, lead.id, ok ? `[greeting ack + re-prompt: ${label}]` : `[SEND FAILED: greeting ack + re-prompt: ${label} — ${errorDetail}]`);
+    await logOutbound(sb, lead.id, combineSendLog(greetResult, rePromptResult));
     return;
   }
 
@@ -786,12 +769,7 @@ async function handleUnmatched(
   await sb.from("leads").update({ retry_count: retries }).eq("id", lead.id);
   const apologyResult = await sendText(to, CONFUSED_REPLY);
   const rePromptResult = await rePrompt();
-  const ok = apologyResult.ok && rePromptResult.ok;
-  const errorDetail = [
-    !apologyResult.ok ? `apology: ${apologyResult.error}` : null,
-    !rePromptResult.ok ? `re-prompt: ${rePromptResult.error}` : null,
-  ].filter(Boolean).join("; ");
-  await logOutbound(sb, lead.id, ok ? `[confused apology + re-prompt: ${label}]` : `[SEND FAILED: confused apology + re-prompt: ${label} — ${errorDetail}]`);
+  await logOutbound(sb, lead.id, combineSendLog(apologyResult, rePromptResult));
 }
 
 async function escalate(
@@ -846,7 +824,7 @@ async function sendDepositConfirm(to: string, sb: SupabaseClient, leadId: string
       { id: "deposit_no", title: "Not right now" },
     ],
   );
-  await logOutbound(sb, leadId, result.ok ? "[deposit confirm buttons sent]" : `[SEND FAILED: deposit confirm buttons — ${result.error}]`);
+  await logOutbound(sb, leadId, combineSendLog(result));
   return result;
 }
 
@@ -967,16 +945,17 @@ function matchYesNo(input: UserInput): "yes" | "no" | null {
 }
 
 async function sendText(to: string, body: string): Promise<SendResult> {
-  return await callGraphApi({
+  const result = await callGraphApi({
     messaging_product: "whatsapp",
     to,
     type: "text",
     text: { body },
   });
+  return { ...result, text: body };
 }
 
 async function sendButtons(to: string, bodyText: string, buttons: { id: string; title: string }[]): Promise<SendResult> {
-  return await callGraphApi({
+  const result = await callGraphApi({
     messaging_product: "whatsapp",
     to,
     type: "interactive",
@@ -988,6 +967,7 @@ async function sendButtons(to: string, bodyText: string, buttons: { id: string; 
       },
     },
   });
+  return { ...result, text: `${bodyText}\n[Buttons: ${buttons.map((b) => b.title).join(" / ")}]` };
 }
 
 async function sendList(
@@ -997,7 +977,7 @@ async function sendList(
   buttonLabel: string,
   rows: { id: string; title: string; description?: string }[],
 ): Promise<SendResult> {
-  return await callGraphApi({
+  const result = await callGraphApi({
     messaging_product: "whatsapp",
     to,
     type: "interactive",
@@ -1011,9 +991,27 @@ async function sendList(
       },
     },
   });
+  return { ...result, text: `${headerText}\n${bodyText}\n[Options: ${rows.map((r) => r.title).join(" / ")}]` };
 }
 
-type SendResult = { ok: boolean; error?: string };
+// `text` is what was actually sent (or attempted), always populated —
+// this is what the CRM's Conversations tab shows agents, so it must never
+// be a placeholder description. See combineSendLog below, used everywhere
+// this used to be replaced with a hand-typed "[thing sent]" bracket note.
+type SendResult = { ok: boolean; error?: string; text: string };
+
+// Builds one log line from one or more send attempts, real content always,
+// never a description of the content. Fixed 21 July 2026 — every outbound
+// log entry used to be a bracketed internal note ("[screenshot ack sent]")
+// instead of what was actually said, which left agents with no way to see
+// what the bot had told a customer, a real, live problem found in practice.
+function combineSendLog(...results: SendResult[]): string {
+  const combinedText = results.map((r) => r.text).join("\n\n");
+  const allOk = results.every((r) => r.ok);
+  if (allOk) return combinedText;
+  const errors = results.filter((r) => !r.ok).map((r) => r.error).filter(Boolean).join("; ");
+  return `[DELIVERY FAILED: ${errors}]\n${combinedText}`;
+}
 
 async function callGraphApi(payload: unknown): Promise<SendResult> {
   const { token, phoneId } = await getWaCredentials();

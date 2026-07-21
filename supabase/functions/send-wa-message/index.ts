@@ -100,18 +100,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const sb = makeServiceClient();
 
-  // Caller must be an admin or the agent this lead is assigned to — the same
-  // rule the communications RLS policies enforce for logging.
+  // Caller must be an admin or any active (non-suspended) staff member — the
+  // same rule the leads/communications RLS policies enforce (schema.sql
+  // Phase 15). Was previously "must be the exact assigned agent", which was
+  // never updated when that policy changed, leaving agents able to see a
+  // lead in the CRM but unable to actually send to it. Fixed 21 July 2026.
   const [{ data: profile }, { data: lead, error: leadError }] = await Promise.all([
-    sb.from("profiles").select("role").eq("id", user.id).maybeSingle(),
+    sb.from("profiles").select("role, is_suspended").eq("id", user.id).maybeSingle(),
     sb.from("leads").select("id, phone, assigned_agent_id").eq("id", leadId).maybeSingle(),
   ]);
   if (leadError || !lead) {
     return json({ ok: false, error: "Lead not found" });
   }
   const isAdmin = profile?.role === "admin";
-  if (!isAdmin && lead.assigned_agent_id !== user.id) {
-    return json({ ok: false, error: "This lead is not assigned to you" }, 403);
+  const isActiveStaff = !!profile && !profile.is_suspended;
+  if (!isAdmin && !isActiveStaff) {
+    return json({ ok: false, error: "Your account does not have access to send messages" }, 403);
   }
 
   const { token, phoneId } = await getWaCredentials();

@@ -452,3 +452,17 @@ Real finding: **cold start, not the code, was the dominant cost.** Isolated test
 Practical implication: in real usage with steady message traffic, the function likely stays warm most of the time and typical latency should be closer to 2-3 seconds, not 5-6. But a lead who messages after a quiet period will still hit a cold start. There is no code-level fix for this within the current architecture, keeping the function warm would need a separate scheduled "ping" to it every few minutes, which is a real option if this still isn't fast enough, not something built tonight.
 
 All test leads from tonight's latency investigation cleaned up.
+
+**Three real bugs found from live screenshots (Hanzala's CRM view + two real phone tests) and fixed (2026-07-21):**
+
+All three trace back to the same root cause: tonight's earlier RLS change ("any active staff sees every lead") only touched database table policies. Two other places enforcing the old "must be the exact assigned agent" rule were missed.
+
+1. **CRM Conversations tab showed internal bracket notes instead of real message content, for the entire bot flow.** Every single outbound message, at every stage, was logged as a placeholder like `[screenshot ack sent]` or `[post-resolution acknowledgement sent]` instead of what was actually said. Agents had no way to see what the bot told a customer. Root cause: `logOutbound` calls throughout `whatsapp-webhook/index.ts` were hand-typed descriptions, not the real content. Fixed properly, not patched: `sendText`/`sendButtons`/`sendList` now always return the real text (or a readable button/list summary) alongside success/failure, and a new `combineSendLog()` helper builds the log line from that, so it can never drift from reality again. Verified end to end with a live test: the log now shows the actual greeting text and language card content, not a placeholder.
+
+2. **`send-wa-message` edge function rejected sends with "This lead is not assigned to you"** for any agent who wasn't the literal assigned agent, even though the RLS change was supposed to let any active staff member handle any lead. This function had its own hardcoded check that was never updated. Fixed to check `is_active_staff()`-equivalent logic (any non-suspended profile, admin or agent) instead of exact assignment. Deployed.
+
+3. **Deposit screenshot thumbnails permanently failed to load** ("failed to load, tap to retry", retrying never helps) for any agent not specifically assigned to that lead. Root cause: the `deposit-screenshots` storage bucket's own RLS policy still said "agent select own clients" (exact assignment), never updated either. Fixed to `is_active_staff()`, matching the rest. Applied directly to the live database.
+
+**Also confirmed, not a bug, a known issue already on the backlog:** a family member's screenshot sent by mistake to the bot number got acknowledged as "Got it! Your deposit screenshot has been received" — this is the already-documented screenshot-authenticity gap (any image is treated as a valid deposit screenshot, no real verification exists). Not touched tonight, still needs Exness/XM API access to fix properly, per the earlier Flow Map review notes.
+
+**Lesson for future RLS/access changes:** check ALL enforcement points, not just the database table policies. Storage bucket policies and hardcoded checks inside edge functions are separate and easy to miss, as this exact incident just showed twice in one policy rollout.
