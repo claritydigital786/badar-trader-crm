@@ -4551,6 +4551,7 @@ async function renderConversations(scope = '') {
           <div class="conv-avatar">${initials}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(c.name)}</div>
+            <div class="conv-phone" style="font-size:0.72rem;color:#94a3b8">${esc(c.phone || '')}</div>
             <div class="conv-preview">${esc(c.lastMsg)}</div>
           </div>
           <div style="flex-shrink:0;text-align:right">
@@ -4591,11 +4592,13 @@ async function renderConversations(scope = '') {
       const preview = (c.direction === 'inbound' ? '↩ ' : '↪ ') + c.body;
       const tier = computeLeadTier(c.leads);
       const isUnread = !!c.leads?.is_unread;
+      const phone = c.leads?.phone || '';
       return `
         <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" onclick="openConversation('${c.lead_id}','${scope}')">
           <div class="conv-avatar">${initials}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(name)}${isUnread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
+            <div class="conv-phone" style="font-size:0.72rem;color:#94a3b8">${esc(phone)}</div>
             <div class="conv-preview">${esc(preview.slice(0,60))}</div>
           </div>
           <div style="flex-shrink:0;text-align:right">
