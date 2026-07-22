@@ -65,7 +65,12 @@ type Lang = "en" | "ur";
 
 const HELLO_REPLY = "Hello!";
 const WALAIKUM_REPLY = "Walaikum Assalam!";
-const CONFUSED_REPLY = "This is Team Badar Trader. Sorry, we couldn't quite understand your message.";
+function confusedReply(lang: Lang): string {
+  if (lang === "ur") {
+    return "Apka sawaal mausool ho chuka ha. Jald hamara numainda apse raabta kre ga.\n\nShukriya!";
+  }
+  return "We have received your question. A Team Member will contact you shortly.\n\nThanks!";
+}
 
 function faqText(lang: Lang): string {
   if (lang === "ur") {
@@ -808,7 +813,7 @@ async function handleUnmatched(
     return;
   }
   await sb.from("leads").update({ retry_count: retries }).eq("id", lead.id);
-  const apologyResult = await sendText(to, CONFUSED_REPLY);
+  const apologyResult = await sendText(to, confusedReply(lead.language === "ur" ? "ur" : "en"));
   const rePromptResult = await rePrompt();
   await logOutbound(sb, lead.id, combineSendLog(apologyResult, rePromptResult));
 }
