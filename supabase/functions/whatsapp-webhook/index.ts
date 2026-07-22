@@ -33,6 +33,13 @@ const DECLINED_RESTART_HOURS = 24;
 // only the outbound notification is silenced. Flip back to true when told to.
 const NEW_LEAD_NOTIFICATIONS_ENABLED = false;
 
+// Muhammad, 22 July 2026: a real lead (Izza) explicitly asked for a human
+// agent and sat unanswered for 10+ days — escalating a lead set needs_human
+// but never actually told anyone, and she had no assigned agent at all to
+// even see it. Separate toggle from the one above (that's about routine new
+// leads; this is specifically "someone needs help right now").
+const ESCALATION_NOTIFICATIONS_ENABLED = true;
+
 let cachedWaToken: string | null = null;
 let cachedWaPhoneId: string | null = null;
 
@@ -818,7 +825,17 @@ async function handleUnmatched(
 
   const retries = (lead.retry_count ?? 0) + 1;
   if (retries >= limit) {
-    await escalate(sb, lead, to, `stuck at ${lead.bot_stage} after ${retries} attempt(s)`);
+    // Badar's call, 22 July 2026: whenever the bot genuinely can't understand
+    // what's being asked, always use one of the two approved "we've received
+    // your question, a team member will contact you" templates — the same
+    // wording whether this is the 1st unclear message (confusedReply below)
+    // or the 2nd that triggers the actual handoff, not a different-sounding
+    // escalation message.
+    await escalate(
+      sb, lead, to,
+      `stuck at ${lead.bot_stage} after ${retries} attempt(s)`,
+      confusedReply(lead.language === "ur" ? "ur" : "en"),
+    );
     return;
   }
   await sb.from("leads").update({ retry_count: retries }).eq("id", lead.id);
@@ -904,22 +921,43 @@ async function escalate(
   lead: any,
   to: string,
   reason: string,
+  message?: string,
 ): Promise<void> {
+  // A lead escalating with nobody assigned would otherwise sit invisible —
+  // exactly what happened to Izza (10+ days, no agent, no ping, nobody knew).
+  let assignedAgentId: string | null = lead.assigned_agent_id ?? null;
+  let assignedAgent = AGENT_ROTATION.find((a) => a.id === assignedAgentId) ?? null;
+  if (!assignedAgentId) {
+    assignedAgent = await assignAgentRoundRobin(sb);
+    assignedAgentId = assignedAgent.id;
+  }
+
   await sb.from("leads").update({
     needs_human:    true,
     handoff_reason: reason,
+    assigned_agent_id: assignedAgentId,
     updated_at:     new Date().toISOString(),
   }).eq("id", lead.id);
 
   const result = await sendText(
     to,
-    "Thanks for your patience. Let me connect you with a team member who'll help you personally, please hold on a moment.",
+    message ?? "Thanks for your patience. Let me connect you with a team member who'll help you personally, please hold on a moment.",
   );
-  await logOutbound(
-    sb,
-    lead.id,
-    result.ok ? `[escalated to human: ${reason}]` : `[SEND FAILED: escalation message (still escalated: ${reason}) — ${result.error}]`,
-  );
+  await logOutbound(sb, lead.id, `[escalated to human: ${reason}]\n${combineSendLog(result)}`);
+
+  if (ESCALATION_NOTIFICATIONS_ENABLED && assignedAgent) {
+    const pingResult = await sendText(
+      assignedAgent.phone,
+      `A lead needs a human right now: ${lead.full_name || "Unknown"} (${lead.phone}). Reason: ${reason}. Please check the CRM.`,
+    );
+    await insertCommunication(
+      sb,
+      lead.id,
+      "outbound",
+      pingResult.ok ? `[agent ${assignedAgent.name} notified of escalation]` : `[SEND FAILED: agent escalation notification — ${pingResult.error}]`,
+      new Date().toISOString(),
+    );
+  }
 }
 
 async function handleAgentReply(
@@ -1107,8 +1145,8 @@ function matchBroker(input: UserInput): "exness" | "xm" | "both" | null {
 function matchExperience(input: UserInput): "new" | "experienced" | null {
   if (input.selectionId === "exp_new") return "new";
   if (input.selectionId === "exp_experienced") return "experienced";
-  if (/new/i.test(input.text)) return "new";
-  if (/experienc/i.test(input.text)) return "experienced";
+  if (/\bnew\b/i.test(input.text)) return "new";
+  if (/\bexperienc/i.test(input.text)) return "experienced";
   return null;
 }
 
