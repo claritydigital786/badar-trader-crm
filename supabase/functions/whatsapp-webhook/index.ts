@@ -159,6 +159,13 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
           contacts.find((c: any) => c.wa_id === message.from)?.profile?.name ??
           senderPhone;
 
+        // Blue double-tick on the customer's side, same as any real WhatsApp
+        // reply — Muhammad asked for this so the customer knows someone (the
+        // bot) has actually seen their message. Fired in the background, not
+        // awaited: it's cosmetic for the customer and must never add latency
+        // to the bot's actual reply.
+        if (message.id) markAsRead(message.id).catch((err) => console.error("markAsRead failed:", err));
+
         const sb = makeSupabase();
 
         const agent = AGENT_ROTATION.find((a) => normalisePhone(a.phone) === senderPhone);
@@ -1158,6 +1165,14 @@ function combineSendLog(...results: SendResult[]): string {
   if (allOk) return combinedText;
   const errors = results.filter((r) => !r.ok).map((r) => r.error).filter(Boolean).join("; ");
   return `[DELIVERY FAILED: ${errors}]\n${combinedText}`;
+}
+
+async function markAsRead(messageId: string): Promise<void> {
+  await callGraphApi({
+    messaging_product: "whatsapp",
+    status: "read",
+    message_id: messageId,
+  });
 }
 
 async function callGraphApi(payload: unknown): Promise<SendResult> {
