@@ -960,7 +960,7 @@ async function sendMainMenuCard(to: string, lang: Lang): Promise<SendResult> {
   if (lang === "ur") {
     return await sendList(
       to,
-      "Mohtaram Customer",
+      "Main Menu",
       "Aaj hum aap ki kaise madad kar sakte hain.\n\nBraye meherbani neeche main menu se apna pasandeeda option chunein:",
       "Menu",
       [
@@ -975,7 +975,7 @@ async function sendMainMenuCard(to: string, lang: Lang): Promise<SendResult> {
 
   return await sendList(
     to,
-    "Dear Customer",
+    "Main Menu",
     "Here's how we can help you today.\n\nPlease select your preferred option from the main menu below:",
     "Menu",
     [
