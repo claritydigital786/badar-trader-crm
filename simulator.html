@@ -54,7 +54,7 @@ const chat=document.getElementById('chat'),quickEl=document.getElementById('quic
 let lang=null; // 'en' | 'ru'
 let misses=0;        // consecutive unmatched free-text messages (resets on a match or menu use)
 let handedOff=false; // true once the bot has escalated to a human
-const LINKS={exness:'https://one.exnesstrack.org/a/eatgh2cl7y',dprime:'https://my.dooprime.com/links/go/45031',form:'https://crm.badartrader.com/join.html',course:'https://badartrader.com/check-3/',discord:'https://discord.gg/ph6f78DFJm',wa:'+923715773903'};
+const LINKS={exness:'https://one.exnesstrack.org/a/eatgh2cl7y',xm:'https://affs.click/a3Vrw',form:'https://crm.badartrader.com/join.html',course:'https://badartrader.com/check-3/',discord:'https://discord.gg/ph6f78DFJm',wa:'+923715773903'};
 
 function now(){const d=new Date();return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});}
 function add(text,who){const m=document.createElement('div');m.className='msg '+who;m.innerHTML=text.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank">$1</a>').replace(/\*([^*\n]+)\*/g,'<b>$1</b>')+'<div class="time">'+now()+(who==='out'?' ✓✓':'')+'</div>';chat.appendChild(m);chat.scrollTop=chat.scrollHeight;}
@@ -93,13 +93,13 @@ async function joinFlow(){
 function brokerButtons(existing){
   quick([
     {label:'🟡 Exness (XNS)',fn:()=>existing?ibGuide('Exness'):brokerLink('Exness')},
-    {label:'🔵 Dprime',fn:()=>existing?ibGuide('Dprime'):brokerLink('Dprime')},
+    {label:'🔵 XM',fn:()=>existing?ibGuide('XM'):brokerLink('XM')},
     {label:t('⬅️ Main menu','⬅️ Wapis menu'),fn:mainMenu}
   ]);
 }
 
 async function brokerLink(b){
-  const link=b==='Exness'?LINKS.exness:LINKS.dprime, code=b==='Exness'?'eatgh2cl7y':'45031';
+  const link=b==='Exness'?LINKS.exness:LINKS.xm, code=b==='Exness'?'eatgh2cl7y':'YR4PD';
   await bot(t(`Perfect! Create your ${b} account here 👇\n${link}\n\nReferral / partner code: ${code}\n\nAfter depositing $500, send your deposit screenshot here, then submit the verification form:\n${LINKS.form}\n\nYou'll be added within 48 hours of form submission ✅`,`Perfect! Apna ${b} account yahan banayein 👇\n${link}\n\nReferral / partner code: ${code}\n\n$500 deposit ke baad screenshot yahan bhejein, phir verification form submit karein:\n${LINKS.form}\n\nForm ke 48 hours ke andar aapko add kar diya jayega ✅`));
   afterFlow();
 }
@@ -110,11 +110,11 @@ async function existingFlow(){
 }
 
 async function ibGuide(b){
-  const code=b==='Exness'?'eatgh2cl7y':'45031';
+  const code=b==='Exness'?'eatgh2cl7y':'YR4PD';
   if(b==='Exness'){
     await bot(t(`🔄 *How to Change Your IB*\n\n🟡 *Exness — via Live Chat* 💬\n\n1️⃣ Type in the chat: *IB Partner Code Change*\n\n2️⃣ Click the support link and select *Education/Signals* in the 1st option\n\n3️⃣ In the 2nd option, paste this link:\n${LINKS.exness}\n\n4️⃣ Leave the remaining options blank and press *Submit*\n\n5️⃣ 📸 After submitting, sharing the screenshot here is a must!\n\nThen submit the verification form:\n${LINKS.form}\n\nAdded within 48 hours ✅`,`🔄 *IB Change Karne Ka Tareeqa*\n\n🟡 *Exness — Live Chat* 💬\n\n1️⃣ Chat mein likhein: *IB Partner Code Change*\n\n2️⃣ Support ke link par click kar ke 1st option mein *Education/Signals* select karein\n\n3️⃣ 2nd option mein ye link paste karein:\n${LINKS.exness}\n\n4️⃣ Baaki neeche ke options khali chhor kar *Submit* kar dein\n\n5️⃣ 📸 Submit karne ke baad screenshot yahan lazmi share karein!\n\nPhir verification form submit karein:\n${LINKS.form}\n\n48 hours ke andar add ✅`));
   } else {
-    await bot(t(`🔄 *How to Change Your IB*\n\n🔵 *Do Prime — via Email* 📧\n\n📮 To: en.support@dooprime.com\n📮 Cc: sadi.nor@dooprime.com\n✍️ Subject: IB Change Request\n\n💬 Message:\nPlease shift my account under this link:\n${LINKS.dprime}\n\n📸 After sending the email, sharing the screenshot here is a must!\n\nThen submit the verification form:\n${LINKS.form}\n\nAdded within 48 hours ✅`,`🔄 *IB Change Karne Ka Tareeqa*\n\n🔵 *Do Prime — Email Karein* 📧\n\n📮 To: en.support@dooprime.com\n📮 Cc: sadi.nor@dooprime.com\n✍️ Subject: IB Change Request\n\n💬 Message:\nPlease shift my account under this link:\n${LINKS.dprime}\n\n📸 Email bhejne ke baad screenshot yahan lazmi share karein!\n\nPhir verification form submit karein:\n${LINKS.form}\n\n48 hours ke andar add ✅`));
+    await bot(t(`🔄 *How to Change Your IB*\n\n🔵 *Do Prime — via Email* 📧\n\n📮 To: en.support@dooprime.com\n📮 Cc: sadi.nor@dooprime.com\n✍️ Subject: IB Change Request\n\n💬 Message:\nPlease shift my account under this link:\n${LINKS.xm}\n\n📸 After sending the email, sharing the screenshot here is a must!\n\nThen submit the verification form:\n${LINKS.form}\n\nAdded within 48 hours ✅`,`🔄 *IB Change Karne Ka Tareeqa*\n\n🔵 *Do Prime — Email Karein* 📧\n\n📮 To: en.support@dooprime.com\n📮 Cc: sadi.nor@dooprime.com\n✍️ Subject: IB Change Request\n\n💬 Message:\nPlease shift my account under this link:\n${LINKS.xm}\n\n📸 Email bhejne ke baad screenshot yahan lazmi share karein!\n\nPhir verification form submit karein:\n${LINKS.form}\n\n48 hours ke andar add ✅`));
   }
   afterFlow();
 }
@@ -125,7 +125,7 @@ async function courseFlow(){
 }
 
 async function linksFlow(){
-  await bot(t(`🔗 *Team Badar — Important Links*\n\n🟡 *Exness*\n${LINKS.exness}\nCode: eatgh2cl7y\n\n🔵 *Do Prime*\n${LINKS.dprime}\nCode: 45031\n\n📋 *Verification Form*\n${LINKS.form}\n\n🎓 *Course Enrollment*\n${LINKS.course}\n\n🎮 *Discord Community*\n${LINKS.discord}\n\n📱 *WhatsApp*\n${LINKS.wa}`,`🔗 *Team Badar — Zaroori Links*\n\n🟡 *Exness*\n${LINKS.exness}\nCode: eatgh2cl7y\n\n🔵 *Do Prime*\n${LINKS.dprime}\nCode: 45031\n\n📋 *Verification Form*\n${LINKS.form}\n\n🎓 *Course mein Enroll karein*\n${LINKS.course}\n\n🎮 *Discord Community*\n${LINKS.discord}\n\n📱 *WhatsApp*\n${LINKS.wa}`));
+  await bot(t(`🔗 *Team Badar — Important Links*\n\n🟡 *Exness*\n${LINKS.exness}\nCode: eatgh2cl7y\n\n🔵 *XM*\n${LINKS.xm}\nCode: YR4PD\n\n📋 *Verification Form*\n${LINKS.form}\n\n🎓 *Course Enrollment*\n${LINKS.course}\n\n🎮 *Discord Community*\n${LINKS.discord}\n\n📱 *WhatsApp*\n${LINKS.wa}`,`🔗 *Team Badar — Zaroori Links*\n\n🟡 *Exness*\n${LINKS.exness}\nCode: eatgh2cl7y\n\n🔵 *XM*\n${LINKS.xm}\nCode: YR4PD\n\n📋 *Verification Form*\n${LINKS.form}\n\n🎓 *Course mein Enroll karein*\n${LINKS.course}\n\n🎮 *Discord Community*\n${LINKS.discord}\n\n📱 *WhatsApp*\n${LINKS.wa}`));
   afterFlow();
 }
 
@@ -144,17 +144,17 @@ const FAQ=[
  {k:/how many signal|kitne signal|signals recv|signals receive/i,en:"Signals are shared daily based on market conditions — we focus on quality setups, not a fixed count. 📊",ru:"Signals market ke mutabiq daily share hote hain — hum quality setups par focus karte hain, fixed number par nahi. 📊"},
  {k:/live kab|daily live|live at|live time/i,en:"Course live classes run approx 8–10pm PKT (~60 min, recorded). Live trading session timings are announced in the group. ⏰",ru:"Course ki live classes approx 8–10pm PKT hoti hain (~60 min, recording milti hai). Live trading ke timings group mein announce hote hain. ⏰"},
  {k:/own broker|current broker|apna broker|charges/i,fn:existingFlow},
- {k:/confirmation mail|confirm.*mail|mail.*confirm/i,en:"Yes — the broker sends a confirmation email after the IB change. If you didn't get it, contact Exness / Dprime support, then send us the screenshot. 📧",ru:"Ji haan — IB change ke baad broker confirmation email bhejta hai. Agar nahi mili to Exness / Dprime support se contact karein, phir screenshot humein bhejein. 📧"},
+ {k:/confirmation mail|confirm.*mail|mail.*confirm/i,en:"Yes — the broker sends a confirmation email after the IB change. If you didn't get it, contact Exness / XM support, then send us the screenshot. 📧",ru:"Ji haan — IB change ke baad broker confirmation email bhejta hai. Agar nahi mili to Exness / XM support se contact karein, phir screenshot humein bhejein. 📧"},
  {k:/screenshot.*(share|send|bhej|kar diya)|deposit.*screenshot/i,en:"Great! Once your screenshot + verification form are received, you'll be added within 48 hours ✅",ru:"Zabardast! Screenshot + verification form milne ke baad 48 hours ke andar aapko add kar diya jayega ✅"},
  {k:/update|kab add|add kab|kab tak|when.*add/i,en:"You're added within 48 hours of form submission. If 48 hours have passed, send your form submission screenshot and the team will check. 🕐",ru:"Form submit hone ke 48 hours ke andar add kiya jata hai. Agar 48 hours guzar gaye hain to form submission ka screenshot bhejein, team check karegi. 🕐"},
  {k:/fees pay|paid.*course|course.*pay/i,en:`Send your payment proof on WhatsApp ${LINKS.wa} — you'll be added with the next batch schedule. 🎓`,ru:`Payment proof WhatsApp par bhejein ${LINKS.wa} — next batch ke schedule ke sath add kar diya jayega. 🎓`},
  {k:/minimum deposit|min.*deposit|deposit.*minimum|kitna deposit/i,en:"Minimum deposit is a flat $500 — not a range. This stays in YOUR account as trading capital. 💵",ru:"Minimum deposit flat $500 hai — range nahi. Ye aapke apne account mein trading capital rehta hai. 💵"},
  {k:/free or paid|free ya paid|is.*free/i,en:"The Premium Signalling Group is FREE when you join under Team Badar's IB link with a $500 deposit. ✅",ru:"Premium Signalling Group FREE hai jab aap Team Badar ki IB link se $500 deposit ke sath join karte hain. ✅"},
- {k:/deposit.*withdraw|withdraw|nikaal/i,en:"Deposits & withdrawals happen inside your broker app (Exness / Dprime): Wallet → Deposit/Withdraw with local payment methods. Team can guide you step by step. 🏦",ru:"Deposit aur withdraw aapke broker app (Exness / Dprime) ke andar hote hain: Wallet → Deposit/Withdraw, local payment methods ke sath. Team step by step guide kar sakti hai. 🏦"},
+ {k:/deposit.*withdraw|withdraw|nikaal/i,en:"Deposits & withdrawals happen inside your broker app (Exness / XM): Wallet → Deposit/Withdraw with local payment methods. Team can guide you step by step. 🏦",ru:"Deposit aur withdraw aapke broker app (Exness / XM) ke andar hote hain: Wallet → Deposit/Withdraw, local payment methods ke sath. Team step by step guide kar sakti hai. 🏦"},
  {k:/partner|referral.*change|ib change|previous.*change/i,fn:existingFlow},
  {k:/joining fee|kitni fees|what.*fee|fee kya/i,en:"Premium Signalling Group: FREE via the IB route (the $500 deposit is your own capital, not a fee). 💰",ru:"Premium Signalling Group: IB route se FREE ($500 deposit aapka apna capital hai, fee nahi). 💰"},
  {k:/exness.*link|link.*exness/i,en:`Exness: ${LINKS.exness} (code: eatgh2cl7y)`,ru:`Exness: ${LINKS.exness} (code: eatgh2cl7y)`},
- {k:/prime.*link|link.*prime|dprime|d prime/i,en:`Dprime: ${LINKS.dprime} (code: 45031)`,ru:`Dprime: ${LINKS.dprime} (code: 45031)`},
+ {k:/xm.*link|link.*xm/i,en:`XM: ${LINKS.xm} (code: YR4PD)`,ru:`XM: ${LINKS.xm} (code: YR4PD)`},
  {k:/form/i,en:`Verification form: ${LINKS.form}\nYou'll be added within 48 hours ✅`,ru:`Verification form: ${LINKS.form}\n48 hours ke andar add kar diya jayega ✅`},
  {k:/discord/i,en:`Discord Community: ${LINKS.discord}`,ru:`Discord Community: ${LINKS.discord}`},
 ];
