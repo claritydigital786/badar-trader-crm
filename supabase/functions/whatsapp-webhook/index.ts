@@ -502,14 +502,14 @@ async function runBotStep(
 
   if (wasCreated) {
     const greeting = matchGreeting(input) ?? "hello";
-    // Sent in parallel, not sequentially — halves this exchange's latency.
-    // Small tradeoff: Meta could in theory deliver these out of order, but
-    // in practice two near-simultaneous requests to the same endpoint
-    // arrive in order the overwhelming majority of the time.
-    const [r1, r2] = await Promise.all([
-      sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY),
-      sendLanguageCard(to),
-    ]);
+    // Sequential, not parallel — a brand new customer's very first message
+    // is the worst possible place for a delivery-order gamble. Sending both
+    // at once shaved a little latency but Meta could (and, reported live,
+    // did) deliver the language card before the greeting text, reading as
+    // the bot answering out of order. Guaranteed order matters far more
+    // here than the small time saved.
+    const r1 = await sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY);
+    const r2 = await sendLanguageCard(to);
     await logOutbound(sb, lead.id, combineSendLog(r1, r2));
     return;
   }
@@ -532,10 +532,9 @@ async function runBotStep(
   if (!wasCreated && MIDFLOW_RESTART_STAGES.includes(lead.bot_stage) && hoursIdle >= DECLINED_RESTART_HOURS) {
     await sb.from("leads").update({ bot_stage: "awaiting_language", retry_count: 0 }).eq("id", lead.id);
     const greeting = matchGreeting(input) ?? "hello";
-    const [r1, r2] = await Promise.all([
-      sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY),
-      sendLanguageCard(to),
-    ]);
+    // Sequential — same fix as the wasCreated path above, guaranteed order.
+    const r1 = await sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY);
+    const r2 = await sendLanguageCard(to);
     await logOutbound(sb, lead.id, `[Stale mid-flow lead, was ${lead.bot_stage}, restarted after 24h+]\n${combineSendLog(r1, r2)}`);
     return;
   }
@@ -730,10 +729,9 @@ async function runBotStep(
       if (lead.bot_stage === "declined" && hoursSinceTouch >= DECLINED_RESTART_HOURS) {
         await sb.from("leads").update({ bot_stage: "awaiting_language", retry_count: 0 }).eq("id", lead.id);
         const greeting = matchGreeting(input) ?? "hello";
-        const [r1, r2] = await Promise.all([
-          sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY),
-          sendLanguageCard(to),
-        ]);
+        // Sequential — same fix as the wasCreated path above, guaranteed order.
+        const r1 = await sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY);
+        const r2 = await sendLanguageCard(to);
         await logOutbound(sb, lead.id, `[Declined lead returned after 24h+, restarted]\n${combineSendLog(r1, r2)}`);
         return;
       }
@@ -948,7 +946,7 @@ async function sendMainMenuCard(to: string, lang: Lang): Promise<SendResult> {
     return await sendList(
       to,
       "Mohtaram Customer",
-      "Team Badar Trader mein khush aamdeed.\n\nBraye meherbani neeche main menu se apna pasandeeda option chunein:",
+      "Aaj hum aap ki kaise madad kar sakte hain.\n\nBraye meherbani neeche main menu se apna pasandeeda option chunein:",
       "Menu",
       [
         { id: "menu_start_trading", title: "Trading Shuru Karein", description: "$500 offer + free mentorship course" },
@@ -963,7 +961,7 @@ async function sendMainMenuCard(to: string, lang: Lang): Promise<SendResult> {
   return await sendList(
     to,
     "Dear Customer",
-    "Welcome to Team Badar Trader.\n\nPlease select your preferred option from the main menu below:",
+    "Here's how we can help you today.\n\nPlease select your preferred option from the main menu below:",
     "Menu",
     [
       { id: "menu_start_trading", title: "Start Trading", description: "$500 offer + free mentorship course" },
