@@ -65,11 +65,20 @@ type Lang = "en" | "ur";
 
 const HELLO_REPLY = "Hello!";
 const WALAIKUM_REPLY = "Walaikum Assalam!";
+// Rotation pool for the "confused" fallback — Muhammad wants his approved
+// wording to be one of several variations picked at random, not the only
+// one, so more can be added here once approved without touching the
+// function itself.
+const CONFUSED_REPLIES_EN: string[] = [
+  "We have received your question. A Team Member will contact you shortly.\n\nThanks!",
+];
+const CONFUSED_REPLIES_UR: string[] = [
+  "Apka sawaal mausool ho chuka ha. Jald hamara numainda apse raabta kre ga.\n\nShukriya!",
+];
+
 function confusedReply(lang: Lang): string {
-  if (lang === "ur") {
-    return "Apka sawaal mausool ho chuka ha. Jald hamara numainda apse raabta kre ga.\n\nShukriya!";
-  }
-  return "We have received your question. A Team Member will contact you shortly.\n\nThanks!";
+  const pool = lang === "ur" ? CONFUSED_REPLIES_UR : CONFUSED_REPLIES_EN;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function faqText(lang: Lang): string {
