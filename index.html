@@ -956,6 +956,18 @@
   <!-- Conversations -->
   <div id="admin-tab-conversations" class="tab-content">
     <h3>Conversations</h3>
+
+    <!-- Quick Links — copy/paste into a chat without leaving the tab. This
+         existed for agents only (V1 request from Ehsan/Hanzala) and was
+         never built for admin — Muhammad flagged not seeing it in V2. -->
+    <div class="card" id="quick-links" style="margin-bottom:14px;padding:12px 16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleQuickLinks('')">
+        <div style="font-weight:700;font-size:0.85rem;color:#0f172a">🔗 Quick Links</div>
+        <span id="quick-links-caret" style="color:#94a3b8;font-size:0.8rem">▾</span>
+      </div>
+      <div id="quick-links-body" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>
+    </div>
+
     <div class="conversations-shell" id="conv-shell">
       <!-- Left: Lead List -->
       <div class="conv-list-panel" id="conv-list-panel">
@@ -2322,7 +2334,7 @@ function adminTab(name, el) {
   closeDetail('admin');
   if (name === 'dashboard')        renderDashboardStats();
   if (name === 'leads')            loadAdminLeads();
-  if (name === 'conversations')    { renderConversations(); startConvRealtime(); } else { stopConvRealtime(); }
+  if (name === 'conversations')    { renderConversations(); startConvRealtime(); renderQuickLinks(''); } else { stopConvRealtime(); }
   if (name === 'agents')           { renderAgentsTable(); updateRoundRobinStatus(); }
   if (name === 'meta')             loadMetaSettings();
   if (name === 'meta-ads')         initMetaAnalytics();
@@ -2658,8 +2670,8 @@ const AGENT_TAB_TITLES = { dashboard: 'Dashboard', 'my-leads': 'My Leads', conve
 const QUICK_LINKS = [
   { label: 'Exness (referral)',       value: 'https://one.exnesstrack.org/a/eatgh2cl7y' },
   { label: 'Exness code',             value: 'eatgh2cl7y' },
-  { label: 'Do Prime (referral)',     value: 'https://my.dooprime.com/links/go/45031' },
-  { label: 'Do Prime code',           value: '45031' },
+  { label: 'XM (referral)',           value: 'https://affs.click/a3Vrw' },
+  { label: 'XM code',                 value: 'YR4PD' },
   { label: 'Verification form',       value: 'https://crm.badartrader.com/join.html' },
   { label: 'Course enrollment',       value: 'https://badartrader.com/check-3/' },
   { label: 'Discord community',       value: 'https://discord.gg/ph6f78DFJm' },
@@ -2678,9 +2690,9 @@ function renderQuickLinks(scope) {
     </div>`).join('');
 }
 
-function toggleQuickLinks() {
-  const body  = document.getElementById('agent-quick-links-body');
-  const caret = document.getElementById('agent-quick-links-caret');
+function toggleQuickLinks(scope = 'agent-') {
+  const body  = document.getElementById(scope + 'quick-links-body');
+  const caret = document.getElementById(scope + 'quick-links-caret');
   if (!body) return;
   const isOpen = body.style.display !== 'none';
   body.style.display = isOpen ? 'none' : 'flex';
