@@ -531,12 +531,20 @@ async function runBotStep(
   // between a fresh number and one with old test/lead history. Same
   // restart shape as the declined-lead rule below, just covering every
   // abandonable mid-flow stage instead of only one.
+  //
+  // input.selectionId is only ever set when the customer tapped a REAL
+  // button/list option still on their screen (never for typed free text) —
+  // that is always intentional and tied to the exact stage they're in, so
+  // it must never be discarded as "stale." Found live, 22 July 2026: M
+  // Junaid tapped "FAQs" on a >24h-old Main Menu card and the bot restarted
+  // him to the greeting instead of answering, because this check didn't
+  // distinguish a real tap from ambiguous typed text.
   const MIDFLOW_RESTART_STAGES = [
     "awaiting_menu", "awaiting_broker", "awaiting_experience",
     "awaiting_traded_before", "awaiting_deposit_confirm", "qualified",
   ];
   const hoursIdle = (Date.now() - lastTouch) / 3600000;
-  if (!wasCreated && MIDFLOW_RESTART_STAGES.includes(lead.bot_stage) && hoursIdle >= DECLINED_RESTART_HOURS) {
+  if (!wasCreated && !input.selectionId && MIDFLOW_RESTART_STAGES.includes(lead.bot_stage) && hoursIdle >= DECLINED_RESTART_HOURS) {
     await sb.from("leads").update({ bot_stage: "awaiting_language", retry_count: 0 }).eq("id", lead.id);
     const greeting = matchGreeting(input) ?? "hello";
     // Sequential — same fix as the wasCreated path above, guaranteed order.
