@@ -2384,7 +2384,7 @@ function renderAgentsTable() {
   }
   tbody.innerHTML = cachedProfiles.map(p => `
     <tr style="${p.is_suspended ? 'opacity:0.5' : ''}">
-      <td><strong style="color:#e0e0e0">${esc(p.full_name)}</strong></td>
+      <td><strong style="color:#0f172a">${esc(p.full_name)}</strong></td>
       <td>${esc(p.email)}</td>
       <td><span class="badge badge-${p.role}">${p.role}</span></td>
       <td style="color:#666;font-size:0.8rem">${fmtDate(p.created_at)}</td>
@@ -3678,7 +3678,7 @@ function maRenderInsights(rows, level, nameField) {
     const leads = maGetLeadCount(r.actions);
     const cpl   = maGetCPL(r.cost_per_action_type);
     return `<tr>
-      <td style="font-weight:600;color:#e0e0e0;max-width:220px;word-break:break-word">${esc(r[nameField] || '—')}</td>
+      <td style="font-weight:600;color:#0f172a;max-width:220px;word-break:break-word">${esc(r[nameField] || '—')}</td>
       <td>${Number(r.impressions||0).toLocaleString()}</td>
       <td>${Number(r.reach||0).toLocaleString()}</td>
       <td>${Number(r.clicks||0).toLocaleString()}</td>
