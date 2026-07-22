@@ -934,7 +934,7 @@ async function sendLanguageCard(to: string): Promise<SendResult> {
   return await sendList(
     to,
     "Dear Customer",
-    "Welcome to Team Badar's Self-Service.\n\nPlease select your preferred language from the Main Menu below.",
+    "Welcome to Team Badar Trader.\n\nPlease select your preferred language from the main menu below:",
     "Menu",
     [
       { id: "lang_en", title: "English", description: "Continue in English" },
@@ -948,7 +948,7 @@ async function sendMainMenuCard(to: string, lang: Lang): Promise<SendResult> {
     return await sendList(
       to,
       "Mohtaram Customer",
-      "Team Badar ki Self-Service mein khush aamdeed.\n\nBraye meherbani neeche Main Menu se apna pasandeeda option chunein.",
+      "Team Badar Trader mein khush aamdeed.\n\nBraye meherbani neeche main menu se apna pasandeeda option chunein:",
       "Menu",
       [
         { id: "menu_start_trading", title: "Trading Shuru Karein", description: "$500 offer + free mentorship course" },
@@ -963,7 +963,7 @@ async function sendMainMenuCard(to: string, lang: Lang): Promise<SendResult> {
   return await sendList(
     to,
     "Dear Customer",
-    "Welcome to Team Badar's Self-Service.\n\nPlease select your preferred option from the Main Menu below.",
+    "Welcome to Team Badar Trader.\n\nPlease select your preferred option from the main menu below:",
     "Menu",
     [
       { id: "menu_start_trading", title: "Start Trading", description: "$500 offer + free mentorship course" },
