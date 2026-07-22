@@ -498,7 +498,11 @@
 
     /* ── Mobile sidebar ── */
     .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:19; }
-    .hamburger-btn { display:none; background:none; border:none; cursor:pointer; padding:6px; color:#0f172a; font-size:22px; line-height:1; }
+    /* Matches the boxed look of the "Hide the lead list" toggle inside
+       Conversations — two differently-styled hamburger icons on the same
+       page read as inconsistent, even though they control different things
+       (this one the whole sidebar, that one just the conversation list). */
+    .hamburger-btn { display:none; background:#fff; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; width:34px; height:34px; color:#475569; font-size:18px; line-height:1; }
     @media (max-width: 768px) {
       .sidebar { transform: translateX(-220px); transition: transform 0.25s ease; }
       .sidebar.open { transform: translateX(0); }
@@ -3579,7 +3583,7 @@ function renderLeadsTable(tbodyId, leads, isAdmin) {
       : 'You';
     return `<tr>
       <td>
-        <strong style="color:#e0e0e0">${esc(l.full_name)}</strong>
+        <strong style="color:#0f172a">${esc(l.full_name)}</strong>
         ${l.needs_human ? `<br><span title="${esc(l.handoff_reason||'Needs human follow-up')}" style="font-size:0.72rem;color:#fff;background:#dc2626;padding:1px 7px;border-radius:8px;display:inline-block;margin-top:2px">⚠ Needs Human</span>` : ''}
         ${l.instrument_type ? `<br><span style="font-size:0.72rem;color:#94a3b8;background:#0f172a;padding:1px 7px;border-radius:8px;display:inline-block;margin-top:2px">${esc(l.instrument_type)}</span>` : ''}
       </td>
