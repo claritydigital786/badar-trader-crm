@@ -2920,7 +2920,10 @@ async function openDetail(leadId, ctx) {
   panel.innerHTML = `
     <div class="detail-header">
       <h3>${esc(lead.full_name)}</h3>
-      <button class="btn btn-secondary btn-sm" onclick="closeDetail('${ctx}')">✕ Close</button>
+      <div style="display:flex;gap:8px;margin-left:auto">
+        ${isAdmin ? `<button class="btn btn-danger btn-sm" onclick="deleteLeadRecord('${leadId}','${ctx}')" title="Permanently delete this lead and its entire conversation history — mainly for resetting test/simulator numbers">🗑 Delete Lead</button>` : ''}
+        <button class="btn btn-secondary btn-sm" onclick="closeDetail('${ctx}')">✕ Close</button>
+      </div>
     </div>
     ${pendingApprovalBanner}
 
@@ -3373,6 +3376,35 @@ async function logCommunication(leadId, ctx) {
 function closeDetail(ctx) {
   const id = ctx === 'admin' ? 'admin-lead-detail' : 'agent-lead-detail';
   document.getElementById(id).style.display = 'none';
+}
+
+// Mainly for resetting test/simulator numbers (e.g. someone testing the bot
+// on their own phone) without needing raw SQL every time — permanently
+// removes the lead and every record tied to it. Admin-only, irreversible.
+async function deleteLeadRecord(leadId, ctx) {
+  const lead = cachedLeads.find(l => l.id === leadId);
+  const name = lead?.full_name || 'this lead';
+  if (!confirm(`Permanently delete ${name} and their entire conversation history? This cannot be undone.`)) return;
+
+  if (demoMode) {
+    cachedLeads = cachedLeads.filter(l => l.id !== leadId);
+    closeDetail(ctx);
+    renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+    showToast(`${name} deleted. (demo)`);
+    return;
+  }
+
+  const tables = ['communications', 'communication_logs', 'lead_activity', 'transactions', 'kyc_documents'];
+  for (const t of tables) {
+    await sb.from(t).delete().eq('lead_id', leadId);
+  }
+  const { error } = await sb.from('leads').delete().eq('id', leadId);
+  if (error) { showToast('Error deleting: ' + error.message, 'err'); return; }
+
+  cachedLeads = cachedLeads.filter(l => l.id !== leadId);
+  closeDetail(ctx);
+  renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+  showToast(`${name} deleted.`);
 }
 
 async function saveLeadDetail(leadId, ctx) {
