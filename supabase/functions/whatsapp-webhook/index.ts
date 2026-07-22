@@ -65,7 +65,7 @@ type Lang = "en" | "ur";
 
 const HELLO_REPLY = "Hello!";
 const WALAIKUM_REPLY = "Walaikum Assalam!";
-const CONFUSED_REPLY = "This is Team Badar Tanvir. We are ever ready to serve for our brand's purpose. We're really sorry, but we couldn't quite understand your message.";
+const CONFUSED_REPLY = "This is Team Badar Trader. Sorry, we couldn't quite understand your message.";
 
 function faqText(lang: Lang): string {
   if (lang === "ur") {
