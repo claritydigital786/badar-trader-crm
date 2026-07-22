@@ -152,8 +152,10 @@
        rather than flex:1, which broke under a differing 3rd button and
        caused a wrap/stretch mess earlier). Logout is a separate, distinct
        action — pushed to the far right corner via margin-left:auto on the
-       button itself, not grouped or size-matched with the other two. */
-    .header-btn-pair { min-width: 118px; }
+       button itself, not grouped or size-matched with the other two.
+       Kept tight (not the default .btn-sm padding) since these two read as
+       a compact pair, not the header's main action. */
+    .header-btn-pair { min-width: 96px; padding: 5px 8px; font-size: 0.72rem; }
 
     .content-body {
       flex: 1;
@@ -737,7 +739,7 @@
           <button class="btn btn-secondary btn-sm header-btn-pair" onclick="exportLeadsCSV()">📥 Export CSV</button>
           <button class="btn btn-primary btn-inline btn-sm header-btn-pair" onclick="adminTab('add-lead')">+ Add Lead</button>
         </div>
-        <button class="btn btn-danger btn-sm" onclick="handleLogout()" style="margin-left:auto">Logout</button>
+        <button class="btn btn-danger btn-sm" onclick="handleLogout()" style="margin-left:auto">Log Out</button>
       </div>
     </div>
     <div class="content-body">
@@ -961,11 +963,12 @@
          existed for agents only (V1 request from Ehsan/Hanzala) and was
          never built for admin — Muhammad flagged not seeing it in V2. -->
     <div class="card" id="quick-links" style="margin-bottom:14px;padding:12px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleQuickLinks('')">
-        <div style="font-weight:700;font-size:0.85rem;color:#0f172a">🔗 Quick Links</div>
-        <span id="quick-links-caret" style="color:#94a3b8;font-size:0.8rem">▾</span>
+      <div style="font-weight:700;font-size:0.85rem;color:#0f172a;margin-bottom:10px">🔗 Quick Links</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="quick-links-select" onchange="renderQuickLinkValue('')" style="flex:1;min-width:160px;padding:6px 8px;font-size:0.78rem"></select>
+        <span id="quick-links-value" style="font-family:monospace;font-size:0.78rem;color:#0f172a;flex:2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        <button class="btn btn-secondary btn-sm" id="quick-links-copy-btn" onclick="copySelectedQuickLink('')">Copy</button>
       </div>
-      <div id="quick-links-body" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>
     </div>
 
     <div class="conversations-shell" id="conv-shell">
@@ -1881,7 +1884,7 @@
         <h2 id="agent-current-tab-title" class="page-title">Dashboard</h2>
       </div>
       <div class="header-actions">
-        <button class="btn btn-danger btn-sm" onclick="handleLogout()">Logout</button>
+        <button class="btn btn-danger btn-sm" onclick="handleLogout()">Log Out</button>
       </div>
     </div>
     <div class="content-body">
@@ -1950,11 +1953,12 @@
 
     <!-- Quick Links — copy/paste into a chat without leaving the tab -->
     <div class="card" id="agent-quick-links" style="margin-bottom:14px;padding:12px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleQuickLinks()">
-        <div style="font-weight:700;font-size:0.85rem;color:#0f172a">🔗 Quick Links</div>
-        <span id="agent-quick-links-caret" style="color:#94a3b8;font-size:0.8rem">▾</span>
+      <div style="font-weight:700;font-size:0.85rem;color:#0f172a;margin-bottom:10px">🔗 Quick Links</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="agent-quick-links-select" onchange="renderQuickLinkValue('agent-')" style="flex:1;min-width:160px;padding:6px 8px;font-size:0.78rem"></select>
+        <span id="agent-quick-links-value" style="font-family:monospace;font-size:0.78rem;color:#0f172a;flex:2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        <button class="btn btn-secondary btn-sm" id="agent-quick-links-copy-btn" onclick="copySelectedQuickLink('agent-')">Copy</button>
       </div>
-      <div id="agent-quick-links-body" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>
     </div>
 
     <div class="conversations-shell" id="agent-conv-shell">
@@ -2678,25 +2682,34 @@ const QUICK_LINKS = [
   { label: 'WhatsApp support number', value: '+923715773903' },
 ];
 
+// Dropdown instead of a stacked list — Muhammad's call: showing every link as
+// its own row "puts all the eggs in one basket" visually, a single select
+// reads as more deliberate/professional on the dashboard.
 function renderQuickLinks(scope) {
-  const el = document.getElementById(scope + 'quick-links-body');
-  if (!el) return;
-  el.innerHTML = QUICK_LINKS.map((l, i) => `
-    <div style="display:flex;align-items:center;gap:8px;font-size:0.78rem">
-      <span style="color:#64748b;min-width:150px;flex-shrink:0">${esc(l.label)}</span>
-      <span style="color:#0f172a;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(l.value)}</span>
-      <button class="btn btn-secondary btn-sm" style="padding:2px 10px;font-size:0.72rem;flex-shrink:0" id="${scope}ql-btn-${i}"
-        onclick="navigator.clipboard.writeText('${esc(l.value)}').then(()=>{const b=document.getElementById('${scope}ql-btn-${i}');b.textContent='✓ Copied';setTimeout(()=>b.textContent='Copy',1200)})">Copy</button>
-    </div>`).join('');
+  const sel = document.getElementById(scope + 'quick-links-select');
+  if (!sel) return;
+  sel.innerHTML = QUICK_LINKS.map((l, i) => `<option value="${i}">${esc(l.label)}</option>`).join('');
+  renderQuickLinkValue(scope);
 }
 
-function toggleQuickLinks(scope = 'agent-') {
-  const body  = document.getElementById(scope + 'quick-links-body');
-  const caret = document.getElementById(scope + 'quick-links-caret');
-  if (!body) return;
-  const isOpen = body.style.display !== 'none';
-  body.style.display = isOpen ? 'none' : 'flex';
-  if (caret) caret.textContent = isOpen ? '▸' : '▾';
+function renderQuickLinkValue(scope) {
+  const sel   = document.getElementById(scope + 'quick-links-select');
+  const valEl = document.getElementById(scope + 'quick-links-value');
+  if (!sel || !valEl) return;
+  const link = QUICK_LINKS[Number(sel.value)];
+  valEl.textContent = link ? link.value : '';
+}
+
+function copySelectedQuickLink(scope) {
+  const sel = document.getElementById(scope + 'quick-links-select');
+  const btn = document.getElementById(scope + 'quick-links-copy-btn');
+  const link = QUICK_LINKS[Number(sel?.value)];
+  if (!link || !btn) return;
+  navigator.clipboard.writeText(link.value).then(() => {
+    const original = btn.textContent;
+    btn.textContent = '✓ Copied';
+    setTimeout(() => { btn.textContent = original; }, 1200);
+  });
 }
 
 function agentTab(name, btn) {
