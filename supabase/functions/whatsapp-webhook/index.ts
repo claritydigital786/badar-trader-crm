@@ -33,6 +33,15 @@ const DECLINED_RESTART_HOURS = 24;
 // only the outbound notification is silenced. Flip back to true when told to.
 const NEW_LEAD_NOTIFICATIONS_ENABLED = false;
 
+// Muhammad, 23 July 2026: WhatChimp got connected to this same WABA as a
+// second subscribed app — Meta allows more than one app to receive the same
+// inbound webhook, so this bot and WhatChimp's own bot could both end up
+// replying to the same customer at once. Paused as a precaution while that
+// gets sorted out. Inbound messages/leads still get logged normally (nothing
+// here touches ingestion); every place the bot would send something back to
+// a customer or ping an agent just no-ops instead. Flip to true when told to.
+const BOT_REPLIES_ENABLED = false;
+
 // Muhammad, 22 July 2026: a real lead (Izza) explicitly asked for a human
 // agent and sat unanswered for 10+ days — escalating a lead set needs_human
 // but never actually told anyone, and she had no assigned agent at all to
@@ -1159,6 +1168,9 @@ function matchYesNo(input: UserInput): "yes" | "no" | null {
 }
 
 async function sendText(to: string, body: string): Promise<SendResult> {
+  if (!BOT_REPLIES_ENABLED) {
+    return { ok: false, error: "Bot replies paused (BOT_REPLIES_ENABLED = false)", text: body };
+  }
   const result = await callGraphApi({
     messaging_product: "whatsapp",
     to,
@@ -1169,6 +1181,10 @@ async function sendText(to: string, body: string): Promise<SendResult> {
 }
 
 async function sendButtons(to: string, bodyText: string, buttons: { id: string; title: string }[]): Promise<SendResult> {
+  const fallbackText = `${bodyText}\n[Buttons: ${buttons.map((b) => b.title).join(" / ")}]`;
+  if (!BOT_REPLIES_ENABLED) {
+    return { ok: false, error: "Bot replies paused (BOT_REPLIES_ENABLED = false)", text: fallbackText };
+  }
   const result = await callGraphApi({
     messaging_product: "whatsapp",
     to,
@@ -1181,7 +1197,7 @@ async function sendButtons(to: string, bodyText: string, buttons: { id: string; 
       },
     },
   });
-  return { ...result, text: `${bodyText}\n[Buttons: ${buttons.map((b) => b.title).join(" / ")}]` };
+  return { ...result, text: fallbackText };
 }
 
 async function sendList(
@@ -1191,6 +1207,10 @@ async function sendList(
   buttonLabel: string,
   rows: { id: string; title: string; description?: string }[],
 ): Promise<SendResult> {
+  const fallbackText = `${headerText}\n${bodyText}\n[Options: ${rows.map((r) => r.title).join(" / ")}]`;
+  if (!BOT_REPLIES_ENABLED) {
+    return { ok: false, error: "Bot replies paused (BOT_REPLIES_ENABLED = false)", text: fallbackText };
+  }
   const result = await callGraphApi({
     messaging_product: "whatsapp",
     to,
@@ -1205,7 +1225,7 @@ async function sendList(
       },
     },
   });
-  return { ...result, text: `${headerText}\n${bodyText}\n[Options: ${rows.map((r) => r.title).join(" / ")}]` };
+  return { ...result, text: fallbackText };
 }
 
 // `text` is what was actually sent (or attempted), always populated —
