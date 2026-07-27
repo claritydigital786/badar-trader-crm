@@ -191,8 +191,13 @@ Offered to Badar; he pivoted to (a) without answering — ask again before build
 1. **Push `integration/merge-bot-human-handoff` to `main`** — still not done. 10 more
    commits have landed on it since, all real product work, none pushed to origin. This is
    the single biggest thing sitting undeployed.
-2. **Course price/duration mismatch** — unresolved, needs Badar's actual answer (see 07-13
-   handoff section for the three conflicting claims: $200/3mo vs free/1mo vs $250/free).
+2. **Course price/duration mismatch — RESOLVED.** Confirmed 2026-07-21 by grepping the live
+   webhook and index.html: no trace of the old "$200" or "3mo/1mo" variants anywhere. Every
+   message consistently says "$250 free mentorship course, unlocked via $500 deposit," no
+   duration mentioned at all. This item was already fixed in an earlier part of tonight's
+   session; this line was just never removed. Badar flagged (2026-07-21) that he'd already
+   given the answer and was frustrated this kept resurfacing as if unresolved — it wasn't,
+   the doc was just stale.
 3. **Automation rule firing** — real code exists and was proven to work with a test lead,
    but no real production lead has gone through it live yet.
 4. **Ad creatives** — images still not generated (Muhammad's task, not a coding task).
@@ -490,3 +495,77 @@ Implementation:
 - Fixed a latent double-logging bug while touching `sendDepositConfirm`: it used to call `logOutbound` internally AND get logged again by `handleUnmatched` when reused as a re-prompt — removed the internal log call, made every caller responsible for logging (matches every other `send*` helper).
 
 Verified live end-to-end via direct webhook POSTs against a disposable test lead (`+10000000005`, deleted after): walked language → menu → broker (Exness) → back → broker (XM) → experience → traded-before → deposit-confirm → back, confirmed at each step via direct DB query that `bot_stage`, `bot_stage_history`, and the cleared fields (`broker_choice`, `trader_experience`, `language`) were exactly correct, including the branch-aware case (going back from deposit-confirm correctly returned to `awaiting_traded_before`, not `awaiting_experience`, matching the path actually taken). Deployed live.
+
+**Point 2 (deposit-decline downsell) confirmed already resolved, plus a real bug found in it (2026-07-21).** Muhammad's decision: declining the $500 deposit should immediately hand off to a human agent, same as the Premium Signalling Group fix. Checked the live code: this was already built and deployed earlier tonight (commit 24a044e, before this conversation started) — `awaiting_deposit_confirm`'s "no" branch already calls `escalate()` instead of dumping the free-signals text. Confirmed working as designed.
+
+Found a real bug while confirming it: the escalate() call's reason string was copy-pasted from the Premium Signalling Group handoff and never updated — every agent seeing this escalation in the CRM saw "requested human agent for Premium Signalling Group" for a lead that actually just declined the $500 deposit, wrong and misleading about what the agent needs to do. Fixed to "requested human agent after declining $500 deposit". Deployed.
+
+**Standing style rules (no em dashes, no emojis) and two prior "decided" renames were never actually applied to the live bot copy (2026-07-21).** Muhammad checked and was furious to find, correctly, that the greeting, FAQ, qualified message, and every re-prompt in whatsapp-webhook still had em dashes and emojis, despite this being logged earlier tonight as an already-applied standing rule. Same sweep also caught two other things that were "decided" but never reached the real code: "Badar Tanveer" still appeared in the Free Signals Group menu descriptions (should be Tanvir), and the menu button itself still said "Free Signals Group" (should be "Premium Signalling Group", the rename earlier only reached an internal escalation-log string, never the actual button text).
+
+Fixed properly this time: removed every emoji and em dash from customer/agent-facing strings (greeting, FAQ both languages, qualified message, deposit ack, all re-prompts, escalation message, agent pickup ack, Go Back button label), fixed Tanveer -> Tanvir and Free Signals Group -> Premium Signalling Group in the real button text. Internal-only bracket log strings (never seen by a human, only stored for the CRM's own audit trail) were deliberately left alone. Parse-checked with esbuild, deployed, and verified live with a real simulated webhook call, confirmed the actual stored message now reads "Hello!" with no emoji, not just that the code compiles.
+
+**Lesson, added to memory this time so it isn't lost between sessions:** never tell Muhammad a wording/style decision has been "applied" based on a HANDOFF.md note saying so, grep the live file yourself first and show the actual match.
+
+**Still open:** "Piyare Customer" (Roman Urdu Main Menu header, found while doing this sweep) needs Muhammad's final word choice, same unresolved item as "Dear Customer" -> "Mohtaram Customer" for the English side. Not changed yet, needs his answer before touching customer-facing wording again.
+
+**Six more real issues found and fixed, live with Muhammad (2026-07-21, later same night):**
+
+1. Header buttons: restructured so Export CSV and Add Lead share a fixed min-width (matched to each other), Logout pushed to the far right corner with margin-left:auto, no longer grouped/sized with the other two. Verified live: measured both at exactly 118px, Logout at the far edge.
+
+2. Conversations Send button was vertically centered against the growing message textarea, looked like it sat in the middle of the chat box on a multi-line message. Fixed with align-items:flex-end on .conv-input-bar. Verified live with a 4-line test message.
+
+3. **Real cause of a lost lead tonight, actually fixed**: Hanzala tried to manually step into an early-stage bot conversation and the bot kept consuming the customer's subsequent replies as answers to its own stage machine, since nothing ever told the bot a human had taken over. This was flagged as a proposed-but-unbuilt fix in an earlier HANDOFF section ("awaiting Badar's go-ahead"), built now given the real damage it just caused. Both send paths, the send-wa-message edge function (primary) and index.html's legacy in-browser fallback, now set `needs_human: true` with a `handoff_reason` containing "requested human agent" (matches the existing permanent-handoff regex) on every agent-sent message. Deployed.
+
+4. `asksAboutLowerDeposit()` required the literal word "500" alongside a "less/lower" word to trigger escalation. "What's the minimum deposit?", a completely natural way to ask the same thing, contains neither and never escalated. This is exactly what happened to Omar Farooq's real conversation content Muhammad was looking at. Added a direct "minimum deposit" pattern. Verified live: a real simulated webhook call with this exact phrase now sets needs_human=true with the correct reason, confirmed via DB query, test lead cleaned up after.
+
+5. join.html and course-form.html, both real live customer-facing forms, still offered "Do Prime" as a broker dropdown/placeholder even though it was dropped for XM everywhere else weeks ago in the bot. Fixed both to XM.
+
+6. signals-form.html plus the two forms above still said "Signals Group" (should be "Signalling") and had customer-facing em dashes, same sweep as the bot copy fix earlier tonight, just missed these three static pages. Fixed.
+
+**Also clarified again for Muhammad, recurring confusion:** the Omar Farooq / Ayesha Malik / Bilal Khan conversation content he keeps asking about ("who answered this", "why didn't it escalate") is static demo script text (_DEMO_CONVERSATIONS in index.html), never actually processed by the real bot, there is no real bot/human distinction in it and no real escalation logic ever ran against it. Real verification has to go through an actual webhook call against real code, like item 4 above, not by reading the demo transcript.
+
+**New gap surfaced, not yet built:** the Conversations reply box has no way to attach/send an image, agents can only send text replies from the CRM itself. Asked Muhammad if he wants this built.
+
+**Still open:** "Piyare Customer" / "Dear Customer" final wording, same unresolved item as before.
+
+**"Piyare Customer" -> "Mohtaram Customer" decided and shipped (2026-07-22).** Muhammad's final call: keep "Dear Customer" for English unchanged, change the Roman Urdu Main Menu greeting to "Mohtaram Customer" (respected/esteemed, matches the professional register the English side already had; "Piyare" read as too warm/informal, dear/beloved, for a business greeting a customer). Deployed and verified live with a real simulated webhook call, confirmed the actual stored message text, test lead cleaned up after.
+
+This closes the last open wording item from the earlier Flow Map review round.
+
+**Four real items from Muhammad, all actually built and verified this time (2026-07-22):**
+
+1. M Junaid deletion, checked live: nothing there right now, already clean.
+2. "Simulator" request: `simulator.html` already existed but is a stale, separately-maintained reimplementation (still offers Do Prime, missing every fix from tonight) — pointing to it would show wrong behavior. Built the actual fix instead: a one-click "Delete Lead" button in the lead detail panel (admin-only), removing the lead and every associated record (communications, communication_logs, lead_activity, transactions, kyc_documents) so Muhammad or any admin can reset a test number themselves without asking for a raw SQL delete again. Verified live via the real button click in the browser.
+3. Blue double-tick / read receipts: added `markAsRead()`, called for every inbound message via WhatsApp's official read-receipt endpoint, fired in the background so it can never slow down the bot's actual reply. Deployed and confirmed it doesn't interfere with the rest of the flow. Honest limitation: can't be proven with a disposable test webhook call (fake message IDs), needs a real WhatsApp message to see the actual tick appear.
+4. Missing V1 "Quick Links" panel: found the real cause, it was only ever built for the agent dashboard, never the admin one — as admin, Muhammad could never have seen it in any version. Added the same panel to the admin Conversations tab. Also fixed the link list itself while there, it still referenced the dropped Do Prime broker, now XM. Verified live in browser: renders, collapses/expands correctly.
+
+---
+
+## 2026-07-25 — Standing rule: deploy without per-instance confirmation
+
+Muhammad can't stay tied to the laptop approving every notification. Agreed standing rule for this project, going forward across all accounts/sessions:
+
+**No longer needs to ask before each deploy.** Once code is written and verified (compiles clean, tested live where feasible), commit + deploy Supabase edge function changes (and push frontend changes to `main`, which auto-deploys via Vercel) without a separate "want me to proceed?" message each time. This matches how the project has actually run for weeks — this file is full of "Deployed" entries with no per-instance ask recorded.
+
+**Still always confirmed in chat first, no exception, regardless of this rule:**
+- Sending any message to a third party on Muhammad's behalf (e.g. the WhatChimp support replies) — these get drafted for him to send himself, or confirmed before sending.
+- Destructive/irreversible operations (force-push, dropping DB tables/data, `rm -rf`-class actions).
+- Anything touching money or financial credentials.
+
+A permission-prompt allowlist scan the same day (`fewer-permission-prompts` skill) found nothing to add to `.claude/settings.json` — the frequent Bash commands were already covered by Claude Code's built-in read-only auto-allow list, and the one high-frequency MCP tool (`mcp__claude-in-chrome__computer`, browser clicks/typing) isn't read-only so was correctly excluded. The friction was coming from deploy-confirmation chat messages, not tool-permission popups — this rule addresses that directly.
+
+---
+
+## 2026-07-28 — Bot paused for WhatChimp month; also deployed a 5-day-stale fix
+
+**Muhammad's direct instruction tonight: stop the Supabase-built chatbot.** He's bought a WhatChimp subscription and the client is running on WhatChimp for a paid month already committed to. Before that month ends, propose Meta Ads to the client — noted as a real responsibility, not done yet.
+
+**What was actually live vs. what everyone assumed:** a `BOT_REPLIES_ENABLED = false` change already existed in the working tree, with a code comment dated 23 July 2026 explaining WhatChimp got connected to the same WABA and could double-reply alongside this bot — but it was never committed or deployed. The live `whatsapp-webhook` function was still running the 22 July build (v64) the whole time; the pause had only ever existed as an uncommitted local file. So the WhatChimp-crosstalk risk this was meant to guard against was live and unaddressed for 5+ days, silently.
+
+**Fixed now:** committed (`89d741e`) and deployed live (v65, confirmed via `supabase functions list`). Verified with a real simulated webhook call against a disposable test lead — `communications` now logs `[DELIVERY FAILED: Bot replies paused (BOT_REPLIES_ENABLED = false)]` instead of an actual WhatsApp send; inbound logging and lead creation still work normally, only outbound replies are suppressed. Test lead deleted after. Pushed to `main`.
+
+Scope of the pause: `sendText`/`sendButtons`/`sendList` inside `whatsapp-webhook` no-op — this is specifically the automated bot replying to customers. It does NOT touch `send-wa-message` (agents manually messaging from the CRM) or `nudge-agents` (already unscheduled). Flip `BOT_REPLIES_ENABLED` back to `true` in `supabase/functions/whatsapp-webhook/index.ts` when the WhatChimp month is up, then redeploy.
+
+**Separate issue found while doing this, not yet resolved:** `.claude/settings.local.json` is tracked in git (not gitignored) and its uncommitted working-tree version contains a live Supabase personal access token (`sbp_...`) embedded in a Bash-allow pattern string. Confirmed it is NOT in any committed history and NOT on GitHub yet — caught before it leaked. Left uncommitted deliberately; needs a decision (gitignore the file going forward, and probably rotate that token out of caution) before it's ever committed.
+
+**Lesson, same shape as the em-dash/emoji incident on 21 July:** a decision existed in code as a local, uncommitted edit and was treated as if it were live. Always check the deployed function's actual version/timestamp (`supabase functions list`), not just that a fix exists somewhere in a file, before telling Muhammad something is handled.
