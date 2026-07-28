@@ -569,3 +569,18 @@ Scope of the pause: `sendText`/`sendButtons`/`sendList` inside `whatsapp-webhook
 **Separate issue found while doing this, not yet resolved:** `.claude/settings.local.json` is tracked in git (not gitignored) and its uncommitted working-tree version contains a live Supabase personal access token (`sbp_...`) embedded in a Bash-allow pattern string. Confirmed it is NOT in any committed history and NOT on GitHub yet — caught before it leaked. Left uncommitted deliberately; needs a decision (gitignore the file going forward, and probably rotate that token out of caution) before it's ever committed.
 
 **Lesson, same shape as the em-dash/emoji incident on 21 July:** a decision existed in code as a local, uncommitted edit and was treated as if it were live. Always check the deployed function's actual version/timestamp (`supabase functions list`), not just that a fix exists somewhere in a file, before telling Muhammad something is handled.
+
+---
+
+## 2026-07-28 (later) — Standing rule: GitHub + live Supabase are the only source of truth, not any one laptop
+
+**Why this rule exists:** Muhammad flagged that this same failure mode (Claude re-treating already-fixed work as an open problem, or losing track of state) has now happened repeatedly across sessions. Root cause, confirmed directly against git in this same session: it was never that this file was wrong or unread — it's that real work sat committed-nowhere on a single local checkout, so a later session (or a literally different laptop) had no way to see it. A doc read faithfully still gives the wrong answer if the code it describes never actually got pushed.
+
+**The rule, effective immediately, across every account and every machine:**
+1. Nothing that matters — code or this file — ends a working session uncommitted and unpushed. Commit and push before considering anything "done," not "later."
+2. Every session starts with `git pull origin main` before trusting any local file, memory note, or prior "done" claim. Anything claimed live gets checked against actual deployed state (e.g. `supabase functions list`), not taken from this doc's word alone.
+3. GitHub (this repo) and the live Supabase project are the only real source of truth. Not this laptop, not any one Claude session's memory.
+
+**Multi-laptop implication, per Muhammad's direct question (28 July):** he's asking because his wife's and his younger brother's laptops may also need to pick up this work. As long as a laptop has this repo `git clone`d and can authenticate to GitHub and to the Supabase project (`vfskqzgphrunjxquqpks`), saying "continue" there resumes from the exact same true state as any other machine or account — because the state lives in GitHub + Supabase, not on any one device. Setup needed per new machine: git installed, repo cloned, GitHub auth (SSH key or token), `supabase login` once. Not yet confirmed whether the wife's/brother's laptops have this set up.
+
+**Standing reminder, not to be dropped silently:** the `.claude/settings.local.json` live Supabase token (see 28 July entry above) stays an open item — Muhammad's explicit instruction is to keep surfacing it periodically until it's actually resolved (gitignored + token rotated), not just mentioned once.
