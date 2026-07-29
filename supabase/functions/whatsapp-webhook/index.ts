@@ -81,6 +81,9 @@ type Lang = "en" | "ur";
 
 const HELLO_REPLY = "Hello!";
 const WALAIKUM_REPLY = "Walaikum Assalam!";
+const NAMASTE_REPLY = "Namaste!";
+const SATSRIAKAL_REPLY = "Sat Sri Akal!";
+const ARABIC_GREETING_REPLY = "Marhaba!";
 // Rotation pool for the "confused" fallback — Muhammad wants his approved
 // wording to be one of several variations picked at random, not the only
 // one, so more can be added here once approved without touching the
@@ -545,7 +548,7 @@ async function runBotStep(
     // did) deliver the language card before the greeting text, reading as
     // the bot answering out of order. Guaranteed order matters far more
     // here than the small time saved.
-    const r1 = await sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY);
+    const r1 = await sendText(to, greetingReplyText(greeting));
     const r2 = await sendLanguageCard(to);
     await logOutbound(sb, lead.id, combineSendLog(r1, r2));
     return;
@@ -578,7 +581,7 @@ async function runBotStep(
     await sb.from("leads").update({ bot_stage: "awaiting_language", retry_count: 0 }).eq("id", lead.id);
     const greeting = matchGreeting(input) ?? "hello";
     // Sequential — same fix as the wasCreated path above, guaranteed order.
-    const r1 = await sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY);
+    const r1 = await sendText(to, greetingReplyText(greeting));
     const r2 = await sendLanguageCard(to);
     await logOutbound(sb, lead.id, `[Stale mid-flow lead, was ${lead.bot_stage}, restarted after 24h+]\n${combineSendLog(r1, r2)}`);
     return;
@@ -775,7 +778,7 @@ async function runBotStep(
         await sb.from("leads").update({ bot_stage: "awaiting_language", retry_count: 0 }).eq("id", lead.id);
         const greeting = matchGreeting(input) ?? "hello";
         // Sequential — same fix as the wasCreated path above, guaranteed order.
-        const r1 = await sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY);
+        const r1 = await sendText(to, greetingReplyText(greeting));
         const r2 = await sendLanguageCard(to);
         await logOutbound(sb, lead.id, `[Declined lead returned after 24h+, restarted]\n${combineSendLog(r1, r2)}`);
         return;
@@ -807,7 +810,7 @@ async function runBotStep(
         await sb.from("leads").update({ retry_count: retries }).eq("id", lead.id);
       }
 
-      const prefix = greeting ? `${greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY} ` : "";
+      const prefix = greeting ? `${greetingReplyText(greeting)} ` : "";
       const r = await sendText(to, `${prefix}Thanks for the message. A team member will follow up with you shortly.`);
       await logOutbound(sb, lead.id, combineSendLog(r));
       return;
@@ -826,7 +829,7 @@ async function handleUnmatched(
 ): Promise<void> {
   const greeting = matchGreeting(input);
   if (greeting) {
-    const greetResult = await sendText(to, greeting === "walaikum" ? WALAIKUM_REPLY : HELLO_REPLY);
+    const greetResult = await sendText(to, greetingReplyText(greeting));
     const rePromptResult = await rePrompt();
     await logOutbound(sb, lead.id, combineSendLog(greetResult, rePromptResult));
     return;
@@ -1114,11 +1117,25 @@ function matchNavBack(input: UserInput): boolean {
   return /^\s*(back|previous|pichl?e|wapas)\s*$/i.test(input.text);
 }
 
-function matchGreeting(input: UserInput): "hello" | "walaikum" | null {
+function matchGreeting(input: UserInput): "hello" | "walaikum" | "namaste" | "satsriakal" | "arabic" | null {
   const t = input.text.trim();
   if (/^(hi+|hello+|hey+)[\s!.]*$/i.test(t)) return "hello";
   if (/^(a+\s*salam(u|o)?\s*(alaikum|alieukum)?|assalam(u|o)?\s*(alaikum|alieukum)?|salam|slm|a+oa+)[\s!.]*$/i.test(t)) return "walaikum";
+  if (/^(namaste|namaskar)[\s!.]*$/i.test(t)) return "namaste";
+  if (/^sat\s*s(h)?ri\s*akal[\s!.]*$/i.test(t)) return "satsriakal";
+  if (/^(marhaba|ahlan(\s*wa\s*sahlan)?)[\s!.]*$/i.test(t)) return "arabic";
+  if (/^(مرحبا|أهلا|اهلا)[\s!.]*$/.test(t)) return "arabic";
   return null;
+}
+
+function greetingReplyText(greeting: ReturnType<typeof matchGreeting>): string {
+  switch (greeting) {
+    case "walaikum": return WALAIKUM_REPLY;
+    case "namaste": return NAMASTE_REPLY;
+    case "satsriakal": return SATSRIAKAL_REPLY;
+    case "arabic": return ARABIC_GREETING_REPLY;
+    default: return HELLO_REPLY;
+  }
 }
 
 function matchLanguage(input: UserInput): Lang | null {
