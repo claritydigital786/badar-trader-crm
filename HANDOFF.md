@@ -4,6 +4,11 @@ _Last updated: 2026-07-14 (mid-session, cut short by usage limit — written fas
 claims before trusting them further). For a fresh Claude Code session with zero memory of
 prior conversations._
 
+**Two parallel tracks are active as of 2026-07-29 — say the right phrase to resume the right one:**
+- **"continue the Supabase CRM coding"** → resume the badar-trader-crm codebase (index.html, Supabase edge functions, schema, deploys).
+- **"continue the WhatChimp bot build"** → resume the WhatChimp Flow Builder rebuild + the related Meta Ads Manager work (see the last section of this file).
+A bare "continue" defaults to whichever section is most recent at the bottom of this file — ask Muhammad to clarify if it's not obvious which track he means.
+
 Prior version of this doc (2026-07-13) covered the main/feat branch-divergence discovery
 and merge into `integration/merge-bot-human-handoff`. That merge is still the base — a
 **different session** (not the one that wrote the 07-13 doc) then did 10 more commits on
