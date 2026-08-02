@@ -9,6 +9,16 @@ prior conversations._
 - **"continue the WhatChimp bot build"** → resume the WhatChimp Flow Builder rebuild + the related Meta Ads Manager work (see the last section of this file).
 A bare "continue" defaults to whichever section is most recent at the bottom of this file — ask Muhammad to clarify if it's not obvious which track he means.
 
+**Two-person parallel work, effective 2026-08-02 — Muhammad and his younger brother, on separate laptops, sharing one Google/GitHub login:**
+- **Muhammad owns the Supabase CRM track** (this codebase — `index.html`, edge functions, schema, deploys — and the Meta Ads side).
+- **Brother owns the WhatChimp track** (bot training, AI Agent config, WhatChimp integrations) — already his area, he set up the OpenAI integration himself.
+- Since both machines share one GitHub identity, commits are told apart by the **local git `user.name`** set on each laptop, not by separate accounts — this laptop (Muhammad's) is set to `Muhammad`; do the same (`git config user.name "Brother"` or his actual name) on his laptop once he's set up.
+- **Active Work Claims** (below) is the collision-prevention mechanism — before starting something, add a line here; remove it once committed and pushed. Whoever's Claude session starts a task should `git pull origin main` first (already the standing rule) and check this list.
+- For anything code-level that might touch the same files, work on a branch (e.g. `feature/<short-task-name>`) and merge to `main` only once done and verified — reduces collision risk since both machines have equal push access. Docs-only edits to this file can go straight to `main`.
+
+### Active Work Claims
+_(empty — add a line here when starting something: `- [Name] — [task] — [date/time]`, remove when done)_
+
 Prior version of this doc (2026-07-13) covered the main/feat branch-divergence discovery
 and merge into `integration/merge-bot-human-handoff`. That merge is still the base — a
 **different session** (not the one that wrote the 07-13 doc) then did 10 more commits on
