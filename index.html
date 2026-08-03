@@ -4203,11 +4203,23 @@ let cachedKeywordReplies = [];
 // ── TRAIN AI (ai_knowledge_base) ──────────────────────────────
 // Storage + UI only. Nothing here changes live bot behaviour; the
 // whatsapp-webhook does not read this table yet, by design.
+// A missing table must never look like a hang. PGRST205 is PostgREST's
+// "relation not in the schema cache", i.e. the migration has not been run.
+function showTableError(tbodyId, error) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const missingTable = error && (error.code === 'PGRST205' || /schema cache/i.test(error.message || ''));
+  const text = missingTable
+    ? 'Storage for this section has not been set up yet. The database migration <code>20260803_train_ai_and_keyword_replies.sql</code> still needs to be run. Saving will not work until then.'
+    : 'Could not load this section: ' + esc(error?.message || 'unknown error');
+  tbody.innerHTML = `<tr><td colspan="5" class="empty-state">${text}</td></tr>`;
+}
+
 async function loadAiKb() {
   if (demoMode) { cachedAiKb = _DEMO_AI_KB.slice(); renderAiKbTable(); return; }
   const { data, error } = await sb
     .from('ai_knowledge_base').select('*').order('created_at', { ascending: false });
-  if (error) { console.error('loadAiKb:', error); return; }
+  if (error) { console.error('loadAiKb:', error); showTableError('ai-kb-tbody', error); return; }
   cachedAiKb = data || [];
   renderAiKbTable();
 }
@@ -4336,7 +4348,7 @@ async function loadKeywordReplies() {
   if (demoMode) { cachedKeywordReplies = _DEMO_KEYWORD_REPLIES.slice(); renderKeywordRepliesTable(); return; }
   const { data, error } = await sb
     .from('keyword_replies').select('*').order('created_at', { ascending: false });
-  if (error) { console.error('loadKeywordReplies:', error); return; }
+  if (error) { console.error('loadKeywordReplies:', error); showTableError('kw-tbody', error); return; }
   cachedKeywordReplies = data || [];
   renderKeywordRepliesTable();
 }
