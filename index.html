@@ -475,6 +475,16 @@
     .badge-outbound { background: #f3e8ff; color: #7e22ce; }
 
     /* ── Stat cards ── */
+    .quick-tile-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .quick-tile {
+      background: #fff; border: 1px solid #e5e8ef; border-radius: 12px; padding: 14px 15px;
+      cursor: pointer; display: flex; align-items: flex-start; gap: 11px;
+      transition: transform .12s, box-shadow .12s, border-color .12s;
+    }
+    .quick-tile:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,23,42,.08); border-color: #d4a843; }
+    .quick-tile-icon { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 15px; }
+    .quick-tile h4 { margin: 0 0 2px; font-size: 12.8px; font-weight: 700; color: #0f172a; }
+    .quick-tile p { margin: 0; font-size: 11px; color: #64748b; }
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px; }
     .stat-card {
       background: #fff;
@@ -750,6 +760,8 @@
       <div class="nav-item" data-tab="comm-log"><span class="nav-icon" style="background:var(--tint-success-bg)">🕐</span> Comm Log</div>
       <div class="nav-item" data-tab="reports"><span class="nav-icon" style="background:var(--tint-warn-bg)">📋</span> Reports</div>
       <div class="nav-item" data-tab="automation"><span class="nav-icon" style="background:var(--tint-danger-bg)">⚡</span> Automation</div>
+      <div class="nav-item" data-tab="create-flow"><span class="nav-icon" style="background:var(--tint-gold-bg)">🧩</span> Create Flow</div>
+      <div class="nav-item" data-tab="train-ai"><span class="nav-icon" style="background:var(--tint-warn-bg)">🧠</span> Train AI</div>
       <div class="nav-section-label">FINANCE</div>
       <div class="nav-item" data-tab="payroll"><span class="nav-icon" style="background:var(--tint-gold-bg)">💰</span> Payroll</div>
       <div class="nav-section-label">WHATSAPP SIGNALS</div>
@@ -800,6 +812,28 @@
   <div id="admin-tab-dashboard" class="tab-content active">
     <h3 style="display:flex;align-items:center;gap:10px">Welcome Back, <span id="dash-admin-name">Badar Tanveer</span></h3>
     <p style="color:#64748b;font-size:0.85rem;margin:2px 0 18px">Here's what's happening with your pipeline today.</p>
+    <div class="quick-tile-row">
+      <div class="quick-tile" onclick="adminTab('signal-broadcast')">
+        <span class="quick-tile-icon" style="background:var(--tint-sky-bg)">📣</span>
+        <div><h4>New Broadcast</h4><p>Send to your audience</p></div>
+      </div>
+      <div class="quick-tile" onclick="adminTab('conversations')">
+        <span class="quick-tile-icon" style="background:var(--tint-success-bg)">📥</span>
+        <div><h4>Open Inbox</h4><p>View all conversations</p></div>
+      </div>
+      <div class="quick-tile" onclick="adminTab('create-flow')">
+        <span class="quick-tile-icon" style="background:var(--tint-gold-bg)">🧩</span>
+        <div><h4>Create Flow</h4><p>Build automation</p></div>
+      </div>
+      <div class="quick-tile" onclick="adminTab('train-ai')">
+        <span class="quick-tile-icon" style="background:var(--tint-warn-bg)">🧠</span>
+        <div><h4>Train AI</h4><p>Improve AI responses</p></div>
+      </div>
+      <div class="quick-tile" onclick="adminTab('meta')">
+        <span class="quick-tile-icon" style="background:var(--tint-danger-bg)">🔗</span>
+        <div><h4>Connect Channel</h4><p>Add new channel</p></div>
+      </div>
+    </div>
     <div class="stat-grid">
       <div class="stat-card">
         <div class="stat-label">Total Leads</div>
@@ -1112,6 +1146,22 @@
       <p style="color:#475569;font-size:0.85rem;line-height:1.7">
         Sees every active lead and conversation (any active staff member can pick up any lead), can log activity and reply in Conversations, cannot approve KYC, cannot change integration settings, cannot promote or suspend other users, and cannot see a suspended teammate's data.
       </p>
+    </div>
+  </div>
+
+  <!-- Create Flow -->
+  <div id="admin-tab-create-flow" class="tab-content">
+    <h3>Create Flow</h3>
+    <div class="info-box">
+      Not built yet - this is an honest placeholder, not a broken feature. First version in progress: a keyword-reply builder (set a trigger keyword, get an automatic reply), the same starting point WhatChimp itself uses under Automation. No fake buttons here - check back once this has a real update.
+    </div>
+  </div>
+
+  <!-- Train AI -->
+  <div id="admin-tab-train-ai" class="tab-content">
+    <h3>Train AI</h3>
+    <div class="info-box">
+      Not built yet - this is an honest placeholder, not a broken feature. First version in progress: a place to store a system prompt and knowledge notes per bot number, similar to WhatChimp's own AI Knowledge Base. It will not change live bot behaviour on its own until that gets wired up separately.
     </div>
   </div>
 
@@ -2433,7 +2483,8 @@ function adminTab(name, el) {
     notifications: 'Notifications', sites: 'Landing Pages', reports: 'Reports',
     'comm-log': 'Communication Log',
     'signal-broadcast': 'Broadcast Signal', subscribers: 'Subscribers', 'ai-signals': 'AI Signals',
-    guide: 'Guide', 'user-manager': 'User Manager', 'user-permission': 'User Permission'
+    guide: 'Guide', 'user-manager': 'User Manager', 'user-permission': 'User Permission',
+    'create-flow': 'Create Flow', 'train-ai': 'Train AI'
   };
   const titleEl = document.getElementById('current-tab-title');
   if (titleEl) titleEl.textContent = titles[name] || name;
