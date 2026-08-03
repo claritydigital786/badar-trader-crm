@@ -22,15 +22,23 @@
     /* --ticker-h is kept in sync with the TradingView iframe's real height by a
        script near the ticker markup: the widget renders 46px on wide screens but
        74px (two-row mode) below ~1280px, and a fixed 46px assumption cuts it off. */
-    :root { --ticker-h: 46px; }
+    :root {
+      --ticker-h: 46px;
+      --tint-gold-bg: #f8f0dd; --tint-gold-fg: #b8862e;
+      --tint-sky-bg: #e3f4fd; --tint-sky-fg: #0ea5e9;
+      --tint-success-bg: #e2f6ec; --tint-success-fg: #1fa971;
+      --tint-warn-bg: #fdf1dc; --tint-warn-fg: #b45309;
+      --tint-danger-bg: #fbe6e4; --tint-danger-fg: #dc4c40;
+    }
     .app-shell { display: flex; height: calc(100vh - var(--ticker-h)); margin-top: var(--ticker-h); overflow: hidden; position: relative; }
     .app-shell::before { content:""; position: fixed; top:50%; left:58%; transform:translate(-50%,-50%); width:640px; height:640px; background:url('/assets/bull.svg') center/contain no-repeat; opacity:0.06; pointer-events:none; z-index:0; }
 
     /* ── Sidebar (GHL style) ── */
     .sidebar {
-      width: 220px;
+      width: 232px;
       min-height: calc(100vh - var(--ticker-h));
-      background: #0f172a;
+      background: #ffffff;
+      border-right: 1px solid #e5e8ef;
       padding: 0 0 46px; /* reserve room for the fixed market ticker, so it never covers the sidebar footer */
       flex-shrink: 0;
       display: flex;
@@ -42,50 +50,59 @@
     }
     .sidebar-brand {
       padding: 20px 16px 16px;
-      border-bottom: 1px solid #1e293b;
+      border-bottom: 1px solid #e5e8ef;
       text-align: center;
     }
     .sidebar-brand img {
-      width: 130px;
+      width: 110px;
       display: block;
       margin: 0 auto 10px;
     }
     .sidebar-brand h1 {
-      color: #d4a843;
+      color: #0f172a;
       font-size: 14px;
       font-weight: 700;
       margin: 0;
       letter-spacing: 1px;
     }
     .sidebar-brand p {
-      color: #64748b;
-      font-size: 11px;
+      color: var(--tint-gold-fg);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
       margin: 4px 0 0;
     }
     .nav-section-label {
-      color: #475569;
+      color: #94a3b8;
       font-size: 10px;
-      font-weight: 600;
+      font-weight: 700;
       letter-spacing: 1px;
       padding: 16px 16px 6px;
       text-transform: uppercase;
     }
-    .sidebar-nav { flex: 1; overflow-y: auto; padding: 0; }
+    .sidebar-nav { flex: 1; overflow-y: auto; padding: 0 8px; }
     .nav-item {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 10px 16px;
-      color: #94a3b8;
+      padding: 8px 8px;
+      margin: 1px 0;
+      border-radius: 10px;
+      color: #334155;
       font-size: 13px;
       cursor: pointer;
       border-left: 3px solid transparent;
       transition: all 0.15s;
       user-select: none;
     }
-    .nav-item:hover { background: rgba(255,255,255,0.06); color: #e2e8f0; }
-    .nav-item.active { background: rgba(201,168,76,0.12); color: #d4a843; border-left-color: #d4a843; font-weight: 600; }
-    .nav-icon { font-size: 16px; width: 18px; text-align: center; }
+    .nav-item:hover { background: #f1f5f9; color: #0f172a; }
+    .nav-item.active { background: var(--tint-gold-bg); color: #0f172a; border-left-color: #d4a843; font-weight: 600; }
+    .nav-icon {
+      font-size: 13px; width: 26px; height: 26px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      background: #f1f5f9;
+    }
     .nav-badge {
       margin-left: auto;
       background: #d4a843;
@@ -120,8 +137,8 @@
       text-transform: uppercase;
     }
     .user-info { min-width: 0; flex: 1; overflow: hidden; }
-    .user-info p { margin: 0; color: #fff; font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .user-info span { color: #64748b; font-size: 11px; }
+    .user-info p { margin: 0; color: #0f172a; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-info span { color: #94a3b8; font-size: 11px; }
 
     /* ── Main Content ── */
     .main-content {
@@ -151,7 +168,7 @@
        width (a fixed min-width sized to fit the longer label, "Export CSV",
        rather than flex:1, which broke under a differing 3rd button and
        caused a wrap/stretch mess earlier). Logout is a separate, distinct
-       action — pushed to the far right corner via margin-left:auto on the
+       action - pushed to the far right corner via margin-left:auto on the
        button itself, not grouped or size-matched with the other two.
        Kept tight (not the default .btn-sm padding) since these two read as
        a compact pair, not the header's main action. */
@@ -174,7 +191,7 @@
        a 46px fixed ticker plus the header leaves almost no room for actual
        CRM content, and everything crowds into a thin band at the top. The
        ticker is a nice-to-have, not core functionality, so it's dropped
-       below a height where the app itself would otherwise be unusable —
+       below a height where the app itself would otherwise be unusable -
        .app-shell/.sidebar fall back to occupying the full viewport since
        there's no ticker height left to reserve room for. */
     @media (max-height: 560px) {
@@ -499,7 +516,7 @@
     /* ── Mobile sidebar ── */
     .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:19; }
     /* Matches the boxed look of the "Hide the lead list" toggle inside
-       Conversations — two differently-styled hamburger icons on the same
+       Conversations - two differently-styled hamburger icons on the same
        page read as inconsistent, even though they control different things
        (this one the whole sidebar, that one just the conversation list). */
     .hamburger-btn { display:none; background:#fff; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; width:34px; height:34px; color:#475569; font-size:18px; line-height:1; }
@@ -511,7 +528,7 @@
       .hamburger-btn { display: block; }
       /* Title+hamburger and the 3 action buttons no longer fit on one row on
          a real phone width once buttons aren't allowed to shrink-wrap (see
-         .header-actions .btn above) — wrap the action buttons onto their own
+         .header-actions .btn above) - wrap the action buttons onto their own
          row instead of letting the last one (Logout) clip off-screen. */
       .content-header { padding: 12px 14px; flex-wrap: wrap; row-gap: 8px; }
       .header-actions { gap: 6px; width: 100%; justify-content: flex-end; }
@@ -584,7 +601,7 @@
     .conv-chat-header-info p { color:#64748b; font-size:0.78rem; margin:0; display:flex; align-items:center; gap:8px; }
     .conv-messages { flex:1; overflow-y:auto; padding:16px; background:#efe9e1; display:flex; flex-direction:column; gap:8px; }
     /* No align-items here defaulted to "stretch", so every bubble was forced
-       to the full max-width below regardless of how short its text was —
+       to the full max-width below regardless of how short its text was -
        a short reply's bubble still stretched to 70% width, which (combined
        with outgoing being right-anchored) made short replies visually start
        around the middle of the chat instead of hugging their own text. */
@@ -593,11 +610,11 @@
     /* width:fit-content fought against natural wrapping on long, unbroken
        sentences (no width to "fit" until the text has already wrapped, so it
        kept expanding toward the 70% cap instead of settling at a narrower,
-       WhatsApp-like width) — the flex align-items on .msg-wrapper above
+       WhatsApp-like width) - the flex align-items on .msg-wrapper above
        already gives short/long bubbles correct content-based sizing without
        it. Reported twice by Muhammad against real long bot messages. */
     /* Real WhatsApp caps bubble width at a fixed size, not a percentage of
-       the available panel — on a wide desktop CRM window, 70% of the panel
+       the available panel - on a wide desktop CRM window, 70% of the panel
        made long bot messages balloon out far wider than a real WhatsApp
        bubble ever would, reading as "not the same as the WhatsApp pattern."
        min() keeps the 70% behavior on narrow/mobile panels where 480px
@@ -615,7 +632,7 @@
 
     /* ── Conversations: single-panel view on narrow screens ──
        Reuses the existing list-collapsed toggle (desktop's manual "hide list"
-       button) — on mobile the list starts full-width and the chat panel is
+       button) - on mobile the list starts full-width and the chat panel is
        hidden until a conversation is opened, which now auto-collapses the
        list (see openConversation's collapseConvListOnMobile call). */
     @media (max-width: 768px) {
@@ -649,7 +666,7 @@
     <li>Create your admin user: <strong>Authentication → Users → Add User</strong>.<br>
         Email + password of your choice.<br>
         <em>User Metadata:</em> <code>{"full_name": "Badar Tanvir", "role": "admin"}</code></li>
-    <li>Refresh this page — you should see the login screen.</li>
+    <li>Refresh this page - you should see the login screen.</li>
   </ol>
   <p style="margin-top:14px;color:#555;font-size:0.8rem">
     Keep this file on a private host. Do not commit credentials to a public repository.
@@ -710,27 +727,30 @@
     </div>
     <div id="admin-tabs" class="sidebar-nav">
       <div class="nav-section-label">MAIN</div>
-      <div class="nav-item active" data-tab="dashboard"><span class="nav-icon">🏠</span> Dashboard</div>
-      <div class="nav-item" data-tab="leads"><span class="nav-icon">👥</span> All Leads <span class="nav-badge" id="leads-count-badge"></span></div>
-      <div class="nav-item" data-tab="agents"><span class="nav-icon">🏆</span> My Team</div>
-      <div class="nav-item" data-tab="meta-ads"><span class="nav-icon">📈</span> Meta Ads</div>
+      <div class="nav-item active" data-tab="dashboard"><span class="nav-icon" style="background:var(--tint-gold-bg)">🏠</span> Dashboard</div>
+      <div class="nav-item" data-tab="leads"><span class="nav-icon" style="background:var(--tint-sky-bg)">👥</span> All Leads <span class="nav-badge" id="leads-count-badge"></span></div>
+      <div class="nav-item" data-tab="agents"><span class="nav-icon" style="background:var(--tint-success-bg)">🏆</span> My Team</div>
+      <div class="nav-item" data-tab="meta-ads"><span class="nav-icon" style="background:var(--tint-warn-bg)">📈</span> Meta Ads</div>
       <div class="nav-section-label">TOOLS</div>
-      <div class="nav-item" data-tab="add-lead"><span class="nav-icon">➕</span> Add Lead</div>
-      <div class="nav-item" data-tab="conversations"><span class="nav-icon">💬</span> Conversations <span id="conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
-      <div class="nav-item" data-tab="comm-log"><span class="nav-icon">🕐</span> Comm Log</div>
-      <div class="nav-item" data-tab="reports"><span class="nav-icon">📋</span> Reports</div>
-      <div class="nav-item" data-tab="automation"><span class="nav-icon">⚡</span> Automation</div>
+      <div class="nav-item" data-tab="add-lead"><span class="nav-icon" style="background:var(--tint-gold-bg)">➕</span> Add Lead</div>
+      <div class="nav-item" data-tab="conversations"><span class="nav-icon" style="background:var(--tint-sky-bg)">💬</span> Conversations <span id="conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
+      <div class="nav-item" data-tab="comm-log"><span class="nav-icon" style="background:var(--tint-success-bg)">🕐</span> Comm Log</div>
+      <div class="nav-item" data-tab="reports"><span class="nav-icon" style="background:var(--tint-warn-bg)">📋</span> Reports</div>
+      <div class="nav-item" data-tab="automation"><span class="nav-icon" style="background:var(--tint-danger-bg)">⚡</span> Automation</div>
       <div class="nav-section-label">FINANCE</div>
-      <div class="nav-item" data-tab="payroll"><span class="nav-icon">💰</span> Payroll</div>
+      <div class="nav-item" data-tab="payroll"><span class="nav-icon" style="background:var(--tint-gold-bg)">💰</span> Payroll</div>
       <div class="nav-section-label">WHATSAPP SIGNALS</div>
-      <div class="nav-item" data-tab="signal-broadcast"><span class="nav-icon">📡</span> Broadcast Signal</div>
-      <div class="nav-item" data-tab="subscribers"><span class="nav-icon">👤</span> Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
-      <div class="nav-item" data-tab="ai-signals"><span class="nav-icon">🤖</span> AI Signals</div>
+      <div class="nav-item" data-tab="signal-broadcast"><span class="nav-icon" style="background:var(--tint-sky-bg)">📡</span> Broadcast Signal</div>
+      <div class="nav-item" data-tab="subscribers"><span class="nav-icon" style="background:var(--tint-success-bg)">👤</span> Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
+      <div class="nav-item" data-tab="ai-signals"><span class="nav-icon" style="background:var(--tint-warn-bg)">🤖</span> AI Signals</div>
+      <div class="nav-section-label">SYSTEM</div>
+      <div class="nav-item" data-tab="user-permission"><span class="nav-icon" style="background:var(--tint-danger-bg)">🛡️</span> User Permission</div>
+      <div class="nav-item" data-tab="user-manager"><span class="nav-icon" style="background:var(--tint-sky-bg)">🧑‍💼</span> User Manager</div>
       <div class="nav-section-label">SETTINGS</div>
-      <div class="nav-item" data-tab="meta"><span class="nav-icon">🔗</span> Meta Integration</div>
-      <div class="nav-item" data-tab="notifications"><span class="nav-icon">🔔</span> Notifications</div>
-      <div class="nav-item" data-tab="sites"><span class="nav-icon">🌐</span> Sites</div>
-      <div class="nav-item" data-tab="guide"><span class="nav-icon">📖</span> Guide</div>
+      <div class="nav-item" data-tab="meta"><span class="nav-icon" style="background:var(--tint-gold-bg)">🔗</span> Meta Integration</div>
+      <div class="nav-item" data-tab="notifications"><span class="nav-icon" style="background:var(--tint-sky-bg)">🔔</span> Notifications</div>
+      <div class="nav-item" data-tab="sites"><span class="nav-icon" style="background:var(--tint-success-bg)">🌐</span> Sites</div>
+      <div class="nav-item" data-tab="guide"><span class="nav-icon" style="background:var(--tint-warn-bg)">📖</span> Guide</div>
     </div>
     <div class="sidebar-footer">
       <div class="user-avatar" id="sidebar-user-initials">BT</div>
@@ -763,31 +783,32 @@
 
   <!-- Dashboard -->
   <div id="admin-tab-dashboard" class="tab-content active">
-    <h3>Dashboard</h3>
+    <h3 style="display:flex;align-items:center;gap:10px">Welcome Back, <span id="dash-admin-name">Badar Tanveer</span> <span aria-hidden="true">👋</span></h3>
+    <p style="color:#64748b;font-size:0.85rem;margin:2px 0 18px">Here's what's happening with your pipeline today.</p>
     <div class="stat-grid">
       <div class="stat-card">
         <div class="stat-label">Total Leads</div>
-        <div class="stat-value" id="dash-total-leads">—</div>
+        <div class="stat-value" id="dash-total-leads">-</div>
         <div class="stat-trend">All time</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">New Leads</div>
-        <div class="stat-value" id="dash-new-leads">—</div>
+        <div class="stat-value" id="dash-new-leads">-</div>
         <div class="stat-trend">Awaiting contact</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Converted</div>
-        <div class="stat-value" id="dash-converted">—</div>
+        <div class="stat-value" id="dash-converted">-</div>
         <div class="stat-trend" style="color:#0ea5e9">Paying clients</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Active Agents</div>
-        <div class="stat-value" id="dash-agents">—</div>
+        <div class="stat-value" id="dash-agents">-</div>
         <div class="stat-trend">On your team</div>
       </div>
       <div class="stat-card" style="border-left:4px solid #10b981">
         <div class="stat-label" style="color:#10b981">Total Revenue</div>
-        <div class="stat-value" style="color:#10b981" id="dash-revenue">—</div>
+        <div class="stat-value" style="color:#10b981" id="dash-revenue">-</div>
         <div class="stat-trend">Approved deposits</div>
         <div class="stat-trend" id="dash-rev-platform" style="margin-top:6px;color:#94a3b8;line-height:1.6"></div>
       </div>
@@ -957,7 +978,7 @@
         <div>
           <label>Assign to Agent</label>
           <select id="nl-agent">
-            <option value="">— Unassigned —</option>
+            <option value="">- Unassigned -</option>
           </select>
         </div>
       </div>
@@ -973,9 +994,9 @@
 
   <!-- Conversations -->
   <div id="admin-tab-conversations" class="tab-content">
-    <!-- Quick Links — copy/paste into a chat without leaving the tab. This
+    <!-- Quick Links - copy/paste into a chat without leaving the tab. This
          existed for agents only (V1 request from Ehsan/Hanzala) and was
-         never built for admin — Muhammad flagged not seeing it in V2. -->
+         never built for admin - Muhammad flagged not seeing it in V2. -->
     <div class="card" id="quick-links" style="margin-bottom:14px;padding:12px 16px">
       <div style="font-weight:700;font-size:0.85rem;color:#0f172a;margin-bottom:10px">🔗 Quick Links</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1041,6 +1062,44 @@
     </div>
   </div>
 
+  <!-- User Manager -->
+  <div id="admin-tab-user-manager" class="tab-content">
+    <h3>User Manager</h3>
+    <div class="info-box">
+      Every admin and agent with access to this CRM. Same data as <strong>My Team</strong>, shown here as its own section to match how the rest of your tools are organised.
+    </div>
+    <div class="card" style="padding:0">
+      <table>
+        <thead><tr>
+          <th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Status</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="user-manager-tbody">
+          <tr><td colspan="6" class="empty-state">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- User Permission -->
+  <div id="admin-tab-user-permission" class="tab-content">
+    <h3>User Permission</h3>
+    <div class="info-box">
+      What each role can currently do in this CRM. Roles are set from <strong>User Manager</strong> (the "Make Admin / Make Agent" button on each row) - there is no separate per-feature toggle yet, that is a planned next step, not built today.
+    </div>
+    <div class="card">
+      <p class="section-h" style="margin-top:0">Admin</p>
+      <p style="color:#475569;font-size:0.85rem;line-height:1.7">
+        Full access: every lead and conversation regardless of assigned agent, KYC approval, transactions/payroll, Meta and WhatsApp integration settings, automation rules, and the ability to promote or suspend other users.
+      </p>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <p class="section-h" style="margin-top:0">Agent</p>
+      <p style="color:#475569;font-size:0.85rem;line-height:1.7">
+        Sees every active lead and conversation (any active staff member can pick up any lead), can log activity and reply in Conversations, cannot approve KYC, cannot change integration settings, cannot promote or suspend other users, and cannot see a suspended teammate's data.
+      </p>
+    </div>
+  </div>
+
   <!-- Meta Integration -->
   <div id="admin-tab-meta" class="tab-content">
     <h3>Meta Integration</h3>
@@ -1079,7 +1138,7 @@
         &nbsp;&nbsp;&nbsp;<strong>Supabase Dashboard → Settings → Edge Functions → Manage secrets</strong>
       </div>
 
-      <label>Webhook URL (read-only — copy this into Meta Developer Portal)</label>
+      <label>Webhook URL (read-only - copy this into Meta Developer Portal)</label>
       <div style="display:flex;gap:8px;align-items:center">
         <input type="text" id="wa-webhook-url" readonly
           value="https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/whatsapp-webhook"
@@ -1089,7 +1148,7 @@
 
       <label>Verify Token</label>
       <input type="text" id="wa-verify-token"
-        placeholder="Choose any secret string, e.g. badar_crm_wh_2026 — must match what you set in Supabase secrets" />
+        placeholder="Choose any secret string, e.g. badar_crm_wh_2026 - must match what you set in Supabase secrets" />
 
       <label>WhatsApp Phone Number ID</label>
       <input type="text" id="wa-phone-number-id" placeholder="Provided in Meta Developer App → WhatsApp → API Setup" value="1181979858336353" />
@@ -1100,7 +1159,7 @@
 
     <div>
       <label>Admin WhatsApp Number (Badar's number for approval notifications) <span style="color:#666;font-weight:400">e.g. 971563309447</span></label>
-      <input type="text" id="admin-whatsapp-number" placeholder="Country code + number, no +, no spaces — e.g. 971563309447" />
+      <input type="text" id="admin-whatsapp-number" placeholder="Country code + number, no +, no spaces - e.g. 971563309447" />
     </div>
 
     <div class="form-actions" style="margin-top:16px">
@@ -1114,7 +1173,7 @@
     <h3>Automation</h3>
     <div class="info-box">
       ⚡ <strong>Automation rules trigger actions when events occur.</strong><br>
-      Sending via WhatsApp, Twilio (SMS) or SendGrid (email) requires API credentials —
+      Sending via WhatsApp, Twilio (SMS) or SendGrid (email) requires API credentials -
       rules are stored and fired to console until those are configured.
       Use <strong>{{name}}</strong>, <strong>{{phone}}</strong>, <strong>{{status}}</strong> as template variables.
     </div>
@@ -1142,7 +1201,7 @@
       <div class="form-row">
         <div>
           <label>Rule Name *</label>
-          <input type="text" id="ar-name" placeholder="e.g. Welcome WhatsApp — New Lead" />
+          <input type="text" id="ar-name" placeholder="e.g. Welcome WhatsApp - New Lead" />
         </div>
         <div>
           <label>Trigger Event *</label>
@@ -1180,7 +1239,7 @@
       <div id="ar-agent-wrap" style="display:none">
         <label>Assign to Agent *</label>
         <select id="ar-assign-agent">
-          <option value="">— Select Agent —</option>
+          <option value="">- Select Agent -</option>
         </select>
         <p style="color:#64748b;font-size:0.78rem;margin-top:6px">This agent will be auto-assigned when the trigger fires.</p>
       </div>
@@ -1200,22 +1259,22 @@
     <div class="stat-grid">
       <div class="stat-card">
         <div class="stat-label">Total Leads</div>
-        <div class="stat-value" id="rpt-total-leads">—</div>
+        <div class="stat-value" id="rpt-total-leads">-</div>
         <div class="stat-trend">All time</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Conversion Rate</div>
-        <div class="stat-value" id="rpt-conv-rate" style="color:#10b981">—</div>
+        <div class="stat-value" id="rpt-conv-rate" style="color:#10b981">-</div>
         <div class="stat-trend">Leads → Clients</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Active Clients</div>
-        <div class="stat-value" id="rpt-active-clients" style="color:#0ea5e9">—</div>
+        <div class="stat-value" id="rpt-active-clients" style="color:#0ea5e9">-</div>
         <div class="stat-trend">Converted leads</div>
       </div>
       <div class="stat-card" style="border-left:4px solid #d4a843">
         <div class="stat-label" style="color:#d4a843">Total Revenue</div>
-        <div class="stat-value" id="rpt-total-revenue" style="color:#d4a843">—</div>
+        <div class="stat-value" id="rpt-total-revenue" style="color:#d4a843">-</div>
         <div class="stat-trend">Approved deposits</div>
       </div>
     </div>
@@ -1240,7 +1299,7 @@
     </div>
 
     <!-- Monthly Trend -->
-    <p class="section-h">Monthly Trend — New Leads (Last 6 Months)</p>
+    <p class="section-h">Monthly Trend - New Leads (Last 6 Months)</p>
     <div class="card" style="padding:24px">
       <canvas id="report-monthly-chart" height="120"></canvas>
       <div id="report-monthly-bars" style="display:none;height:140px;display:none;align-items:flex-end;gap:4px;padding-bottom:20px;position:relative"></div>
@@ -1286,7 +1345,7 @@
     </div>
   </div>
 
-  <!-- Guide (admin sees every section, agents see their own subset — see agent-tab-guide) -->
+  <!-- Guide (admin sees every section, agents see their own subset - see agent-tab-guide) -->
   <div id="admin-tab-guide" class="tab-content">
     <h3>Guide</h3>
     <p style="color:#64748b;font-size:0.85rem;margin-bottom:18px">What each section of this dashboard is for.</p>
@@ -1394,7 +1453,7 @@
         <div>
           <label>Contact *</label>
           <select id="cl-note-lead">
-            <option value="">— Select Contact —</option>
+            <option value="">- Select Contact -</option>
           </select>
         </div>
         <div>
@@ -1509,13 +1568,13 @@
 
     <!-- Summary stat cards -->
     <div class="stat-grid" id="ma-summary-stats" style="margin-bottom:18px">
-      <div class="stat-card"><div class="stat-label">Total Spend</div><div class="stat-value" style="color:#c9a84c">—</div></div>
-      <div class="stat-card"><div class="stat-label">Impressions</div><div class="stat-value">—</div></div>
-      <div class="stat-card"><div class="stat-label">Clicks</div><div class="stat-value">—</div></div>
-      <div class="stat-card"><div class="stat-label">Leads</div><div class="stat-value" style="color:#4caf50">—</div></div>
-      <div class="stat-card"><div class="stat-label">Avg CTR</div><div class="stat-value">—</div></div>
-      <div class="stat-card"><div class="stat-label">Cost per Lead</div><div class="stat-value" style="color:#e05c5c">—</div></div>
-      <div class="stat-card"><div class="stat-label">Cost per Click</div><div class="stat-value">—</div></div>
+      <div class="stat-card"><div class="stat-label">Total Spend</div><div class="stat-value" style="color:#c9a84c">-</div></div>
+      <div class="stat-card"><div class="stat-label">Impressions</div><div class="stat-value">-</div></div>
+      <div class="stat-card"><div class="stat-label">Clicks</div><div class="stat-value">-</div></div>
+      <div class="stat-card"><div class="stat-label">Leads</div><div class="stat-value" style="color:#4caf50">-</div></div>
+      <div class="stat-card"><div class="stat-label">Avg CTR</div><div class="stat-value">-</div></div>
+      <div class="stat-card"><div class="stat-label">Cost per Lead</div><div class="stat-value" style="color:#e05c5c">-</div></div>
+      <div class="stat-card"><div class="stat-label">Cost per Click</div><div class="stat-value">-</div></div>
     </div>
 
     <!-- Insights table -->
@@ -1596,11 +1655,11 @@
   <!-- ─── SIGNAL BROADCAST ─── -->
   <div id="admin-tab-signal-broadcast" class="tab-content">
     <h3>📡 Broadcast Signal</h3>
-    <p style="color:#64748b;margin-bottom:16px">Send a trading signal to all subscribers across all 3 groups simultaneously using Promise.all — every subscriber receives it at the exact same moment.</p>
+    <p style="color:#64748b;margin-bottom:16px">Send a trading signal to all subscribers across all 3 groups simultaneously using Promise.all - every subscriber receives it at the exact same moment.</p>
 
     <!-- Signal Desk (demo preview) -->
     <details open style="margin-bottom:20px;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">
-      <summary style="cursor:pointer;padding:12px 16px;background:#f8fafc;font-weight:600;color:#334155;user-select:none">📊 Signal Desk — verified signals &amp; IB Revenue Radar <span style="background:#d4a843;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:2px 8px;margin-left:6px;vertical-align:middle">DEMO PREVIEW</span> <span style="color:#94a3b8;font-weight:400;font-size:12px">(click to collapse)</span></summary>
+      <summary style="cursor:pointer;padding:12px 16px;background:#f8fafc;font-weight:600;color:#334155;user-select:none">📊 Signal Desk - verified signals &amp; IB Revenue Radar <span style="background:#d4a843;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:2px 8px;margin-left:6px;vertical-align:middle">DEMO PREVIEW</span> <span style="color:#94a3b8;font-weight:400;font-size:12px">(click to collapse)</span></summary>
       <iframe src="signal-desk.html" title="Signal Desk" style="width:100%;height:78vh;border:none;display:block;background:#0d1117"></iframe>
     </details>
 
@@ -1740,10 +1799,10 @@
   <!-- ─── AI SIGNALS ─── -->
   <div id="admin-tab-ai-signals" class="tab-content">
     <h3>🤖 AI Signal Generator</h3>
-    <p style="color:#64748b;margin-bottom:16px">AI-assisted signal suggestions based on technical pattern analysis. Review, adjust, and broadcast in one click. <em>Note: These are AI-generated suggestions — always verify before sending live.</em></p>
+    <p style="color:#64748b;margin-bottom:16px">AI-assisted signal suggestions based on technical pattern analysis. Review, adjust, and broadcast in one click. <em>Note: These are AI-generated suggestions - always verify before sending live.</em></p>
 
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
-      <div class="stat-card"><div class="stat-value" id="ai-accuracy-pct" style="color:#22c55e">—</div><div class="stat-label">Overall TP Hit Rate</div></div>
+      <div class="stat-card"><div class="stat-value" id="ai-accuracy-pct" style="color:#22c55e">-</div><div class="stat-label">Overall TP Hit Rate</div></div>
       <div class="stat-card"><div class="stat-value" id="ai-signals-sent">0</div><div class="stat-label">Signals Broadcast</div></div>
       <div class="stat-card"><div class="stat-value" id="ai-pending-count">0</div><div class="stat-label">Pending Outcome</div></div>
     </div>
@@ -1784,25 +1843,25 @@
     <div id="ai-signal-card" style="display:none" class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <div style="font-weight:700;font-size:1rem;color:#e2e8f0">📊 Generated Signal</div>
-        <span id="ai-confidence-badge" style="background:#16a34a;color:#fff;padding:4px 12px;border-radius:20px;font-size:0.78rem;font-weight:700">Confidence: —</span>
+        <span id="ai-confidence-badge" style="background:#16a34a;color:#fff;padding:4px 12px;border-radius:20px;font-size:0.78rem;font-weight:700">Confidence: -</span>
       </div>
       <div id="ai-signal-detail" style="font-family:monospace;background:#0f172a;border-radius:8px;padding:14px;color:#94a3b8;font-size:0.85rem;line-height:1.8;white-space:pre-wrap;margin-bottom:14px"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
         <div style="flex:1;min-width:120px;background:#1e293b;border-radius:8px;padding:10px;text-align:center">
           <div style="font-size:0.75rem;color:#64748b;margin-bottom:4px">Pattern</div>
-          <div id="ai-pattern" style="font-weight:700;color:#e2e8f0;font-size:0.85rem">—</div>
+          <div id="ai-pattern" style="font-weight:700;color:#e2e8f0;font-size:0.85rem">-</div>
         </div>
         <div style="flex:1;min-width:120px;background:#1e293b;border-radius:8px;padding:10px;text-align:center">
           <div style="font-size:0.75rem;color:#64748b;margin-bottom:4px">R:R Ratio</div>
-          <div id="ai-rr-display" style="font-weight:700;color:#e2e8f0;font-size:0.85rem">—</div>
+          <div id="ai-rr-display" style="font-weight:700;color:#e2e8f0;font-size:0.85rem">-</div>
         </div>
         <div style="flex:1;min-width:120px;background:#1e293b;border-radius:8px;padding:10px;text-align:center">
           <div style="font-size:0.75rem;color:#64748b;margin-bottom:4px">Trend</div>
-          <div id="ai-trend" style="font-weight:700;color:#e2e8f0;font-size:0.85rem">—</div>
+          <div id="ai-trend" style="font-weight:700;color:#e2e8f0;font-size:0.85rem">-</div>
         </div>
         <div style="flex:1;min-width:120px;background:#1e293b;border-radius:8px;padding:10px;text-align:center">
           <div style="font-size:0.75rem;color:#64748b;margin-bottom:4px">Session</div>
-          <div id="ai-session" style="font-weight:700;color:#e2e8f0;font-size:0.85rem">—</div>
+          <div id="ai-session" style="font-weight:700;color:#e2e8f0;font-size:0.85rem">-</div>
         </div>
       </div>
       <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;font-size:0.78rem;color:#92400e;margin-bottom:14px">
@@ -1909,22 +1968,22 @@
     <div class="stat-grid">
       <div class="stat-card">
         <div class="stat-label">My Leads</div>
-        <div class="stat-value" id="agent-stat-total">—</div>
+        <div class="stat-value" id="agent-stat-total">-</div>
         <div class="stat-trend">All time</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">New</div>
-        <div class="stat-value" id="agent-stat-new">—</div>
+        <div class="stat-value" id="agent-stat-new">-</div>
         <div class="stat-trend">Awaiting contact</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Converted</div>
-        <div class="stat-value" id="agent-stat-converted">—</div>
+        <div class="stat-value" id="agent-stat-converted">-</div>
         <div class="stat-trend" style="color:#0ea5e9">Paying clients</div>
       </div>
       <div class="stat-card" style="border-left:4px solid #10b981">
         <div class="stat-label" style="color:#10b981">AUM</div>
-        <div class="stat-value" style="color:#10b981" id="agent-stat-revenue">—</div>
+        <div class="stat-value" style="color:#10b981" id="agent-stat-revenue">-</div>
         <div class="stat-trend">Approved deposits</div>
       </div>
     </div>
@@ -1963,7 +2022,7 @@
 
   <!-- Conversations -->
   <div id="agent-tab-conversations" class="tab-content">
-    <!-- Quick Links — copy/paste into a chat without leaving the tab -->
+    <!-- Quick Links - copy/paste into a chat without leaving the tab -->
     <div class="card" id="agent-quick-links" style="margin-bottom:14px;padding:12px 16px">
       <div style="font-weight:700;font-size:0.85rem;color:#0f172a;margin-bottom:10px">🔗 Quick Links</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -2035,7 +2094,7 @@
         <div>
           <label>Contact *</label>
           <select id="agent-cl-note-lead">
-            <option value="">— Select Contact —</option>
+            <option value="">- Select Contact -</option>
           </select>
         </div>
         <div>
@@ -2072,7 +2131,7 @@
         <div>
           <label>Lead *</label>
           <select id="act-lead-sel">
-            <option value="">— Select a lead —</option>
+            <option value="">- Select a lead -</option>
           </select>
         </div>
         <div>
@@ -2098,7 +2157,7 @@
     </div>
   </div>
 
-  <!-- Guide (agent's own subset — admin sees every section, see admin-tab-guide) -->
+  <!-- Guide (agent's own subset - admin sees every section, see admin-tab-guide) -->
   <div id="agent-tab-guide" class="tab-content">
     <h3>Guide</h3>
     <p style="color:#64748b;font-size:0.85rem;margin-bottom:18px">What each section of your dashboard is for.</p>
@@ -2136,7 +2195,7 @@
 <!-- ═══ SCRIPTS ═══ -->
 <script>
 // ─────────────────────────────────────────────────────────────
-//  CONFIG  — replace these two values with your Supabase project
+//  CONFIG  - replace these two values with your Supabase project
 // ─────────────────────────────────────────────────────────────
 const SUPABASE_URL      = 'https://vfskqzgphrunjxquqpks.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_5DS10RNCXLR26dRezQm6Gw_tEMxYuuR';
@@ -2145,7 +2204,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5DS10RNCXLR26dRezQm6Gw_tEMxYuuR';
 let sb             = null;
 let currentUser    = null;
 let currentProfile = null;
-let cachedProfiles = [];   // all profiles — populated for admin only
+let cachedProfiles = [];   // all profiles - populated for admin only
 let cachedLeads    = [];   // latest lead list
 let demoMode       = false;
 let demoRrAgentIndex = 0;   // round-robin: 0-based index into agents array
@@ -2175,20 +2234,20 @@ const _DEMO_TRANSACTIONS = [
 
 // ── Phase 3 demo data ──────────────────────────────────────────
 const _DEMO_COMM_LOGS = [
-  { id:'ccl1', lead_id:'dl1', lead_name:'Omar Farooq',  type:'whatsapp', message:'Sent initial follow-up about gold trading signals. Lead responded positively — requested demo account info.', created_by_name:'Ahmed Ali',  created_at:'2026-06-20T10:30:00Z' },
+  { id:'ccl1', lead_id:'dl1', lead_name:'Omar Farooq',  type:'whatsapp', message:'Sent initial follow-up about gold trading signals. Lead responded positively - requested demo account info.', created_by_name:'Ahmed Ali',  created_at:'2026-06-20T10:30:00Z' },
   { id:'ccl2', lead_id:'dl2', lead_name:'Ayesha Malik', type:'call',     message:'Introductory 15-min call. Discussed crypto investment options. Mentioned $5K starting budget. Very interested.', created_by_name:'Ahmed Ali',  created_at:'2026-06-19T14:00:00Z' },
   { id:'ccl3', lead_id:'dl1', lead_name:'Omar Farooq',  type:'email',    message:'Sent onboarding PDF with account opening form and KYC requirements. Awaiting signed documents.', created_by_name:'Ahmed Ali',  created_at:'2026-06-21T09:00:00Z' },
   { id:'ccl4', lead_id:'dl4', lead_name:'Sana Ahmed',   type:'email',    message:'Follow-up email: crypto account setup guide + KYC document checklist attached. Awaiting response.', created_by_name:'Sara Khan',   created_at:'2026-06-13T13:45:00Z' },
   { id:'ccl5', lead_id:'dl3', lead_name:'Hassan Raza',  type:'note',     message:'Hassan confirmed 5+ years stock trading experience. High-value prospect. Prioritise this week.', created_by_name:'Sara Khan',   created_at:'2026-06-16T09:00:00Z' },
-  { id:'ccl6', lead_id:'dl6', lead_name:'Zara Sheikh',  type:'whatsapp', message:'Shared monthly performance report via WhatsApp. Client very satisfied — hinted at referring 2 contacts.', created_by_name:'Sara Khan',   created_at:'2026-06-10T08:30:00Z' },
+  { id:'ccl6', lead_id:'dl6', lead_name:'Zara Sheikh',  type:'whatsapp', message:'Shared monthly performance report via WhatsApp. Client very satisfied - hinted at referring 2 contacts.', created_by_name:'Sara Khan',   created_at:'2026-06-10T08:30:00Z' },
   { id:'ccl7', lead_id:'dl5', lead_name:'Bilal Khan',   type:'note',     message:'Client fully onboarded. Trading plan sent. Scheduled bi-weekly check-in for next Friday.', created_by_name:'Ahmed Ali',  created_at:'2026-06-02T11:00:00Z' },
-  { id:'ccl8', lead_id:'dl5', lead_name:'Bilal Khan',   type:'call',     message:'Monthly check-in call — portfolio up 8.3%. Client wants to increase allocation by $5K next month.', created_by_name:'Ahmed Ali',  created_at:'2026-06-25T15:30:00Z' },
+  { id:'ccl8', lead_id:'dl5', lead_name:'Bilal Khan',   type:'call',     message:'Monthly check-in call - portfolio up 8.3%. Client wants to increase allocation by $5K next month.', created_by_name:'Ahmed Ali',  created_at:'2026-06-25T15:30:00Z' },
 ];
 
 const _DEMO_AUTO_RULES = [
-  { id:'ar1', name:'Welcome WhatsApp — New Lead', trigger_event:'lead_created', channel:'whatsapp', condition_filter:null, template_subject:null, template_body:'Hi {{name}}, welcome to Badar Trader! We specialise in Forex, Crypto & Stocks signals. Reply YES to receive our free signal pack.', is_active:true },
+  { id:'ar1', name:'Welcome WhatsApp - New Lead', trigger_event:'lead_created', channel:'whatsapp', condition_filter:null, template_subject:null, template_body:'Hi {{name}}, welcome to Badar Trader! We specialise in Forex, Crypto & Stocks signals. Reply YES to receive our free signal pack.', is_active:true },
   { id:'ar2', name:'Conversion Email Confirmation', trigger_event:'status_changed', channel:'email', condition_filter:'status = converted', template_subject:'Your Badar Trader Account is Active, {{name}}!', template_body:'Congratulations {{name}}! Your account is now active. Your dedicated agent will reach out within 24 hours with your personalised trading plan.', is_active:true },
-  { id:'ar3', name:'KYC Verified — Deposit Reminder SMS', trigger_event:'kyc_verified', channel:'sms', condition_filter:null, template_subject:null, template_body:'Hi {{name}}, your KYC is verified! Fund your account now to start receiving live signals. Call us at +92-XXX-XXXXXXX.', is_active:false },
+  { id:'ar3', name:'KYC Verified - Deposit Reminder SMS', trigger_event:'kyc_verified', channel:'sms', condition_filter:null, template_subject:null, template_body:'Hi {{name}}, your KYC is verified! Fund your account now to start receiving live signals. Call us at +92-XXX-XXXXXXX.', is_active:false },
 ];
 
 function enterDemoMode() {
@@ -2298,6 +2357,8 @@ async function initAdmin() {
   document.getElementById('admin-dashboard').style.display = 'block';
   const _adminName = currentProfile.full_name || currentUser.email;
   document.getElementById('admin-name').textContent = _adminName;
+  const _dashName = document.getElementById('dash-admin-name');
+  if (_dashName) _dashName.textContent = _adminName;
   const _adminInitials = _adminName.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
   const _adminAvatarEl = document.getElementById('sidebar-user-initials');
   if (_adminAvatarEl) _adminAvatarEl.textContent = _adminInitials;
@@ -2307,7 +2368,7 @@ async function initAdmin() {
 }
 
 function toggleSidebar(forceOpen) {
-  // Admin and agent dashboards each have their own .sidebar/.sidebar-overlay —
+  // Admin and agent dashboards each have their own .sidebar/.sidebar-overlay -
   // only one is ever visible at a time (the other is display:none), so
   // toggling all matches is harmless and avoids caring which one is active.
   const sidebars = document.querySelectorAll('.sidebar');
@@ -2343,7 +2404,7 @@ function adminTab(name, el) {
     notifications: 'Notifications', sites: 'Landing Pages', reports: 'Reports',
     'comm-log': 'Communication Log',
     'signal-broadcast': 'Broadcast Signal', subscribers: 'Subscribers', 'ai-signals': 'AI Signals',
-    guide: 'Guide'
+    guide: 'Guide', 'user-manager': 'User Manager', 'user-permission': 'User Permission'
   };
   const titleEl = document.getElementById('current-tab-title');
   if (titleEl) titleEl.textContent = titles[name] || name;
@@ -2352,6 +2413,7 @@ function adminTab(name, el) {
   if (name === 'leads')            loadAdminLeads();
   if (name === 'conversations')    { renderConversations(); startConvRealtime(); renderQuickLinks(''); } else { stopConvRealtime(); }
   if (name === 'agents')           { renderAgentsTable(); updateRoundRobinStatus(); }
+  if (name === 'user-manager')     renderAgentsTable('user-manager-tbody');
   if (name === 'meta')             loadMetaSettings();
   if (name === 'meta-ads')         initMetaAnalytics();
   if (name === 'automation')       { loadAutomationRules(); populateArAgentDropdown(); }
@@ -2387,8 +2449,8 @@ function populateAgentDropdowns() {
   });
 }
 
-function renderAgentsTable() {
-  const tbody = document.getElementById('agents-tbody');
+function renderAgentsTable(tbodyId) {
+  const tbody = document.getElementById(tbodyId || 'agents-tbody');
   if (!tbody) return;
   if (!cachedProfiles.length) {
     tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No profiles yet.</td></tr>';
@@ -2694,7 +2756,7 @@ const QUICK_LINKS = [
   { label: 'WhatsApp support number', value: '+923715773903' },
 ];
 
-// Dropdown instead of a stacked list — Muhammad's call: showing every link as
+// Dropdown instead of a stacked list - Muhammad's call: showing every link as
 // its own row "puts all the eggs in one basket" visually, a single select
 // reads as more deliberate/professional on the dashboard.
 function renderQuickLinks(scope) {
@@ -2741,7 +2803,7 @@ function agentTab(name, btn) {
 }
 
 async function loadAgentLeads() {
-  // RLS grants any active staff member (agent or admin) all leads, not just their own — see schema.sql Phase 15
+  // RLS grants any active staff member (agent or admin) all leads, not just their own - see schema.sql Phase 15
   const { data, error } = await sb
     .from('leads').select('*').order('created_at', { ascending: false });
   if (error) { console.error('loadAgentLeads:', error); return; }
@@ -2761,7 +2823,7 @@ async function loadAgentLeads() {
 
   const sel = document.getElementById('act-lead-sel');
   if (sel) {
-    sel.innerHTML = '<option value="">— Select a lead —</option>';
+    sel.innerHTML = '<option value="">- Select a lead -</option>';
     cachedLeads.forEach(l => {
       const o = document.createElement('option');
       o.value = l.id; o.textContent = l.full_name;
@@ -2836,7 +2898,7 @@ async function openDetail(leadId, ctx) {
   const agentProfile = cachedProfiles.find(p => p.id === lead.assigned_agent_id);
   const agentCell = ctx === 'admin'
     ? `<select id="det-agent" class="inline-select">
-         <option value="">— Unassigned —</option>
+         <option value="">- Unassigned -</option>
          ${cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended).map(a =>
            `<option value="${a.id}" ${lead.assigned_agent_id === a.id ? 'selected' : ''}>${esc(a.full_name)}</option>`
          ).join('')}
@@ -2854,7 +2916,7 @@ async function openDetail(leadId, ctx) {
       <div>
         <div class="detail-row"><span class="detail-label">Phone</span>
           <span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span>${esc(lead.phone||'—')}</span>
+            <span>${esc(lead.phone||'-')}</span>
             ${lead.phone ? `
               <a href="tel:${esc(lead.phone)}" class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem;text-decoration:none" title="Call">📞</a>
               <button class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem" title="Copy" onclick="navigator.clipboard.writeText('${esc(lead.phone)}').then(()=>{this.textContent='✓';setTimeout(()=>this.textContent='📋',1200)})">📋</button>
@@ -2864,7 +2926,7 @@ async function openDetail(leadId, ctx) {
         </div>
         <div class="detail-row"><span class="detail-label">Email</span>
           <span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span>${esc(lead.email||'—')}</span>
+            <span>${esc(lead.email||'-')}</span>
             ${lead.email ? `
               <a href="mailto:${esc(lead.email)}" class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem;text-decoration:none" title="Email">✉️</a>
               <button class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem" title="Copy email" onclick="navigator.clipboard.writeText('${esc(lead.email)}').then(()=>{this.textContent='✓';setTimeout(()=>this.textContent='📋',1200)})">📋</button>
@@ -2872,8 +2934,8 @@ async function openDetail(leadId, ctx) {
           </span>
         </div>
         <div class="detail-row"><span class="detail-label">Source</span><span>${sourceLabel(lead.source)}</span></div>
-        <div class="detail-row"><span class="detail-label">Campaign</span><span>${esc(lead.meta_campaign||'—')}</span></div>
-        <div class="detail-row"><span class="detail-label">Instrument</span><span>${esc(lead.instrument_type||'—')}</span></div>
+        <div class="detail-row"><span class="detail-label">Campaign</span><span>${esc(lead.meta_campaign||'-')}</span></div>
+        <div class="detail-row"><span class="detail-label">Instrument</span><span>${esc(lead.instrument_type||'-')}</span></div>
         <div class="detail-row" style="align-items:flex-start"><span class="detail-label" style="padding-top:4px">Notes</span>
           <div style="flex:1">
             <textarea id="det-notes" rows="2" style="width:100%;background:#1e293b;border:1px solid #334155;border-radius:6px;color:#e2e8f0;padding:6px 10px;font-size:0.82rem;resize:vertical">${esc(lead.notes||'')}</textarea>
@@ -2958,7 +3020,7 @@ async function openDetail(leadId, ctx) {
     <div class="detail-header">
       <h3>${esc(lead.full_name)}</h3>
       <div style="display:flex;gap:8px;margin-left:auto">
-        ${isAdmin ? `<button class="btn btn-danger btn-sm" onclick="deleteLeadRecord('${leadId}','${ctx}')" title="Permanently delete this lead and its entire conversation history — mainly for resetting test/simulator numbers">🗑 Delete Lead</button>` : ''}
+        ${isAdmin ? `<button class="btn btn-danger btn-sm" onclick="deleteLeadRecord('${leadId}','${ctx}')" title="Permanently delete this lead and its entire conversation history - mainly for resetting test/simulator numbers">🗑 Delete Lead</button>` : ''}
         <button class="btn btn-secondary btn-sm" onclick="closeDetail('${ctx}')">✕ Close</button>
       </div>
     </div>
@@ -3031,8 +3093,8 @@ function buildLedgerTab(lead, leadId, ctx, isAdmin, txRows) {
             <td><span class="badge badge-${t.type}">${txTypeLabel(t.type)}</span></td>
             <td>${fmtMoney(t.amount)}</td>
             <td>${esc(t.currency)}</td>
-            <td style="color:#aaa">${esc(t.notes || '—')}</td>
-            <td>${esc(t.recorder?.full_name || '—')}</td>
+            <td style="color:#aaa">${esc(t.notes || '-')}</td>
+            <td>${esc(t.recorder?.full_name || '-')}</td>
           </tr>`).join('')
         : '<tr><td colspan="6" class="empty-state">No transactions recorded yet.</td></tr>'}
       </tbody>
@@ -3165,9 +3227,9 @@ function buildKycTab(lead, leadId, ctx, isAdmin, kycRows) {
             <td>${docTypeLabel(d.document_type)}</td>
             <td><span class="badge badge-${d.status}">${kycStatusLabel(d.status)}</span></td>
             <td style="font-size:0.8rem;color:#666">${fmtDate(d.uploaded_at)}</td>
-            <td>${esc(d.reviewer?.full_name || '—')}</td>
-            <td style="color:#aaa">${esc(d.notes || '—')}</td>
-            <td>${d.file_path ? `<button class="btn btn-secondary btn-sm" onclick="${d.document_type === 'deposit_screenshot' ? 'viewDepositScreenshot' : 'viewKycFile'}('${d.file_path}')">View</button>` : '—'}</td>
+            <td>${esc(d.reviewer?.full_name || '-')}</td>
+            <td style="color:#aaa">${esc(d.notes || '-')}</td>
+            <td>${d.file_path ? `<button class="btn btn-secondary btn-sm" onclick="${d.document_type === 'deposit_screenshot' ? 'viewDepositScreenshot' : 'viewKycFile'}('${d.file_path}')">View</button>` : '-'}</td>
             ${isAdmin ? `<td style="white-space:nowrap">
               <button class="btn btn-secondary btn-sm" onclick="reviewKycDocument('${d.id}','verified','${leadId}','${ctx}')">Verify</button>
               <button class="btn btn-secondary btn-sm" onclick="reviewKycDocument('${d.id}','rejected','${leadId}','${ctx}')">Reject</button>
@@ -3275,7 +3337,7 @@ function buildProfileTab(lead, leadId, ctx) {
     <div class="detail-row">
       <span class="detail-label">Risk Profile</span>
       <select id="det-risk-profile" class="inline-select" onchange="updateRiskBadgePreview(this.value)">
-        <option value="">— Not set —</option>
+        <option value="">- Not set -</option>
         ${riskOptions.map(r =>
           `<option value="${r}" ${lead.risk_profile===r?'selected':''}>${riskLabel(r)}</option>`
         ).join('')}
@@ -3353,8 +3415,8 @@ function buildCommsTab(lead, leadId, ctx, commRows) {
             <td><span class="channel-chip channel-${c.type}">${commTypeLabel(c.type)}</span></td>
             <td><span class="badge badge-${c.direction}">${directionLabel(c.direction)}</span></td>
             <td style="color:#aaa">${esc(c.subject || truncate(c.body, 60))}</td>
-            <td>${esc(c.logger?.full_name || '—')}</td>
-            <td>${c.attachment_path ? `<button class="btn btn-secondary btn-sm" onclick="viewDepositScreenshot('${c.attachment_path}')">View</button>` : '—'}</td>
+            <td>${esc(c.logger?.full_name || '-')}</td>
+            <td>${c.attachment_path ? `<button class="btn btn-secondary btn-sm" onclick="viewDepositScreenshot('${c.attachment_path}')">View</button>` : '-'}</td>
           </tr>`).join('')
         : '<tr><td colspan="6" class="empty-state">No communications logged yet.</td></tr>'}
       </tbody>
@@ -3416,7 +3478,7 @@ function closeDetail(ctx) {
 }
 
 // Mainly for resetting test/simulator numbers (e.g. someone testing the bot
-// on their own phone) without needing raw SQL every time — permanently
+// on their own phone) without needing raw SQL every time - permanently
 // removes the lead and every record tied to it. Admin-only, irreversible.
 async function deleteLeadRecord(leadId, ctx) {
   const lead = cachedLeads.find(l => l.id === leadId);
@@ -3503,10 +3565,10 @@ async function approveConversion(leadId, ctx) {
     .update({ status: 'converted', converted_at: new Date().toISOString() }).eq('id', leadId);
   if (error) { showToast('Error approving: ' + error.message, 'err'); return; }
   if (lead) lead.status = 'converted';
-  showToast('✅ Conversion approved — lead marked as Converted!');
+  showToast('✅ Conversion approved - lead marked as Converted!');
   renderLeadsTable('admin-leads-tbody', cachedLeads, true);
   await openDetail(leadId, ctx);
-  // Notify the assigned agent via WA (optional — fires same helper with a different message)
+  // Notify the assigned agent via WA (optional - fires same helper with a different message)
 }
 
 async function rejectConversion(leadId, ctx) {
@@ -3523,7 +3585,7 @@ async function rejectConversion(leadId, ctx) {
       channel: 'note', summary: `Conversion rejected by admin. Reason: ${reason}`,
     });
   }
-  showToast('❌ Conversion rejected — lead returned to Contacted.');
+  showToast('❌ Conversion rejected - lead returned to Contacted.');
   renderLeadsTable('admin-leads-tbody', cachedLeads, true);
   await openDetail(leadId, ctx);
 }
@@ -3599,7 +3661,7 @@ function renderLeadsTable(tbodyId, leads, isAdmin) {
         ${l.needs_human ? `<br><span title="${esc(l.handoff_reason||'Needs human follow-up')}" style="font-size:0.72rem;color:#fff;background:#dc2626;padding:1px 7px;border-radius:8px;display:inline-block;margin-top:2px">⚠ Needs Human</span>` : ''}
         ${l.instrument_type ? `<br><span style="font-size:0.72rem;color:#94a3b8;background:#0f172a;padding:1px 7px;border-radius:8px;display:inline-block;margin-top:2px">${esc(l.instrument_type)}</span>` : ''}
       </td>
-      <td>${esc(l.phone||'—')}</td>
+      <td>${esc(l.phone||'-')}</td>
       <td>
         <span style="font-size:0.82rem">${sourceLabel(l.source)}</span>
         ${l.meta_campaign
@@ -3648,7 +3710,7 @@ async function initMetaAnalytics() {
   if (!bar) return;
   if (demoMode) {
     bar.style.cssText = 'background:#001a10;border:1px solid #4caf50;border-radius:8px;padding:12px 16px;color:#aee;margin-bottom:18px';
-    bar.innerHTML = '✅ <strong>Demo Mode</strong> — showing sample campaign data. Add real credentials in <strong>Meta Integration</strong> settings to pull live data.';
+    bar.innerHTML = '✅ <strong>Demo Mode</strong> - showing sample campaign data. Add real credentials in <strong>Meta Integration</strong> settings to pull live data.';
     return;
   }
   const token     = await maGetSetting('meta_token');
@@ -3658,7 +3720,7 @@ async function initMetaAnalytics() {
     bar.innerHTML = '⚠️ No Meta Access Token found. Go to <strong>Meta Integration</strong> settings, paste your access token and account ID, then save.';
   } else {
     bar.style.cssText = 'background:#001a10;border:1px solid #4caf50;border-radius:8px;padding:12px 16px;color:#aee;margin-bottom:18px';
-    bar.innerHTML = `✅ Connected · Ad Account <strong>${accountId || '—'}</strong> · Select a date range and click <strong>Fetch Data</strong>.`;
+    bar.innerHTML = `✅ Connected · Ad Account <strong>${accountId || '-'}</strong> · Select a date range and click <strong>Fetch Data</strong>.`;
   }
 }
 
@@ -3670,10 +3732,10 @@ function maGetLeadCount(actions) {
 }
 
 function maGetCPL(costPerAction) {
-  if (!Array.isArray(costPerAction)) return '—';
+  if (!Array.isArray(costPerAction)) return '-';
   const leadTypes = ['lead','onsite_conversion.lead_grouped','offsite_conversion.fb_pixel_lead','onsite_conversion.messaging_conversation_started_7d','onsite_conversion.total_messaging_connection'];
   const a = costPerAction.find(x => leadTypes.includes(x.action_type));
-  return a ? 'PKR ' + parseFloat(a.value).toFixed(2) : '—';
+  return a ? 'PKR ' + parseFloat(a.value).toFixed(2) : '-';
 }
 
 function maRenderInsights(rows, level, nameField) {
@@ -3690,13 +3752,13 @@ function maRenderInsights(rows, level, nameField) {
     const leads = maGetLeadCount(r.actions);
     const cpl   = maGetCPL(r.cost_per_action_type);
     return `<tr>
-      <td style="font-weight:600;color:#0f172a;max-width:220px;word-break:break-word">${esc(r[nameField] || '—')}</td>
+      <td style="font-weight:600;color:#0f172a;max-width:220px;word-break:break-word">${esc(r[nameField] || '-')}</td>
       <td>${Number(r.impressions||0).toLocaleString()}</td>
       <td>${Number(r.reach||0).toLocaleString()}</td>
       <td>${Number(r.clicks||0).toLocaleString()}</td>
       <td>${parseFloat(r.ctr||0).toFixed(2)}%</td>
       <td style="color:#c9a84c">PKR ${parseFloat(r.spend||0).toFixed(2)}</td>
-      <td style="color:#4caf50;font-weight:600">${leads || '—'}</td>
+      <td style="color:#4caf50;font-weight:600">${leads || '-'}</td>
       <td>${cpl}</td>
     </tr>`;
   }).join('');
@@ -3711,8 +3773,8 @@ function maRenderSummary(rows) {
     return acc;
   }, { impressions: 0, clicks: 0, spend: 0, leads: 0 });
   const ctr = t.impressions ? ((t.clicks / t.impressions) * 100).toFixed(2) : '0.00';
-  const cpl = t.leads  ? 'PKR ' + (t.spend / t.leads).toFixed(2)  : '—';
-  const cpc = t.clicks ? 'PKR ' + (t.spend / t.clicks).toFixed(2) : '—';
+  const cpl = t.leads  ? 'PKR ' + (t.spend / t.leads).toFixed(2)  : '-';
+  const cpc = t.clicks ? 'PKR ' + (t.spend / t.clicks).toFixed(2) : '-';
   document.getElementById('ma-summary-stats').innerHTML = `
     <div class="stat-card"><div class="stat-label">Total Spend</div><div class="stat-value" style="color:#c9a84c">PKR ${fmtMoney(t.spend)}</div></div>
     <div class="stat-card"><div class="stat-label">Impressions</div><div class="stat-value">${t.impressions.toLocaleString()}</div></div>
@@ -3835,13 +3897,13 @@ function esc(s) {
 }
 
 function fmtDate(iso) {
-  if (!iso) return '—';
+  if (!iso) return '-';
   return new Date(iso).toLocaleDateString('en-GB',
     { day:'2-digit', month:'short', year:'numeric' });
 }
 
 function fmtDateTime(iso) {
-  if (!iso) return '—';
+  if (!iso) return '-';
   return new Date(iso).toLocaleString('en-GB',
     { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
 }
@@ -3887,7 +3949,7 @@ function triggerEventLabel(t) {
            kyc_verified:'KYC Verified', deposit_recorded:'Deposit Recorded' }[t] || t;
 }
 function truncate(s, n) {
-  if (!s) return '—';
+  if (!s) return '-';
   return s.length > n ? s.slice(0, n) + '…' : s;
 }
 
@@ -4074,7 +4136,7 @@ function populateArAgentDropdown() {
   const sel = document.getElementById('ar-assign-agent');
   if (!sel) return;
   const agents = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended);
-  sel.innerHTML = '<option value="">— Select Agent —</option>';
+  sel.innerHTML = '<option value="">- Select Agent -</option>';
   agents.forEach(a => {
     const o = document.createElement('option');
     o.value = a.id;
@@ -4148,7 +4210,7 @@ async function loadReports() {
     })), tot);
   }
 
-  // Monthly trend — last 6 months from real data
+  // Monthly trend - last 6 months from real data
   try {
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
@@ -4456,7 +4518,7 @@ function renderDashboardStats() {
   if (el('dash-agents'))      el('dash-agents').textContent      = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended).length;
   const revenue = cachedLeads.reduce((s, l) => s + (Number(l.account_balance) || 0), 0);
   if (el('dash-revenue'))     el('dash-revenue').textContent     = '$' + fmtMoney(revenue);
-  { const bp={}; (cachedLeads||[]).forEach(l=>{ if(l.deposit_platform && Number(l.account_balance)){ bp[l.deposit_platform]=(bp[l.deposit_platform]||0)+Number(l.account_balance);} }); const pl=Object.entries(bp).map(([k,v])=>k.toUpperCase()+': $'+fmtMoney(v)).join('   ·   '); if(el('dash-rev-platform')) el('dash-rev-platform').textContent = pl ? 'By platform — '+pl : ''; }
+  { const bp={}; (cachedLeads||[]).forEach(l=>{ if(l.deposit_platform && Number(l.account_balance)){ bp[l.deposit_platform]=(bp[l.deposit_platform]||0)+Number(l.account_balance);} }); const pl=Object.entries(bp).map(([k,v])=>k.toUpperCase()+': $'+fmtMoney(v)).join('   ·   '); if(el('dash-rev-platform')) el('dash-rev-platform').textContent = pl ? 'By platform - '+pl : ''; }
   // Load upcoming follow-ups from lead_activity
   loadUpcomingFollowups();
   loadDashMetaAds();
@@ -4475,9 +4537,9 @@ async function loadDashMetaAds(){
     const g=(id,v)=>{const e=document.getElementById(id); if(e){e.textContent=v; e.style.color='#0f172a';}};
     g('dma-impr',Number(a.impressions||0).toLocaleString());
     g('dma-clicks',Number(a.clicks||0).toLocaleString());
-    g('dma-cpl',leads?'PKR '+(Number(a.spend||0)/leads).toFixed(0):'—');
+    g('dma-cpl',leads?'PKR '+(Number(a.spend||0)/leads).toFixed(0):'-');
     g('dma-spend','PKR '+fmtMoney(a.spend||0));
-    g('dma-leads',leads||'—');
+    g('dma-leads',leads||'-');
     const s=document.getElementById('dma-sub'); if(s){s.textContent='Live · last 30 days';}
   }catch(e){}
 }
@@ -4553,7 +4615,7 @@ let _activeConvId = null;
 let _convRealtimeSub = null;
 let _convRealtimeScope = '';
 let _activeConvFilter = 'all';
-let _replyTarget = null; // { waMessageId, preview } — set when an agent taps "reply" on a specific message
+let _replyTarget = null; // { waMessageId, preview } - set when an agent taps "reply" on a specific message
 let _lastConvs = []; // cache of the last rendered conversation rows, so switching tabs doesn't re-fetch
 
 // Classifies a lead into one of: new, warm, hot, closed. "unread" is checked
@@ -4648,7 +4710,7 @@ async function renderConversations(scope = '') {
     return;
   }
 
-  // Live mode — load from Supabase. RLS scopes this automatically: admins see
+  // Live mode - load from Supabase. RLS scopes this automatically: admins see
   // every lead's communications, agents only see communications for leads
   // assigned to them (see "communications: agent select own" policy).
   listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:0.85rem">Loading…</div>';
@@ -4667,7 +4729,7 @@ async function renderConversations(scope = '') {
     const convs = comms.filter(c => { if (seen.has(c.lead_id)) return false; seen.add(c.lead_id); return true; });
     _lastConvs = convs;
     const unreadCount = convs.filter(c => c.leads?.is_unread).length;
-    // Update sidebar badge — counts unread conversations, not total conversations
+    // Update sidebar badge - counts unread conversations, not total conversations
     const navBadge = document.getElementById(scope + 'conv-nav-badge');
     if (navBadge) { navBadge.textContent = unreadCount; navBadge.style.display = unreadCount ? 'inline-block' : 'none'; }
     listEl.innerHTML = convs.map(c => {
@@ -4767,7 +4829,7 @@ async function openConversation(convId, scope = '') {
     const initials = (lead?.full_name || '?').split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
 
     // WhatsApp only allows free-form replies within 24h of the lead's last
-    // inbound message — outside that window Meta rejects the send outright,
+    // inbound message - outside that window Meta rejects the send outright,
     // which is what was silently confusing agents (the failure gave no clue
     // why). Warn up front instead of letting them hit it blind.
     const lastInbound = [...messages].reverse().find(m => m.direction === 'inbound');
@@ -4775,7 +4837,7 @@ async function openConversation(convId, scope = '') {
     const outsideWindow = hoursSinceInbound >= 24;
     const windowWarning = outsideWindow ? `
       <div style="background:#fef3c7;color:#92400e;font-size:0.78rem;padding:8px 14px;border-top:1px solid #fde68a">
-        ⚠ It's been over 24 hours since ${esc(lead?.full_name || 'this lead')} last messaged — WhatsApp will likely reject a free-form reply until they message again first. Send them a template message instead, or wait for them to reply.
+        ⚠ It's been over 24 hours since ${esc(lead?.full_name || 'this lead')} last messaged - WhatsApp will likely reject a free-form reply until they message again first. Send them a template message instead, or wait for them to reply.
       </div>` : '';
 
     const currentTier = computeLeadTier(lead);
@@ -4786,7 +4848,7 @@ async function openConversation(convId, scope = '') {
           <h3>${esc(lead?.full_name || 'Unknown')}</h3>
           <p>${esc(lead?.phone || '')} ${statusBadge(lead?.status || 'new')}</p>
         </div>
-        <select title="Set this lead's tier yourself — you know the real situation" onchange="setLeadTier('${convId}', this.value, '${scope}')" style="margin-left:auto;border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;font-size:0.78rem;color:#475569;background:#fff">
+        <select title="Set this lead's tier yourself - you know the real situation" onchange="setLeadTier('${convId}', this.value, '${scope}')" style="margin-left:auto;border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;font-size:0.78rem;color:#475569;background:#fff">
           <option value="new" ${currentTier==='new'?'selected':''}>🆕 New</option>
           <option value="warm" ${currentTier==='warm'?'selected':''}>🌤 Warm</option>
           <option value="hot" ${currentTier==='hot'?'selected':''}>🔥 Hot</option>
@@ -4841,7 +4903,7 @@ async function loadConvAttachmentThumbs(convId, messages) {
     const el = document.getElementById(`conv-att-${convId}-${i}`);
     if (!el) return;
     const { data, error } = await sb.storage.from('deposit-screenshots').createSignedUrl(m.attachment_path, 300);
-    if (error || !data) { el.textContent = '🖼 Screenshot (failed to load — tap to retry)'; el.onclick = () => loadConvAttachmentThumbs(convId, [m].map((mm,ii)=>mm)); return; }
+    if (error || !data) { el.textContent = '🖼 Screenshot (failed to load - tap to retry)'; el.onclick = () => loadConvAttachmentThumbs(convId, [m].map((mm,ii)=>mm)); return; }
     el.innerHTML = `<img src="${esc(data.signedUrl)}" alt="Screenshot" style="max-width:220px;max-height:220px;border-radius:8px;display:block" />`;
     el.onclick = () => window.open(data.signedUrl, '_blank');
   }));
@@ -4878,8 +4940,8 @@ function toggleConvListPanel(scope) {
 // On phones, opening a conversation should switch to a single full-width
 // chat view (like any normal messaging app) instead of squeezing both
 // panels side by side. Reuses the same collapse the desktop "☰ hide list"
-// button already does — the "show list" button then acts as the back button.
-// Conversation short links — a URL that jumps straight to one lead's thread
+// button already does - the "show list" button then acts as the back button.
+// Conversation short links - a URL that jumps straight to one lead's thread
 // instead of making whoever opens it hunt for the lead manually.
 function copyConvLink(convId) {
   const url = `${location.origin}${location.pathname}?conv=${convId}`;
@@ -4893,7 +4955,7 @@ function copyConvLink(convId) {
   }
 }
 
-// Runs once after login — if the page was opened via a copied conversation
+// Runs once after login - if the page was opened via a copied conversation
 // link (?conv=<leadId>), jump straight there instead of the default tab.
 // Works for whichever role opens it: RLS decides what they're allowed to see,
 // this just saves the manual navigation.
@@ -4926,7 +4988,7 @@ function clearReplyTarget() {
 }
 
 function autoGrowConvInput(el) {
-  // Grows with content like WhatsApp's compose box — capped relative to the
+  // Grows with content like WhatsApp's compose box - capped relative to the
   // chat panel's own height (not a small fixed pixel value) so a long message
   // can take up real space without the input overrunning the panel.
   el.style.height = 'auto';
@@ -4957,7 +5019,7 @@ async function sendConvMessage(convId, scope = '') {
     return;
   }
 
-  // Live mode — prefer the server-side send (supabase/functions/send-wa-message
+  // Live mode - prefer the server-side send (supabase/functions/send-wa-message
   // keeps the WhatsApp token in the backend); fall back to the legacy in-browser
   // send until that function is deployed. Once it's deployed and confirmed, the
   // fallback and the schema §30 settings-read policy can both be removed.
@@ -4982,7 +5044,7 @@ async function sendConvMessage(convId, scope = '') {
     openConversation(convId, scope); // refresh thread
   } catch(err) {
     showToast(`Send failed: ${err.message}`, 'err');
-    // Previously this error only ever appeared in a toast and vanished —
+    // Previously this error only ever appeared in a toast and vanished -
     // nobody (including future debugging) could see what actually went
     // wrong. Persist it so failures are diagnosable after the fact.
     await sb.from('communication_logs').insert({
@@ -5026,7 +5088,7 @@ async function sendWaViaFunction(convId, text, replyToWaMessageId) {
   return { warning: data.warning };
 }
 
-// Legacy in-browser send — requires the schema §30 policy so agents can read
+// Legacy in-browser send - requires the schema §30 policy so agents can read
 // the two WhatsApp credential settings. Returns false if credentials are
 // unreadable/unset (after showing the toast), true once sent and logged.
 async function sendWaViaBrowser(convId, text, replyToWaMessageId) {
@@ -5041,7 +5103,7 @@ async function sendWaViaBrowser(convId, text, replyToWaMessageId) {
   const accessToken   = getS('wa_access_token');
 
   if (!phoneNumberId || !accessToken) {
-    showToast('WhatsApp token not set — go to Meta Integration and save your credentials first.', 'err');
+    showToast('WhatsApp token not set - go to Meta Integration and save your credentials first.', 'err');
     return false;
   }
 
@@ -5073,7 +5135,7 @@ async function sendWaViaBrowser(convId, text, replyToWaMessageId) {
     logged_by: currentUser?.id || null,
     wa_message_id: sentWaMessageId
   });
-  // Same takeover flag send-wa-message sets on the primary path — an agent
+  // Same takeover flag send-wa-message sets on the primary path - an agent
   // manually messaging a lead here means a human has taken over, the bot
   // must stop treating the lead's replies as answers to its own flow.
   await sb.from('leads').update({
@@ -5231,7 +5293,7 @@ async function loadCommLog(scope = '') {
     renderCommLog(scope);
     return;
   }
-  // Live mode — RLS scopes this automatically: admins see every lead's logs,
+  // Live mode - RLS scopes this automatically: admins see every lead's logs,
   // agents only see logs for leads assigned to them (comm_logs_agent_select_own).
   const [manualRes, autoRes] = await Promise.all([
     sb.from('communication_logs')
@@ -5245,9 +5307,9 @@ async function loadCommLog(scope = '') {
   if (autoRes.error)   console.error('loadCommLog (auto):', autoRes.error);
   const manual = (manualRes.data || []).map(r => ({
     ...r,
-    lead_name:       r.lead?.full_name    || '—',
+    lead_name:       r.lead?.full_name    || '-',
     lead_status:     r.lead?.status       || '',
-    created_by_name: r.creator?.full_name || '—',
+    created_by_name: r.creator?.full_name || '-',
   }));
   const auto = (autoRes.data || []).map(r => ({
     id:              'auto-' + r.id,
@@ -5255,7 +5317,7 @@ async function loadCommLog(scope = '') {
     type:            r.type || 'whatsapp',
     message:         (r.direction === 'inbound' ? '↩ ' : '↪ ') + (r.body || ''),
     created_at:      r.created_at,
-    lead_name:       r.leads?.full_name || '—',
+    lead_name:       r.leads?.full_name || '-',
     lead_status:     r.leads?.status    || '',
     created_by_name: r.direction === 'inbound' ? (r.leads?.full_name || 'Lead') : 'Bot',
   }));
@@ -5283,7 +5345,7 @@ function populateClLeadFilter(scope = '') {
   // Add-note lead selector
   const noteSel = document.getElementById(scope + 'cl-note-lead');
   if (noteSel) {
-    noteSel.innerHTML = '<option value="">— Select Contact —</option>';
+    noteSel.innerHTML = '<option value="">- Select Contact -</option>';
     leads.forEach(l => {
       const o = document.createElement('option');
       o.value = l.id; o.textContent = l.full_name;
@@ -5361,7 +5423,7 @@ async function addCommNote(scope = '') {
     _DEMO_COMM_LOGS.unshift({
       id:              'ccl' + Date.now(),
       lead_id:         leadId,
-      lead_name:       lead ? lead.full_name : '—',
+      lead_name:       lead ? lead.full_name : '-',
       type, message:   msg,
       created_by_name: currentProfile.full_name || 'Demo Admin',
       created_at:      new Date().toISOString(),
@@ -5392,7 +5454,7 @@ document.addEventListener('keydown', e => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-//  WHATSAPP SIGNALS — Shared state
+//  WHATSAPP SIGNALS - Shared state
 // ═══════════════════════════════════════════════════════════════
 
 // ── Dummy subscriber data (placeholder until Badar sends CSV) ──
@@ -5408,7 +5470,7 @@ let _subscribers = (function() {
       subs.push({
         id: id++, name, phone: `+923${(10+group*10+i).toString().padStart(2,'0')}${String(Math.floor(Math.random()*9000000)+1000000)}`,
         group, trades24h: Math.floor(Math.random()*6),
-        lastSignal: i < 12 ? `${Math.floor(Math.random()*48)+1}h ago` : '—',
+        lastSignal: i < 12 ? `${Math.floor(Math.random()*48)+1}h ago` : '-',
         status: Math.random() > 0.07 ? 'active' : 'inactive'
       });
     });
@@ -5417,7 +5479,7 @@ let _subscribers = (function() {
       subs.push({
         id: id++, name: `Subscriber G${group}-${j+21}`, phone: `+923${group}${String(1000000+j).padStart(7,'0')}`,
         group, trades24h: Math.floor(Math.random()*4),
-        lastSignal: Math.random() > 0.4 ? `${Math.floor(Math.random()*72)+1}h ago` : '—',
+        lastSignal: Math.random() > 0.4 ? `${Math.floor(Math.random()*72)+1}h ago` : '-',
         status: Math.random() > 0.05 ? 'active' : 'inactive'
       });
     }
@@ -5447,7 +5509,7 @@ async function loadSignalHistoryFromDb(force) {
       recipients: r.recipients || 0, outcome: r.outcome
     }));
     renderBroadcastHistory(); syncAccuracyTracker();
-  } catch (e) { /* signals table not created yet — in-memory history still works */ }
+  } catch (e) { /* signals table not created yet - in-memory history still works */ }
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -5549,7 +5611,7 @@ async function broadcastSignal() {
       failed = targets.length;
     }
   } else {
-    // Demo mode — simulate delivery
+    // Demo mode - simulate delivery
     await new Promise(r => setTimeout(r, 900));
     sent = targets.length;
   }
@@ -5573,7 +5635,7 @@ async function broadcastSignal() {
         message: msg, recipients: sent, outcome: 'pending'
       }).select().maybeSingle();
       if (data) record.id = data.id;
-    } catch (e) { /* signals table not created yet — history stays in-memory */ }
+    } catch (e) { /* signals table not created yet - history stays in-memory */ }
   }
 
   // Update subscriber lastSignal field
@@ -5607,9 +5669,9 @@ function renderBroadcastHistory() {
       <td style="font-size:0.78rem;color:#94a3b8">${s.time.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}<br><span style="font-size:0.72rem">${s.time.toLocaleDateString()}</span></td>
       <td><span style="color:${typeColor};font-weight:700">${s.type.toUpperCase()}</span></td>
       <td style="font-weight:600">${s.instrument}</td>
-      <td>${s.entry || '—'}</td>
-      <td style="color:#22c55e">${s.tp || '—'}</td>
-      <td style="color:#ef4444">${s.sl || '—'}</td>
+      <td>${s.entry || '-'}</td>
+      <td style="color:#22c55e">${s.tp || '-'}</td>
+      <td style="color:#ef4444">${s.sl || '-'}</td>
       <td>${s.recipients.toLocaleString()}</td>
       <td>${outcomeHtml} <button onclick="cycleOutcome('${s.id}','bc')" style="background:none;border:none;cursor:pointer;font-size:0.7rem;color:#64748b;margin-left:4px">edit</button></td>
     </tr>`;
@@ -5699,7 +5761,7 @@ function addSubscriber() {
   const phone = document.getElementById('new-sub-phone')?.value.trim();
   const group = parseInt(document.getElementById('new-sub-group')?.value);
   if (!name || !phone) { alert('Name and phone are required.'); return; }
-  _subscribers.unshift({ id: Date.now(), name, phone, group, trades24h: 0, lastSignal: '—', status: 'active' });
+  _subscribers.unshift({ id: Date.now(), name, phone, group, trades24h: 0, lastSignal: '-', status: 'active' });
   document.getElementById('new-sub-name').value = '';
   document.getElementById('new-sub-phone').value = '';
   document.getElementById('add-sub-form').style.display = 'none';
@@ -5729,7 +5791,7 @@ function importSubscribersCSV(event) {
       const phone = phoneIdx >= 0 ? cols[phoneIdx] : cols[1];
       const group = groupIdx >= 0 ? parseInt(cols[groupIdx]) || 1 : 1;
       if (name && phone) {
-        _subscribers.push({ id: Date.now()+i, name, phone, group, trades24h: 0, lastSignal: '—', status: 'active' });
+        _subscribers.push({ id: Date.now()+i, name, phone, group, trades24h: 0, lastSignal: '-', status: 'active' });
         added++;
       }
     }
@@ -5768,7 +5830,7 @@ const _AI_SESSIONS = ['London Open', 'New York Open', 'London-NY Overlap', 'Asia
 const _BASE_PRICES = { XAUUSD: 2345, EURUSD: 1.0850, GBPUSD: 1.2720, USDJPY: 154.50, BTCUSD: 67800 }; // static fallback only
 const _PIP_SIZES   = { XAUUSD: 0.1,  EURUSD: 0.0001, GBPUSD: 0.0001, USDJPY: 0.01,   BTCUSD: 10 };
 
-// ── Live price fetch — free, no-key APIs, zero monthly cost ────
+// ── Live price fetch - free, no-key APIs, zero monthly cost ────
 // BTC: Binance public API (real-time). Gold: gold-api.com (real-time).
 // FX majors: open.er-api.com (free reference rates, refreshed daily).
 // Falls back to static base prices if a feed is unreachable.
@@ -5794,7 +5856,7 @@ async function fetchLivePrice(inst) {
       else if (inst === 'USDJPY' && rates.JPY) price = rates.JPY;
       source = 'open.er-api.com (daily reference rate)';
     }
-  } catch (e) { /* feed unreachable — fall back below */ }
+  } catch (e) { /* feed unreachable - fall back below */ }
   if (!price || !isFinite(price)) {
     price = _BASE_PRICES[inst] || 100;
     source = 'static fallback (live feed unavailable)';
@@ -5824,7 +5886,7 @@ async function generateAISignal() {
 
   _aiLastSignal = { type: pattern.bias, instrument: inst, entry, tp, sl, pattern: pattern.name, confidence: pattern.confidence, trend: pattern.trend, session, timeframe, rrActual, priceSource: live.source };
 
-  const detail = `${emoji} ${pattern.bias.toUpperCase()} ${inst} — ${timeframe}\n` +
+  const detail = `${emoji} ${pattern.bias.toUpperCase()} ${inst} - ${timeframe}\n` +
     `━━━━━━━━━━━━━━━━\n` +
     `📍 Entry:       ${entry}\n` +
     `🎯 Take Profit: ${tp}   (+${tpPips} pips)\n` +
@@ -5870,7 +5932,7 @@ function syncAccuracyTracker() {
   if (!tbody) return;
   if (!_signalHistory.length) {
     tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No signal history yet. Start broadcasting to track accuracy.</td></tr>';
-    document.getElementById('ai-accuracy-pct').textContent = '—';
+    document.getElementById('ai-accuracy-pct').textContent = '-';
     document.getElementById('ai-signals-sent').textContent = '0';
     document.getElementById('ai-pending-count').textContent = '0';
     return;
@@ -5879,26 +5941,26 @@ function syncAccuracyTracker() {
   const tpHits   = resolved.filter(s => s.outcome === 'tp_hit').length;
   const pct      = resolved.length ? Math.round(tpHits/resolved.length*100) : null;
   const pctEl    = document.getElementById('ai-accuracy-pct');
-  if (pctEl) { pctEl.textContent = pct !== null ? pct+'%' : '—'; pctEl.style.color = pct >= 60 ? '#22c55e' : '#ef4444'; }
+  if (pctEl) { pctEl.textContent = pct !== null ? pct+'%' : '-'; pctEl.style.color = pct >= 60 ? '#22c55e' : '#ef4444'; }
   const sentEl = document.getElementById('ai-signals-sent');
   if (sentEl) sentEl.textContent = _signalHistory.length;
   const pendEl = document.getElementById('ai-pending-count');
   if (pendEl) pendEl.textContent = _signalHistory.filter(s => s.outcome === 'pending').length;
 
   tbody.innerHTML = _signalHistory.map(s => {
-    const tpPips = s.tp && s.entry ? Math.abs((parseFloat(s.tp)-parseFloat(s.entry)) / (_PIP_SIZES[s.instrument]||0.1)).toFixed(0) : '—';
-    const slPips = s.sl && s.entry ? Math.abs((parseFloat(s.sl)-parseFloat(s.entry)) / (_PIP_SIZES[s.instrument]||0.1)).toFixed(0) : '—';
-    const rr = (tpPips !== '—' && slPips !== '—') ? `1:${(tpPips/slPips).toFixed(1)}` : '—';
+    const tpPips = s.tp && s.entry ? Math.abs((parseFloat(s.tp)-parseFloat(s.entry)) / (_PIP_SIZES[s.instrument]||0.1)).toFixed(0) : '-';
+    const slPips = s.sl && s.entry ? Math.abs((parseFloat(s.sl)-parseFloat(s.entry)) / (_PIP_SIZES[s.instrument]||0.1)).toFixed(0) : '-';
+    const rr = (tpPips !== '-' && slPips !== '-') ? `1:${(tpPips/slPips).toFixed(1)}` : '-';
     return `<tr>
       <td style="font-size:0.78rem;color:#94a3b8">${s.time.toLocaleDateString()}</td>
       <td style="font-weight:600">${s.instrument}</td>
       <td><span style="color:${s.type==='buy'?'#22c55e':'#ef4444'};font-weight:700">${s.type.toUpperCase()}</span></td>
-      <td>${s.entry||'—'}</td>
-      <td style="color:#22c55e">${s.tp||'—'}</td>
-      <td style="color:#ef4444">${s.sl||'—'}</td>
+      <td>${s.entry||'-'}</td>
+      <td style="color:#22c55e">${s.tp||'-'}</td>
+      <td style="color:#ef4444">${s.sl||'-'}</td>
       <td>${rr}</td>
       <td>${outcomeTag(s.outcome)} <button onclick="cycleOutcome('${s.id}','ai')" style="background:none;border:none;cursor:pointer;font-size:0.7rem;color:#64748b">edit</button></td>
-      <td style="font-size:0.78rem;color:#94a3b8">${s.outcome==='tp_hit'?'+'+tpPips:s.outcome==='sl_hit'?'-'+slPips:'—'}</td>
+      <td style="font-size:0.78rem;color:#94a3b8">${s.outcome==='tp_hit'?'+'+tpPips:s.outcome==='sl_hit'?'-'+slPips:'-'}</td>
     </tr>`;
   }).join('');
 }
@@ -5925,7 +5987,7 @@ function syncAccuracyTracker() {
     syncTickerHeight();
   }
   // The TradingView embed script injects its iframe asynchronously, and the
-  // dashboards are toggled via style attributes on login — watch both, plus a
+  // dashboards are toggled via style attributes on login - watch both, plus a
   // low-frequency poll as a backstop (the iframe can resize itself without
   // triggering either observer reliably).
   new MutationObserver(watchIframes).observe(document.body,
