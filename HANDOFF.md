@@ -49,6 +49,7 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 - Junaid - real subscribers table to replace the browser-generated placeholder list (persists, CSV import works, fed by signals-form signups) - 2026-08-03
+- Muhammad - mobile (375px) and dark-mode check of the four new Part 3 tabs (Train AI, Create Flow, Follow-ups, Message Templates), none of which existed during the earlier mobile/dark-mode passes - 2026-08-04, claimed before starting
 
 **DONE (2026-08-03) - Muhammad's mobile usability pass, tab by tab at 375px** (the 2026-07-19 backlog item flagged as "never systematically tested"). Found and fixed real bugs, not just checked the box:
 - Sidebar didn't fully hide when collapsed on mobile - it translated by a hardcoded `-220px` while its actual width was `232px`, leaving a permanent ~12px sliver on-screen at every phone width. Switched to `translateX(-100%)` so it can never drift out of sync with the real width again.
