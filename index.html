@@ -1204,6 +1204,17 @@
     </div>
 
     <div class="card">
+      <h4 style="margin-bottom:10px">Test a message</h4>
+      <p style="color:#64748b;font-size:0.82rem;margin-bottom:12px">Type what a customer might send and see which rule matches. This only checks your rules, it does not message anyone.</p>
+      <div class="form-row">
+        <div class="form-group" style="flex:2">
+          <input type="text" id="kw-test-input" placeholder="e.g. what is the price?" oninput="runKeywordTest()" />
+        </div>
+      </div>
+      <div id="kw-test-result" style="font-size:0.86rem"></div>
+    </div>
+
+    <div class="card">
       <table>
         <thead><tr>
           <th>Keyword</th><th>Match</th><th>Reply</th><th>Active</th><th></th>
@@ -1291,6 +1302,30 @@
     <h3>Follow-ups</h3>
     <div class="info-box">
       A follow-up says: when a lead has sat in a given status for this many hours without moving, send them this message. Saving here is real and persists to the database. <strong>Nothing is sent yet</strong> - no scheduled job reads these rules. Turning them into actual sends is a separate step, and the nudge scheduling questions from July need settling first.
+    </div>
+
+    <div class="card">
+      <h4 style="margin-bottom:10px">Test a lead</h4>
+      <p style="color:#64748b;font-size:0.82rem;margin-bottom:12px">Pick a status and how long a lead has been sitting in it, to see which follow-ups would fire. This only checks your rules, it does not message anyone.</p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Lead status</label>
+          <select id="fus-test-status" onchange="runFollowUpTest()">
+            <option value="new">New</option>
+            <option value="contacted">Contacted</option>
+            <option value="qualified">Qualified</option>
+            <option value="proposal_sent">Proposal Sent</option>
+            <option value="pending_approval">Pending Approval</option>
+            <option value="converted">Converted</option>
+            <option value="lost">Lost</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Hours since last movement</label>
+          <input type="number" id="fus-test-hours" min="0" value="48" oninput="runFollowUpTest()" />
+        </div>
+      </div>
+      <div id="fus-test-result" style="font-size:0.86rem"></div>
     </div>
 
     <div class="card">
@@ -4364,6 +4399,93 @@ let cachedFollowUps      = [];
 
 let cachedTemplates = [];
 
+// ── RULE TESTERS ──────────────────────────────────────────────
+// Preview only. These evaluate the saved rules and show what WOULD be
+// sent. Nothing here contacts a customer, writes to the database, or
+// touches any live conversation.
+//
+// The keyword matcher below is deliberately identical to tryKeywordReply()
+// in supabase/functions/whatsapp-webhook/index.ts. If one changes, change
+// both, or the preview starts lying about real behaviour.
+function matchKeywordRule(rules, text) {
+  const lower = (text || '').trim().toLowerCase();
+  if (!lower) return null;
+  return rules.find(r => {
+    const k = (r.keyword || '').toLowerCase().trim();
+    if (!k) return false;
+    if (r.match_type === 'exact')       return lower === k;
+    if (r.match_type === 'starts_with') return lower.startsWith(k);
+    return lower.includes(k);
+  }) || null;
+}
+
+function runKeywordTest() {
+  const box = document.getElementById('kw-test-result');
+  if (!box) return;
+  const text = document.getElementById('kw-test-input')?.value || '';
+  if (!text.trim()) { box.innerHTML = ''; return; }
+
+  const active   = cachedKeywordReplies.filter(r => r.is_active);
+  const inactive = cachedKeywordReplies.filter(r => !r.is_active);
+  const hit      = matchKeywordRule(active, text);
+
+  if (hit) {
+    box.innerHTML = `
+      <div style="border-left:3px solid #1fa971;padding:8px 12px;background:rgba(31,169,113,.08);border-radius:6px">
+        <div style="font-weight:700;color:#1fa971;margin-bottom:4px">Matches: ${esc(hit.keyword)} (${esc(KW_MATCH_LABELS[hit.match_type] || hit.match_type)})</div>
+        <div style="color:#475569;white-space:pre-wrap">${esc(hit.reply_message)}</div>
+      </div>`;
+    return;
+  }
+
+  // Explain a near miss rather than just saying no: a paused rule that would
+  // otherwise have matched is the most confusing case for someone testing.
+  const paused = matchKeywordRule(inactive, text);
+  box.innerHTML = paused
+    ? `<div style="border-left:3px solid #b45309;padding:8px 12px;background:rgba(180,83,9,.08);border-radius:6px">
+         <div style="font-weight:700;color:#b45309;margin-bottom:4px">No reply, but a paused rule would match</div>
+         <div style="color:#475569">Rule <strong>${esc(paused.keyword)}</strong> is switched off. Turn it on and this message would get a reply.</div>
+       </div>`
+    : `<div style="border-left:3px solid #94a3b8;padding:8px 12px;background:rgba(148,163,184,.1);border-radius:6px">
+         <div style="color:#475569">No rule matches this message. The bot would fall through to its normal flow.</div>
+       </div>`;
+}
+
+function runFollowUpTest() {
+  const box = document.getElementById('fus-test-result');
+  if (!box) return;
+  const status = document.getElementById('fus-test-status')?.value || 'new';
+  const hours  = parseInt(document.getElementById('fus-test-hours')?.value, 10);
+  if (!Number.isFinite(hours) || hours < 0) { box.innerHTML = ''; return; }
+
+  const forStatus = cachedFollowUps.filter(f => f.trigger_status === status);
+  const due       = forStatus.filter(f => f.is_active && hours >= Number(f.delay_hours));
+  const notYet    = forStatus.filter(f => f.is_active && hours <  Number(f.delay_hours));
+  const paused    = forStatus.filter(f => !f.is_active && hours >= Number(f.delay_hours));
+
+  let html = '';
+  if (due.length) {
+    html += due.map(f => `
+      <div style="border-left:3px solid #1fa971;padding:8px 12px;background:rgba(31,169,113,.08);border-radius:6px;margin-bottom:8px">
+        <div style="font-weight:700;color:#1fa971;margin-bottom:4px">Would send: ${esc(f.name)} (after ${Number(f.delay_hours)}h)</div>
+        <div style="color:#475569;white-space:pre-wrap">${esc(f.message)}</div>
+      </div>`).join('');
+  } else {
+    html += `<div style="border-left:3px solid #94a3b8;padding:8px 12px;background:rgba(148,163,184,.1);border-radius:6px;margin-bottom:8px">
+               <div style="color:#475569">Nothing would send for a lead sitting ${hours}h in this status.</div>
+             </div>`;
+  }
+  if (notYet.length) {
+    html += `<div style="color:#64748b;font-size:0.8rem;margin-bottom:4px">Not due yet: ` +
+            notYet.map(f => `${esc(f.name)} (needs ${Number(f.delay_hours)}h)`).join(', ') + `</div>`;
+  }
+  if (paused.length) {
+    html += `<div style="color:#b45309;font-size:0.8rem">Paused, would otherwise fire: ` +
+            paused.map(f => esc(f.name)).join(', ') + `</div>`;
+  }
+  box.innerHTML = html;
+}
+
 // ── MESSAGE TEMPLATES (message_templates) ─────────────────────
 // The CRM's own record of template copy and Meta approval status.
 // Nothing here talks to Meta; status is maintained by hand.
@@ -4504,12 +4626,13 @@ const FUS_STATUS_LABELS = {
 };
 
 async function loadFollowUps() {
-  if (demoMode) { cachedFollowUps = _DEMO_FOLLOW_UPS.slice(); renderFollowUpsTable(); return; }
+  if (demoMode) { cachedFollowUps = _DEMO_FOLLOW_UPS.slice(); renderFollowUpsTable(); runFollowUpTest(); return; }
   const { data, error } = await sb
     .from('follow_up_sequences').select('*').order('created_at', { ascending: false });
   if (error) { console.error('loadFollowUps:', error); showTableError('fus-tbody', error); return; }
   cachedFollowUps = data || [];
   renderFollowUpsTable();
+  runFollowUpTest();
 }
 
 function renderFollowUpsTable() {
@@ -4770,12 +4893,13 @@ async function deleteAiKb(id) {
 const KW_MATCH_LABELS = { contains:'Contains', exact:'Exact', starts_with:'Starts with' };
 
 async function loadKeywordReplies() {
-  if (demoMode) { cachedKeywordReplies = _DEMO_KEYWORD_REPLIES.slice(); renderKeywordRepliesTable(); return; }
+  if (demoMode) { cachedKeywordReplies = _DEMO_KEYWORD_REPLIES.slice(); renderKeywordRepliesTable(); runKeywordTest(); return; }
   const { data, error } = await sb
     .from('keyword_replies').select('*').order('created_at', { ascending: false });
   if (error) { console.error('loadKeywordReplies:', error); showTableError('kw-tbody', error); return; }
   cachedKeywordReplies = data || [];
   renderKeywordRepliesTable();
+  runKeywordTest();
 }
 
 function renderKeywordRepliesTable() {
