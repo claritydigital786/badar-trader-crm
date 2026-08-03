@@ -356,7 +356,7 @@
     /* ── Cards ── */
     .card {
       background: #fff;
-      border: none;
+      border: 1px solid #e5e8ef;
       border-radius: 10px;
       padding: 20px;
       margin-bottom: 16px;
@@ -466,6 +466,7 @@
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px; }
     .stat-card {
       background: #fff;
+      border: 1px solid #e5e8ef;
       border-radius: 10px;
       padding: 20px;
       box-shadow: 0 1px 3px rgba(0,0,0,.1);
@@ -575,7 +576,7 @@
     /* ── Conversations ── */
     .conversations-shell {
       display: flex; height: calc(100vh - 160px); position: relative;
-      border-radius: 10px; overflow: hidden;
+      border: 1px solid #e5e8ef; border-radius: 10px; overflow: hidden;
       background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.1);
     }
     .conv-list-panel { width: 280px; border-right: 1px solid #f1f5f9; display: flex; flex-direction: column; flex-shrink: 0; }
@@ -1931,13 +1932,13 @@
     </div>
     <div id="agent-tabs" class="sidebar-nav">
       <div class="nav-section-label">MAIN</div>
-      <div class="nav-item tab-btn active" data-tab="dashboard" onclick="agentTab('dashboard',this)"><span class="nav-icon">🏠</span> Dashboard</div>
-      <div class="nav-item tab-btn" data-tab="my-leads" onclick="agentTab('my-leads',this)"><span class="nav-icon">👥</span> My Leads</div>
+      <div class="nav-item tab-btn active" data-tab="dashboard" onclick="agentTab('dashboard',this)"><span class="nav-icon" style="background:var(--tint-gold-bg)">🏠</span> Dashboard</div>
+      <div class="nav-item tab-btn" data-tab="my-leads" onclick="agentTab('my-leads',this)"><span class="nav-icon" style="background:var(--tint-sky-bg)">👥</span> My Leads</div>
       <div class="nav-section-label">TOOLS</div>
       <div class="nav-item tab-btn" data-tab="conversations" onclick="agentTab('conversations',this)"><span class="nav-icon" style="background:var(--tint-sky-bg)">💬</span> Omnichannel Inbox <span id="agent-conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
-      <div class="nav-item tab-btn" data-tab="comm-log" onclick="agentTab('comm-log',this)"><span class="nav-icon">🕐</span> Comm Log</div>
-      <div class="nav-item tab-btn" data-tab="log-activity" onclick="agentTab('log-activity',this)"><span class="nav-icon">📝</span> Log Activity</div>
-      <div class="nav-item tab-btn" data-tab="guide" onclick="agentTab('guide',this)"><span class="nav-icon">📖</span> Guide</div>
+      <div class="nav-item tab-btn" data-tab="comm-log" onclick="agentTab('comm-log',this)"><span class="nav-icon" style="background:var(--tint-success-bg)">🕐</span> Comm Log</div>
+      <div class="nav-item tab-btn" data-tab="log-activity" onclick="agentTab('log-activity',this)"><span class="nav-icon" style="background:var(--tint-danger-bg)">📝</span> Log Activity</div>
+      <div class="nav-item tab-btn" data-tab="guide" onclick="agentTab('guide',this)"><span class="nav-icon" style="background:var(--tint-warn-bg)">📖</span> Guide</div>
     </div>
     <div class="sidebar-footer">
       <div class="user-avatar" id="agent-sidebar-initials">A</div>
@@ -1964,7 +1965,8 @@
 
   <!-- Dashboard -->
   <div id="agent-tab-dashboard" class="tab-content active">
-    <h3>Dashboard</h3>
+    <h3 style="display:flex;align-items:center;gap:10px">Welcome Back, <span id="dash-agent-name">Agent</span> <span aria-hidden="true">👋</span></h3>
+    <p style="color:#64748b;font-size:0.85rem;margin:2px 0 18px">Here's what's happening with your leads today.</p>
     <div class="stat-grid">
       <div class="stat-card">
         <div class="stat-label">My Leads</div>
@@ -2734,6 +2736,8 @@ async function initAgent() {
   document.getElementById('agent-dashboard').style.display = 'block';
   const name = currentProfile.full_name || currentUser.email;
   document.getElementById('agent-name').textContent = name;
+  const _dashAgentName = document.getElementById('dash-agent-name');
+  if (_dashAgentName) _dashAgentName.textContent = name;
   const initialsEl = document.getElementById('agent-sidebar-initials');
   if (initialsEl) initialsEl.textContent = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   await loadAgentLeads();
