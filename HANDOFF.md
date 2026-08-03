@@ -48,6 +48,7 @@ Whoever finishes their piece first should update this section (mark it done, sam
 **Standing rule, reinforced hard tonight: zero em dashes, anywhere, ever - user-facing text, code comments, this file, everything.** Muhammad was extremely direct about this. All 158 occurrences in `index.html` and all 184 in this file were swept and replaced with plain hyphens tonight. Check before ever writing one again.
 
 ### Active Work Claims
+- Junaid - real subscribers table to replace the browser-generated placeholder list (persists, CSV import works, fed by signals-form signups) - 2026-08-03
 - Muhammad - mobile (375px) and dark-mode check of the four new Part 3 tabs (Train AI, Create Flow, Follow-ups, Message Templates), none of which existed during the earlier mobile/dark-mode passes - 2026-08-04, claimed before starting
 
 **DONE (2026-08-03) - Muhammad's mobile usability pass, tab by tab at 375px** (the 2026-07-19 backlog item flagged as "never systematically tested"). Found and fixed real bugs, not just checked the box:
