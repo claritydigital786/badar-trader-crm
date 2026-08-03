@@ -733,7 +733,7 @@
       <div class="nav-item" data-tab="meta-ads"><span class="nav-icon" style="background:var(--tint-warn-bg)">📈</span> Meta Ads</div>
       <div class="nav-section-label">TOOLS</div>
       <div class="nav-item" data-tab="add-lead"><span class="nav-icon" style="background:var(--tint-gold-bg)">➕</span> Add Lead</div>
-      <div class="nav-item" data-tab="conversations"><span class="nav-icon" style="background:var(--tint-sky-bg)">💬</span> Conversations <span id="conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
+      <div class="nav-item" data-tab="conversations"><span class="nav-icon" style="background:var(--tint-sky-bg)">💬</span> Omnichannel Inbox <span id="conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
       <div class="nav-item" data-tab="comm-log"><span class="nav-icon" style="background:var(--tint-success-bg)">🕐</span> Comm Log</div>
       <div class="nav-item" data-tab="reports"><span class="nav-icon" style="background:var(--tint-warn-bg)">📋</span> Reports</div>
       <div class="nav-item" data-tab="automation"><span class="nav-icon" style="background:var(--tint-danger-bg)">⚡</span> Automation</div>
@@ -1934,7 +1934,7 @@
       <div class="nav-item tab-btn active" data-tab="dashboard" onclick="agentTab('dashboard',this)"><span class="nav-icon">🏠</span> Dashboard</div>
       <div class="nav-item tab-btn" data-tab="my-leads" onclick="agentTab('my-leads',this)"><span class="nav-icon">👥</span> My Leads</div>
       <div class="nav-section-label">TOOLS</div>
-      <div class="nav-item tab-btn" data-tab="conversations" onclick="agentTab('conversations',this)"><span class="nav-icon">💬</span> Conversations <span id="agent-conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
+      <div class="nav-item tab-btn" data-tab="conversations" onclick="agentTab('conversations',this)"><span class="nav-icon" style="background:var(--tint-sky-bg)">💬</span> Omnichannel Inbox <span id="agent-conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
       <div class="nav-item tab-btn" data-tab="comm-log" onclick="agentTab('comm-log',this)"><span class="nav-icon">🕐</span> Comm Log</div>
       <div class="nav-item tab-btn" data-tab="log-activity" onclick="agentTab('log-activity',this)"><span class="nav-icon">📝</span> Log Activity</div>
       <div class="nav-item tab-btn" data-tab="guide" onclick="agentTab('guide',this)"><span class="nav-icon">📖</span> Guide</div>
@@ -2398,7 +2398,7 @@ function adminTab(name, el) {
   // Update header title
   const titles = {
     dashboard: 'Dashboard', leads: 'All Leads', agents: 'My Team',
-    'add-lead': 'Add Lead', conversations: 'Conversations',
+    'add-lead': 'Add Lead', conversations: 'Omnichannel Inbox',
     meta: 'Meta Integration', 'meta-ads': 'Meta Analytics',
     payroll: 'Payroll', automation: 'Automation',
     notifications: 'Notifications', sites: 'Landing Pages', reports: 'Reports',
@@ -2740,7 +2740,7 @@ async function initAgent() {
   loadUpcomingFollowups('agent-');
 }
 
-const AGENT_TAB_TITLES = { dashboard: 'Dashboard', 'my-leads': 'My Leads', conversations: 'Conversations', 'comm-log': 'Communication Log', 'log-activity': 'Log Activity', guide: 'Guide' };
+const AGENT_TAB_TITLES = { dashboard: 'Dashboard', 'my-leads': 'My Leads', conversations: 'Omnichannel Inbox', 'comm-log': 'Communication Log', 'log-activity': 'Log Activity', guide: 'Guide' };
 
 // Kept in sync with LINKS in supabase/functions/whatsapp-webhook/index.ts and
 // simulator.html. Ehsan asked for these to be copy-pasteable from the
@@ -4882,7 +4882,12 @@ async function openConversation(convId, scope = '') {
       </div>`;
     const msgArea = document.getElementById('conv-msgs-' + convId);
     if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
-    loadConvAttachmentThumbs(convId, messages);
+    // Screenshot thumbnails load asynchronously and grow the panel's content
+    // height after this initial scroll fires, stranding the view partway up
+    // the thread instead of at the real bottom - re-scroll once they land.
+    loadConvAttachmentThumbs(convId, messages).then(() => {
+      if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
+    });
     if (lead?.is_unread) {
       await sb.from('leads').update({ is_unread: false }).eq('id', convId);
       renderConversations(scope);
