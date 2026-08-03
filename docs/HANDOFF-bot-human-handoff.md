@@ -1,4 +1,4 @@
-# Handoff — Bot → Human Escalation + Naming/UI
+# Handoff - Bot → Human Escalation + Naming/UI
 
 Branch: `feat/bot-human-handoff` · Prepared 2026-07-10
 
@@ -24,14 +24,14 @@ advances a step (or, in the simulator, when the user taps the menu).
 - CRM Leads tab: demo mode → All Leads → the **⚠ Needs Human** dropdown filters to flagged leads; Omar Farooq shows the badge.
 - Simulator: 2 unanswerable messages in a row → handoff (badge flips to HANDED OFF, bot goes silent); tapping the menu resets the counter.
 
-## Deploy steps (need Supabase / Vercel access) — IN ORDER
-1. Run `supabase/migrations/20260710_bot_handoff.sql` in the Supabase SQL editor. **Must be first** — the new webhook writes these columns.
+## Deploy steps (need Supabase / Vercel access) - IN ORDER
+1. Run `supabase/migrations/20260710_bot_handoff.sql` in the Supabase SQL editor. **Must be first** - the new webhook writes these columns.
 2. `supabase functions deploy whatsapp-webhook`
 3. Deploy `index.html` to Vercel (for the Needs Human filter).
 4. Smoke test: WhatsApp the 3903 number, fumble the deposit question once → confirm it hands off and the bot stops replying.
 
 ## Open items / decisions
-1. ~~**Name spelling**~~ — RESOLVED 2026-07-11: confirmed **Badar Tanvir** (not Tanveer) directly by Badar. Fixed in `simulator.html`, `index.html`, `ACTION_NEEDED.md`.
-2. **No "Needs Human" alert/queue beyond the filter** — escalations set the flag and log into the lead's conversation, but there's no push notification. The Leads filter is the surfacing mechanism for now.
-3. **FAQ tier conflict — partially resolved 2026-07-11:** deposit amount confirmed flat **$500** (not $1,000) by Badar, matching the webhook; `docs/team-badar-faq.md` Q22/Q24 updated. Still open: course fee is $200 in the doc vs $250 in the webhook — needs Badar's confirmation before the 3 new Q&As sync into `simulator.html` + `whatsapp-webhook`.
-4. **Push** — new PAT generated and stored in macOS Keychain this session (old leaked one revoked); branch should now be pushable.
+1. ~~**Name spelling**~~ - RESOLVED 2026-07-11: confirmed **Badar Tanvir** (not Tanveer) directly by Badar. Fixed in `simulator.html`, `index.html`, `ACTION_NEEDED.md`.
+2. **No "Needs Human" alert/queue beyond the filter** - escalations set the flag and log into the lead's conversation, but there's no push notification. The Leads filter is the surfacing mechanism for now.
+3. **FAQ tier conflict - partially resolved 2026-07-11:** deposit amount confirmed flat **$500** (not $1,000) by Badar, matching the webhook; `docs/team-badar-faq.md` Q22/Q24 updated. Still open: course fee is $200 in the doc vs $250 in the webhook - needs Badar's confirmation before the 3 new Q&As sync into `simulator.html` + `whatsapp-webhook`.
+4. **Push** - new PAT generated and stored in macOS Keychain this session (old leaked one revoked); branch should now be pushable.

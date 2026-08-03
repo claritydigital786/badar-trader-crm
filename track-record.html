@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Badar Trader — Signal Track Record</title>
+<title>Badar Trader - Signal Track Record</title>
 <link rel="icon" type="image/svg+xml" href="/assets/bull.svg">
 <meta name="description" content="Verified signal history for Badar Trader. Every signal is timestamped automatically the moment it is broadcast.">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -51,7 +51,7 @@
 <div class="wrap">
   <header>
     <h1>📊 Badar Trader <span>Signal Track Record</span></h1>
-    <p>Last 14 days of broadcast signals. Every entry is timestamped automatically at the moment it is sent to subscribers — nothing is added or edited after the fact.</p>
+    <p>Last 14 days of broadcast signals. Every entry is timestamped automatically at the moment it is sent to subscribers - nothing is added or edited after the fact.</p>
     <div class="badge" id="live-badge">Loading…</div>
   </header>
 
@@ -104,9 +104,9 @@ function pips(s) {
 }
 
 function rr(s) {
-  if (!s.entry || !s.tp || !s.sl) return '—';
+  if (!s.entry || !s.tp || !s.sl) return '-';
   const t = Math.abs(s.tp - s.entry), l = Math.abs(s.entry - s.sl);
-  return l ? '1:' + (t / l).toFixed(1) : '—';
+  return l ? '1:' + (t / l).toFixed(1) : '-';
 }
 
 async function load() {
@@ -130,7 +130,7 @@ async function load() {
     const pct = resolved.length ? Math.round(tp / resolved.length * 100) : null;
 
     statsEl.innerHTML = `
-      <div class="stat"><div class="v" style="color:${pct===null?'#94a3b8':pct>=60?'#22c55e':'#f59e0b'}">${pct===null?'—':pct+'%'}</div><div class="l">TP Hit Rate</div></div>
+      <div class="stat"><div class="v" style="color:${pct===null?'#94a3b8':pct>=60?'#22c55e':'#f59e0b'}">${pct===null?'-':pct+'%'}</div><div class="l">TP Hit Rate</div></div>
       <div class="stat"><div class="v">${rows.length}</div><div class="l">Signals (14d)</div></div>
       <div class="stat"><div class="v" style="color:#22c55e">${tp}</div><div class="l">TP Hit</div></div>
       <div class="stat"><div class="v" style="color:#ef4444">${sl}</div><div class="l">SL Hit</div></div>
@@ -138,7 +138,7 @@ async function load() {
       <div class="stat"><div class="v" style="color:#64748b">${pending}</div><div class="l">Running</div></div>`;
 
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="10" class="empty">Track record is warming up — new signals appear here automatically the moment they are broadcast. Check back soon.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" class="empty">Track record is warming up - new signals appear here automatically the moment they are broadcast. Check back soon.</td></tr>';
     } else {
       tbody.innerHTML = rows.map(s => {
         const d = new Date(s.created_at);
@@ -148,18 +148,18 @@ async function load() {
         return `<tr>
           <td style="color:#94a3b8">${d.toLocaleDateString([], {day:'2-digit', month:'short'})}</td>
           <td style="color:#94a3b8">${d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</td>
-          <td style="font-weight:600">${s.instrument || '—'}</td>
+          <td style="font-weight:600">${s.instrument || '-'}</td>
           <td class="${cls}">${(s.type || '').toUpperCase()}</td>
-          <td>${s.entry ?? '—'}</td>
-          <td style="color:#22c55e">${s.tp ?? '—'}</td>
-          <td style="color:#ef4444">${s.sl ?? '—'}</td>
+          <td>${s.entry ?? '-'}</td>
+          <td style="color:#22c55e">${s.tp ?? '-'}</td>
+          <td style="color:#ef4444">${s.sl ?? '-'}</td>
           <td>${rr(s)}</td>
           <td style="color:${color};font-weight:600">${label}</td>
-          <td style="font-weight:600;color:${p && p.startsWith('+') ? '#22c55e' : p && p.startsWith('-') ? '#ef4444' : '#94a3b8'}">${p ?? '—'}</td>
+          <td style="font-weight:600;color:${p && p.startsWith('+') ? '#22c55e' : p && p.startsWith('-') ? '#ef4444' : '#94a3b8'}">${p ?? '-'}</td>
         </tr>`;
       }).join('');
     }
-    badge.textContent = '✓ Live data — updates automatically';
+    badge.textContent = '✓ Live data - updates automatically';
     document.getElementById('updated-at').textContent = 'Updated ' + new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
   } catch (e) {
     badge.textContent = 'History not available yet';

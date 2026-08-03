@@ -280,7 +280,7 @@
 
 <!-- Lead form card -->
 <div class="card">
-  <h2>Get Started — It's Free</h2>
+  <h2>Get Started - It's Free</h2>
 
   <div id="form-section">
     <label for="lp-name">Full Name *</label>
@@ -362,7 +362,7 @@ window.addEventListener('DOMContentLoaded', () => {
     sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
   if (demoMode) {
-    showToast('Demo mode active — submissions won\'t be saved to Supabase.', 'info');
+    showToast('Demo mode active - submissions won\'t be saved to Supabase.', 'info');
   }
 });
 
@@ -417,7 +417,7 @@ async function submitLead() {
   const { error } = await sb.from('leads').insert(payload);
 
   if (error) {
-    errEl.textContent = 'Something went wrong — please try again or contact us directly on WhatsApp.';
+    errEl.textContent = 'Something went wrong - please try again or contact us directly on WhatsApp.';
     console.error('Landing page submit error:', error);
     btn.disabled    = false;
     btn.textContent = 'Get My Free Consultation →';
