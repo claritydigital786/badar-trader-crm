@@ -881,3 +881,28 @@ Then `db push --include-all` applied the three real local migrations. The two ol
 Verified in-browser: pressing Send produces "Not sent. Nothing was delivered and nothing was recorded", `_signalHistory` does not grow, no database write, zero console errors. **Note during testing the first run appeared to still say "Delivered" - that was a cached page, confirmed by re-running with a cache-busting URL. Worth remembering when verifying UI changes locally.**
 
 **Still open and unchanged (product decisions, not code):** whether Subscribers should mirror the three WhatsApp Communities, and whether AI Signals stays `Math.random()` or gets rebuilt on real indicators. The AI Signals tab still presents random pattern names and confidence percentages to clients and was NOT touched here, because changing client-facing content needs Badar's sign-off. That remains the single biggest honesty issue left in the CRM.
+
+---
+
+## 2026-08-03 - WhatChimp decision: SETTLED. Recommendation is do not renew.
+
+**The facts, all already documented in this file, just never put side by side:**
+
+1. **WhatChimp is currently doing nothing.** Its AI Agent was switched off on 2 August on Muhammad's instruction and verified persisted after reload. Its Keyword Replies and Message Templates were already empty. The Flow Builder rebuild was never saved and its in-memory state was lost when the tab closed. So every automation feature it was bought for is off or unbuilt.
+2. **The subscription is being paid for regardless.**
+3. **The Supabase bot is complete, deployed and current** (`whatsapp-webhook` v67), covering the whole funnel: greeting, language picker, broker choice, experience, deposit confirmation, screenshot handling, escalation, Go Back navigation, 24h restart rules, agent takeover detection, read receipts. All of it built and verified over weeks.
+4. **The webhook endpoint is live and accepting Meta callbacks** - verified today, a POST to the function returns 200.
+5. **Both systems can receive the same inbound messages.** That is precisely why `BOT_REPLIES_ENABLED = false` was introduced on 28 July: the concern was double replies, which only arises if both are subscribed to the same WABA.
+
+**Conclusion: the CRM is one flag away from doing everything WhatChimp was bought to do, and WhatChimp is currently doing none of it.** There is no technical case for renewing. The only arguments for keeping it are non-technical: its Shared Inbox as an agent UI, and not wanting to change tooling mid-month.
+
+**Go-live checklist for resuming the Supabase bot (in order, do not skip step 1):**
+1. **Confirm WhatChimp's AI Agent is still OFF** for the 3903 bot (WhatChimp -> AI -> AI Agents and Intent Detection), and that its Keyword Replies are still empty. If anything there is live, both systems answer and customers get duplicates. This is the one genuine precondition; everything else is reversible.
+2. Set `BOT_REPLIES_ENABLED = true` in `supabase/functions/whatsapp-webhook/index.ts`.
+3. `npx supabase@latest functions deploy whatsapp-webhook --no-verify-jwt --project-ref vfskqzgphrunjxquqpks`
+4. Send one real WhatsApp message to +92 371 5773903 and confirm the greeting and language card arrive.
+5. Leave `NEW_LEAD_NOTIFICATIONS_ENABLED = false` and the `nudge-agents` cron unscheduled for now; those are the separate agent-spam questions and are not part of resuming the customer-facing bot.
+
+**Not doing step 2 blind, and this is an engineering judgement rather than a request for permission:** flipping it without checking step 1 risks double-replying to real prospects arriving from live ad spend on the 1st August campaign. The check takes about two minutes in the WhatChimp UI.
+
+**Still genuinely a business call, not a technical one:** whether to cancel or let the subscription lapse, and whether Badar's agents prefer WhatChimp's Shared Inbox to the CRM's Omnichannel Inbox as their day-to-day workspace. Those involve money and Badar's team, so they are noted here rather than decided.
