@@ -431,6 +431,10 @@
     [data-theme="dark"] input, [data-theme="dark"] textarea, [data-theme="dark"] select {
       background: #0f172a; border-color: #243350; color: #f1f5f9;
     }
+    /* Inline color:#0f172a is used ~27 times for card headings (mostly the
+       Guide tab) - class-level overrides above can't beat an inline style,
+       so this specifically targets that literal pattern. */
+    [data-theme="dark"] [style*="color:#0f172a"] { color: #f1f5f9 !important; }
     td { color: #334155; }
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: #f8fafc; }
@@ -1550,8 +1554,16 @@
       <p style="color:#475569;font-size:0.88rem">Manually create a single lead, or bulk-import many at once via CSV.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Conversations</p>
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Omnichannel Inbox</p>
       <p style="color:#475569;font-size:0.88rem">The actual WhatsApp chat interface. Read and reply to leads directly here.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Create Flow</p>
+      <p style="color:#475569;font-size:0.88rem">A simple automation builder (trigger keyword -> automatic reply). Not built yet - opening it shows an honest "coming soon" note, not a fake feature.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Train AI</p>
+      <p style="color:#475569;font-size:0.88rem">Where the bot's system prompt and knowledge notes will be managed per number. Not built yet - same honest placeholder as Create Flow.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Comm Log</p>
@@ -1592,6 +1604,14 @@
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Sites</p>
       <p style="color:#475569;font-size:0.88rem">Public-facing landing pages and domains connected to this CRM.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">User Manager</p>
+      <p style="color:#475569;font-size:0.88rem">Every admin and agent with access to this CRM - promote, suspend, or check when someone joined. Admin only.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">User Permission</p>
+      <p style="color:#475569;font-size:0.88rem">A reference for what Admin vs Agent can currently do. Roles themselves are changed from User Manager, not here - there is no separate per-feature toggle yet.</p>
     </div>
     <div class="card" style="background:#eef2f7">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">A note on agent access</p>
@@ -2353,7 +2373,7 @@
       <p style="color:#475569;font-size:0.88rem">Every lead in the system, not just your own assigned ones (changed 21 July 2026, any active agent can now see everybody's leads). Open any lead here for its full record.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Conversations</p>
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Omnichannel Inbox</p>
       <p style="color:#475569;font-size:0.88rem">The actual WhatsApp chat interface. Read and reply to leads directly here.</p>
     </div>
     <div class="card">
