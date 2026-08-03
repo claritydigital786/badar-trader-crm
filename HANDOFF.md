@@ -35,7 +35,7 @@ Verified in the browser at localhost:8744 in demo mode by calling the real `init
 **Standing rule, reinforced hard tonight: zero em dashes, anywhere, ever - user-facing text, code comments, this file, everything.** Muhammad was extremely direct about this. All 158 occurrences in `index.html` and all 184 in this file were swept and replaced with plain hyphens tonight. Check before ever writing one again.
 
 ### Active Work Claims
-_(empty - add a line here when starting something: `- [Name] - [task] - [date/time]`, remove when done)_
+- Junaid - Part 2 of the UI redesign (agent sidebar badges, dashboard header, card styling on Leads/Conversations/Reports) - 2026-08-03
 
 Prior version of this doc (2026-07-13) covered the main/feat branch-divergence discovery
 and merge into `integration/merge-bot-human-handoff`. That merge is still the base - a
