@@ -1260,6 +1260,18 @@
     </div>
 
     <div class="card">
+      <h4 style="margin-bottom:10px">Preview what the bot would be told</h4>
+      <p style="color:#64748b;font-size:0.82rem;margin-bottom:12px">Assembles a campaign into the exact instructions an AI would receive. This builds the text only, it makes no AI call and sends nothing.</p>
+      <div class="form-row">
+        <div class="form-group" style="flex:2">
+          <label>Campaign</label>
+          <select id="akb-preview-select" onchange="runAiKbPreview()"></select>
+        </div>
+      </div>
+      <div id="akb-preview-result"></div>
+    </div>
+
+    <div class="card">
       <table>
         <thead><tr>
           <th>Campaign</th><th>Bot Number</th><th>Prompt</th><th>Active</th><th></th>
@@ -4399,6 +4411,65 @@ let cachedFollowUps      = [];
 
 let cachedTemplates = [];
 
+// ── TRAIN AI PREVIEW ──────────────────────────────────────────
+// Builds the instruction text a campaign would give an AI, so you can read
+// exactly what the bot would be working from. Makes no AI call, costs
+// nothing, sends nothing, writes nothing.
+
+// Rough only. Real tokenisers vary by model; ~4 characters per token is the
+// usual English approximation and is good enough to spot a prompt that has
+// grown too large, which is all this is for.
+function approxTokens(text) { return Math.ceil((text || '').length / 4); }
+
+function buildAiKbPrompt(k) {
+  if (!k) return '';
+  const parts = [(k.system_prompt || '').trim()];
+  if ((k.knowledge_notes || '').trim()) {
+    parts.push('Knowledge you can rely on:\n' + k.knowledge_notes.trim());
+  }
+  return parts.filter(Boolean).join('\n\n');
+}
+
+function refreshAiKbPreviewOptions() {
+  const sel = document.getElementById('akb-preview-select');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = cachedAiKb.length
+    ? cachedAiKb.map(k => `<option value="${esc(k.id)}">${esc(k.campaign_name)}${k.is_active ? '' : ' (paused)'}</option>`).join('')
+    : '<option value="">No campaigns yet</option>';
+  if ([...sel.options].some(o => o.value === current)) sel.value = current;
+  runAiKbPreview();
+}
+
+function runAiKbPreview() {
+  const box = document.getElementById('akb-preview-result');
+  if (!box) return;
+  const id = document.getElementById('akb-preview-select')?.value;
+  const k  = cachedAiKb.find(x => String(x.id) === String(id));
+  if (!k) { box.innerHTML = '<div style="color:#64748b;font-size:0.85rem">Create a campaign below to preview it.</div>'; return; }
+
+  const text   = buildAiKbPrompt(k);
+  const chars  = text.length;
+  const tokens = approxTokens(text);
+
+  // Flag the things that actually go wrong in practice: a paused campaign
+  // the bot would ignore, no knowledge notes, or a prompt large enough to
+  // eat the context window and cost money on every single reply.
+  const warn = [];
+  if (!k.is_active) warn.push('This campaign is paused, so the bot would not use it.');
+  if (!(k.knowledge_notes || '').trim()) warn.push('No knowledge notes, so the bot has only the system prompt to work from.');
+  if (tokens > 2000) warn.push('This is a large prompt (roughly ' + tokens.toLocaleString() + ' tokens). It gets sent with every single reply, so it affects both cost and how much room is left for the conversation.');
+
+  box.innerHTML = `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px;font-size:0.8rem;color:#64748b">
+      <span><strong style="color:#0f172a">${chars.toLocaleString()}</strong> characters</span>
+      <span><strong style="color:#0f172a">~${tokens.toLocaleString()}</strong> tokens (estimate)</span>
+      <span>Bot number: <strong style="color:#0f172a">${esc(k.bot_number || 'not set')}</strong></span>
+    </div>
+    ${warn.map(w => `<div style="border-left:3px solid #b45309;padding:6px 10px;background:rgba(180,83,9,.08);border-radius:6px;margin-bottom:8px;font-size:0.82rem;color:#b45309">${esc(w)}</div>`).join('')}
+    <pre style="white-space:pre-wrap;word-break:break-word;background:#f8fafc;border:1px solid #e5e8ef;border-radius:8px;padding:12px;font-size:0.8rem;line-height:1.5;color:#0f172a;max-height:320px;overflow:auto;margin:0">${esc(text)}</pre>`;
+}
+
 // ── RULE TESTERS ──────────────────────────────────────────────
 // Preview only. These evaluate the saved rules and show what WOULD be
 // sent. Nothing here contacts a customer, writes to the database, or
@@ -4764,12 +4835,13 @@ function showTableError(tbodyId, error) {
 }
 
 async function loadAiKb() {
-  if (demoMode) { cachedAiKb = _DEMO_AI_KB.slice(); renderAiKbTable(); return; }
+  if (demoMode) { cachedAiKb = _DEMO_AI_KB.slice(); renderAiKbTable(); refreshAiKbPreviewOptions(); return; }
   const { data, error } = await sb
     .from('ai_knowledge_base').select('*').order('created_at', { ascending: false });
   if (error) { console.error('loadAiKb:', error); showTableError('ai-kb-tbody', error); return; }
   cachedAiKb = data || [];
   renderAiKbTable();
+  refreshAiKbPreviewOptions();
 }
 
 function renderAiKbTable() {

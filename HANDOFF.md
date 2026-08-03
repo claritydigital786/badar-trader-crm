@@ -48,7 +48,6 @@ Whoever finishes their piece first should update this section (mark it done, sam
 **Standing rule, reinforced hard tonight: zero em dashes, anywhere, ever - user-facing text, code comments, this file, everything.** Muhammad was extremely direct about this. All 158 occurrences in `index.html` and all 184 in this file were swept and replaced with plain hyphens tonight. Check before ever writing one again.
 
 ### Active Work Claims
-- Junaid - Train AI prompt preview: pick a campaign, see the assembled prompt exactly as the bot would receive it, with size warnings. No AI call, no sending - 2026-08-04
 
 **DONE (2026-08-04) - Muhammad's mobile/dark-mode check of the four new Part 3 tabs** (Train AI, Create Flow, Follow-ups, Message Templates - built after the earlier mobile/dark-mode passes, so never checked). Found and fixed two real bugs, not just checked the box:
 - All four tables were missing `white-space:nowrap` on their long-content cells (system prompts, reply bodies, template names), so text wrapped across many lines on mobile instead of scrolling on one line like every other table in the app. Fixed to match the established pattern.
@@ -975,3 +974,17 @@ Both explain **near misses**, which is the genuinely confusing case: a rule that
 **One coupling to be aware of:** the keyword matcher in the tester is deliberately identical to `tryKeywordReply()` in `supabase/functions/whatsapp-webhook/index.ts`, and both carry a comment saying so. If one is changed without the other, the tester starts lying about what the bot would really do.
 
 Verified in demo mode across every branch: exact match, paused-rule near miss, no match, empty input, follow-up due, not due yet, paused, and a status with no rules. Script parse confirmed in-browser before testing (see the dead-script incident in the previous entry). Zero console errors.
+
+---
+
+## 2026-08-04 - Train AI prompt preview
+
+Third and last of the preview additions. Train AI stored a system prompt and knowledge notes but showed nothing about what the bot would actually work from. Selecting a campaign now assembles both fields into the exact instruction text an AI would receive, with the notes under a clear heading rather than silently concatenated.
+
+Reports character count and a rough token estimate (about 4 characters per token, useful only for spotting a prompt that has grown too large), and warns about the three things that actually go wrong in practice: the campaign is paused so the bot would ignore it, there are no knowledge notes so only the system prompt is doing the work, or the prompt is large enough to cost money on every single reply and eat into the context window.
+
+**Builds text only.** No AI call, no cost, nothing sent, nothing written, no conversation or lead data touched.
+
+Verified across all branches including a 9,000 character prompt reporting roughly 2,258 tokens and triggering the size warning.
+
+**All three automation tabs can now be demonstrated without sending anything:** Create Flow answers "what would the bot reply to this message", Follow-ups answers "what would fire for a lead sitting this long", and Train AI answers "what would the bot be told". That was the real gap for showing this to anyone: the features stored settings but visibly did nothing.
