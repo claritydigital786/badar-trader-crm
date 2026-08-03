@@ -1,25 +1,25 @@
-# Team Badar — Support Knowledge Base (Chat Questions)
+# Team Badar - Support Knowledge Base (Chat Questions)
 
 Source: "Chat Questions" doc from Muhammad, July 2026. This is the canonical FAQ for
 subscriber conversations. Replies mirror the client's language (Roman Urdu / English mix).
 
-## Onboarding funnel (Free Premium Signals Group By Badar Tanveer)
+## Onboarding funnel (Free Premium Signalling Group By Badar Tanvir)
 1. Client MUST create a broker account through Team Badar's IB link (mandatory):
    - Exness: https://one.exnesstrack.org/a/eatgh2cl7y (referral code: eatgh2cl7y)
-   - Do Prime: https://my.dooprime.com/links/go/45031 (referral code: 45031)
+   - XM: https://affs.click/a3Vrw (referral code: YR4PD)
 2. Deposit a flat $500 (not a range).
 3. Existing accounts: client must change IB partner code (may need to contact
-   Exness / Do Prime support). Ask if confirmation email was received.
+   Exness / XM support). Ask if confirmation email was received.
 4. Client shares deposit screenshot on WhatsApp.
 5. Client submits Google Form: https://forms.gle/ivBDDYQSLPvKHzXM9
 6. Added to signal group within 48 hours of form submission.
 
 ## Products
-- Free Premium Signals Group By Badar Tanveer: free after joining under the IB link (see funnel above).
+- Free Premium Signalling Group By Badar Tanvir: free after joining under the IB link (see funnel above).
 - Premium group: for clients keeping their current broker, charges apply (fee tiers
   discussed case by case; clients sometimes ask for $500–$1000 options).
 - Course (3-month mentorship): worth $250, given completely FREE the moment a client
-  deposits $500 with Exness or Do Prime. There is no separate course fee to pay.
+  deposits $500 with Exness or XM. There is no separate course fee to pay.
   Enroll: https://badartrader.com/check-3/
   WhatsApp: +923715773903
 - Course timings: approx 8–10pm PKT, ~60 min sessions, live sessions recorded.
@@ -35,7 +35,7 @@ subscriber conversations. Replies mirror the client's language (Roman Urdu / Eng
 
 ## Canonical Q→A pairs
 - "I want to join signal group" → Free Signals ke liye pehle hamari link ke through
-  Exness ya Do Prime par account create karein (hamari link ke through account
+  Exness ya XM par account create karein (hamari link ke through account
   create karna lazmi hai).
 - "Course group details?" → 3 Months Mentorship, worth $250, FREE with a $500 deposit,
   high success ratio, live Zoom classes, live trading with advanced liquidity concepts,
@@ -56,7 +56,7 @@ subscriber conversations. Replies mirror the client's language (Roman Urdu / Eng
 - Signal group ya Course group ki details chahiye?
 - Deposit screenshot WhatsApp par share kiya? (Different mobile try kiya?)
 - IB partner code change ho gaya? Confirmation mail mili?
-- Account naya hai ya purana? Purana → Do Prime / Exness support se contact kiya?
+- Account naya hai ya purana? Purana → XM / Exness support se contact kiya?
 - Deposit flat $500 kiya hai?
 - Form submission ka screenshot team ko bheja?
 - Discord community join kar li?
@@ -66,7 +66,7 @@ subscriber conversations. Replies mirror the client's language (Roman Urdu / Eng
 - Polite, brotherly ("brother", "bhai"), never pushy.
 - Always end unresolved threads with the next concrete step for the client.
 
-## Conversation flow v2 — language selection (REQUIRED first step)
+## Conversation flow v2 - language selection (REQUIRED first step)
 Every NEW user entering the group chat / inbox gets the language picker before anything else:
 
 > Assalam o Alaikum! This is Team Badar. 🌟
@@ -82,9 +82,9 @@ Answers marked [CONFIRM] need Badar's team to supply the official figure before 
 uses them; until then the team answers those manually.
 
 1. "Sir how to join your premium group?" → EN: First create your account through our
-   link on Exness or Do Prime (mandatory), deposit a flat $500, share the deposit
+   link on Exness or XM (mandatory), deposit a flat $500, share the deposit
    screenshot on WhatsApp, submit the Google Form; you'll be added within 48 hours.
-   RU: Pehle hamari link se Exness ya Do Prime par account banayein (lazmi), flat $500
+   RU: Pehle hamari link se Exness ya XM par account banayein (lazmi), flat $500
    deposit karein, screenshot WhatsApp par bhejein, Google Form submit karein; 48 hours
    mein add kar diye jayenge.
 2. "Kindly share Course group Details?" → 3 Months Mentorship, worth $250, FREE with a
@@ -99,7 +99,7 @@ uses them; until then the team answers those manually.
 5. "Apna current broker rakhun to premium charges?" → Premium (own broker) paid option
    available: [CONFIRM fee]. IB route par free option available hai.
 6. "IB change ke baad confirmation mail mili thi?" → Haan, broker confirmation email
-   bhejta hai; agar nahi mili to Exness / Do Prime support se contact karein, phir
+   bhejta hai; agar nahi mili to Exness / XM support se contact karein, phir
    screenshot team ko bhejein.
 7. "Deposit screenshot share kar diya, group mein add kar denge?" → Ji bhai, screenshot
    + Google Form ke baad 48 hours ke andar add kar diya jata hai.
@@ -119,14 +119,14 @@ uses them; until then the team answers those manually.
 15. "Can I join the premium group?" → Yes: IB route (free) or own-broker premium
     ([CONFIRM fee]).
 16. "How can I join your new batch?" → Enroll at https://badartrader.com/check-3/,
-    worth $250 FREE with a $500 deposit with Exness or Do Prime, then WhatsApp your
+    worth $250 FREE with a $500 deposit with Exness or XM, then WhatsApp your
     deposit screenshot to +923715773903.
 17. "How can I deposit and withdraw?" → Deposits/withdrawals happen inside your broker
-    (Exness / Do Prime) app: Wallet → Deposit/Withdraw via local payment methods. Team
+    (Exness / XM) app: Wallet → Deposit/Withdraw via local payment methods. Team
     can guide step by step on WhatsApp if stuck.
 18. "Will my previous partner or referral change if I join?" → Yes. Joining requires
-    changing your IB/partner code to Team Badar's (Exness: eatgh2cl7y, Do Prime:
-    45031). Existing accounts may need to request the change via broker support.
+    changing your IB/partner code to Team Badar's (Exness: eatgh2cl7y, XM:
+    YR4PD). Existing accounts may need to request the change via broker support.
 19. "Please add me to signal group" → Funnel Q1; account via our link first (lazmi).
 20. "What is the joining fee?" → Signal group: free via IB route (deposit a flat $500 is
     YOUR trading capital, not a fee). Course: worth $250, FREE with the $500 deposit, not a
@@ -145,16 +145,16 @@ worth $250 and is given completely FREE the moment a client deposits $500 with e
 broker. Resolved, matches the live webhook.
 
 22. "Signal Group join karne ke liye kitna deposit chahiye?" (standalone paid Signal Group)
-    → EN: Our Signal Group requires a flat $500 deposit — not a penny less. For full details,
+    → EN: Our Signal Group requires a flat $500 deposit - not a penny less. For full details,
     contact the team on WhatsApp +923715773903.
-    RU: Signal Group ke liye flat $500 ka deposit zaroori hai — is se kam nahi. Mazeed
+    RU: Signal Group ke liye flat $500 ka deposit zaroori hai - is se kam nahi. Mazeed
     tafseelat ke liye WhatsApp +923715773903 par rabta karein.
 23. "Free Forex trading join karne ka kya criteria hai?"
     → EN: For free Forex training, a $500 deposit in an active account is required. This is
-    trading education — profit and loss are both possible in the market, and we do not
+    trading education - profit and loss are both possible in the market, and we do not
     guarantee growing your capital to any target.
     RU: Free Forex training ke liye active account mein $500 ka deposit zaroori hai. Yeh
-    trading education hai — market mein munafa aur nuqsan dono mumkin hai, aur kisi bhi
+    trading education hai - market mein munafa aur nuqsan dono mumkin hai, aur kisi bhi
     target tak capital grow karne ki guarantee nahi di jati.
 24. "Course ke sath Signal Group bhi join karna ho, toh kya requirement hai?" (Course + Signal combined)
     → EN: To join the Signal Group together with the Course, the same flat $500 deposit applies.

@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Create Agent Accounts — Badar Trader CRM</title>
+<title>Create Agent Accounts - Badar Trader CRM</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   body { font-family: system-ui; background: #0f172a; color: #f1f5f9; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 24px; box-sizing: border-box; }
@@ -46,7 +46,7 @@
   <button id="btn" onclick="createAccounts()">Create Both Accounts</button>
 
   <div class="creds" id="creds-box">
-    <h2>Login Credentials — share with agents</h2>
+    <h2>Login Credentials - share with agents</h2>
     <div class="cred-row"><span class="label">URL</span><span class="val" id="cred-url"></span></div>
     <div class="cred-row"><span class="label">Agent 1 email</span><span class="val">Cjhanzla@gmail.com</span></div>
     <div class="cred-row"><span class="label">Agent 1 password</span><span class="val" id="cred-pw1"></span></div>
@@ -85,13 +85,13 @@ async function createAccounts() {
   if (r1.error) {
     setStatus(1, 'err', '❌ ' + r1.error.message);
   } else {
-    setStatus(1, 'ok', '✅ Account created — check email to confirm');
+    setStatus(1, 'ok', '✅ Account created - check email to confirm');
   }
 
   if (r2.error) {
     setStatus(2, 'err', '❌ ' + r2.error.message);
   } else {
-    setStatus(2, 'ok', '✅ Account created — check email to confirm');
+    setStatus(2, 'ok', '✅ Account created - check email to confirm');
   }
 
   if (!r1.error || !r2.error) {
