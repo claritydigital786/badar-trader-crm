@@ -49,7 +49,12 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 - Junaid - real subscribers table to replace the browser-generated placeholder list (persists, CSV import works, fed by signals-form signups) - 2026-08-03
-- Muhammad - mobile (375px) and dark-mode check of the four new Part 3 tabs (Train AI, Create Flow, Follow-ups, Message Templates), none of which existed during the earlier mobile/dark-mode passes - 2026-08-04, claimed before starting
+
+**DONE (2026-08-04) - Muhammad's mobile/dark-mode check of the four new Part 3 tabs** (Train AI, Create Flow, Follow-ups, Message Templates - built after the earlier mobile/dark-mode passes, so never checked). Found and fixed two real bugs, not just checked the box:
+- All four tables were missing `white-space:nowrap` on their long-content cells (system prompts, reply bodies, template names), so text wrapped across many lines on mobile instead of scrolling on one line like every other table in the app. Fixed to match the established pattern.
+- Bigger find: a bare `td { color:#334155 }` rule (dark slate, meant for light backgrounds) was silently winning over the intended `[data-theme="dark"] table { color:#cbd5e1 }` rule via direct-property-beats-inheritance, because it was never given its own dark-mode override. This made plain table cell text (bot numbers, categories, anything without its own inline color) nearly illegible in dark mode - **on every table in the app, not just the new ones.** Added the missing `[data-theme="dark"] td` override, verified across all four tabs plus a re-check of Train AI/All Leads.
+
+Verified locally at 375px in both themes, zero console errors, before committing and pushing (`106464c`, merged with Junaid's live-conversations standing rule and the AI Signals wording fix).
 
 **DONE (2026-08-03) - Muhammad's mobile usability pass, tab by tab at 375px** (the 2026-07-19 backlog item flagged as "never systematically tested"). Found and fixed real bugs, not just checked the box:
 - Sidebar didn't fully hide when collapsed on mobile - it translated by a hardcoded `-220px` while its actual width was `232px`, leaving a permanent ~12px sliver on-screen at every phone width. Switched to `translateX(-100%)` so it can never drift out of sync with the real width again.
