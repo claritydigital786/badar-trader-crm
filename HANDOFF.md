@@ -988,3 +988,63 @@ Reports character count and a rough token estimate (about 4 characters per token
 Verified across all branches including a 9,000 character prompt reporting roughly 2,258 tokens and triggering the size warning.
 
 **All three automation tabs can now be demonstrated without sending anything:** Create Flow answers "what would the bot reply to this message", Follow-ups answers "what would fire for a lead sitting this long", and Train AI answers "what would the bot be told". That was the real gap for showing this to anyone: the features stored settings but visibly did nothing.
+
+---
+
+## 2026-08-04 - Appointments section
+
+**New Appointments tab (`appointments`), applied to production and verified.** Scheduling calls and meetings with prospects, which is daily agent work that had no home in the CRM at all.
+
+Book a call with title, date and time, duration, contact name and phone, an owner picked from the staff list, and notes. Overdue scheduled appointments are flagged in red in both the row and the stat tile, so nothing quietly slips. One-click Done, plus edit and delete. Filters for upcoming, today, all, and each status. Four stat tiles: Today, Upcoming, Overdue, Completed. Phase 23 in `schema.sql`.
+
+**Visibility differs from the Part 3 config tables on purpose.** This uses `is_active_staff()` so every active staff member sees it, matching how leads and communications have behaved since Phase 15. Agents need their own calendar; admin-only would have made the feature pointless.
+
+**Deliberately decoupled from `public.leads`:** contact name and phone are plain text with NO foreign key. Nothing in this feature can read, lock or alter live lead or conversation data. That is a construction choice, not just a policy one, and it matters while the client's ad campaign is running and billed.
+
+Verified in demo mode (stats, overdue flagging, all three validation paths, create, every filter, marking done moving the counts) and against the real database (table selects, anonymous INSERT rejected with `42501`, empty state renders). Zero console errors.
+
+**Process slip worth recording:** this one was built without adding an Active Work Claims line first, unlike everything else today. No collision resulted, but the rule exists precisely so that is not down to luck.
+
+---
+
+## Section index - what each part of the CRM actually does
+
+Written 2026-08-04. Useful when showing the CRM to anyone, and as a map into the rest of this very long file. **Honest labels: "real" means it reads and writes live data; "stores only" means the screen saves configuration that nothing acts on yet; "demo data" means the figures on screen are samples.**
+
+**Agent sees six tabs:** Dashboard, My Leads, Omnichannel Inbox, Comm Log, Log Activity, Guide.
+**Admin sees all of the below.**
+
+### Core pipeline (real)
+- **Dashboard** - welcome header, quick-action tiles, lead stats, upcoming follow-ups widget, Meta Ads performance.
+- **All Leads / My Leads** - the lead pipeline. Search, filter, CSV export, lead detail panel with notes, KYC, transactions and activity. Admin sees all; agents see all active-staff leads since the Phase 15 RLS change.
+- **Add Lead** - manual lead entry.
+- **Omnichannel Inbox** - WhatsApp conversations with real customers, WhatsApp-styled bubbles, per-contact avatars, quick links, conversation short links. **This is live campaign traffic. Do not operate on it.**
+- **Comm Log** - communication history and notes across leads.
+- **Log Activity** - agent activity logging.
+- **Reports** - conversion stats, agent performance, lead source breakdown, revenue.
+- **My Team** - agent roster, round-robin assignment status.
+- **Payroll** - agent commission and payout tracking.
+
+### Automation (stores only, nothing sends yet)
+- **Create Flow** - keyword replies: trigger keyword plus the reply to send. Includes a tester: type a customer message, see which rule matches and what would go out. The webhook can read this table but is gated off by `KEYWORD_REPLIES_ENABLED = false`.
+- **Follow-ups** - timed nudges: when a lead sits in a status for N hours, send this. Includes a tester by status and hours. No scheduled job reads it.
+- **Train AI** - system prompt plus knowledge notes per bot number, with a preview that assembles the exact instruction text an AI would receive, character and token counts, and warnings for paused, empty or oversized prompts. Makes no AI call.
+- **Message Templates** - WhatsApp template copy and Meta approval status. Nothing is submitted to Meta from here; status is set by hand. Needed because WhatsApp blocks free-form replies more than 24h after a customer's last message.
+- **Automation** - the older rules engine (trigger event to channel action). Predates the Part 3 work.
+
+### Scheduling and audience (real)
+- **Appointments** - book calls with prospects, overdue flagging, per-owner assignment. Visible to all staff.
+- **Subscribers** - members of the signalling communities. Real table: adds, edits and CSV import all persist, de-duplicated by phone. Status starts Pending and becomes Active once membership is confirmed.
+
+### Signals
+- **Broadcast Signal** - **cannot send.** Gated by `SIGNAL_BROADCAST_ENABLED = false`. Going live needs a real send path, template approval, and note Cloud API cannot post into WhatsApp Communities at all.
+- **AI Signals** - **demo data.** Pattern names and confidence figures on screen are samples for previewing the interface, clearly labelled as such. Real signal generation is not connected.
+
+### Admin and setup
+- **User Manager** - promote, suspend and manage staff accounts.
+- **User Permission** - honest reference of what Admin versus Agent can currently do. No granular per-feature toggles exist; the page says so.
+- **Meta Integration** - WhatsApp Cloud API credentials and webhook URL.
+- **Meta Ads** - campaign metrics from the ad account.
+- **Notifications** - notification settings.
+- **Sites** - links to the landing and form pages.
+- **Guide** - in-app explanation of every section, for admins and agents separately.
