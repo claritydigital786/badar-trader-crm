@@ -48,7 +48,6 @@ Whoever finishes their piece first should update this section (mark it done, sam
 **Standing rule, reinforced hard tonight: zero em dashes, anywhere, ever - user-facing text, code comments, this file, everything.** Muhammad was extremely direct about this. All 158 occurrences in `index.html` and all 184 in this file were swept and replaced with plain hyphens tonight. Check before ever writing one again.
 
 ### Active Work Claims
-- Junaid - wiring whatsapp-webhook to read keyword_replies, behind its OWN independent toggle (not BOT_REPLIES_ENABLED) so it can be enabled without resuming the qualification funnel - 2026-08-03, claimed and pushed before starting
 (none right now)
 
 **DONE (2026-08-03) - Muhammad's mobile usability pass, tab by tab at 375px** (the 2026-07-19 backlog item flagged as "never systematically tested"). Found and fixed real bugs, not just checked the box:
@@ -813,3 +812,29 @@ The CLI suggests `supabase migration repair --status reverted <all 13>` followed
 **Until that is run, Train AI and Create Flow show "Storage for this section has not been set up yet" on production** and saving will not work. That message is deliberate, not a bug.
 
 **Worth a decision at some point (not urgent):** either bring the repo's migrations directory in line with the remote history so the CLI is usable for schema changes in future, or drop the pretence and treat `schema.sql` + the SQL Editor as the single official path and stop adding migration files. Right now the project half-does both, which is what produced this dead end.
+
+---
+
+## 2026-08-03 (later still) - keyword replies wired (INERT), settings.local.json untracked
+
+**`whatsapp-webhook` can now act on the `keyword_replies` table the Create Flow tab writes to. It ships OFF: `KEYWORD_REPLIES_ENABLED = false`.** Deployed as **version 67**, verified by downloading the live function source back from production and confirming all three flags (`BOT_REPLIES_ENABLED`, `NEW_LEAD_NOTIFICATIONS_ENABLED`, `KEYWORD_REPLIES_ENABLED`) are false in the deployed code, not just locally.
+
+**Why a separate flag rather than reusing `BOT_REPLIES_ENABLED`:** it lets simple factual questions ("price", "course") be answered without resuming the whole qualification funnel (greeting, language picker, broker choice, deposit flow). Much smaller blast radius and much easier to reverse. Keyword replies therefore use their own `sendKeywordText`, not `sendText`.
+
+Safety properties, verified rather than assumed:
+- The flag check is the FIRST statement in `tryKeywordReply`, so while it is false there is no database read and no outbound call whatsoever.
+- `sendKeywordText` is gated independently and has exactly one caller.
+- A matching rule replies INSTEAD of the funnel step, never in addition, so one inbound message can never produce two replies.
+- Skipped entirely when `lead.needs_human` is set, so it cannot talk over an agent who has taken over.
+- A missing or unreadable `keyword_replies` table logs and falls through to the normal bot step rather than dropping the message.
+- Match semantics unit-tested 13/13 against what the CRM dropdown promises: contains / exact / starts_with, all case-insensitive, blank keywords never match.
+
+**Before ever setting `KEYWORD_REPLIES_ENABLED = true`, two things must be checked:** WhatChimp is still attached to the same WABA, so its AI Agent and its own keyword replies must stay off or customers get double replies (the exact problem the 28 July pause was introduced to stop); and Meta's 24h customer-service window will reject replies to conversations silent 24h+, which will log as delivery failures. Note the feature is useless until the Part 3 migration is applied, since the table does not exist yet.
+
+**`.claude/settings.local.json` is now untracked and gitignored - the standing security item from 28 July is closed.** It was removed from the index with `git rm --cached` and added to `.gitignore`, so the live Supabase token some machines keep in it can no longer be committed by accident. The file itself was NOT deleted locally.
+
+**Muhammad, one step needed on your laptop:** your copy of that file has uncommitted changes, so your next `git pull` will likely stop with "Your local changes to the following files would be overwritten by merge". Fix it with either of these, then pull again:
+```
+git checkout -- .claude/settings.local.json
+```
+or simply delete the file - Claude Code regenerates it. Nothing of value is lost either way; it is a local permissions cache. **Separately, that Supabase token should still be rotated** as a precaution, which is a credential step no session can do for you.

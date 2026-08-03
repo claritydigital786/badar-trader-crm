@@ -1,2 +1,6 @@
 node_modules/
 supabase/.temp/
+
+# Local Claude Code permissions cache. Untracked deliberately: on some
+# machines this file holds a live Supabase personal access token.
+.claude/settings.local.json
