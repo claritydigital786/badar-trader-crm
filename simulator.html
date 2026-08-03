@@ -75,7 +75,7 @@ async function start(){
 }
 
 async function mainMenu(){
-  misses=0; // navigating the menu means the user is unstuck — reset the counter
+  misses=0; // navigating the menu means the user is unstuck - reset the counter
   await bot(t("Great! How can I help you today? 👇","Zabardast! Aaj mein aapki kya madad kar sakta hoon? 👇"));
   quick([
     {label:t('📈 Join Premium Signalling Group (FREE)','📈 Premium Signalling Group join karein (FREE)'),fn:joinFlow},
@@ -86,7 +86,7 @@ async function mainMenu(){
 }
 
 async function joinFlow(){
-  await bot(t("*Premium Signalling Group* — FREE access in 4 simple steps:\n\n1️⃣ Create your broker account through OUR link (mandatory)\n2️⃣ Deposit $500 (this is YOUR trading capital, not a fee)\n3️⃣ Send deposit screenshot here on WhatsApp\n4️⃣ Submit the verification form\n\nYou'll be added within 48 hours ✅\n\nWhich broker do you prefer?","*Premium Signalling Group* ka FREE access — sirf 4 asaan steps:\n\n1️⃣ Hamari link se broker account banayein (lazmi)\n2️⃣ $500 deposit karein (ye aapka apna trading capital hai, fee nahi)\n3️⃣ Deposit ka screenshot yahan WhatsApp par bhejein\n4️⃣ Verification form submit karein\n\n48 hours ke andar aapko add kar diya jayega ✅\n\nKaunsa broker pasand karenge?"));
+  await bot(t("*Premium Signalling Group* - FREE access in 4 simple steps:\n\n1️⃣ Create your broker account through OUR link (mandatory)\n2️⃣ Deposit $500 (this is YOUR trading capital, not a fee)\n3️⃣ Send deposit screenshot here on WhatsApp\n4️⃣ Submit the verification form\n\nYou'll be added within 48 hours ✅\n\nWhich broker do you prefer?","*Premium Signalling Group* ka FREE access - sirf 4 asaan steps:\n\n1️⃣ Hamari link se broker account banayein (lazmi)\n2️⃣ $500 deposit karein (ye aapka apna trading capital hai, fee nahi)\n3️⃣ Deposit ka screenshot yahan WhatsApp par bhejein\n4️⃣ Verification form submit karein\n\n48 hours ke andar aapko add kar diya jayega ✅\n\nKaunsa broker pasand karenge?"));
   brokerButtons(false);
 }
 
@@ -112,20 +112,20 @@ async function existingFlow(){
 async function ibGuide(b){
   const code=b==='Exness'?'eatgh2cl7y':'YR4PD';
   if(b==='Exness'){
-    await bot(t(`🔄 *How to Change Your IB*\n\n🟡 *Exness — via Live Chat* 💬\n\n1️⃣ Type in the chat: *IB Partner Code Change*\n\n2️⃣ Click the support link and select *Education/Signals* in the 1st option\n\n3️⃣ In the 2nd option, paste this link:\n${LINKS.exness}\n\n4️⃣ Leave the remaining options blank and press *Submit*\n\n5️⃣ 📸 After submitting, sharing the screenshot here is a must!\n\nThen submit the verification form:\n${LINKS.form}\n\nAdded within 48 hours ✅`,`🔄 *IB Change Karne Ka Tareeqa*\n\n🟡 *Exness — Live Chat* 💬\n\n1️⃣ Chat mein likhein: *IB Partner Code Change*\n\n2️⃣ Support ke link par click kar ke 1st option mein *Education/Signals* select karein\n\n3️⃣ 2nd option mein ye link paste karein:\n${LINKS.exness}\n\n4️⃣ Baaki neeche ke options khali chhor kar *Submit* kar dein\n\n5️⃣ 📸 Submit karne ke baad screenshot yahan lazmi share karein!\n\nPhir verification form submit karein:\n${LINKS.form}\n\n48 hours ke andar add ✅`));
+    await bot(t(`🔄 *How to Change Your IB*\n\n🟡 *Exness - via Live Chat* 💬\n\n1️⃣ Type in the chat: *IB Partner Code Change*\n\n2️⃣ Click the support link and select *Education/Signals* in the 1st option\n\n3️⃣ In the 2nd option, paste this link:\n${LINKS.exness}\n\n4️⃣ Leave the remaining options blank and press *Submit*\n\n5️⃣ 📸 After submitting, sharing the screenshot here is a must!\n\nThen submit the verification form:\n${LINKS.form}\n\nAdded within 48 hours ✅`,`🔄 *IB Change Karne Ka Tareeqa*\n\n🟡 *Exness - Live Chat* 💬\n\n1️⃣ Chat mein likhein: *IB Partner Code Change*\n\n2️⃣ Support ke link par click kar ke 1st option mein *Education/Signals* select karein\n\n3️⃣ 2nd option mein ye link paste karein:\n${LINKS.exness}\n\n4️⃣ Baaki neeche ke options khali chhor kar *Submit* kar dein\n\n5️⃣ 📸 Submit karne ke baad screenshot yahan lazmi share karein!\n\nPhir verification form submit karein:\n${LINKS.form}\n\n48 hours ke andar add ✅`));
   } else {
-    await bot(t(`🔄 *How to Change Your IB*\n\n🔵 *Do Prime — via Email* 📧\n\n📮 To: en.support@dooprime.com\n📮 Cc: sadi.nor@dooprime.com\n✍️ Subject: IB Change Request\n\n💬 Message:\nPlease shift my account under this link:\n${LINKS.xm}\n\n📸 After sending the email, sharing the screenshot here is a must!\n\nThen submit the verification form:\n${LINKS.form}\n\nAdded within 48 hours ✅`,`🔄 *IB Change Karne Ka Tareeqa*\n\n🔵 *Do Prime — Email Karein* 📧\n\n📮 To: en.support@dooprime.com\n📮 Cc: sadi.nor@dooprime.com\n✍️ Subject: IB Change Request\n\n💬 Message:\nPlease shift my account under this link:\n${LINKS.xm}\n\n📸 Email bhejne ke baad screenshot yahan lazmi share karein!\n\nPhir verification form submit karein:\n${LINKS.form}\n\n48 hours ke andar add ✅`));
+    await bot(t(`🔄 *How to Change Your IB*\n\n🔵 *XM*\n\n📩 Our team will walk you through the IB change for XM personally. Message here and an agent will guide you through it step by step.\n\n📸 Once it is done, sharing the screenshot here is a must!\n\nThen submit the verification form:\n${LINKS.form}\n\nAdded within 48 hours ✅`,`🔄 *IB Change Karne Ka Tareeqa*\n\n🔵 *XM*\n\n📩 XM ke liye IB change hamari team aap ko khud guide karegi. Yahan message karein, agent aap ko step by step bata dega.\n\n📸 Ho jane ke baad screenshot yahan lazmi share karein!\n\nPhir verification form submit karein:\n${LINKS.form}\n\n48 hours ke andar add ✅`));
   }
   afterFlow();
 }
 
 async function courseFlow(){
-  await bot(t(`🎓 *1 Month Mentorship Program*\n✅ High Success Ratio\n\nIn the course you get:\n🎥 12 Exclusive Sessions (1 Month) — live on Zoom (8–10pm PKT, ~60 min, recorded)\n📊 Live Trading (1 Month) with Advanced Liquidity Concepts\n📱 WhatsApp access to Sir Badar\n🧠 Psychological Mentorship + road map for your live account\n📝 Assignments Checking\n🏦 Trading Room Access\n🏆 Funded Accounts for top performers!\n\nEnroll NOW 👉 ${LINKS.course}\nWhatsApp: ${LINKS.wa}`,`🎓 *1 Month Mentorship Program*\n✅ High Success Ratio\n\nCourse mein aapko milega:\n🎥 12 Exclusive Sessions (1 Month) — Zoom par live (8–10pm PKT, ~60 min, recording milti hai)\n📊 Live Trading (1 Month) — Advanced Liquidity Concepts ke sath\n📱 Sir Badar tak direct WhatsApp access\n🧠 Psychological Mentorship aur live account ke liye road map\n📝 Assignments Checking\n🏦 Trading Room Access\n🏆 Top performers ke liye Funded Accounts!\n\nAbhi Enroll karein 👉 ${LINKS.course}\nWhatsApp: ${LINKS.wa}`));
+  await bot(t(`🎓 *1 Month Mentorship Program*\n✅ High Success Ratio\n\nIn the course you get:\n🎥 12 Exclusive Sessions (1 Month) - live on Zoom (8–10pm PKT, ~60 min, recorded)\n📊 Live Trading (1 Month) with Advanced Liquidity Concepts\n📱 WhatsApp access to Sir Badar\n🧠 Psychological Mentorship + road map for your live account\n📝 Assignments Checking\n🏦 Trading Room Access\n🏆 Funded Accounts for top performers!\n\nEnroll NOW 👉 ${LINKS.course}\nWhatsApp: ${LINKS.wa}`,`🎓 *1 Month Mentorship Program*\n✅ High Success Ratio\n\nCourse mein aapko milega:\n🎥 12 Exclusive Sessions (1 Month) - Zoom par live (8–10pm PKT, ~60 min, recording milti hai)\n📊 Live Trading (1 Month) - Advanced Liquidity Concepts ke sath\n📱 Sir Badar tak direct WhatsApp access\n🧠 Psychological Mentorship aur live account ke liye road map\n📝 Assignments Checking\n🏦 Trading Room Access\n🏆 Top performers ke liye Funded Accounts!\n\nAbhi Enroll karein 👉 ${LINKS.course}\nWhatsApp: ${LINKS.wa}`));
   afterFlow();
 }
 
 async function linksFlow(){
-  await bot(t(`🔗 *Team Badar — Important Links*\n\n🟡 *Exness*\n${LINKS.exness}\nCode: eatgh2cl7y\n\n🔵 *XM*\n${LINKS.xm}\nCode: YR4PD\n\n📋 *Verification Form*\n${LINKS.form}\n\n🎓 *Course Enrollment*\n${LINKS.course}\n\n🎮 *Discord Community*\n${LINKS.discord}\n\n📱 *WhatsApp*\n${LINKS.wa}`,`🔗 *Team Badar — Zaroori Links*\n\n🟡 *Exness*\n${LINKS.exness}\nCode: eatgh2cl7y\n\n🔵 *XM*\n${LINKS.xm}\nCode: YR4PD\n\n📋 *Verification Form*\n${LINKS.form}\n\n🎓 *Course mein Enroll karein*\n${LINKS.course}\n\n🎮 *Discord Community*\n${LINKS.discord}\n\n📱 *WhatsApp*\n${LINKS.wa}`));
+  await bot(t(`🔗 *Team Badar - Important Links*\n\n🟡 *Exness*\n${LINKS.exness}\nCode: eatgh2cl7y\n\n🔵 *XM*\n${LINKS.xm}\nCode: YR4PD\n\n📋 *Verification Form*\n${LINKS.form}\n\n🎓 *Course Enrollment*\n${LINKS.course}\n\n🎮 *Discord Community*\n${LINKS.discord}\n\n📱 *WhatsApp*\n${LINKS.wa}`,`🔗 *Team Badar - Zaroori Links*\n\n🟡 *Exness*\n${LINKS.exness}\nCode: eatgh2cl7y\n\n🔵 *XM*\n${LINKS.xm}\nCode: YR4PD\n\n📋 *Verification Form*\n${LINKS.form}\n\n🎓 *Course mein Enroll karein*\n${LINKS.course}\n\n🎮 *Discord Community*\n${LINKS.discord}\n\n📱 *WhatsApp*\n${LINKS.wa}`));
   afterFlow();
 }
 
@@ -141,14 +141,14 @@ const FAQ=[
  {k:/premium.*free|free.*premium/i,en:`Free access is via our IB route: create your account through our link + deposit $500 + submit the form. That's the no-fee path ✅`,ru:`Free access hamari IB link se milta hai: account hamari link se + $500 deposit + form submit. Ye bilkul free tareeqa hai ✅`},
  {k:/join|add me|premium group|signal group|group me|group mein/i,en:null,ru:null,fn:joinFlow},
  {k:/course|batch|mentorship|class/i,fn:courseFlow},
- {k:/how many signal|kitne signal|signals recv|signals receive/i,en:"Signals are shared daily based on market conditions — we focus on quality setups, not a fixed count. 📊",ru:"Signals market ke mutabiq daily share hote hain — hum quality setups par focus karte hain, fixed number par nahi. 📊"},
+ {k:/how many signal|kitne signal|signals recv|signals receive/i,en:"Signals are shared daily based on market conditions - we focus on quality setups, not a fixed count. 📊",ru:"Signals market ke mutabiq daily share hote hain - hum quality setups par focus karte hain, fixed number par nahi. 📊"},
  {k:/live kab|daily live|live at|live time/i,en:"Course live classes run approx 8–10pm PKT (~60 min, recorded). Live trading session timings are announced in the group. ⏰",ru:"Course ki live classes approx 8–10pm PKT hoti hain (~60 min, recording milti hai). Live trading ke timings group mein announce hote hain. ⏰"},
  {k:/own broker|current broker|apna broker|charges/i,fn:existingFlow},
- {k:/confirmation mail|confirm.*mail|mail.*confirm/i,en:"Yes — the broker sends a confirmation email after the IB change. If you didn't get it, contact Exness / XM support, then send us the screenshot. 📧",ru:"Ji haan — IB change ke baad broker confirmation email bhejta hai. Agar nahi mili to Exness / XM support se contact karein, phir screenshot humein bhejein. 📧"},
+ {k:/confirmation mail|confirm.*mail|mail.*confirm/i,en:"Yes - the broker sends a confirmation email after the IB change. If you didn't get it, contact Exness / XM support, then send us the screenshot. 📧",ru:"Ji haan - IB change ke baad broker confirmation email bhejta hai. Agar nahi mili to Exness / XM support se contact karein, phir screenshot humein bhejein. 📧"},
  {k:/screenshot.*(share|send|bhej|kar diya)|deposit.*screenshot/i,en:"Great! Once your screenshot + verification form are received, you'll be added within 48 hours ✅",ru:"Zabardast! Screenshot + verification form milne ke baad 48 hours ke andar aapko add kar diya jayega ✅"},
  {k:/update|kab add|add kab|kab tak|when.*add/i,en:"You're added within 48 hours of form submission. If 48 hours have passed, send your form submission screenshot and the team will check. 🕐",ru:"Form submit hone ke 48 hours ke andar add kiya jata hai. Agar 48 hours guzar gaye hain to form submission ka screenshot bhejein, team check karegi. 🕐"},
- {k:/fees pay|paid.*course|course.*pay/i,en:`Send your payment proof on WhatsApp ${LINKS.wa} — you'll be added with the next batch schedule. 🎓`,ru:`Payment proof WhatsApp par bhejein ${LINKS.wa} — next batch ke schedule ke sath add kar diya jayega. 🎓`},
- {k:/minimum deposit|min.*deposit|deposit.*minimum|kitna deposit/i,en:"Minimum deposit is a flat $500 — not a range. This stays in YOUR account as trading capital. 💵",ru:"Minimum deposit flat $500 hai — range nahi. Ye aapke apne account mein trading capital rehta hai. 💵"},
+ {k:/fees pay|paid.*course|course.*pay/i,en:`Send your payment proof on WhatsApp ${LINKS.wa} - you'll be added with the next batch schedule. 🎓`,ru:`Payment proof WhatsApp par bhejein ${LINKS.wa} - next batch ke schedule ke sath add kar diya jayega. 🎓`},
+ {k:/minimum deposit|min.*deposit|deposit.*minimum|kitna deposit/i,en:"Minimum deposit is a flat $500 - not a range. This stays in YOUR account as trading capital. 💵",ru:"Minimum deposit flat $500 hai - range nahi. Ye aapke apne account mein trading capital rehta hai. 💵"},
  {k:/free or paid|free ya paid|is.*free/i,en:"The Premium Signalling Group is FREE when you join under Team Badar's IB link with a $500 deposit. ✅",ru:"Premium Signalling Group FREE hai jab aap Team Badar ki IB link se $500 deposit ke sath join karte hain. ✅"},
  {k:/deposit.*withdraw|withdraw|nikaal/i,en:"Deposits & withdrawals happen inside your broker app (Exness / XM): Wallet → Deposit/Withdraw with local payment methods. Team can guide you step by step. 🏦",ru:"Deposit aur withdraw aapke broker app (Exness / XM) ke andar hote hain: Wallet → Deposit/Withdraw, local payment methods ke sath. Team step by step guide kar sakti hai. 🏦"},
  {k:/partner|referral.*change|ib change|previous.*change/i,fn:existingFlow},
@@ -175,7 +175,7 @@ async function send(){
   for(const f of FAQ){
     if(f.k.test(v)){ misses=0; if(f.fn){await f.fn();} else {await bot(lang==='ru'?f.ru:f.en);afterFlow();} return; }
   }
-  // No FAQ matched — count it as a failed attempt. Two in a row → hand to a human.
+  // No FAQ matched - count it as a failed attempt. Two in a row → hand to a human.
   misses++;
   if(misses>=2){await escalate('stuck: 2 unanswered questions in a row');return;}
   await bot(t(`This is Team Badar Tanvir. We are ever ready to serve for our brand's purpose. We're really sorry, but we couldn't quite understand your message. 🙏 Please pick an option from the menu below.`,`Yeh Team Badar Tanvir hai. Hum hamesha aapki khidmat ke liye tayyar hain. Maazrat, hum aapka paigham samajh nahi paye. 🙏 Barah-e-karam neeche menu se option chunein.`));
