@@ -425,6 +425,7 @@
     [data-theme="dark"] .stat-label { color: #94a3b8; }
     [data-theme="dark"] .stat-value { color: #f1f5f9; }
     [data-theme="dark"] table { color: #cbd5e1; }
+    [data-theme="dark"] td { color: #cbd5e1; }
     [data-theme="dark"] th { background: #16223a; color: #94a3b8; }
     [data-theme="dark"] th, [data-theme="dark"] td { border-bottom-color: #243350; }
     [data-theme="dark"] .info-box { background: #16223a; color: #cbd5e1; }
@@ -4391,14 +4392,14 @@ function renderTemplatesTable() {
   }
   tbody.innerHTML = cachedTemplates.map(t => `
     <tr>
-      <td>
+      <td style="white-space:nowrap">
         <strong style="color:#0f172a">${esc(t.name)}</strong>
         ${t.meta_name ? `<br><span style="color:#94a3b8;font-size:0.75rem">${esc(t.meta_name)}</span>` : ''}
       </td>
-      <td><span style="font-size:0.8rem">${esc(t.category || '')}</span></td>
-      <td><span style="font-size:0.8rem">${esc(t.language || '')}</span></td>
-      <td><span style="font-size:0.78rem;font-weight:700;color:${TPL_STATUS_COLOURS[t.status] || '#64748b'}">${esc(TPL_STATUS_LABELS[t.status] || t.status)}</span></td>
-      <td><span style="color:#64748b;font-size:0.78rem">${esc(truncate(t.body || '', 70))}</span></td>
+      <td style="white-space:nowrap"><span style="font-size:0.8rem">${esc(t.category || '')}</span></td>
+      <td style="white-space:nowrap"><span style="font-size:0.8rem">${esc(t.language || '')}</span></td>
+      <td style="white-space:nowrap"><span style="font-size:0.78rem;font-weight:700;color:${TPL_STATUS_COLOURS[t.status] || '#64748b'}">${esc(TPL_STATUS_LABELS[t.status] || t.status)}</span></td>
+      <td style="white-space:nowrap"><span style="color:#64748b;font-size:0.78rem">${esc(truncate(t.body || '', 70))}</span></td>
       <td style="white-space:nowrap">
         <button class="btn btn-secondary btn-sm" onclick="editTemplateLoad('${t.id}')">Edit</button>
         <button class="btn btn-danger btn-sm" onclick="deleteTemplate('${t.id}')">Delete</button>
@@ -4520,9 +4521,9 @@ function renderFollowUpsTable() {
   }
   tbody.innerHTML = cachedFollowUps.map(f => `
     <tr>
-      <td><strong style="color:#0f172a">${esc(f.name)}</strong></td>
+      <td style="white-space:nowrap"><strong style="color:#0f172a">${esc(f.name)}</strong></td>
       <td style="white-space:nowrap"><span style="font-size:0.82rem">${esc(FUS_STATUS_LABELS[f.trigger_status] || f.trigger_status)} + ${Number(f.delay_hours)}h</span></td>
-      <td><span style="color:#64748b;font-size:0.78rem">${esc(truncate(f.message || '', 80))}</span></td>
+      <td style="white-space:nowrap"><span style="color:#64748b;font-size:0.78rem">${esc(truncate(f.message || '', 80))}</span></td>
       <td>
         <label class="toggle-switch" title="${f.is_active ? 'Click to pause' : 'Click to activate'}">
           <input type="checkbox" ${f.is_active ? 'checked' : ''} onchange="toggleFollowUpActive('${f.id}',${f.is_active})" />
@@ -4657,9 +4658,9 @@ function renderAiKbTable() {
   }
   tbody.innerHTML = cachedAiKb.map(k => `
     <tr>
-      <td><strong style="color:#0f172a">${esc(k.campaign_name)}</strong></td>
+      <td style="white-space:nowrap"><strong style="color:#0f172a">${esc(k.campaign_name)}</strong></td>
       <td style="white-space:nowrap">${esc(k.bot_number || '-')}</td>
-      <td><span style="color:#64748b;font-size:0.78rem">${esc(truncate(k.system_prompt || '', 90))}</span></td>
+      <td style="white-space:nowrap"><span style="color:#64748b;font-size:0.78rem">${esc(truncate(k.system_prompt || '', 90))}</span></td>
       <td>
         <label class="toggle-switch" title="${k.is_active ? 'Click to pause' : 'Click to activate'}">
           <input type="checkbox" ${k.is_active ? 'checked' : ''} onchange="toggleAiKbActive('${k.id}',${k.is_active})" />
@@ -4786,9 +4787,9 @@ function renderKeywordRepliesTable() {
   }
   tbody.innerHTML = cachedKeywordReplies.map(k => `
     <tr>
-      <td><strong style="color:#0f172a">${esc(k.keyword)}</strong></td>
-      <td><span style="font-size:0.82rem">${esc(KW_MATCH_LABELS[k.match_type] || k.match_type)}</span></td>
-      <td><span style="color:#64748b;font-size:0.78rem">${esc(truncate(k.reply_message || '', 90))}</span></td>
+      <td style="white-space:nowrap"><strong style="color:#0f172a">${esc(k.keyword)}</strong></td>
+      <td style="white-space:nowrap"><span style="font-size:0.82rem">${esc(KW_MATCH_LABELS[k.match_type] || k.match_type)}</span></td>
+      <td style="white-space:nowrap"><span style="color:#64748b;font-size:0.78rem">${esc(truncate(k.reply_message || '', 90))}</span></td>
       <td>
         <label class="toggle-switch" title="${k.is_active ? 'Click to pause' : 'Click to activate'}">
           <input type="checkbox" ${k.is_active ? 'checked' : ''} onchange="toggleKeywordActive('${k.id}',${k.is_active})" />
