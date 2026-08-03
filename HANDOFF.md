@@ -48,7 +48,6 @@ Whoever finishes their piece first should update this section (mark it done, sam
 **Standing rule, reinforced hard tonight: zero em dashes, anywhere, ever - user-facing text, code comments, this file, everything.** Muhammad was extremely direct about this. All 158 occurrences in `index.html` and all 184 in this file were swept and replaced with plain hyphens tonight. Check before ever writing one again.
 
 ### Active Work Claims
-- Junaid - real subscribers table to replace the browser-generated placeholder list (persists, CSV import works, fed by signals-form signups) - 2026-08-03
 
 **DONE (2026-08-04) - Muhammad's mobile/dark-mode check of the four new Part 3 tabs** (Train AI, Create Flow, Follow-ups, Message Templates - built after the earlier mobile/dark-mode passes, so never checked). Found and fixed two real bugs, not just checked the box:
 - All four tables were missing `white-space:nowrap` on their long-content cells (system prompts, reply bodies, template names), so text wrapped across many lines on mobile instead of scrolling on one line like every other table in the app. Fixed to match the established pattern.
@@ -942,3 +941,19 @@ The two templates this project already drafted but never submitted are seeded as
 Verified against the real database: table selects fine, anonymous INSERT rejected with `42501` row-level security violation, tab renders a proper empty state. Full create / edit / delete, all validation paths (missing name, missing body, malformed Meta name) and both themes exercised in demo mode, zero console errors.
 
 **Part 3 status: four slices built** - Train AI, Create Flow (keyword replies), Follow-ups, Message Templates. All four are storage plus admin UI, none of them send anything yet, and each says so in its own info box.
+
+---
+
+## 2026-08-03 - Subscribers is now a real table; AI Signals honestly labelled
+
+**Subscribers no longer fabricates its own data.** The tab used to generate roughly 4,000 subscribers in the browser on every page load, with invented names and `Math.random()` phone numbers. Adds, edits and CSV imports went nowhere and vanished on refresh. It is now backed by `public.subscribers` (Phase 22): name, phone, email, community, status, source, notes, joined_at. Admin-only RLS, unique index on phone so re-importing the same CSV upserts rather than duplicating or erroring.
+
+Columns changed to match reality. The old **Trades (24h)** and **Last Signal** columns were fabricated per-subscriber activity with no underlying source, so they are gone, replaced by **Source** and **Added**. **Group 1/2/3** became a free-text **community** name, following Muhammad's 20 July definition of a subscriber as a member of one of the signalling communities. The community filter and the add-form suggestions build themselves from whatever communities actually exist, so nothing is hardcoded to three groups any more.
+
+**AI Signals: claim corrected, data left alone.** The tab described its output as "AI-assisted signal suggestions based on technical pattern analysis" and told users to verify before sending, which reads as real analysis needing review. The pattern names and confidence figures are sample values. Now carries a plain "Demo data" notice saying the layout and flow are what the screen is showing, and that the notice goes when real signal generation is connected. Muhammad's call, and the right one: labelled placeholder data in a pre-launch product is normal; data presented as real when it is not, is the actual problem, and that was the Broadcast Signal bug already fixed.
+
+**Broke the page during this and caught it.** A bad string splice removed a newline and a comment marker, leaving a closing brace fused to a box-drawing separator. That stopped the entire inline script from parsing, so every function in the app came back undefined. Found because a browser check returned "enterDemoMode is not defined", not by assuming the edit had worked. **Worth remembering: after any scripted edit to `index.html`, load the page and confirm a known function is still defined.** Structural tag-balance checks pass happily on a file whose JavaScript is dead.
+
+Merged cleanly with Muhammad's mobile/dark-mode pass over the four Part 3 tabs. His `[data-theme="dark"] td` fix also covers the new Subscribers table, verified after merging.
+
+**Scope note:** all of this touches new tables and UI only. Nothing here reads or modifies leads, communications, or anything the live ad campaigns produce.
