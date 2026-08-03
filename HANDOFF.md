@@ -48,7 +48,7 @@ Whoever finishes their piece first should update this section (mark it done, sam
 **Standing rule, reinforced hard tonight: zero em dashes, anywhere, ever - user-facing text, code comments, this file, everything.** Muhammad was extremely direct about this. All 158 occurrences in `index.html` and all 184 in this file were swept and replaced with plain hyphens tonight. Check before ever writing one again.
 
 ### Active Work Claims
-_(empty - add a line here when starting something: `- [Name] - [task] - [date/time]`, remove when done)_
+- Muhammad - expanding the Guide tab into a proper onboarding guide (admin + agent) - 2026-08-03, claimed before starting per the process note above
 
 Prior version of this doc (2026-07-13) covered the main/feat branch-divergence discovery
 and merge into `integration/merge-bot-human-handoff`. That merge is still the base - a
