@@ -628,6 +628,10 @@ The undocumented `index.html` change flagged above (found sitting uncommitted wi
 
 Committed (`4f17b86`) and pushed to `main`. Verified via diff review + balanced-tag sanity check only - **not** verified live in a logged-in browser session (no CRM login credentials available in that session). Vercel auto-deploys `main`, so this should be live within a couple minutes of the push. Next session (any account/machine): confirm live at crm.badartrader.com that the Conversations panel actually renders the new colors/bubbles correctly, especially on a real conversation with both incoming and outgoing messages, before treating this as fully verified.
 
+**Verification done 2026-08-03 (Junaid), with one honest gap.** The deployed `index.html` on crm.badartrader.com was fetched and diffed against local `HEAD`: byte-identical, so the chat-redesign code confirmed genuinely live, not just pushed. All markers present on the live file (`msg-bubble`, `AVATAR_PALETTE`, `#d9fdd3`, `.conv-messages` cream `#efe9e1`). Rendering was then exercised by opening an actual thread containing both directions (2 incoming + 1 outgoing bubble) and reading computed styles: incoming `rgb(255,255,255)` white, outgoing `rgb(217,253,211)` green, chat pane `rgb(239,233,225)` cream, and per-contact avatar circles resolving to different palette colors. Renders correctly.
+
+**The gap: this was demo-mode data, not a real logged-in CRM session with real WhatsApp messages** - still no CRM login credentials on this machine. Since the live file is byte-identical to what was rendered, the styling itself is confirmed; what remains unconfirmed is only how it looks against real message content (very long messages, images/screenshot attachments, unusual timestamps). Anyone with a real login should glance at one real thread to close that last bit.
+
 ---
 
 ## 2026-07-29 - WhatChimp bot rebuild (in progress) + Meta Ads Manager investigation
