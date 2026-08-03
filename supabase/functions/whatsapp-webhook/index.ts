@@ -42,6 +42,20 @@ const NEW_LEAD_NOTIFICATIONS_ENABLED = false;
 // a customer or ping an agent just no-ops instead. Flip to true when told to.
 const BOT_REPLIES_ENABLED = false;
 
+// Keyword replies are DELIBERATELY on their own switch, not BOT_REPLIES_ENABLED.
+// The point is to be able to answer simple factual questions ("price", "course")
+// without resuming the whole qualification funnel (greeting, language picker,
+// broker choice, deposit flow). Turning this on alone has a far smaller blast
+// radius than un-pausing the bot, and is much easier to reverse.
+//
+// Before ever setting this true, check that nothing else is already replying on
+// the same WABA - WhatChimp is still connected to this number, and if its AI
+// Agent or its own keyword replies get re-enabled, customers get double replies.
+// That is exactly the problem BOT_REPLIES_ENABLED was introduced to stop on
+// 28 July. Also note Meta's 24h customer-service window: a keyword reply to a
+// conversation that has been silent 24h+ will be rejected and logged as failed.
+const KEYWORD_REPLIES_ENABLED = false;
+
 // Muhammad, 22 July 2026: a real lead (Izza) explicitly asked for a human
 // agent and sat unanswered for 10+ days - escalating a lead set needs_human
 // but never actually told anyone, and she had no assigned agent at all to
@@ -242,9 +256,17 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         // can respond - neither depends on the other's result, so they run
         // concurrently instead of adding the log write's time to the delay
         // before the customer sees a reply.
+        // A keyword rule, when one matches, answers INSTEAD of the funnel step,
+        // never as well as it - otherwise the customer would get two replies to
+        // one message. Returns null when the feature is off or nothing matched,
+        // which is the normal path today.
+        const keywordResult = await tryKeywordReply(sb, lead, input);
+
         await Promise.all([
           insertCommunication(sb, lead.id, "inbound", input.text, timestamp, undefined, message.id),
-          runBotStep(sb, lead, wasCreated, input, lastCustomerTouch),
+          keywordResult
+            ? insertCommunication(sb, lead.id, "outbound", combineSendLog(keywordResult), timestamp)
+            : runBotStep(sb, lead, wasCreated, input, lastCustomerTouch),
         ]);
       }
     }
@@ -489,6 +511,53 @@ async function downloadAndStoreMedia(
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+// Reads the keyword_replies table the CRM's "Create Flow" tab writes to.
+// Returns the send result when a rule matched and a reply was attempted, or
+// null when nothing matched (in which case the normal bot step runs instead).
+//
+// Match semantics are kept identical to what the CRM UI promises in its
+// dropdown: contains / exact / starts_with, all case-insensitive.
+async function tryKeywordReply(
+  sb: SupabaseClient,
+  lead: any,
+  input: UserInput,
+): Promise<SendResult | null> {
+  if (!KEYWORD_REPLIES_ENABLED) return null;
+
+  // A human has taken over this conversation - stay silent, same rule the
+  // rest of the bot follows. Never talk over an agent.
+  if (lead.needs_human) return null;
+
+  const text = (input.text || "").trim();
+  if (!text) return null;
+
+  const { data, error } = await sb
+    .from("keyword_replies")
+    .select("keyword, match_type, reply_message")
+    .eq("is_active", true);
+
+  // Table missing or unreadable must never break inbound handling - fall
+  // through to the normal bot step rather than dropping the message.
+  if (error) {
+    console.error("tryKeywordReply: could not read keyword_replies:", error.message);
+    return null;
+  }
+  if (!data || !data.length) return null;
+
+  const lower = text.toLowerCase();
+  const match = data.find((r: any) => {
+    const k = (r.keyword || "").toLowerCase().trim();
+    if (!k) return false;
+    if (r.match_type === "exact")       return lower === k;
+    if (r.match_type === "starts_with") return lower.startsWith(k);
+    return lower.includes(k);
+  });
+  if (!match) return null;
+
+  const to = lead.phone.replace(/^\+/, "");
+  return await sendKeywordText(to, match.reply_message);
 }
 
 async function getLastInboundAt(sb: SupabaseClient, leadId: string): Promise<string | null> {
@@ -1182,6 +1251,22 @@ function matchYesNo(input: UserInput): "yes" | "no" | null {
   if (/^\s*(yes|y|haan|ji|han)\b/i.test(input.text)) return "yes";
   if (/^\s*(no|n|nahi)\b/i.test(input.text)) return "no";
   return null;
+}
+
+// Deliberately gated by KEYWORD_REPLIES_ENABLED rather than BOT_REPLIES_ENABLED,
+// so keyword replies can run while the funnel stays paused. Everything else in
+// this file must keep using sendText.
+async function sendKeywordText(to: string, body: string): Promise<SendResult> {
+  if (!KEYWORD_REPLIES_ENABLED) {
+    return { ok: false, error: "Keyword replies paused (KEYWORD_REPLIES_ENABLED = false)", text: body };
+  }
+  const result = await callGraphApi({
+    messaging_product: "whatsapp",
+    to,
+    type: "text",
+    text: { body },
+  });
+  return { ...result, text: body };
 }
 
 async function sendText(to: string, body: string): Promise<SendResult> {
