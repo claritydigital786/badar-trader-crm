@@ -48,7 +48,6 @@ Whoever finishes their piece first should update this section (mark it done, sam
 **Standing rule, reinforced hard tonight: zero em dashes, anywhere, ever - user-facing text, code comments, this file, everything.** Muhammad was extremely direct about this. All 158 occurrences in `index.html` and all 184 in this file were swept and replaced with plain hyphens tonight. Check before ever writing one again.
 
 ### Active Work Claims
-- Junaid - Part 3 next slice: Message Templates (store WhatsApp template copy + Meta approval status). On the critical path for Follow-ups and Broadcast, both of which need an approved template to message anyone outside the 24h window - 2026-08-03
 
 **DONE (2026-08-03) - Muhammad's mobile usability pass, tab by tab at 375px** (the 2026-07-19 backlog item flagged as "never systematically tested"). Found and fixed real bugs, not just checked the box:
 - Sidebar didn't fully hide when collapsed on mobile - it translated by a hardcoded `-220px` while its actual width was `232px`, leaving a permanent ~12px sliver on-screen at every phone width. Switched to `translateX(-100%)` so it can never drift out of sync with the real width again.
@@ -920,3 +919,19 @@ Verified in-browser: pressing Send produces "Not sent. Nothing was delivered and
 **Lesson worth keeping: use 14-digit `<YYYYMMDDHHMMSS>_name.sql` for every new migration in this repo.** Mixing formats breaks the CLI's pairing in a way that is not obvious from the error message.
 
 Verified against the real database rather than assumed: `follow_up_sequences` selects fine, an anonymous INSERT is rejected with `42501` row-level security violation, and the tab renders a proper empty state. Full CRUD, validation and both themes exercised in demo mode, zero console errors.
+
+---
+
+## 2026-08-03 - Message Templates added (Part 3, fourth slice)
+
+**New Templates tab (`message_templates`), applied to production and verified.** The CRM's own record of WhatsApp template copy and where each one sits in Meta's review: name, Meta template name, category, language, body, status (draft / submitted / approved / rejected / paused) and free-text notes. Admin-only RLS. Mirrored into `schema.sql` as Phase 21.
+
+**Why this one mattered more than the other candidates:** WhatsApp only allows free-form replies within 24 hours of a customer's last message. After that only a Meta-approved template can be sent. This file has flagged the absence of such a template since **14 July** ("NOT fixed: no WhatsApp message template exists to actually re-open a stale conversation"), and both **Follow-ups** and **Broadcast Signal** list template approval as a prerequisite. So this is the shared blocker sitting under several features.
+
+**It does not talk to Meta.** Templates are still created and approved in WhatsApp Manager; the status here is set by hand until someone wires up Meta's Message Templates API. The tab says so plainly. One real bit of help it does give: it rejects Meta template names that are not lowercase letters, numbers and underscores, which is a rule Meta enforces and which is easy to trip over only after a failed submission.
+
+The two templates this project already drafted but never submitted are seeded as demo rows so the intent is not lost: the 14 July "welcome new lead" copy, and a "reopen stale conversation" draft.
+
+Verified against the real database: table selects fine, anonymous INSERT rejected with `42501` row-level security violation, tab renders a proper empty state. Full create / edit / delete, all validation paths (missing name, missing body, malformed Meta name) and both themes exercised in demo mode, zero console errors.
+
+**Part 3 status: four slices built** - Train AI, Create Flow (keyword replies), Follow-ups, Message Templates. All four are storage plus admin UI, none of them send anything yet, and each says so in its own info box.

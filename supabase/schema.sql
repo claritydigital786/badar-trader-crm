@@ -1178,3 +1178,52 @@ CREATE INDEX IF NOT EXISTS follow_up_sequences_active_idx
 
 -- ── DONE (Phase 20) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM - Phase 21 Schema (Message Templates)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+-- Mirrors supabase/migrations/20260804010000_message_templates.sql.
+
+-- ── 42. Message templates (Junaid, 2026-08-03) ──
+-- The CRM's own record of WhatsApp template copy and where each one sits in
+-- Meta's review. Does NOT submit anything to Meta; status is maintained by
+-- hand until the Message Templates API is wired up. Needed because WhatsApp
+-- only allows free-form replies within 24h of the customer's last message,
+-- which is what blocks reopening stale conversations (flagged 14 July).
+CREATE TABLE IF NOT EXISTS public.message_templates (
+  id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  name          TEXT        NOT NULL,
+  meta_name     TEXT,
+  language      TEXT        NOT NULL DEFAULT 'en'
+                              CHECK (language IN ('en','ur','en_US')),
+  category      TEXT        NOT NULL DEFAULT 'UTILITY'
+                              CHECK (category IN ('MARKETING','UTILITY','AUTHENTICATION')),
+  body          TEXT        NOT NULL,
+  status        TEXT        NOT NULL DEFAULT 'draft'
+                              CHECK (status IN ('draft','submitted','approved','rejected','paused')),
+  notes         TEXT,
+  is_active     BOOLEAN     NOT NULL DEFAULT true,
+  created_by    UUID        REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+DROP TRIGGER IF EXISTS message_templates_updated_at ON public.message_templates;
+CREATE TRIGGER message_templates_updated_at
+  BEFORE UPDATE ON public.message_templates
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+ALTER TABLE public.message_templates ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "message_templates: admin full access" ON public.message_templates;
+CREATE POLICY "message_templates: admin full access" ON public.message_templates
+  FOR ALL USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+CREATE INDEX IF NOT EXISTS message_templates_status_idx
+  ON public.message_templates (status, is_active);
+
+-- ── DONE (Phase 21) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════

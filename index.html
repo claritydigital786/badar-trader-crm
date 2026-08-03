@@ -806,6 +806,7 @@
       <div class="nav-item" data-tab="create-flow"><span class="nav-icon" style="background:var(--tint-gold-bg)">🧩</span> Create Flow</div>
       <div class="nav-item" data-tab="train-ai"><span class="nav-icon" style="background:var(--tint-warn-bg)">🧠</span> Train AI</div>
       <div class="nav-item" data-tab="follow-ups"><span class="nav-icon" style="background:var(--tint-success-bg)">⏰</span> Follow-ups</div>
+      <div class="nav-item" data-tab="templates"><span class="nav-icon" style="background:var(--tint-sky-bg)">📄</span> Templates</div>
       <div class="nav-section-label">FINANCE</div>
       <div class="nav-item" data-tab="payroll"><span class="nav-icon" style="background:var(--tint-gold-bg)">💰</span> Payroll</div>
       <div class="nav-section-label">WHATSAPP SIGNALS</div>
@@ -1334,6 +1335,79 @@
       <div id="fus-msg" class="msg"></div>
       <button class="btn btn-primary" onclick="submitFollowUp()">Save Follow-up</button>
       <button class="btn btn-secondary" onclick="resetFollowUpForm()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Message Templates -->
+  <div id="admin-tab-templates" class="tab-content">
+    <h3>Message Templates</h3>
+    <div class="info-box">
+      WhatsApp only allows free-form replies within 24 hours of a customer's last message. After that, only a template Meta has approved can be sent. This is the CRM's record of your template copy and where each one sits in Meta's review. <strong>Nothing here is submitted to Meta automatically</strong> - templates are created and approved in WhatsApp Manager, and the status below is set by hand until that API is wired up. Both Follow-ups and Broadcast Signal need an approved template before they can reach anyone outside the 24 hour window.
+    </div>
+
+    <div class="card">
+      <table>
+        <thead><tr>
+          <th>Name</th><th>Category</th><th>Lang</th><th>Status</th><th>Body</th><th></th>
+        </tr></thead>
+        <tbody id="tpl-tbody">
+          <tr><td colspan="6" class="empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h4 id="tpl-form-title" style="margin-bottom:14px">Create Template</h4>
+      <input type="hidden" id="tpl-id" />
+      <div class="form-row">
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="tpl-name" placeholder="e.g. Reopen stale conversation" />
+        </div>
+        <div class="form-group">
+          <label>Meta Template Name <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+          <input type="text" id="tpl-meta-name" placeholder="e.g. reopen_conversation" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Category</label>
+          <select id="tpl-category">
+            <option value="UTILITY">Utility</option>
+            <option value="MARKETING">Marketing</option>
+            <option value="AUTHENTICATION">Authentication</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Language</label>
+          <select id="tpl-language">
+            <option value="en">English</option>
+            <option value="ur">Roman Urdu</option>
+            <option value="en_US">English (US)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Meta Status</label>
+          <select id="tpl-status">
+            <option value="draft">Draft</option>
+            <option value="submitted">Submitted</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="paused">Paused</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Body</label>
+        <textarea id="tpl-body" rows="5" placeholder="The template text. Use {{1}}, {{2}} for variables, the same way Meta does."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Notes <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+        <textarea id="tpl-notes" rows="3" placeholder="Why it was rejected, what to change, when it was submitted."></textarea>
+      </div>
+      <div id="tpl-msg" class="msg"></div>
+      <button class="btn btn-primary" onclick="submitTemplate()">Save Template</button>
+      <button class="btn btn-secondary" onclick="resetTemplateForm()">Cancel</button>
     </div>
   </div>
 
@@ -2515,6 +2589,15 @@ const _DEMO_AI_KB = [
   { id:'akb1', campaign_name:'Team Badar Support Bot Training', bot_number:'+923715773903', system_prompt:'You are the Team Badar assistant. Mirror the customer language, English or Roman Urdu, never mix the two in one reply. Keep replies to 3-5 lines. Never promise returns. Stay neutral between Exness and XM. Hand off to a human agent for deposits under $500, any negotiation, or anything you are unsure about.', knowledge_notes:'Exness referral: eatgh2cl7y. XM referral: YR4PD. Deposit is a flat $500, not a range. Course is worth $250 and is free with the deposit.', is_active:true },
 ];
 
+const _DEMO_TEMPLATES = [
+  { id:'tpl1', name:'Reopen stale conversation', meta_name:'reopen_conversation', language:'en', category:'UTILITY',
+    body:'Hi {{1}}, this is Team Badar. We noticed we did not finish our conversation. Reply here and we will pick up where we left off.',
+    status:'draft', notes:'Needed to message leads who have gone quiet more than 24 hours. Not submitted to Meta yet.', is_active:true },
+  { id:'tpl2', name:'Welcome new lead', meta_name:null, language:'en', category:'UTILITY',
+    body:'Hi {{1}}! Thanks for your interest in Badar Trader. A member of our team will be in touch shortly on this number.',
+    status:'draft', notes:'Drafted 14 July for the Meta Lead Ads webhook. Left inactive on purpose.', is_active:true },
+];
+
 const _DEMO_FOLLOW_UPS = [
   { id:'fus1', name:'Nudge new leads after a day', trigger_status:'new', delay_hours:24, message:'Hi, just checking in. Did you get a chance to look at the details we sent? Happy to answer anything.', is_active:true },
   { id:'fus2', name:'Deposit reminder', trigger_status:'qualified', delay_hours:48, message:'Reminder: once your $500 deposit is in, send the screenshot here and we will get you added within 48 hours.', is_active:false },
@@ -2706,7 +2789,7 @@ function adminTab(name, el) {
     'comm-log': 'Communication Log',
     'signal-broadcast': 'Broadcast Signal', subscribers: 'Subscribers', 'ai-signals': 'AI Signals',
     guide: 'Guide', 'user-manager': 'User Manager', 'user-permission': 'User Permission',
-    'create-flow': 'Create Flow', 'train-ai': 'Train AI', 'follow-ups': 'Follow-ups'
+    'create-flow': 'Create Flow', 'train-ai': 'Train AI', 'follow-ups': 'Follow-ups', templates: 'Message Templates'
   };
   const titleEl = document.getElementById('current-tab-title');
   if (titleEl) titleEl.textContent = titles[name] || name;
@@ -2722,6 +2805,7 @@ function adminTab(name, el) {
   if (name === 'train-ai')         loadAiKb();
   if (name === 'create-flow')      loadKeywordReplies();
   if (name === 'follow-ups')       loadFollowUps();
+  if (name === 'templates')        loadTemplates();
   if (name === 'reports')          loadReports();
   if (name === 'comm-log')         loadCommLog();
   if (name === 'payroll')          { if (!document.querySelector('#payroll-setup-tbody strong')) renderPayrollSetup(); }
@@ -4264,6 +4348,139 @@ let cachedAutomationRules = [];
 let cachedAiKb           = [];
 let cachedKeywordReplies = [];
 let cachedFollowUps      = [];
+
+let cachedTemplates = [];
+
+// ── MESSAGE TEMPLATES (message_templates) ─────────────────────
+// The CRM's own record of template copy and Meta approval status.
+// Nothing here talks to Meta; status is maintained by hand.
+const TPL_STATUS_LABELS = {
+  draft:'Draft', submitted:'Submitted', approved:'Approved', rejected:'Rejected', paused:'Paused'
+};
+const TPL_STATUS_COLOURS = {
+  draft:'#64748b', submitted:'#b45309', approved:'#1fa971', rejected:'#dc4c40', paused:'#64748b'
+};
+
+async function loadTemplates() {
+  if (demoMode) { cachedTemplates = _DEMO_TEMPLATES.slice(); renderTemplatesTable(); return; }
+  const { data, error } = await sb
+    .from('message_templates').select('*').order('created_at', { ascending: false });
+  if (error) { console.error('loadTemplates:', error); showTableError('tpl-tbody', error); return; }
+  cachedTemplates = data || [];
+  renderTemplatesTable();
+}
+
+function renderTemplatesTable() {
+  const tbody = document.getElementById('tpl-tbody');
+  if (!tbody) return;
+  if (!cachedTemplates.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No templates yet. Create one below.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = cachedTemplates.map(t => `
+    <tr>
+      <td>
+        <strong style="color:#0f172a">${esc(t.name)}</strong>
+        ${t.meta_name ? `<br><span style="color:#94a3b8;font-size:0.75rem">${esc(t.meta_name)}</span>` : ''}
+      </td>
+      <td><span style="font-size:0.8rem">${esc(t.category || '')}</span></td>
+      <td><span style="font-size:0.8rem">${esc(t.language || '')}</span></td>
+      <td><span style="font-size:0.78rem;font-weight:700;color:${TPL_STATUS_COLOURS[t.status] || '#64748b'}">${esc(TPL_STATUS_LABELS[t.status] || t.status)}</span></td>
+      <td><span style="color:#64748b;font-size:0.78rem">${esc(truncate(t.body || '', 70))}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-secondary btn-sm" onclick="editTemplateLoad('${t.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteTemplate('${t.id}')">Delete</button>
+      </td>
+    </tr>`).join('');
+}
+
+function resetTemplateForm() {
+  ['tpl-id','tpl-name','tpl-meta-name','tpl-body','tpl-notes'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const c = document.getElementById('tpl-category'); if (c) c.value = 'UTILITY';
+  const l = document.getElementById('tpl-language'); if (l) l.value = 'en';
+  const st = document.getElementById('tpl-status');  if (st) st.value = 'draft';
+  const titleEl = document.getElementById('tpl-form-title');
+  if (titleEl) titleEl.textContent = 'Create Template';
+  const msgEl = document.getElementById('tpl-msg');
+  if (msgEl) msgEl.textContent = '';
+}
+
+function editTemplateLoad(id) {
+  const t = cachedTemplates.find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('tpl-id').value        = t.id;
+  document.getElementById('tpl-name').value      = t.name || '';
+  document.getElementById('tpl-meta-name').value = t.meta_name || '';
+  document.getElementById('tpl-category').value  = t.category || 'UTILITY';
+  document.getElementById('tpl-language').value  = t.language || 'en';
+  document.getElementById('tpl-status').value    = t.status || 'draft';
+  document.getElementById('tpl-body').value      = t.body || '';
+  document.getElementById('tpl-notes').value     = t.notes || '';
+  const titleEl = document.getElementById('tpl-form-title');
+  if (titleEl) titleEl.textContent = 'Edit Template';
+  document.getElementById('tpl-form-title').scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+async function submitTemplate() {
+  const id       = v('tpl-id');
+  const name     = v('tpl-name');
+  const metaName = v('tpl-meta-name');
+  const category = v('tpl-category') || 'UTILITY';
+  const language = v('tpl-language') || 'en';
+  const status   = v('tpl-status')   || 'draft';
+  const body     = (document.getElementById('tpl-body')?.value  || '').trim();
+  const notes    = (document.getElementById('tpl-notes')?.value || '').trim();
+  const msgEl    = document.getElementById('tpl-msg');
+
+  if (!name) { setMsg(msgEl, 'Name is required.', 'err'); return; }
+  if (!body) { setMsg(msgEl, 'Body is required.', 'err'); return; }
+  // Meta rejects template names that are not lowercase with underscores, so
+  // catch it here rather than after a failed submission over there.
+  if (metaName && !/^[a-z0-9_]+$/.test(metaName)) {
+    setMsg(msgEl, 'Meta template name must be lowercase letters, numbers and underscores only.', 'err');
+    return;
+  }
+
+  const payload = { name, meta_name: metaName || null, category, language, status, body, notes: notes || null };
+
+  if (demoMode) {
+    if (id) {
+      const t = cachedTemplates.find(x => x.id === id);
+      if (t) Object.assign(t, payload);
+    } else {
+      cachedTemplates.unshift({ id:'tpl' + Date.now(), ...payload, is_active:true });
+    }
+    resetTemplateForm();
+    setMsg(msgEl, 'Template saved. (demo)', 'ok');
+    renderTemplatesTable();
+    return;
+  }
+
+  const { error } = id
+    ? await sb.from('message_templates').update(payload).eq('id', id)
+    : await sb.from('message_templates').insert({ ...payload, created_by: currentUser.id });
+
+  if (error) { setMsg(msgEl, error.message, 'err'); return; }
+  resetTemplateForm();
+  setMsg(msgEl, 'Template saved.', 'ok');
+  await loadTemplates();
+}
+
+async function deleteTemplate(id) {
+  if (!confirm('Delete this template? This only removes the CRM record, not anything in Meta.')) return;
+  if (demoMode) {
+    const idx = cachedTemplates.findIndex(x => x.id === id);
+    if (idx > -1) cachedTemplates.splice(idx, 1);
+    renderTemplatesTable();
+    return;
+  }
+  const { error } = await sb.from('message_templates').delete().eq('id', id);
+  if (error) { alert(error.message); return; }
+  await loadTemplates();
+}
 
 // ── FOLLOW-UPS (follow_up_sequences) ──────────────────────────
 // Storage + UI only. No scheduled job reads this table, so saving a
