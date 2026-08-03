@@ -1058,3 +1058,81 @@ ALTER TABLE public.leads ADD CONSTRAINT leads_status_check
 
 -- ── DONE (Phase 18) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM - Phase 19 Schema (Train AI + Create Flow storage)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+-- Mirrors supabase/migrations/20260803_train_ai_and_keyword_replies.sql.
+-- Kept here so the committed schema stays a complete picture of the live
+-- database. This project has already been bitten once (Phase 15, 21 July)
+-- by policies existing live but never written back into this file.
+
+-- ── 37. Train AI storage (Junaid, 2026-08-03) ──
+-- Backs the admin-only "Train AI" tab: a named campaign holding a system
+-- prompt plus free-text knowledge notes, scoped to a bot/WhatsApp number.
+-- Storage only. whatsapp-webhook does NOT read this table; wiring the bot
+-- to actually use it is a separate, later decision.
+CREATE TABLE IF NOT EXISTS public.ai_knowledge_base (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_name   TEXT        NOT NULL,
+  bot_number      TEXT,
+  system_prompt   TEXT        NOT NULL,
+  knowledge_notes TEXT,
+  is_active       BOOLEAN     NOT NULL DEFAULT true,
+  created_by      UUID        REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ── 38. Create Flow storage (Junaid, 2026-08-03) ──
+-- Backs the admin-only "Create Flow" tab: trigger keyword in, reply out.
+-- Deliberately not a visual flow builder; that is a later phase. Same
+-- caveat as above, the webhook does not read this table yet.
+CREATE TABLE IF NOT EXISTS public.keyword_replies (
+  id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  keyword       TEXT        NOT NULL,
+  match_type    TEXT        NOT NULL DEFAULT 'contains'
+                              CHECK (match_type IN ('exact','contains','starts_with')),
+  reply_message TEXT        NOT NULL,
+  is_active     BOOLEAN     NOT NULL DEFAULT true,
+  created_by    UUID        REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ── 39. updated_at triggers for both ──
+DROP TRIGGER IF EXISTS ai_knowledge_base_updated_at ON public.ai_knowledge_base;
+CREATE TRIGGER ai_knowledge_base_updated_at
+  BEFORE UPDATE ON public.ai_knowledge_base
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+DROP TRIGGER IF EXISTS keyword_replies_updated_at ON public.keyword_replies;
+CREATE TRIGGER keyword_replies_updated_at
+  BEFORE UPDATE ON public.keyword_replies
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+-- ── 40. RLS: admin only on both ──
+-- Agents get no access at all, not even SELECT, matching what the
+-- User Permission reference tab tells admins these sections are.
+ALTER TABLE public.ai_knowledge_base ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.keyword_replies   ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "ai_knowledge_base: admin full access" ON public.ai_knowledge_base;
+CREATE POLICY "ai_knowledge_base: admin full access" ON public.ai_knowledge_base
+  FOR ALL USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "keyword_replies: admin full access" ON public.keyword_replies;
+CREATE POLICY "keyword_replies: admin full access" ON public.keyword_replies
+  FOR ALL USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+CREATE INDEX IF NOT EXISTS ai_knowledge_base_active_idx
+  ON public.ai_knowledge_base (is_active);
+CREATE INDEX IF NOT EXISTS keyword_replies_active_idx
+  ON public.keyword_replies (is_active);
+
+-- ── DONE (Phase 19) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
