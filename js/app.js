@@ -1,12 +1,12 @@
 // ─────────────────────────────────────────────────────────────
-//  Badar Trader CRM — Phase 1 app logic
+//  Badar Trader CRM - Phase 1 app logic
 //  Requires: Supabase CDN + js/config.js loaded before this file
 // ─────────────────────────────────────────────────────────────
 
 // ── State ────────────────────────────────────────────────────
 let _user    = null;   // supabase auth user object
 let _profile = null;   // public.profiles row
-let _agents  = [];     // cached agent list (Admin only — for lead assignment dropdowns)
+let _agents  = [];     // cached agent list (Admin only - for lead assignment dropdowns)
 
 // ── DOM shortcuts ────────────────────────────────────────────
 const el     = id  => document.getElementById(id);
@@ -14,7 +14,7 @@ const val    = id  => el(id)?.value?.trim() ?? '';
 const show   = id  => { const e = el(id); if (e) e.style.display = ''; }
 const hide   = id  => { const e = el(id); if (e) e.style.display = 'none'; }
 const esc    = s   => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-const fmtDate= ts  => ts ? new Date(ts).toLocaleDateString() : '—';
+const fmtDate= ts  => ts ? new Date(ts).toLocaleDateString() : '-';
 
 // ─────────────────────────────────────────────────────────────
 //  BOOT
@@ -253,7 +253,7 @@ async function renderLeads() {
         ${lead.phone ? `<div class="sub-text">${esc(lead.phone)}</div>` : ''}
       </td>
       <td><span class="badge badge-src">${esc(lead.source)}</span></td>
-      <td>${lead.instrument_type ? esc(lead.instrument_type) : '<span class="muted">—</span>'}</td>
+      <td>${lead.instrument_type ? esc(lead.instrument_type) : '<span class="muted">-</span>'}</td>
       <td>
         <select class="status-sel status-${lead.status}"
                 onchange="updateLeadStatus('${lead.id}', this.value)">
@@ -340,12 +340,12 @@ async function openLeadDetail(leadId) {
   el('modal-body').innerHTML = `
     <h3 style="margin-bottom:16px">Lead: ${esc(lead.name)}</h3>
     <div class="detail-grid">
-      <div class="detail-row"><span class="detail-label">Email</span><span>${esc(lead.email || '—')}</span></div>
-      <div class="detail-row"><span class="detail-label">Phone</span><span>${esc(lead.phone || '—')}</span></div>
+      <div class="detail-row"><span class="detail-label">Email</span><span>${esc(lead.email || '-')}</span></div>
+      <div class="detail-row"><span class="detail-label">Phone</span><span>${esc(lead.phone || '-')}</span></div>
       <div class="detail-row"><span class="detail-label">Source</span><span>${esc(lead.source)}</span></div>
-      <div class="detail-row"><span class="detail-label">Instrument</span><span>${esc(lead.instrument_type || '—')}</span></div>
+      <div class="detail-row"><span class="detail-label">Instrument</span><span>${esc(lead.instrument_type || '-')}</span></div>
       <div class="detail-row"><span class="detail-label">Created</span><span>${new Date(lead.created_at).toLocaleString()}</span></div>
-      <div class="detail-row"><span class="detail-label">Created by</span><span>${esc(lead.creator?.name || '—')}</span></div>
+      <div class="detail-row"><span class="detail-label">Created by</span><span>${esc(lead.creator?.name || '-')}</span></div>
     </div>
 
     <label>Status</label>
@@ -617,7 +617,7 @@ async function renderMeta() {
       <input type="text" id="meta-account" value="${esc(s.meta_account_id ?? '')}" placeholder="act_123456789"/>
 
       <div class="webhook-box">
-        <div class="muted" style="font-size:.78rem;margin-bottom:4px">Webhook URL — Phase 3 (not yet active)</div>
+        <div class="muted" style="font-size:.78rem;margin-bottom:4px">Webhook URL - Phase 3 (not yet active)</div>
         <code class="webhook-url">https://&lt;your-project&gt;.supabase.co/functions/v1/meta-lead-webhook</code>
       </div>
 

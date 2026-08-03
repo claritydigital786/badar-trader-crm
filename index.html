@@ -1197,7 +1197,44 @@
   <div id="admin-tab-create-flow" class="tab-content">
     <h3>Create Flow</h3>
     <div class="info-box">
-      Not built yet - this is an honest placeholder, not a broken feature. First version in progress: a keyword-reply builder (set a trigger keyword, get an automatic reply), the same starting point WhatChimp itself uses under Automation. No fake buttons here - check back once this has a real update.
+      Keyword replies: pick a trigger word and the reply to send. Saving here is real and persists to the database. <strong>It does not change live bot behaviour yet</strong> - the WhatsApp webhook does not read these rules. This is the simplest real version on purpose; a visual drag-and-drop flow builder is a much larger, later phase.
+    </div>
+
+    <div class="card">
+      <table>
+        <thead><tr>
+          <th>Keyword</th><th>Match</th><th>Reply</th><th>Active</th><th></th>
+        </tr></thead>
+        <tbody id="kw-tbody">
+          <tr><td colspan="5" class="empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h4 id="kw-form-title" style="margin-bottom:14px">Create Keyword Reply</h4>
+      <input type="hidden" id="kw-id" />
+      <div class="form-row">
+        <div class="form-group">
+          <label>Trigger Keyword</label>
+          <input type="text" id="kw-keyword" placeholder="e.g. price" />
+        </div>
+        <div class="form-group">
+          <label>Match Type</label>
+          <select id="kw-match">
+            <option value="contains">Contains the keyword</option>
+            <option value="exact">Exactly matches the keyword</option>
+            <option value="starts_with">Starts with the keyword</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Reply Message</label>
+        <textarea id="kw-reply" rows="5" placeholder="The message to send back when this keyword matches."></textarea>
+      </div>
+      <div id="kw-msg" class="msg"></div>
+      <button class="btn btn-primary" onclick="submitKeywordReply()">Save Rule</button>
+      <button class="btn btn-secondary" onclick="resetKeywordForm()">Cancel</button>
     </div>
   </div>
 
@@ -1205,7 +1242,44 @@
   <div id="admin-tab-train-ai" class="tab-content">
     <h3>Train AI</h3>
     <div class="info-box">
-      Not built yet - this is an honest placeholder, not a broken feature. First version in progress: a place to store a system prompt and knowledge notes per bot number, similar to WhatChimp's own AI Knowledge Base. It will not change live bot behaviour on its own until that gets wired up separately.
+      This stores AI training material: a system prompt plus knowledge notes, per bot number. Saving here is real and persists to the database. <strong>It does not change live bot behaviour yet</strong> - the WhatsApp webhook does not read these entries. Wiring that up is a separate step, deliberately not done automatically.
+    </div>
+
+    <div class="card">
+      <table>
+        <thead><tr>
+          <th>Campaign</th><th>Bot Number</th><th>Prompt</th><th>Active</th><th></th>
+        </tr></thead>
+        <tbody id="ai-kb-tbody">
+          <tr><td colspan="5" class="empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h4 id="ai-kb-form-title" style="margin-bottom:14px">Create Training Campaign</h4>
+      <input type="hidden" id="akb-id" />
+      <div class="form-row">
+        <div class="form-group">
+          <label>Campaign Name</label>
+          <input type="text" id="akb-name" placeholder="e.g. Team Badar Support Bot Training" />
+        </div>
+        <div class="form-group">
+          <label>Bot Number</label>
+          <input type="text" id="akb-number" placeholder="e.g. +923715773903" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>System Prompt</label>
+        <textarea id="akb-prompt" rows="7" placeholder="Who the assistant is, its tone, language rules, what it must never promise, when to hand off to a human."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Knowledge Notes <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+        <textarea id="akb-notes" rows="5" placeholder="Facts the assistant should know: links, referral codes, deposit amounts, course details."></textarea>
+      </div>
+      <div id="akb-msg" class="msg"></div>
+      <button class="btn btn-primary" onclick="submitAiKb()">Save Campaign</button>
+      <button class="btn btn-secondary" onclick="resetAiKbForm()">Cancel</button>
     </div>
   </div>
 
@@ -1485,11 +1559,11 @@
     </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Create Flow</p>
-      <p style="color:#475569;font-size:0.88rem">A simple automation builder (trigger keyword -> automatic reply). Not built yet - opening it shows an honest "coming soon" note, not a fake feature.</p>
+      <p style="color:#475569;font-size:0.88rem">A simple automation builder: set a trigger keyword and the reply to send. Create, edit, pause and delete rules here; they save to the database for real. Note the bot does not act on them yet, that wiring is a separate step.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Train AI</p>
-      <p style="color:#475569;font-size:0.88rem">Where the bot's system prompt and knowledge notes will be managed per number. Not built yet - same honest placeholder as Create Flow.</p>
+      <p style="color:#475569;font-size:0.88rem">Where the bot's system prompt and knowledge notes are managed per number. Create, edit, pause and delete training campaigns here; they save to the database for real. Same caveat as Create Flow: the bot does not read them yet.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Comm Log</p>
@@ -2378,6 +2452,16 @@ const _DEMO_AUTO_RULES = [
   { id:'ar3', name:'KYC Verified - Deposit Reminder SMS', trigger_event:'kyc_verified', channel:'sms', condition_filter:null, template_subject:null, template_body:'Hi {{name}}, your KYC is verified! Fund your account now to start receiving live signals. Call us at +92-XXX-XXXXXXX.', is_active:false },
 ];
 
+const _DEMO_AI_KB = [
+  { id:'akb1', campaign_name:'Team Badar Support Bot Training', bot_number:'+923715773903', system_prompt:'You are the Team Badar assistant. Mirror the customer language, English or Roman Urdu, never mix the two in one reply. Keep replies to 3-5 lines. Never promise returns. Stay neutral between Exness and XM. Hand off to a human agent for deposits under $500, any negotiation, or anything you are unsure about.', knowledge_notes:'Exness referral: eatgh2cl7y. XM referral: YR4PD. Deposit is a flat $500, not a range. Course is worth $250 and is free with the deposit.', is_active:true },
+];
+
+const _DEMO_KEYWORD_REPLIES = [
+  { id:'kw1', keyword:'price', match_type:'contains', reply_message:'The deposit is a flat $500. That is your own trading capital, not a fee.', is_active:true },
+  { id:'kw2', keyword:'course', match_type:'contains', reply_message:'The mentorship course is worth $250 and is unlocked free with a $500 deposit.', is_active:true },
+  { id:'kw3', keyword:'agent', match_type:'exact', reply_message:'Connecting you with a member of our team now.', is_active:false },
+];
+
 function enterDemoMode() {
   demoMode         = true;
   demoRrAgentIndex = 0;
@@ -2571,6 +2655,8 @@ function adminTab(name, el) {
   if (name === 'meta')             loadMetaSettings();
   if (name === 'meta-ads')         initMetaAnalytics();
   if (name === 'automation')       { loadAutomationRules(); populateArAgentDropdown(); }
+  if (name === 'train-ai')         loadAiKb();
+  if (name === 'create-flow')      loadKeywordReplies();
   if (name === 'reports')          loadReports();
   if (name === 'comm-log')         loadCommLog();
   if (name === 'payroll')          { if (!document.querySelector('#payroll-setup-tbody strong')) renderPayrollSetup(); }
@@ -4110,6 +4196,271 @@ function truncate(s, n) {
 
 // ── AUTOMATION RULES (admin only) ──────────────────────────────
 let cachedAutomationRules = [];
+let cachedAiKb           = [];
+let cachedKeywordReplies = [];
+
+// ── TRAIN AI (ai_knowledge_base) ──────────────────────────────
+// Storage + UI only. Nothing here changes live bot behaviour; the
+// whatsapp-webhook does not read this table yet, by design.
+// A missing table must never look like a hang. PGRST205 is PostgREST's
+// "relation not in the schema cache", i.e. the migration has not been run.
+function showTableError(tbodyId, error) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const missingTable = error && (error.code === 'PGRST205' || /schema cache/i.test(error.message || ''));
+  const text = missingTable
+    ? 'Storage for this section has not been set up yet. The database migration <code>20260803_train_ai_and_keyword_replies.sql</code> still needs to be run. Saving will not work until then.'
+    : 'Could not load this section: ' + esc(error?.message || 'unknown error');
+  tbody.innerHTML = `<tr><td colspan="5" class="empty-state">${text}</td></tr>`;
+}
+
+async function loadAiKb() {
+  if (demoMode) { cachedAiKb = _DEMO_AI_KB.slice(); renderAiKbTable(); return; }
+  const { data, error } = await sb
+    .from('ai_knowledge_base').select('*').order('created_at', { ascending: false });
+  if (error) { console.error('loadAiKb:', error); showTableError('ai-kb-tbody', error); return; }
+  cachedAiKb = data || [];
+  renderAiKbTable();
+}
+
+function renderAiKbTable() {
+  const tbody = document.getElementById('ai-kb-tbody');
+  if (!tbody) return;
+  if (!cachedAiKb.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No training campaigns yet. Create one below.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = cachedAiKb.map(k => `
+    <tr>
+      <td><strong style="color:#0f172a">${esc(k.campaign_name)}</strong></td>
+      <td style="white-space:nowrap">${esc(k.bot_number || '-')}</td>
+      <td><span style="color:#64748b;font-size:0.78rem">${esc(truncate(k.system_prompt || '', 90))}</span></td>
+      <td>
+        <label class="toggle-switch" title="${k.is_active ? 'Click to pause' : 'Click to activate'}">
+          <input type="checkbox" ${k.is_active ? 'checked' : ''} onchange="toggleAiKbActive('${k.id}',${k.is_active})" />
+          <span class="toggle-slider"></span>
+        </label>
+      </td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-secondary btn-sm" onclick="editAiKbLoad('${k.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteAiKb('${k.id}')">Delete</button>
+      </td>
+    </tr>`).join('');
+}
+
+function resetAiKbForm() {
+  ['akb-id','akb-name','akb-number','akb-prompt','akb-notes'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const titleEl = document.getElementById('ai-kb-form-title');
+  if (titleEl) titleEl.textContent = 'Create Training Campaign';
+  const msgEl = document.getElementById('akb-msg');
+  if (msgEl) msgEl.textContent = '';
+}
+
+function editAiKbLoad(id) {
+  const k = cachedAiKb.find(x => x.id === id);
+  if (!k) return;
+  document.getElementById('akb-id').value     = k.id;
+  document.getElementById('akb-name').value   = k.campaign_name || '';
+  document.getElementById('akb-number').value = k.bot_number || '';
+  document.getElementById('akb-prompt').value = k.system_prompt || '';
+  document.getElementById('akb-notes').value  = k.knowledge_notes || '';
+  const titleEl = document.getElementById('ai-kb-form-title');
+  if (titleEl) titleEl.textContent = 'Edit Training Campaign';
+  document.getElementById('ai-kb-form-title').scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+async function submitAiKb() {
+  const id    = v('akb-id');
+  const name  = v('akb-name');
+  const num   = v('akb-number');
+  const promptText = (document.getElementById('akb-prompt')?.value || '').trim();
+  const notes = (document.getElementById('akb-notes')?.value || '').trim();
+  const msgEl = document.getElementById('akb-msg');
+
+  if (!name)       { setMsg(msgEl, 'Campaign name is required.', 'err'); return; }
+  if (!promptText) { setMsg(msgEl, 'System prompt is required.', 'err'); return; }
+
+  const payload = {
+    campaign_name: name,
+    bot_number: num || null,
+    system_prompt: promptText,
+    knowledge_notes: notes || null,
+  };
+
+  if (demoMode) {
+    if (id) {
+      const k = cachedAiKb.find(x => x.id === id);
+      if (k) Object.assign(k, payload);
+    } else {
+      cachedAiKb.unshift({ id:'akb' + Date.now(), ...payload, is_active:true });
+    }
+    resetAiKbForm();
+    setMsg(msgEl, 'Training campaign saved. (demo)', 'ok');
+    renderAiKbTable();
+    return;
+  }
+
+  const { error } = id
+    ? await sb.from('ai_knowledge_base').update(payload).eq('id', id)
+    : await sb.from('ai_knowledge_base').insert({ ...payload, created_by: currentUser.id });
+
+  if (error) { setMsg(msgEl, error.message, 'err'); return; }
+  resetAiKbForm();
+  setMsg(msgEl, 'Training campaign saved.', 'ok');
+  await loadAiKb();
+}
+
+async function toggleAiKbActive(id, current) {
+  if (demoMode) {
+    const k = cachedAiKb.find(x => x.id === id);
+    if (k) k.is_active = !current;
+    renderAiKbTable();
+    return;
+  }
+  const { error } = await sb.from('ai_knowledge_base').update({ is_active: !current }).eq('id', id);
+  if (error) { alert(error.message); return; }
+  await loadAiKb();
+}
+
+async function deleteAiKb(id) {
+  if (!confirm('Delete this training campaign?')) return;
+  if (demoMode) {
+    const idx = cachedAiKb.findIndex(x => x.id === id);
+    if (idx > -1) cachedAiKb.splice(idx, 1);
+    renderAiKbTable();
+    return;
+  }
+  const { error } = await sb.from('ai_knowledge_base').delete().eq('id', id);
+  if (error) { alert(error.message); return; }
+  await loadAiKb();
+}
+
+// ── CREATE FLOW (keyword_replies) ─────────────────────────────
+// Simplest real version: keyword in, reply out. Not a visual flow
+// builder. Also not read by the webhook yet, same as Train AI.
+const KW_MATCH_LABELS = { contains:'Contains', exact:'Exact', starts_with:'Starts with' };
+
+async function loadKeywordReplies() {
+  if (demoMode) { cachedKeywordReplies = _DEMO_KEYWORD_REPLIES.slice(); renderKeywordRepliesTable(); return; }
+  const { data, error } = await sb
+    .from('keyword_replies').select('*').order('created_at', { ascending: false });
+  if (error) { console.error('loadKeywordReplies:', error); showTableError('kw-tbody', error); return; }
+  cachedKeywordReplies = data || [];
+  renderKeywordRepliesTable();
+}
+
+function renderKeywordRepliesTable() {
+  const tbody = document.getElementById('kw-tbody');
+  if (!tbody) return;
+  if (!cachedKeywordReplies.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No keyword replies yet. Create one below.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = cachedKeywordReplies.map(k => `
+    <tr>
+      <td><strong style="color:#0f172a">${esc(k.keyword)}</strong></td>
+      <td><span style="font-size:0.82rem">${esc(KW_MATCH_LABELS[k.match_type] || k.match_type)}</span></td>
+      <td><span style="color:#64748b;font-size:0.78rem">${esc(truncate(k.reply_message || '', 90))}</span></td>
+      <td>
+        <label class="toggle-switch" title="${k.is_active ? 'Click to pause' : 'Click to activate'}">
+          <input type="checkbox" ${k.is_active ? 'checked' : ''} onchange="toggleKeywordActive('${k.id}',${k.is_active})" />
+          <span class="toggle-slider"></span>
+        </label>
+      </td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-secondary btn-sm" onclick="editKeywordLoad('${k.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteKeywordReply('${k.id}')">Delete</button>
+      </td>
+    </tr>`).join('');
+}
+
+function resetKeywordForm() {
+  ['kw-id','kw-keyword','kw-reply'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const match = document.getElementById('kw-match');
+  if (match) match.value = 'contains';
+  const titleEl = document.getElementById('kw-form-title');
+  if (titleEl) titleEl.textContent = 'Create Keyword Reply';
+  const msgEl = document.getElementById('kw-msg');
+  if (msgEl) msgEl.textContent = '';
+}
+
+function editKeywordLoad(id) {
+  const k = cachedKeywordReplies.find(x => x.id === id);
+  if (!k) return;
+  document.getElementById('kw-id').value      = k.id;
+  document.getElementById('kw-keyword').value = k.keyword || '';
+  document.getElementById('kw-match').value   = k.match_type || 'contains';
+  document.getElementById('kw-reply').value   = k.reply_message || '';
+  const titleEl = document.getElementById('kw-form-title');
+  if (titleEl) titleEl.textContent = 'Edit Keyword Reply';
+  document.getElementById('kw-form-title').scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+async function submitKeywordReply() {
+  const id      = v('kw-id');
+  const keyword = v('kw-keyword');
+  const match   = v('kw-match') || 'contains';
+  const reply   = (document.getElementById('kw-reply')?.value || '').trim();
+  const msgEl   = document.getElementById('kw-msg');
+
+  if (!keyword) { setMsg(msgEl, 'Trigger keyword is required.', 'err'); return; }
+  if (!reply)   { setMsg(msgEl, 'Reply message is required.', 'err'); return; }
+
+  const payload = { keyword, match_type: match, reply_message: reply };
+
+  if (demoMode) {
+    if (id) {
+      const k = cachedKeywordReplies.find(x => x.id === id);
+      if (k) Object.assign(k, payload);
+    } else {
+      cachedKeywordReplies.unshift({ id:'kw' + Date.now(), ...payload, is_active:true });
+    }
+    resetKeywordForm();
+    setMsg(msgEl, 'Keyword reply saved. (demo)', 'ok');
+    renderKeywordRepliesTable();
+    return;
+  }
+
+  const { error } = id
+    ? await sb.from('keyword_replies').update(payload).eq('id', id)
+    : await sb.from('keyword_replies').insert({ ...payload, created_by: currentUser.id });
+
+  if (error) { setMsg(msgEl, error.message, 'err'); return; }
+  resetKeywordForm();
+  setMsg(msgEl, 'Keyword reply saved.', 'ok');
+  await loadKeywordReplies();
+}
+
+async function toggleKeywordActive(id, current) {
+  if (demoMode) {
+    const k = cachedKeywordReplies.find(x => x.id === id);
+    if (k) k.is_active = !current;
+    renderKeywordRepliesTable();
+    return;
+  }
+  const { error } = await sb.from('keyword_replies').update({ is_active: !current }).eq('id', id);
+  if (error) { alert(error.message); return; }
+  await loadKeywordReplies();
+}
+
+async function deleteKeywordReply(id) {
+  if (!confirm('Delete this keyword reply?')) return;
+  if (demoMode) {
+    const idx = cachedKeywordReplies.findIndex(x => x.id === id);
+    if (idx > -1) cachedKeywordReplies.splice(idx, 1);
+    renderKeywordRepliesTable();
+    return;
+  }
+  const { error } = await sb.from('keyword_replies').delete().eq('id', id);
+  if (error) { alert(error.message); return; }
+  await loadKeywordReplies();
+}
 
 async function loadAutomationRules() {
   if (demoMode) { cachedAutomationRules = _DEMO_AUTO_RULES.slice(); renderAutomationRulesTable(); return; }
@@ -4234,8 +4585,8 @@ async function submitAutomationRule() {
     } else {
       cachedAutomationRules.unshift({ id: 'ar' + Date.now(), ...payload, is_active: true });
     }
-    setMsg(msgEl, 'Rule saved. (demo)', 'ok');
     resetAutomationForm();
+    setMsg(msgEl, 'Rule saved. (demo)', 'ok');
     renderAutomationRulesTable();
     return;
   }
@@ -4245,8 +4596,8 @@ async function submitAutomationRule() {
     : await sb.from('automation_rules').insert({ ...payload, created_by: currentUser.id });
 
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
-  setMsg(msgEl, 'Rule saved.', 'ok');
   resetAutomationForm();
+  setMsg(msgEl, 'Rule saved.', 'ok');
   await loadAutomationRules();
 }
 

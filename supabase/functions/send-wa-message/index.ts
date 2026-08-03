@@ -1,4 +1,4 @@
-// Badar Trader CRM — server-side WhatsApp send proxy
+// Badar Trader CRM - server-side WhatsApp send proxy
 // Supabase Edge Function (Deno / TypeScript)
 //
 // Why this exists: agents send replies from the Conversations tab. The
@@ -13,7 +13,7 @@
 //   supabase functions deploy send-wa-message
 //
 // Contract: always responds 200 with JSON { ok: boolean, error?: string }
-// for application-level outcomes. Non-200 means auth/infra problems only —
+// for application-level outcomes. Non-200 means auth/infra problems only -
 // the frontend treats 404 as "not deployed yet" and falls back to the
 // legacy in-browser send.
 
@@ -100,7 +100,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const sb = makeServiceClient();
 
-  // Caller must be an admin or any active (non-suspended) staff member — the
+  // Caller must be an admin or any active (non-suspended) staff member - the
   // same rule the leads/communications RLS policies enforce (schema.sql
   // Phase 15). Was previously "must be the exact assigned agent", which was
   // never updated when that policy changed, leaving agents able to see a
@@ -120,7 +120,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const { token, phoneId } = await getWaCredentials();
   if (!token || !phoneId) {
-    return json({ ok: false, error: "WhatsApp credentials not configured — admin must save them in Meta Integration" });
+    return json({ ok: false, error: "WhatsApp credentials not configured - admin must save them in Meta Integration" });
   }
 
   const phoneDigits = (lead.phone ?? "").replace(/\D/g, "");
@@ -167,7 +167,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   });
 
   // An agent manually messaging a lead means a human has taken over this
-  // conversation — the bot must not keep processing the lead's replies as
+  // conversation - the bot must not keep processing the lead's replies as
   // answers to its own stage machine. Uses the same needs_human flag the
   // webhook's runBotStep already checks, with a reason matching the
   // "requested human agent" pattern so it's a PERMANENT handoff (never
@@ -181,7 +181,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }).eq("id", leadId);
 
   if (insertError) {
-    // Message DID go out — surface the logging failure rather than pretending
+    // Message DID go out - surface the logging failure rather than pretending
     // the send failed (a retry would double-message the lead).
     return json({ ok: true, warning: `Sent, but failed to log in CRM: ${insertError.message}` });
   }

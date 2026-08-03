@@ -18,7 +18,7 @@ Auth + Edge Functions).
 The single most important thing for anyone taking this over: **operational
 configuration (API tokens, phone number IDs, IB links, admin numbers) is stored
 in the Supabase `settings` table** (key/value), and read at request time by the
-edge functions — it is **not** kept in a `.env` file in this repo.
+edge functions - it is **not** kept in a `.env` file in this repo.
 
 Known `settings` keys include: `wa_access_token`, `wa_phone_number_id`,
 `meta_token`, `meta_account_id`, `admin_whatsapp_number`, `gh_push_token`.

@@ -1,4 +1,4 @@
-// Badar Trader CRM — nudge-agents
+// Badar Trader CRM - nudge-agents
 // Supabase Edge Function (Deno / TypeScript)
 //
 // Runs every 15 minutes, 9:00am-6:00pm PKT only (see the pg_cron jobs
@@ -86,7 +86,7 @@ Deno.serve(async (): Promise<Response> => {
 
     const cutoff = new Date(Date.now() - PING_INTERVAL_MINUTES * 60_000).toISOString();
     // or() re-includes leads whose agent_last_pinged_at is NULL (assignment
-    // notify failed before ever stamping it) — .lte() alone drops NULLs and
+    // notify failed before ever stamping it) - .lte() alone drops NULLs and
     // those leads were never reminded at all.
     const { data: leads, error } = await sb
       .from("leads")
@@ -98,7 +98,7 @@ Deno.serve(async (): Promise<Response> => {
 
     // ONE message per agent per run, whatever the lead count. The old
     // per-lead loop sent N identical "a lead is still waiting" texts when an
-    // agent had N waiting leads — Badar read that as duplicate spam
+    // agent had N waiting leads - Badar read that as duplicate spam
     // (2026-07-14, Hanzala's screenshots) and the whole cron got unscheduled.
     const byAgent = new Map<string, { agent: typeof AGENT_ROTATION[number]; leads: any[] }>();
     for (const lead of leads || []) {
@@ -115,7 +115,7 @@ Deno.serve(async (): Promise<Response> => {
       const toEscalate = agentLeads.filter((l) => !l.agent_escalated && (l.agent_ping_count ?? 0) >= ESCALATE_AFTER_PINGS);
       if (toEscalate.length) {
         // First cycle past the threshold: broadcast the overdue leads to the
-        // rest of the team once — one combined message per recipient, and
+        // rest of the team once - one combined message per recipient, and
         // targets deduped so admin_whatsapp_number matching an agent's own
         // number can't double-send.
         const others = AGENT_ROTATION.filter((a) => a.id !== agent.id);
@@ -143,7 +143,7 @@ Deno.serve(async (): Promise<Response> => {
       const names = toRemind.map(leadLabel).join(", ");
       const bodyText = toRemind.length === 1
         ? `⏰ Reminder: a lead in the CRM is still waiting on you: ${names}.`
-        : `⏰ Reminder: ${toRemind.length} leads in the CRM are still waiting on you: ${names}. Tap below to acknowledge the oldest — the CRM has the rest.`;
+        : `⏰ Reminder: ${toRemind.length} leads in the CRM are still waiting on you: ${names}. Tap below to acknowledge the oldest - the CRM has the rest.`;
       // The single ack button acknowledges the oldest lead; the next run
       // re-lists whatever is still waiting (WhatsApp allows max 3 buttons,
       // so one-summary-message + one-button is the spam-proof shape).
