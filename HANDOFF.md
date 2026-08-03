@@ -48,7 +48,16 @@ Whoever finishes their piece first should update this section (mark it done, sam
 **Standing rule, reinforced hard tonight: zero em dashes, anywhere, ever - user-facing text, code comments, this file, everything.** Muhammad was extremely direct about this. All 158 occurrences in `index.html` and all 184 in this file were swept and replaced with plain hyphens tonight. Check before ever writing one again.
 
 ### Active Work Claims
-- Muhammad - full mobile usability pass, tab by tab at phone width (375px) - the 2026-07-19 backlog item that was never systematically tested - 2026-08-03, claimed before starting
+(none right now)
+
+**DONE (2026-08-03) - Muhammad's mobile usability pass, tab by tab at 375px** (the 2026-07-19 backlog item flagged as "never systematically tested"). Found and fixed real bugs, not just checked the box:
+- Sidebar didn't fully hide when collapsed on mobile - it translated by a hardcoded `-220px` while its actual width was `232px`, leaving a permanent ~12px sliver on-screen at every phone width. Switched to `translateX(-100%)` so it can never drift out of sync with the real width again.
+- The Welcome Back header had a leftover `gap:10px` flex style from when the (now-removed) wave emoji sat next to the name - with the emoji gone, the gap still applied between the text node and the name span, showing as a visible double-space. Removed the now-pointless flex styling.
+- All Leads table rows had no way to open a lead on mobile - the only trigger was a "View" button in the table's last column, which sits off-screen until you scroll the table horizontally, and the row itself wasn't clickable. Made the whole row tappable (`renderLeadsTable`), button still there as a visual affordance.
+- Found something bigger than mobile-only: the lead search box, and the entire Broadcast Signal / Subscribers / AI Signals section (target group, signal type, instrument fields, the 4 AI-signal mini-stat boxes, the Dashboard "Upcoming Follow-ups" widget, lead detail notes textarea) still had the pre-redesign dark palette (`color:#e2e8f0` text on `#1e293b` backgrounds) hardcoded inline, left over from before the light redesign. Inside the new light `.card` styling this was nearly illegible - light-gray text on white, dark boxes floating in a light card. Stripped the leftover inline styles so all of it inherits the same light input/card look as the rest of the app. This was broken in light mode on desktop too, not just mobile - just happened to surface during this pass.
+- Everything else checked clean at 375px: Dashboard, Omnichannel Inbox (list, full-screen chat, back button, input bar), Reports (stat cards, agent table, revenue chart), My Team, Meta Ads, Add Lead, Automation, Payroll, Notifications, Sites, User Manager, User Permission, Meta Integration, Guide.
+
+Verified locally on `localhost:8744` in demo mode at a real 375px viewport for every tab above, zero console errors throughout, before committing and pushing (`a9fe5c8`, merged with Junaid's Part 3 completion).
 
 **DONE (2026-08-03) - Junaid's Part 3 items 1 and 2, with one part explicitly NOT done.** Both tabs now have real working UI in place of the honest placeholders.
 - **Train AI** (`ai_knowledge_base`): campaign name, bot number, system prompt, knowledge notes. Create / edit / pause / delete.
