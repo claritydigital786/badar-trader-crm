@@ -2117,7 +2117,7 @@
   <div id="admin-tab-signal-broadcast" class="tab-content">
     <h3>📡 Broadcast Signal</h3>
     <div class="info-box">
-      <strong>Not connected to real subscribers yet.</strong> Pressing Send will not deliver anything to anyone and will not record anything. The subscriber list is placeholder data generated in your browser, not real people, so there is nobody to send to. Going live needs three things: a real subscribers table, a server-side send path (the same pattern as the send-wa-message function), and Meta template approval for messages outside the 24 hour window. Separately, WhatsApp's Cloud API cannot post into WhatsApp Communities at all, so community broadcasting stays a manual job in the app whatever gets built here.
+      <strong>Connected to real subscribers, but sending is switched off.</strong> Target group, recipient counts and signal history below are all real. Pressing Send calls a real server-side function that messages each active subscriber's personal WhatsApp number individually (Cloud API cannot post into WhatsApp Communities at all, so this is the only way a "broadcast" can work), but that function ships with sending disabled until an admin deliberately turns it on - most subscribers are outside Meta's 24 hour customer-service window, so an approved message template is very likely needed first (see the Message Templates tab).
     </div>
 
     <!-- Signal Desk (demo preview) -->
@@ -2127,10 +2127,10 @@
     </details>
 
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
-      <div class="stat-card"><div class="stat-value" id="bc-total-subs">0</div><div class="stat-label">Total Subscribers</div></div>
-      <div class="stat-card"><div class="stat-value" id="bc-g1-count">0</div><div class="stat-label">Group 1</div></div>
-      <div class="stat-card"><div class="stat-value" id="bc-g2-count">0</div><div class="stat-label">Group 2</div></div>
-      <div class="stat-card"><div class="stat-value" id="bc-g3-count">0</div><div class="stat-label">Group 3</div></div>
+      <div class="stat-card"><div class="stat-value" id="sub-total-bc">0</div><div class="stat-label">Total Subscribers</div></div>
+      <div class="stat-card"><div class="stat-value" id="bc-total-subs">0</div><div class="stat-label">Active (sendable)</div></div>
+      <div class="stat-card"><div class="stat-value" id="bc-communities-count">0</div><div class="stat-label">Communities</div></div>
+      <div class="stat-card"><div class="stat-value" id="bc-history-count">0</div><div class="stat-label">Broadcasts Sent</div></div>
     </div>
 
     <div class="card">
@@ -2915,8 +2915,6 @@ function adminTab(name, el) {
     ? el
     : document.querySelector(`#admin-tabs .nav-item[data-tab="${name}"]`);
   if (navItem) navItem.classList.add('active');
-  // Load persisted signal history when opening signal tabs
-  if (name === 'signal-broadcast' || name === 'ai-signals') loadSignalHistoryFromDb();
   // Update header title
   const titles = {
     dashboard: 'Dashboard', leads: 'All Leads', agents: 'My Team',
@@ -6910,6 +6908,7 @@ function updateSubCountBadge() {
   set('sub-total', total); set('sub-active', active);
   set('sub-pending', pending); set('sub-communities', comms);
   set('sub-count-badge', total); set('bc-total-subs', active);
+  set('sub-total-bc', total); set('bc-communities-count', comms);
 
   // Keep the community filter in sync with whatever communities actually exist.
   const sel = document.getElementById('sub-community-filter');
@@ -7036,6 +7035,130 @@ async function importSubscribersCSV(event) {
   alert(`Imported ${rows.length} subscribers.`);
 }
 
+// ── SIGNAL BROADCAST (signal_broadcasts) ──────────────────────
+// Real send path: send-broadcast-signal messages each active subscriber's
+// personal WhatsApp number individually - Cloud API cannot post into
+// WhatsApp Communities at all, so this is the only way "broadcast" can
+// actually work. Ships with SIGNAL_BROADCAST_ENABLED = false on the
+// function itself, so pressing Send reports honestly that nothing went out
+// until an admin deliberately flips that flag.
+let _signalBroadcasts = [];
+
+const SIGNAL_TYPE_LABELS = { buy: '🟢 BUY', sell: '🔴 SELL', update: '🔵 UPDATE', close: '⚪ CLOSE', custom: '✍️ Custom' };
+
+async function initBroadcastTab() {
+  if (!_subscribers.length) await loadSubscribers();
+  else updateSubCountBadge();
+  renderBroadcastGroupOptions();
+  await loadSignalBroadcastHistory();
+}
+
+function renderBroadcastGroupOptions() {
+  const sel = document.getElementById('bc-group-sel');
+  if (!sel) return;
+  const current = sel.value;
+  const names = [...new Set(_subscribers.map(x => x.community).filter(Boolean))].sort();
+  sel.innerHTML = `<option value="all">All communities (${_activeSubs().length})</option>` +
+    names.map(n => `<option value="${esc(n)}">${esc(n)} (${_activeSubs(n).length})</option>`).join('');
+  if ([...sel.options].some(o => o.value === current)) sel.value = current;
+}
+
+function bcAutoFill() {
+  const type = document.getElementById('bc-signal-type')?.value;
+  if (type === 'custom') return;
+  const instrument = document.getElementById('bc-instrument')?.value.trim();
+  if (!instrument) return;
+  const entry = document.getElementById('bc-entry')?.value.trim();
+  const tp    = document.getElementById('bc-tp')?.value.trim();
+  const sl    = document.getElementById('bc-sl')?.value.trim();
+  const msgEl = document.getElementById('bc-message');
+  if (!msgEl) return;
+
+  let text = `${SIGNAL_TYPE_LABELS[type] || ''} ${instrument}`.trim();
+  if (entry) text += ` @ ${entry}`;
+  if (tp) text += `\nTP: ${tp}`;
+  if (sl) text += `\nSL: ${sl}`;
+  msgEl.value = text;
+}
+
+async function loadSignalBroadcastHistory() {
+  const tbody = document.getElementById('bc-history-tbody');
+  if (!tbody) return;
+
+  if (demoMode) { _signalBroadcasts = []; renderSignalBroadcastHistory(); return; }
+
+  const { data, error } = await sb
+    .from('signal_broadcasts').select('*').order('created_at', { ascending: false }).limit(50);
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Could not load signal history: ${esc(error.message)}</td></tr>`;
+    return;
+  }
+  _signalBroadcasts = data || [];
+  renderSignalBroadcastHistory();
+}
+
+function renderSignalBroadcastHistory() {
+  const tbody = document.getElementById('bc-history-tbody');
+  if (!tbody) return;
+  const countEl = document.getElementById('bc-history-count');
+  if (countEl) countEl.textContent = _signalBroadcasts.length.toLocaleString();
+  if (!_signalBroadcasts.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No signals sent yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _signalBroadcasts.map(b => `
+    <tr>
+      <td style="color:#64748b;font-size:0.78rem">${new Date(b.created_at).toLocaleString()}</td>
+      <td>${SIGNAL_TYPE_LABELS[b.signal_type] || esc(b.signal_type)}</td>
+      <td>${esc(b.instrument || '-')}</td>
+      <td>${esc(b.entry_price || '-')}</td>
+      <td>${esc(b.take_profit || '-')}</td>
+      <td>${esc(b.stop_loss || '-')}</td>
+      <td>${b.success_count}/${b.recipient_count}${b.failed_count ? ` <span style="color:#dc4c40">(${b.failed_count} failed)</span>` : ''}</td>
+      <td><span style="color:#64748b;font-size:0.76rem">not tracked</span></td>
+    </tr>`).join('');
+}
+
+async function broadcastSignal() {
+  const community  = document.getElementById('bc-group-sel')?.value || 'all';
+  const signalType = document.getElementById('bc-signal-type')?.value || 'custom';
+  const instrument = document.getElementById('bc-instrument')?.value.trim() || '';
+  const entry      = document.getElementById('bc-entry')?.value.trim() || '';
+  const tp         = document.getElementById('bc-tp')?.value.trim() || '';
+  const sl         = document.getElementById('bc-sl')?.value.trim() || '';
+  const message    = document.getElementById('bc-message')?.value.trim();
+  const statusEl   = document.getElementById('bc-status');
+  const btn        = document.getElementById('bc-send-btn');
+
+  if (!message) { alert('Message is required (auto-fills from the fields above, or type your own).'); return; }
+
+  const targetCount = _activeSubs(community === 'all' ? null : community).length;
+  if (!targetCount) { alert('No active subscribers in that target - nothing to send to.'); return; }
+  if (!confirm(`Send this to ${targetCount} active subscriber(s)${community !== 'all' ? ' in "' + community + '"' : ''}? This cannot be undone.`)) return;
+
+  btn.disabled = true;
+  statusEl.textContent = 'Sending...';
+
+  if (demoMode) {
+    // Same honesty convention as every other gated feature in demo mode:
+    // no real subscribers exist here, so nothing is actually sent.
+    statusEl.textContent = 'Demo mode: nothing was actually sent (no real subscribers in demo data).';
+    btn.disabled = false;
+    return;
+  }
+
+  const { data, error } = await sb.functions.invoke('send-broadcast-signal', {
+    body: { community, signal_type: signalType, instrument, entry, tp, sl, message },
+  });
+  btn.disabled = false;
+
+  if (error) { statusEl.textContent = 'Failed: ' + error.message; return; }
+  if (!data?.ok) { statusEl.textContent = data?.error || 'Broadcast is currently disabled.'; return; }
+
+  statusEl.textContent = `Sent to ${data.success_count}/${data.recipient_count} subscribers.`;
+  await loadSignalBroadcastHistory();
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  AI SIGNALS TAB
 // ═══════════════════════════════════════════════════════════════
@@ -7044,6 +7167,16 @@ function initAISignalsTab() {
   updateSubCountBadge();
   syncAccuracyTracker();
 }
+
+// Bug found while touching this section: both referenced below without
+// ever being declared (_aiLastSignal via an implicit global assignment
+// that silently worked, _signalHistory via a read-before-assignment that
+// threw ReferenceError every time the AI Signals tab opened). No accuracy
+// tracking UI has ever actually worked. Declared here, empty - matches the
+// "no signal history yet" honest empty state syncAccuracyTracker already
+// renders for an empty array.
+let _aiLastSignal = null;
+let _signalHistory = [];
 
 // Simulated technical analysis patterns
 const _AI_PATTERNS = [

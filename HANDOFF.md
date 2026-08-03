@@ -1007,6 +1007,28 @@ Verified in demo mode (stats, overdue flagging, all three validation paths, crea
 
 ---
 
+## 2026-08-04 (later) - Junaid: Follow-ups sender + Broadcast Signal send path built, both shipped OFF; two real dead-button bugs found and fixed
+
+**Context: Junaid picked up "finish the rest" after the 08-04 handoff above, on a new laptop/session.** Two of the five gated Part 3 items got real send-path infrastructure today. Both ship disabled by design - this is backend/frontend work made real and testable, not a decision to go live, which stays Muhammad's call per the standing rule on this file.
+
+**Follow-ups now has a real sender, OFF by default.**
+- `leads.updated_at` cannot answer "how long has this lead sat in its current status" - it's touched by any edit, not just a status change. Added `leads.status_changed_at`, set only on a real status transition by a new trigger (`leads_status_changed_at`), separate from the existing `leads_updated_at` trigger. Backfilled existing rows from `updated_at`/`created_at`.
+- New `follow_up_sends` table: one row per (lead, sequence), sent or failed, so a permanently-broken phone number is never retried forever.
+- New edge function `send-follow-ups`, cron-invoked every 30 min 9am-6pm PKT (same `--no-verify-jwt` / pg_net pattern as `nudge-agents`). Reads active `follow_up_sequences`, finds leads past `delay_hours` in `trigger_status` with no prior send, sends via the same Graph API call `send-wa-message` uses, logs to `communications` + `follow_up_sends`. Skips leads with `needs_human = true` so it never talks over an agent already in a manual conversation.
+- **`FOLLOW_UPS_ENABLED = false`**, verified in the deployed source (downloaded it back from production and diffed against local - identical). Cron job is scheduled and will call the function every 30 minutes, but it's a confirmed no-op while the flag is off. **Before ever setting it true:** confirm WhatChimp isn't also messaging the same leads (the exact double-reply risk `BOT_REPLIES_ENABLED`/`KEYWORD_REPLIES_ENABLED` exist to prevent), and be aware Meta's 24h customer-service window will reject sends to leads silent that long - those land in `follow_up_sends.status = 'failed'` and are not retried.
+
+**Broadcast Signal: found it was actually dead, not just gated - `initBroadcastTab()`, `broadcastSignal()` and `bcAutoFill()` were all called from index.html but never defined anywhere in the file.** Opening the tab or pressing Send threw `ReferenceError` in the console every time; this contradicts the 08-03 "made honest" entry above, which must have described intent that never actually landed, or got lost in the Subscribers-table refactor. A third dead reference (`loadSignalHistoryFromDb()`, called from `adminTab()` for both this tab and AI Signals) was also never defined - removed, since both tabs now load their own real data. A fourth, in AI Signals specifically: `_signalHistory` was read before ever being declared (threw on every tab open), and `_aiLastSignal` was an undeclared implicit global that happened to work by luck. Both declared now; found while sweeping every admin tab programmatically for console errors after this work, not part of the original ask.
+
+- Target Group dropdown and stat tiles were also stale - hardcoded to an old "Group 1/2/3" placeholder scheme from before Subscribers became a real table with free-text `community` names. Rebuilt against real data: dropdown now lists actual communities with live counts, stat tiles show Total/Active/Communities/Broadcasts Sent.
+- New `signal_broadcasts` table (one row per broadcast attempt, per-recipient results in a JSONB column) backs a real Signal History list, replacing the permanent "No signals sent yet" placeholder.
+- New edge function `send-broadcast-signal` (JWT-verified, admin-only, same auth pattern as `send-wa-message`): messages each active subscriber's personal WhatsApp number individually, since Cloud API cannot post into WhatsApp Communities at all - confirmed the only way "broadcast" can technically work here. **`SIGNAL_BROADCAST_ENABLED = false`**, verified in the deployed source the same way as above. Most subscribers signed up via a form rather than an active conversation, so they're very likely outside Meta's 24h window - an approved template (see Message Templates tab) is almost certainly required before this can ever go live, noted in the function comment and the tab's own info box.
+
+**Verification:** both migrations applied via the Supabase CLI (already linked, no auth blocker) and confirmed live by querying the actual tables directly (`follow_up_sends`, `signal_broadcasts`, `leads.status_changed_at` all return real data, not assumed). Both functions deployed and their live source downloaded back and diffed byte-identical against local. Every admin tab cycled programmatically in demo mode collecting `console.error` calls - zero errors, including the two pre-existing bugs above that predate this session's changes. Broadcast Signal and its message auto-fill checked in both light/dark themes at 375px. Zero em dashes in any new or changed file.
+
+**Not done, deliberately out of scope today:** AI Signals real generation (still demo data - needs a real data-source/model decision from Muhammad first, not a coding gap), and the actual flip of either `_ENABLED` flag (needs the WhatChimp/24h-window preconditions above checked by a human, not a coding session).
+
+---
+
 ## Section index - what each part of the CRM actually does
 
 Written 2026-08-04. Useful when showing the CRM to anyone, and as a map into the rest of this very long file. **Honest labels: "real" means it reads and writes live data; "stores only" means the screen saves configuration that nothing acts on yet; "demo data" means the figures on screen are samples.**
@@ -1027,7 +1049,7 @@ Written 2026-08-04. Useful when showing the CRM to anyone, and as a map into the
 
 ### Automation (stores only, nothing sends yet)
 - **Create Flow** - keyword replies: trigger keyword plus the reply to send. Includes a tester: type a customer message, see which rule matches and what would go out. The webhook can read this table but is gated off by `KEYWORD_REPLIES_ENABLED = false`.
-- **Follow-ups** - timed nudges: when a lead sits in a status for N hours, send this. Includes a tester by status and hours. No scheduled job reads it.
+- **Follow-ups** - timed nudges: when a lead sits in a status for N hours, send this. Includes a tester by status and hours. A real scheduled sender (`send-follow-ups`, cron every 30 min) now exists and can actually send, but ships with `FOLLOW_UPS_ENABLED = false`.
 - **Train AI** - system prompt plus knowledge notes per bot number, with a preview that assembles the exact instruction text an AI would receive, character and token counts, and warnings for paused, empty or oversized prompts. Makes no AI call.
 - **Message Templates** - WhatsApp template copy and Meta approval status. Nothing is submitted to Meta from here; status is set by hand. Needed because WhatsApp blocks free-form replies more than 24h after a customer's last message.
 - **Automation** - the older rules engine (trigger event to channel action). Predates the Part 3 work.
@@ -1037,7 +1059,7 @@ Written 2026-08-04. Useful when showing the CRM to anyone, and as a map into the
 - **Subscribers** - members of the signalling communities. Real table: adds, edits and CSV import all persist, de-duplicated by phone. Status starts Pending and becomes Active once membership is confirmed.
 
 ### Signals
-- **Broadcast Signal** - **cannot send.** Gated by `SIGNAL_BROADCAST_ENABLED = false`. Going live needs a real send path, template approval, and note Cloud API cannot post into WhatsApp Communities at all.
+- **Broadcast Signal** - real target group/subscriber counts and signal history. A real send path (`send-broadcast-signal`, individual DMs to each active subscriber - Cloud API cannot post into WhatsApp Communities at all) now exists but ships with `SIGNAL_BROADCAST_ENABLED = false`; going live almost certainly needs Meta template approval first since most subscribers are outside the 24h customer-service window.
 - **AI Signals** - **demo data.** Pattern names and confidence figures on screen are samples for previewing the interface, clearly labelled as such. Real signal generation is not connected.
 
 ### Admin and setup

@@ -614,6 +614,22 @@ SELECT cron.schedule(
   $$
 );
 
+-- ── Cron: fire send-follow-ups every 30 minutes, 9am-6pm PKT (Phase 24) ──
+-- Safe to schedule even though FOLLOW_UPS_ENABLED is false in the deployed
+-- function - each run is a no-op until that flag is flipped on. Same UTC
+-- window math as nudge-agents above (9am-6pm PKT = 4am-1pm UTC).
+SELECT cron.schedule(
+  'send-follow-ups-every-30-min-business-hours',
+  '*/30 4-12 * * *',
+  $$
+  SELECT net.http_post(
+    url     := 'https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/send-follow-ups',
+    headers := '{"Content-Type": "application/json"}'::jsonb,
+    body    := '{}'::jsonb
+  );
+  $$
+);
+
 -- ── DONE (Phase 4) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
 
@@ -1323,4 +1339,108 @@ CREATE POLICY "appointments: staff full access" ON public.appointments
   WITH CHECK (public.is_active_staff());
 
 -- ── DONE (Phase 23) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM - Phase 24 Schema (Follow-ups sender infra)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+-- Mirrors supabase/migrations/20260804040000_follow_up_status_tracking.sql.
+
+-- ── 45. leads.status_changed_at (Junaid, 2026-08-04) ──
+-- leads.updated_at is touched by ANY edit, not just a status change, so it
+-- cannot answer "how long has this lead sat in its current status" for the
+-- Follow-ups sender. This tracks real status transitions only.
+ALTER TABLE public.leads
+  ADD COLUMN IF NOT EXISTS status_changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+UPDATE public.leads
+  SET status_changed_at = COALESCE(updated_at, created_at, NOW())
+  WHERE status_changed_at IS NULL;
+
+CREATE OR REPLACE FUNCTION public.set_status_changed_at()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' AND NEW.status IS DISTINCT FROM OLD.status THEN
+    NEW.status_changed_at = NOW();
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- Separate trigger from leads_updated_at (Phase 1, §7) - both BEFORE UPDATE,
+-- Postgres chains them, safe to add alongside rather than merging the logic.
+DROP TRIGGER IF EXISTS leads_status_changed_at ON public.leads;
+CREATE TRIGGER leads_status_changed_at
+  BEFORE UPDATE ON public.leads
+  FOR EACH ROW EXECUTE FUNCTION public.set_status_changed_at();
+
+CREATE INDEX IF NOT EXISTS leads_status_changed_at_idx
+  ON public.leads (status, status_changed_at);
+
+-- ── 46. follow_up_sends (Junaid, 2026-08-04) ──
+-- One row per (lead, sequence) marks a follow-up as attempted, sent or
+-- failed, so a permanently-broken phone number is not retried forever.
+CREATE TABLE IF NOT EXISTS public.follow_up_sends (
+  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  lead_id      UUID        NOT NULL REFERENCES public.leads(id) ON DELETE CASCADE,
+  sequence_id  UUID        NOT NULL REFERENCES public.follow_up_sequences(id) ON DELETE CASCADE,
+  status       TEXT        NOT NULL DEFAULT 'sent' CHECK (status IN ('sent','failed')),
+  error        TEXT,
+  sent_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS follow_up_sends_lead_sequence_key
+  ON public.follow_up_sends (lead_id, sequence_id);
+
+ALTER TABLE public.follow_up_sends ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "follow_up_sends: admin full access" ON public.follow_up_sends;
+CREATE POLICY "follow_up_sends: admin full access" ON public.follow_up_sends
+  FOR ALL USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+-- ── DONE (Phase 24) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM - Phase 25 Schema (Broadcast Signal send path)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+-- Mirrors supabase/migrations/20260804050000_signal_broadcasts.sql.
+
+-- ── 47. signal_broadcasts (Junaid, 2026-08-04) ──
+-- One row per broadcast attempt. Recipient-level detail lives in the
+-- results JSONB column rather than a second table.
+CREATE TABLE IF NOT EXISTS public.signal_broadcasts (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  sent_by         UUID        REFERENCES public.profiles(id) ON DELETE SET NULL,
+  community       TEXT,
+  signal_type     TEXT         NOT NULL DEFAULT 'custom'
+                                CHECK (signal_type IN ('buy','sell','update','close','custom')),
+  instrument      TEXT,
+  entry_price     TEXT,
+  take_profit     TEXT,
+  stop_loss       TEXT,
+  message         TEXT         NOT NULL,
+  recipient_count INTEGER      NOT NULL DEFAULT 0,
+  success_count   INTEGER      NOT NULL DEFAULT 0,
+  failed_count    INTEGER      NOT NULL DEFAULT 0,
+  results         JSONB        NOT NULL DEFAULT '[]'::jsonb,
+  created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS signal_broadcasts_created_idx
+  ON public.signal_broadcasts (created_at DESC);
+
+ALTER TABLE public.signal_broadcasts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "signal_broadcasts: admin full access" ON public.signal_broadcasts;
+CREATE POLICY "signal_broadcasts: admin full access" ON public.signal_broadcasts
+  FOR ALL USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+-- ── DONE (Phase 25) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
