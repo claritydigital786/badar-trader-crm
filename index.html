@@ -392,6 +392,45 @@
       letter-spacing: 0.05em;
       background: #f8fafc;
     }
+
+    /* ── Dark mode - overrides layered on the rules above, not a full
+       token rewrite (that's a bigger separate job for every inline-styled
+       element in the file). Toggled via [data-theme="dark"] on <html>,
+       set by toggleTheme() below, defaults to the OS preference on first
+       load if the user hasn't picked one yet. ── */
+    [data-theme="dark"] body { background: #0b1220; color: #cbd5e1; }
+    [data-theme="dark"] .sidebar { background: #0f172a; border-right-color: #1e293b; }
+    [data-theme="dark"] .sidebar-brand { border-bottom-color: #1e293b; }
+    [data-theme="dark"] .sidebar-brand h1 { color: #f1f5f9; }
+    [data-theme="dark"] .nav-item { color: #cbd5e1; }
+    [data-theme="dark"] .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
+    [data-theme="dark"] .nav-item.active { background: rgba(212,168,67,.16); color: #f1f5f9; }
+    [data-theme="dark"] .nav-section-label { color: #64748b; }
+    [data-theme="dark"] .user-info p { color: #f1f5f9; }
+    [data-theme="dark"] .user-info span { color: #64748b; }
+    [data-theme="dark"] .sidebar-footer:hover { background: rgba(255,255,255,.05); }
+    [data-theme="dark"] .account-menu { background: #16223a; border-color: #243350; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+    [data-theme="dark"] .account-menu button { color: #cbd5e1; }
+    [data-theme="dark"] .account-menu button:hover { background: rgba(220,38,38,.15); color: #f87171; }
+    [data-theme="dark"] .content-header { background: #111b2e; border-bottom-color: #243350; }
+    [data-theme="dark"] .page-title { color: #f1f5f9; }
+    [data-theme="dark"] .tab-content > h3 { color: #f1f5f9; }
+    [data-theme="dark"] .content-body { background: #0b1220; }
+    [data-theme="dark"] .card { background: #111b2e; border-color: #243350; color: #cbd5e1; box-shadow: none; }
+    [data-theme="dark"] .quick-tile { background: #111b2e; border-color: #243350; }
+    [data-theme="dark"] .quick-tile:hover { border-color: #d4a843; }
+    [data-theme="dark"] .quick-tile h4 { color: #f1f5f9; }
+    [data-theme="dark"] .quick-tile p { color: #94a3b8; }
+    [data-theme="dark"] .stat-card { background: #111b2e; border: 1px solid #243350; box-shadow: none; }
+    [data-theme="dark"] .stat-label { color: #94a3b8; }
+    [data-theme="dark"] .stat-value { color: #f1f5f9; }
+    [data-theme="dark"] table { color: #cbd5e1; }
+    [data-theme="dark"] th { background: #16223a; color: #94a3b8; }
+    [data-theme="dark"] th, [data-theme="dark"] td { border-bottom-color: #243350; }
+    [data-theme="dark"] .info-box { background: #16223a; color: #cbd5e1; }
+    [data-theme="dark"] input, [data-theme="dark"] textarea, [data-theme="dark"] select {
+      background: #0f172a; border-color: #243350; color: #f1f5f9;
+    }
     td { color: #334155; }
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: #f8fafc; }
@@ -784,6 +823,7 @@
         <span>Admin · Owner</span>
       </div>
       <div class="account-menu" id="account-menu-admin" style="display:none">
+        <button type="button" onclick="toggleTheme(event)">🌓 Toggle Theme</button>
         <button type="button" onclick="handleLogout()">🚪 Log Out</button>
       </div>
     </div>
@@ -2011,6 +2051,7 @@
         <span>Agent</span>
       </div>
       <div class="account-menu" id="account-menu-agent" style="display:none">
+        <button type="button" onclick="toggleTheme(event)">🌓 Toggle Theme</button>
         <button type="button" onclick="handleLogout()">🚪 Log Out</button>
       </div>
     </div>
@@ -2381,6 +2422,19 @@ async function handleLogout() {
   if (demoMode) { demoMode = false; showLogin(); return; }
   await sb.auth.signOut();
 }
+
+function toggleTheme(evt) {
+  evt.stopPropagation();
+  const root = document.documentElement;
+  const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  root.setAttribute('data-theme', next);
+  localStorage.setItem('bt-theme', next);
+}
+(function initTheme() {
+  const saved = localStorage.getItem('bt-theme');
+  const theme = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+})();
 
 function toggleAccountMenu(evt, scope) {
   evt.stopPropagation();
