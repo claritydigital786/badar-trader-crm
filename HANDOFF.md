@@ -30,6 +30,7 @@ Muhammad approved a WhatChimp-inspired visual direction (light sidebar with tint
 
 ### Active Work Claims
 _(empty - add a line here when starting something: `- [Name] - [task] - [date/time]`, remove when done)_
+- Junaid - UI redesign Part 2 (agent sidebar tints, agent welcome header, card borders) on `feature/agent-ui-part2` - 2026-08-03
 
 Prior version of this doc (2026-07-13) covered the main/feat branch-divergence discovery
 and merge into `integration/merge-bot-human-handoff`. That merge is still the base - a
