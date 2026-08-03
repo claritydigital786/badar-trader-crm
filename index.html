@@ -139,6 +139,18 @@
     .user-info { min-width: 0; flex: 1; overflow: hidden; }
     .user-info p { margin: 0; color: #0f172a; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .user-info span { color: #94a3b8; font-size: 11px; }
+    .sidebar-footer:hover { background: #f8fafc; }
+    .account-menu {
+      position: absolute; bottom: calc(100% + 8px); left: 12px; right: 12px;
+      background: #fff; border: 1px solid #e5e8ef; border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(15,23,42,.12); padding: 6px; z-index: 30;
+    }
+    .account-menu button {
+      display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+      background: none; border: none; padding: 8px 10px; border-radius: 7px;
+      font-family: inherit; font-size: 13px; color: #334155; cursor: pointer;
+    }
+    .account-menu button:hover { background: #fef2f2; color: #dc2626; }
 
     /* ── Main Content ── */
     .main-content {
@@ -753,11 +765,14 @@
       <div class="nav-item" data-tab="sites"><span class="nav-icon" style="background:var(--tint-success-bg)">🌐</span> Sites</div>
       <div class="nav-item" data-tab="guide"><span class="nav-icon" style="background:var(--tint-warn-bg)">📖</span> Guide</div>
     </div>
-    <div class="sidebar-footer">
+    <div class="sidebar-footer" onclick="toggleAccountMenu(event, 'admin')" style="cursor:pointer;position:relative">
       <div class="user-avatar" id="sidebar-user-initials">BT</div>
       <div class="user-info">
         <p id="admin-name"></p>
         <span>Admin · Owner</span>
+      </div>
+      <div class="account-menu" id="account-menu-admin" style="display:none">
+        <button type="button" onclick="handleLogout()">🚪 Log Out</button>
       </div>
     </div>
   </div>
@@ -776,7 +791,6 @@
           <button class="btn btn-secondary btn-sm header-btn-pair" onclick="exportLeadsCSV()">📥 Export CSV</button>
           <button class="btn btn-primary btn-inline btn-sm header-btn-pair" onclick="adminTab('add-lead')">+ Add Lead</button>
         </div>
-        <button class="btn btn-danger btn-sm" onclick="handleLogout()" style="margin-left:auto">Log Out</button>
       </div>
     </div>
     <div class="content-body">
@@ -784,7 +798,7 @@
 
   <!-- Dashboard -->
   <div id="admin-tab-dashboard" class="tab-content active">
-    <h3 style="display:flex;align-items:center;gap:10px">Welcome Back, <span id="dash-admin-name">Badar Tanveer</span> <span aria-hidden="true">👋</span></h3>
+    <h3 style="display:flex;align-items:center;gap:10px">Welcome Back, <span id="dash-admin-name">Badar Tanveer</span></h3>
     <p style="color:#64748b;font-size:0.85rem;margin:2px 0 18px">Here's what's happening with your pipeline today.</p>
     <div class="stat-grid">
       <div class="stat-card">
@@ -1940,11 +1954,14 @@
       <div class="nav-item tab-btn" data-tab="log-activity" onclick="agentTab('log-activity',this)"><span class="nav-icon" style="background:var(--tint-danger-bg)">📝</span> Log Activity</div>
       <div class="nav-item tab-btn" data-tab="guide" onclick="agentTab('guide',this)"><span class="nav-icon" style="background:var(--tint-warn-bg)">📖</span> Guide</div>
     </div>
-    <div class="sidebar-footer">
+    <div class="sidebar-footer" onclick="toggleAccountMenu(event, 'agent')" style="cursor:pointer;position:relative">
       <div class="user-avatar" id="agent-sidebar-initials">A</div>
       <div class="user-info">
         <p id="agent-name"></p>
         <span>Agent</span>
+      </div>
+      <div class="account-menu" id="account-menu-agent" style="display:none">
+        <button type="button" onclick="handleLogout()">🚪 Log Out</button>
       </div>
     </div>
   </div>
@@ -1957,15 +1974,13 @@
         <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Menu">&#9776;</button>
         <h2 id="agent-current-tab-title" class="page-title">Dashboard</h2>
       </div>
-      <div class="header-actions">
-        <button class="btn btn-danger btn-sm" onclick="handleLogout()">Log Out</button>
-      </div>
+      <div class="header-actions"></div>
     </div>
     <div class="content-body">
 
   <!-- Dashboard -->
   <div id="agent-tab-dashboard" class="tab-content active">
-    <h3 style="display:flex;align-items:center;gap:10px">Welcome Back, <span id="dash-agent-name">Agent</span> <span aria-hidden="true">👋</span></h3>
+    <h3 style="display:flex;align-items:center;gap:10px">Welcome Back, <span id="dash-agent-name">Agent</span></h3>
     <p style="color:#64748b;font-size:0.85rem;margin:2px 0 18px">Here's what's happening with your leads today.</p>
     <div class="stat-grid">
       <div class="stat-card">
@@ -2316,6 +2331,18 @@ async function handleLogout() {
   if (demoMode) { demoMode = false; showLogin(); return; }
   await sb.auth.signOut();
 }
+
+function toggleAccountMenu(evt, scope) {
+  evt.stopPropagation();
+  const menu = document.getElementById('account-menu-' + scope);
+  if (!menu) return;
+  const opening = menu.style.display === 'none' || !menu.style.display;
+  document.querySelectorAll('.account-menu').forEach(m => m.style.display = 'none');
+  menu.style.display = opening ? 'block' : 'none';
+}
+document.addEventListener('click', () => {
+  document.querySelectorAll('.account-menu').forEach(m => m.style.display = 'none');
+});
 
 function showLogin() {
   currentUser = currentProfile = null;
