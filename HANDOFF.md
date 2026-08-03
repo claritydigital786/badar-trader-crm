@@ -792,3 +792,23 @@ Systematically went through every Automation/Data Collection/AI/Engagement/Comme
 **`whatsapp-webhook` greeting matcher (`1a295a8`, committed 29 July) is STILL NOT DEPLOYED.** Confirmed the code bundles clean with esbuild, so it is deployable as-is. The Supabase CLI is not installed on Junaid's laptop and there is no `SUPABASE_ACCESS_TOKEN`; it runs fine via `npx supabase@latest` (v2.111.0 confirmed working), so the only remaining blocker is auth. Whoever picks this up: `npx supabase@latest login`, then `npx supabase@latest functions deploy whatsapp-webhook --no-verify-jwt --project-ref vfskqzgphrunjxquqpks`. No urgency, bot replies are still paused (`BOT_REPLIES_ENABLED = false`).
 
 **Process note, worth acting on:** Muhammad pushed three times today and updated this file in only one of them, so a session relying on HANDOFF.md alone would have missed both index.html changes entirely. This file is the narrative layer; `git log` is the actual source of truth. Always `git fetch` and read the log, not just this document. A push from one laptop also collided with the other mid-session, and the Active Work Claims entry landed after the work was already finished, so claims only help if they are pushed BEFORE starting.
+
+---
+
+## 2026-08-03 (later) - Supabase CLI logged in: greeting matcher DEPLOYED, migration still blocked
+
+Muhammad logged the CLI in on Junaid's laptop (`npx supabase@latest login`, account `claritydigitalllcus@gmail.com`). Confirmed that account can see the project: `projects list` returns "Badar Tanveer's CRM Project", ref `vfskqzgphrunjxquqpks`, ACTIVE_HEALTHY. Project is now linked. The token lives in the macOS Keychain, not a file, so only the CLI itself can use it.
+
+**`whatsapp-webhook` greeting matcher is DEPLOYED at last - open since 29 July.** Checked the two safety flags in the source before deploying, since shipping this re-enabled would have double-replied to real customers alongside WhatChimp: `BOT_REPLIES_ENABLED = false` and `NEW_LEAD_NOTIFICATIONS_ENABLED = false`, both still off, so the pause holds. Deployed with `--no-verify-jwt` as required. Verified by re-listing rather than trusting the success message: **version 65 -> 66, ACTIVE, `verify_jwt` still false**. This deploy also carried the cosmetic em dash changes to that file, as flagged earlier.
+
+**The Part 3 migration is STILL NOT APPLIED, and `supabase db push` cannot do it.** Real blocker found, worth knowing about permanently:
+
+`db push` fails with `LegacyDbPushMissingLocalError` - **the remote database's migration history contains 13 versions that do not exist in `supabase/migrations/` at all**: `20260708165752 20260708192619 20260709122920 20260709125134 20260710012753 20260710041434 20260710073239 20260711132405 20260711132421 20260711154717 20260713063503 20260719004009 20260719005115`. Local has only three files. So the remote history and this repo have diverged badly, presumably because most schema changes in this project were applied by pasting into the SQL Editor (which is what `schema.sql`'s own section headers instruct) rather than through the CLI.
+
+The CLI suggests `supabase migration repair --status reverted <all 13>` followed by `db pull`. **That was deliberately NOT run.** Marking 13 genuinely-applied migrations as "reverted" rewrites production migration history and could cause a later push to try re-applying them. That is not a call to make unilaterally on a live database, and `--include-all` does not bypass the guard either.
+
+**So the migration goes through the SQL Editor, which is this project's actual convention anyway.** Copy it to the clipboard with `cat supabase/migrations/20260803_train_ai_and_keyword_replies.sql | pbcopy`, paste into the SQL Editor, Run. Or paste the equivalent Phase 19 block from `schema.sql`; the two were verified identical (24 definitions each, compared programmatically).
+
+**Until that is run, Train AI and Create Flow show "Storage for this section has not been set up yet" on production** and saving will not work. That message is deliberate, not a bug.
+
+**Worth a decision at some point (not urgent):** either bring the repo's migrations directory in line with the remote history so the CLI is usable for schema changes in future, or drop the pretence and treat `schema.sql` + the SQL Editor as the single official path and stop adding migration files. Right now the project half-does both, which is what produced this dead end.
