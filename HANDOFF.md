@@ -48,6 +48,7 @@ Whoever finishes their piece first should update this section (mark it done, sam
 **Standing rule, reinforced hard tonight: zero em dashes, anywhere, ever - user-facing text, code comments, this file, everything.** Muhammad was extremely direct about this. All 158 occurrences in `index.html` and all 184 in this file were swept and replaced with plain hyphens tonight. Check before ever writing one again.
 
 ### Active Work Claims
+- Junaid - Train AI prompt preview: pick a campaign, see the assembled prompt exactly as the bot would receive it, with size warnings. No AI call, no sending - 2026-08-04
 
 **DONE (2026-08-04) - Muhammad's mobile/dark-mode check of the four new Part 3 tabs** (Train AI, Create Flow, Follow-ups, Message Templates - built after the earlier mobile/dark-mode passes, so never checked). Found and fixed two real bugs, not just checked the box:
 - All four tables were missing `white-space:nowrap` on their long-content cells (system prompts, reply bodies, template names), so text wrapped across many lines on mobile instead of scrolling on one line like every other table in the app. Fixed to match the established pattern.
