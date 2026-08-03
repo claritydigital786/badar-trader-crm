@@ -48,6 +48,7 @@ Whoever finishes their piece first should update this section (mark it done, sam
 **Standing rule, reinforced hard tonight: zero em dashes, anywhere, ever - user-facing text, code comments, this file, everything.** Muhammad was extremely direct about this. All 158 occurrences in `index.html` and all 184 in this file were swept and replaced with plain hyphens tonight. Check before ever writing one again.
 
 ### Active Work Claims
+- Junaid - wiring whatsapp-webhook to read keyword_replies, behind its OWN independent toggle (not BOT_REPLIES_ENABLED) so it can be enabled without resuming the qualification funnel - 2026-08-03, claimed and pushed before starting
 (none right now)
 
 **DONE (2026-08-03) - Muhammad's mobile usability pass, tab by tab at 375px** (the 2026-07-19 backlog item flagged as "never systematically tested"). Found and fixed real bugs, not just checked the box:
