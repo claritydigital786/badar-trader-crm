@@ -805,6 +805,7 @@
       <div class="nav-item" data-tab="automation"><span class="nav-icon" style="background:var(--tint-danger-bg)">⚡</span> Automation</div>
       <div class="nav-item" data-tab="create-flow"><span class="nav-icon" style="background:var(--tint-gold-bg)">🧩</span> Create Flow</div>
       <div class="nav-item" data-tab="train-ai"><span class="nav-icon" style="background:var(--tint-warn-bg)">🧠</span> Train AI</div>
+      <div class="nav-item" data-tab="follow-ups"><span class="nav-icon" style="background:var(--tint-success-bg)">⏰</span> Follow-ups</div>
       <div class="nav-section-label">FINANCE</div>
       <div class="nav-item" data-tab="payroll"><span class="nav-icon" style="background:var(--tint-gold-bg)">💰</span> Payroll</div>
       <div class="nav-section-label">WHATSAPP SIGNALS</div>
@@ -1280,6 +1281,59 @@
       <div id="akb-msg" class="msg"></div>
       <button class="btn btn-primary" onclick="submitAiKb()">Save Campaign</button>
       <button class="btn btn-secondary" onclick="resetAiKbForm()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Follow-ups -->
+  <div id="admin-tab-follow-ups" class="tab-content">
+    <h3>Follow-ups</h3>
+    <div class="info-box">
+      A follow-up says: when a lead has sat in a given status for this many hours without moving, send them this message. Saving here is real and persists to the database. <strong>Nothing is sent yet</strong> - no scheduled job reads these rules. Turning them into actual sends is a separate step, and the nudge scheduling questions from July need settling first.
+    </div>
+
+    <div class="card">
+      <table>
+        <thead><tr>
+          <th>Name</th><th>When</th><th>Message</th><th>Active</th><th></th>
+        </tr></thead>
+        <tbody id="fus-tbody">
+          <tr><td colspan="5" class="empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h4 id="fus-form-title" style="margin-bottom:14px">Create Follow-up</h4>
+      <input type="hidden" id="fus-id" />
+      <div class="form-row">
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="fus-name" placeholder="e.g. Nudge new leads after a day" />
+        </div>
+        <div class="form-group">
+          <label>Lead Status</label>
+          <select id="fus-status">
+            <option value="new">New</option>
+            <option value="contacted">Contacted</option>
+            <option value="qualified">Qualified</option>
+            <option value="proposal_sent">Proposal Sent</option>
+            <option value="pending_approval">Pending Approval</option>
+            <option value="converted">Converted</option>
+            <option value="lost">Lost</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Send After (hours)</label>
+          <input type="number" id="fus-delay" min="1" value="24" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Message</label>
+        <textarea id="fus-message" rows="5" placeholder="What to send the lead when this triggers."></textarea>
+      </div>
+      <div id="fus-msg" class="msg"></div>
+      <button class="btn btn-primary" onclick="submitFollowUp()">Save Follow-up</button>
+      <button class="btn btn-secondary" onclick="resetFollowUpForm()">Cancel</button>
     </div>
   </div>
 
@@ -2461,6 +2515,11 @@ const _DEMO_AI_KB = [
   { id:'akb1', campaign_name:'Team Badar Support Bot Training', bot_number:'+923715773903', system_prompt:'You are the Team Badar assistant. Mirror the customer language, English or Roman Urdu, never mix the two in one reply. Keep replies to 3-5 lines. Never promise returns. Stay neutral between Exness and XM. Hand off to a human agent for deposits under $500, any negotiation, or anything you are unsure about.', knowledge_notes:'Exness referral: eatgh2cl7y. XM referral: YR4PD. Deposit is a flat $500, not a range. Course is worth $250 and is free with the deposit.', is_active:true },
 ];
 
+const _DEMO_FOLLOW_UPS = [
+  { id:'fus1', name:'Nudge new leads after a day', trigger_status:'new', delay_hours:24, message:'Hi, just checking in. Did you get a chance to look at the details we sent? Happy to answer anything.', is_active:true },
+  { id:'fus2', name:'Deposit reminder', trigger_status:'qualified', delay_hours:48, message:'Reminder: once your $500 deposit is in, send the screenshot here and we will get you added within 48 hours.', is_active:false },
+];
+
 const _DEMO_KEYWORD_REPLIES = [
   { id:'kw1', keyword:'price', match_type:'contains', reply_message:'The deposit is a flat $500. That is your own trading capital, not a fee.', is_active:true },
   { id:'kw2', keyword:'course', match_type:'contains', reply_message:'The mentorship course is worth $250 and is unlocked free with a $500 deposit.', is_active:true },
@@ -2647,7 +2706,7 @@ function adminTab(name, el) {
     'comm-log': 'Communication Log',
     'signal-broadcast': 'Broadcast Signal', subscribers: 'Subscribers', 'ai-signals': 'AI Signals',
     guide: 'Guide', 'user-manager': 'User Manager', 'user-permission': 'User Permission',
-    'create-flow': 'Create Flow', 'train-ai': 'Train AI'
+    'create-flow': 'Create Flow', 'train-ai': 'Train AI', 'follow-ups': 'Follow-ups'
   };
   const titleEl = document.getElementById('current-tab-title');
   if (titleEl) titleEl.textContent = titles[name] || name;
@@ -2662,6 +2721,7 @@ function adminTab(name, el) {
   if (name === 'automation')       { loadAutomationRules(); populateArAgentDropdown(); }
   if (name === 'train-ai')         loadAiKb();
   if (name === 'create-flow')      loadKeywordReplies();
+  if (name === 'follow-ups')       loadFollowUps();
   if (name === 'reports')          loadReports();
   if (name === 'comm-log')         loadCommLog();
   if (name === 'payroll')          { if (!document.querySelector('#payroll-setup-tbody strong')) renderPayrollSetup(); }
@@ -4203,6 +4263,137 @@ function truncate(s, n) {
 let cachedAutomationRules = [];
 let cachedAiKb           = [];
 let cachedKeywordReplies = [];
+let cachedFollowUps      = [];
+
+// ── FOLLOW-UPS (follow_up_sequences) ──────────────────────────
+// Storage + UI only. No scheduled job reads this table, so saving a
+// rule here does not send anything to anyone yet.
+const FUS_STATUS_LABELS = {
+  new:'New', contacted:'Contacted', qualified:'Qualified', proposal_sent:'Proposal Sent',
+  pending_approval:'Pending Approval', converted:'Converted', lost:'Lost'
+};
+
+async function loadFollowUps() {
+  if (demoMode) { cachedFollowUps = _DEMO_FOLLOW_UPS.slice(); renderFollowUpsTable(); return; }
+  const { data, error } = await sb
+    .from('follow_up_sequences').select('*').order('created_at', { ascending: false });
+  if (error) { console.error('loadFollowUps:', error); showTableError('fus-tbody', error); return; }
+  cachedFollowUps = data || [];
+  renderFollowUpsTable();
+}
+
+function renderFollowUpsTable() {
+  const tbody = document.getElementById('fus-tbody');
+  if (!tbody) return;
+  if (!cachedFollowUps.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No follow-ups yet. Create one below.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = cachedFollowUps.map(f => `
+    <tr>
+      <td><strong style="color:#0f172a">${esc(f.name)}</strong></td>
+      <td style="white-space:nowrap"><span style="font-size:0.82rem">${esc(FUS_STATUS_LABELS[f.trigger_status] || f.trigger_status)} + ${Number(f.delay_hours)}h</span></td>
+      <td><span style="color:#64748b;font-size:0.78rem">${esc(truncate(f.message || '', 80))}</span></td>
+      <td>
+        <label class="toggle-switch" title="${f.is_active ? 'Click to pause' : 'Click to activate'}">
+          <input type="checkbox" ${f.is_active ? 'checked' : ''} onchange="toggleFollowUpActive('${f.id}',${f.is_active})" />
+          <span class="toggle-slider"></span>
+        </label>
+      </td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-secondary btn-sm" onclick="editFollowUpLoad('${f.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteFollowUp('${f.id}')">Delete</button>
+      </td>
+    </tr>`).join('');
+}
+
+function resetFollowUpForm() {
+  ['fus-id','fus-name','fus-message'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const st = document.getElementById('fus-status');   if (st) st.value = 'new';
+  const dl = document.getElementById('fus-delay');    if (dl) dl.value = '24';
+  const titleEl = document.getElementById('fus-form-title');
+  if (titleEl) titleEl.textContent = 'Create Follow-up';
+  const msgEl = document.getElementById('fus-msg');
+  if (msgEl) msgEl.textContent = '';
+}
+
+function editFollowUpLoad(id) {
+  const f = cachedFollowUps.find(x => x.id === id);
+  if (!f) return;
+  document.getElementById('fus-id').value      = f.id;
+  document.getElementById('fus-name').value    = f.name || '';
+  document.getElementById('fus-status').value  = f.trigger_status || 'new';
+  document.getElementById('fus-delay').value   = f.delay_hours || 24;
+  document.getElementById('fus-message').value = f.message || '';
+  const titleEl = document.getElementById('fus-form-title');
+  if (titleEl) titleEl.textContent = 'Edit Follow-up';
+  document.getElementById('fus-form-title').scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+async function submitFollowUp() {
+  const id      = v('fus-id');
+  const name    = v('fus-name');
+  const status  = v('fus-status') || 'new';
+  const delay   = parseInt(v('fus-delay'), 10);
+  const message = (document.getElementById('fus-message')?.value || '').trim();
+  const msgEl   = document.getElementById('fus-msg');
+
+  if (!name)    { setMsg(msgEl, 'Name is required.', 'err'); return; }
+  if (!message) { setMsg(msgEl, 'Message is required.', 'err'); return; }
+  if (!Number.isFinite(delay) || delay < 1) { setMsg(msgEl, 'Send After must be at least 1 hour.', 'err'); return; }
+
+  const payload = { name, trigger_status: status, delay_hours: delay, message };
+
+  if (demoMode) {
+    if (id) {
+      const f = cachedFollowUps.find(x => x.id === id);
+      if (f) Object.assign(f, payload);
+    } else {
+      cachedFollowUps.unshift({ id:'fus' + Date.now(), ...payload, is_active:true });
+    }
+    resetFollowUpForm();
+    setMsg(msgEl, 'Follow-up saved. (demo)', 'ok');
+    renderFollowUpsTable();
+    return;
+  }
+
+  const { error } = id
+    ? await sb.from('follow_up_sequences').update(payload).eq('id', id)
+    : await sb.from('follow_up_sequences').insert({ ...payload, created_by: currentUser.id });
+
+  if (error) { setMsg(msgEl, error.message, 'err'); return; }
+  resetFollowUpForm();
+  setMsg(msgEl, 'Follow-up saved.', 'ok');
+  await loadFollowUps();
+}
+
+async function toggleFollowUpActive(id, current) {
+  if (demoMode) {
+    const f = cachedFollowUps.find(x => x.id === id);
+    if (f) f.is_active = !current;
+    renderFollowUpsTable();
+    return;
+  }
+  const { error } = await sb.from('follow_up_sequences').update({ is_active: !current }).eq('id', id);
+  if (error) { alert(error.message); return; }
+  await loadFollowUps();
+}
+
+async function deleteFollowUp(id) {
+  if (!confirm('Delete this follow-up?')) return;
+  if (demoMode) {
+    const idx = cachedFollowUps.findIndex(x => x.id === id);
+    if (idx > -1) cachedFollowUps.splice(idx, 1);
+    renderFollowUpsTable();
+    return;
+  }
+  const { error } = await sb.from('follow_up_sequences').delete().eq('id', id);
+  if (error) { alert(error.message); return; }
+  await loadFollowUps();
+}
 
 // ── TRAIN AI (ai_knowledge_base) ──────────────────────────────
 // Storage + UI only. Nothing here changes live bot behaviour; the
