@@ -838,3 +838,26 @@ Safety properties, verified rather than assumed:
 git checkout -- .claude/settings.local.json
 ```
 or simply delete the file - Claude Code regenerates it. Nothing of value is lost either way; it is a local permissions cache. **Separately, that Supabase token should still be rotated** as a precaution, which is a credential step no session can do for you.
+
+---
+
+## 2026-08-03 (final) - Part 3 migration APPLIED, CLI migration path unblocked permanently
+
+**The `db push` dead end is fixed, and the Part 3 migration is applied to production.**
+
+Root cause recap: the remote migration history held 13 versions whose files were never in this repo, because nearly every schema change in this project was applied by pasting into the SQL Editor. Any `supabase db push` aborted with `LegacyDbPushMissingLocalError`, so the CLI could not apply schema changes at all.
+
+**Fixed WITHOUT rewriting production history.** The CLI's own suggestion was `migration repair --status reverted` on all 13 plus a re-pull, which edits the live history table. Took the safer route instead: added 13 local placeholder files named `<version>_applied_via_sql_editor.sql`, each one clearly documented inside as a deliberate no-op and NOT the real contents of that migration. That touches nothing in production and unblocks the CLI permanently. `supabase/schema.sql` remains the authoritative record of the schema.
+
+Then `db push --include-all` applied the three real local migrations. The two older ones were read first and confirmed to be pure `ADD COLUMN IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS`, so re-running them was a genuine no-op with no data or schema risk.
+
+**Verified after applying, not assumed:**
+- `ai_knowledge_base` and `keyword_replies` now return HTTP 200 (previously 404 `PGRST205`), returning `[]` because RLS correctly hides rows from anonymous callers.
+- An anonymous INSERT into `keyword_replies` is rejected with `42501 new row violates row-level security policy`, so the admin-only policy is genuinely enforced rather than merely declared.
+- Both CRM tabs flip from "Storage for this section has not been set up yet" to a normal empty state when pointed at the real project.
+
+**Still genuinely unverified:** an actual INSERT from a logged-in admin session, which needs CRM login credentials no session has had. Somebody with an admin login should create one training campaign and one keyword reply in the live CRM to close that last gap. Everything up to the RLS boundary is proven.
+
+**So Part 3 items 1 and 2 are now complete end to end:** UI live on crm.badartrader.com, storage applied, RLS enforced, and `whatsapp-webhook` v67 able to act on the keyword table the moment `KEYWORD_REPLIES_ENABLED` is set true (it is false, and the two pre-flight checks in the previous section still apply before anyone flips it).
+
+**Useful going forward:** the CLI now works for schema changes on this project. Future migrations can be a file plus `supabase db push` rather than a manual SQL Editor paste. Keep mirroring each one into `schema.sql` as a Phase block, as Phase 19 does, so the committed schema stays a complete picture.
