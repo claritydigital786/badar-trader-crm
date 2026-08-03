@@ -1854,7 +1854,9 @@
   <!-- ─── SIGNAL BROADCAST ─── -->
   <div id="admin-tab-signal-broadcast" class="tab-content">
     <h3>📡 Broadcast Signal</h3>
-    <p style="color:#64748b;margin-bottom:16px">Send a trading signal to all subscribers across all 3 groups simultaneously using Promise.all - every subscriber receives it at the exact same moment.</p>
+    <div class="info-box">
+      <strong>Not connected to real subscribers yet.</strong> Pressing Send will not deliver anything to anyone and will not record anything. The subscriber list is placeholder data generated in your browser, not real people, so there is nobody to send to. Going live needs three things: a real subscribers table, a server-side send path (the same pattern as the send-wa-message function), and Meta template approval for messages outside the 24 hour window. Separately, WhatsApp's Cloud API cannot post into WhatsApp Communities at all, so community broadcasting stays a manual job in the app whatever gets built here.
+    </div>
 
     <!-- Signal Desk (demo preview) -->
     <details open style="margin-bottom:20px;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">
@@ -1937,8 +1939,11 @@
 
   <!-- ─── SUBSCRIBERS ─── -->
   <div id="admin-tab-subscribers" class="tab-content">
+    <div class="info-box">
+      <strong>These are not real subscribers.</strong> This list is generated in your browser on every page load, with invented names and random phone numbers, and it resets when you refresh. Adds, edits and CSV imports here do not persist anywhere. A real version needs a subscribers table in the database, fed by the signals signup form and mirroring actual membership of the three WhatsApp Communities.
+    </div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-      <h3 style="margin:0">👤 Subscribers</h3>
+      <h3 style="margin:0">👤 Subscribers <span style="background:#b45309;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:2px 8px;margin-left:6px;vertical-align:middle">PLACEHOLDER DATA</span></h3>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-secondary btn-sm" onclick="document.getElementById('sub-csv-input').click()">📥 Import CSV</button>
         <input type="file" id="sub-csv-input" accept=".csv" style="display:none" onchange="importSubscribersCSV(event)" />
@@ -6080,6 +6085,24 @@ function bcAutoFill() {
   if (msgEl) msgEl.value = lines.join('\n');
 }
 
+// The Subscribers list is placeholder data generated in this browser on every
+// load: fabricated names and Math.random() phone numbers, from no table. So a
+// broadcast cannot reach anyone. Until a real subscribers source and a
+// server-side send path exist, this stays false and the function refuses
+// honestly instead of pretending.
+//
+// What it used to do with this false: wait 900ms, then report "Delivered to
+// all N" and write that fabricated recipient count into the signals table,
+// which track-record.html publishes. An admin would believe thousands of
+// people had been messaged when nothing was sent, and the invented number
+// reached a public page.
+//
+// Before setting this true, all three are required: a real subscribers table,
+// a server-side send (the send-wa-message edge function pattern, not a
+// browser fetch, which is CORS-blocked and would expose the token), and Meta
+// template approval for anything outside the 24h window.
+const SIGNAL_BROADCAST_ENABLED = false;
+
 async function broadcastSignal() {
   const msg    = (document.getElementById('bc-message')?.value || '').trim();
   const group  = document.getElementById('bc-group-sel')?.value;
@@ -6092,6 +6115,17 @@ async function broadcastSignal() {
   const btn      = document.getElementById('bc-send-btn');
 
   if (!msg) { if (statusEl) { statusEl.textContent = '⚠️ Message cannot be empty.'; statusEl.style.color='#ef4444'; } return; }
+
+  if (!SIGNAL_BROADCAST_ENABLED) {
+    if (statusEl) {
+      statusEl.textContent = 'Not sent. Nothing was delivered and nothing was recorded. '
+        + 'This section is not connected to real subscribers yet: the list below is placeholder data '
+        + 'generated in your browser, not real people. Sending for real needs a subscribers table and a '
+        + 'server-side send path.';
+      statusEl.style.color = '#b45309';
+    }
+    return;
+  }
 
   const targets = group === 'all'
     ? _activeSubs()

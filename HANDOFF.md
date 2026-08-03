@@ -48,7 +48,6 @@ Whoever finishes their piece first should update this section (mark it done, sam
 **Standing rule, reinforced hard tonight: zero em dashes, anywhere, ever - user-facing text, code comments, this file, everything.** Muhammad was extremely direct about this. All 158 occurrences in `index.html` and all 184 in this file were swept and replaced with plain hyphens tonight. Check before ever writing one again.
 
 ### Active Work Claims
-- Junaid - making the Broadcast Signal / Subscribers section honest (it currently reports successful delivery when nothing was sent, and writes fabricated recipient counts into the signals table that feeds the public track record). Not redesigning the feature, only stopping it from lying - 2026-08-03
 (none right now)
 
 **DONE (2026-08-03) - Muhammad's mobile usability pass, tab by tab at 375px** (the 2026-07-19 backlog item flagged as "never systematically tested"). Found and fixed real bugs, not just checked the box:
@@ -862,3 +861,23 @@ Then `db push --include-all` applied the three real local migrations. The two ol
 **So Part 3 items 1 and 2 are now complete end to end:** UI live on crm.badartrader.com, storage applied, RLS enforced, and `whatsapp-webhook` v67 able to act on the keyword table the moment `KEYWORD_REPLIES_ENABLED` is set true (it is false, and the two pre-flight checks in the previous section still apply before anyone flips it).
 
 **Useful going forward:** the CLI now works for schema changes on this project. Future migrations can be a file plus `supabase db push` rather than a manual SQL Editor paste. Keep mirroring each one into `schema.sql` as a Phase block, as Phase 19 does, so the committed schema stays a complete picture.
+
+---
+
+## 2026-08-03 (final) - Broadcast Signal / Subscribers made honest
+
+**Fixed a live integrity problem, not a cosmetic one.** The 19 July notes flagged this and it was still exactly as described, confirmed by reading the code rather than trusting the doc:
+
+- `_subscribers` is roughly 3,900-4,150 **fabricated** contacts generated in the browser on every page load, with invented names and `Math.random()` phone numbers. From no table. Adds, edits and CSV imports vanish on refresh.
+- `broadcastSignal()` with no WhatsApp token waited 900ms and then reported **"Delivered to all N subscribers simultaneously"** in green. Nothing had been sent to anyone.
+- Worse, it then wrote that fabricated `recipients` count into the real `signals` table. `track-record.html` reads that table, so invented delivery numbers were reaching a **public-facing page**.
+- The token path was no better: it posts from the browser to a hardcoded WABA id, aimed at the randomly generated fake numbers.
+
+**What changed (deliberately NOT a redesign, only stopping it from lying):**
+- New `SIGNAL_BROADCAST_ENABLED = false` guard, same pattern as `BOT_REPLIES_ENABLED`. Send now reports plainly that nothing was delivered and nothing was recorded, and writes nothing to the database.
+- An honest notice at the top of Broadcast Signal explaining it is not connected to real subscribers, what going live actually requires (real subscribers table, server-side send path, Meta template approval), and that Cloud API cannot post into WhatsApp Communities at all regardless.
+- Subscribers tab gets a `PLACEHOLDER DATA` badge and a notice saying the list is browser-generated and does not persist.
+
+Verified in-browser: pressing Send produces "Not sent. Nothing was delivered and nothing was recorded", `_signalHistory` does not grow, no database write, zero console errors. **Note during testing the first run appeared to still say "Delivered" - that was a cached page, confirmed by re-running with a cache-busting URL. Worth remembering when verifying UI changes locally.**
+
+**Still open and unchanged (product decisions, not code):** whether Subscribers should mirror the three WhatsApp Communities, and whether AI Signals stays `Math.random()` or gets rebuilt on real indicators. The AI Signals tab still presents random pattern names and confidence percentages to clients and was NOT touched here, because changing client-facing content needs Badar's sign-off. That remains the single biggest honesty issue left in the CRM.
