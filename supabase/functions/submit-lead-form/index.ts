@@ -1,7 +1,7 @@
-// Badar Trader CRM — submit-lead-form
+// Badar Trader CRM - submit-lead-form
 // Supabase Edge Function (Deno / TypeScript)
 //
-// Public endpoint backing signals-form.html and course-form.html — the
+// Public endpoint backing signals-form.html and course-form.html - the
 // replicated versions of Badar's real lead-capture forms. Unlike
 // conversion-hook (which only updates an existing lead matched by phone),
 // this ALWAYS creates a new lead, since these forms are the first contact
@@ -10,12 +10,12 @@
 // The deposit screenshot is mandatory and is stored as a kyc_documents row
 // (document_type='deposit_screenshot') in the existing deposit-screenshots
 // bucket, so it shows up in the CRM's existing KYC review tab with the
-// existing Verify/Reject workflow — no new admin UI needed for that part.
+// existing Verify/Reject workflow - no new admin UI needed for that part.
 //
 // "Enforcement" here is what's actually achievable server-side: the file
 // must really be an image (rejects PDFs/docs/randomly-renamed files) and a
 // sane size (rejects near-empty placeholder files and unreasonably huge
-// ones). It cannot verify the image actually shows a payment — that needs
+// ones). It cannot verify the image actually shows a payment - that needs
 // either a human reviewer (the Verify/Reject buttons this already feeds)
 // or a paid vision-model call, which was intentionally not added here
 // without an explicit decision on whose API key/cost that is.
@@ -72,7 +72,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
       return json({ ok: false, error: `screenshot must be an image (got ${file.type || "unknown type"})` }, 400);
     }
-    if (file.size < MIN_FILE_BYTES) return json({ ok: false, error: "screenshot file is too small — please upload a real screenshot" }, 400);
+    if (file.size < MIN_FILE_BYTES) return json({ ok: false, error: "screenshot file is too small - please upload a real screenshot" }, 400);
     if (file.size > MAX_FILE_BYTES) return json({ ok: false, error: "screenshot file is too large (max 10MB)" }, 400);
 
     const sb = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
@@ -116,13 +116,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
     if (docErr) throw new Error(`kyc_documents insert failed: ${docErr.message}`);
 
-    // communication_logs (not communications — that table's type check only
+    // communication_logs (not communications - that table's type check only
     // allows email/whatsapp/call/sms, not 'note'; confirmed by hitting that
     // constraint during testing).
     const { error: logErr } = await sb.from("communication_logs").insert({
       lead_id: leadId,
       type: "note",
-      message: `New ${formType === "signals" ? "Signaling Group" : "Course"} form submission — broker ID: ${brokerId} (deposit screenshot pending review)`,
+      message: `New ${formType === "signals" ? "Signaling Group" : "Course"} form submission - broker ID: ${brokerId} (deposit screenshot pending review)`,
       created_by: null,
     });
     if (logErr) console.error("communication_logs insert failed:", logErr.message);

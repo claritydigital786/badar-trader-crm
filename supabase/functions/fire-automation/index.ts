@@ -1,10 +1,10 @@
-// Badar Trader CRM — fire-automation
+// Badar Trader CRM - fire-automation
 // Supabase Edge Function (Deno / TypeScript)
 //
 // Called by Postgres triggers (see supabase/schema.sql Phase 8) whenever a real
 // event happens: a lead is created, a lead's status changes, KYC gets verified,
 // or a deposit is recorded. Looks up matching active automation_rules and
-// actually executes them — WhatsApp sends for real (reusing the bot's Cloud API
+// actually executes them - WhatsApp sends for real (reusing the bot's Cloud API
 // credentials, same as whatsapp-webhook), agent assignment updates the lead for
 // real. Email/SMS rules are logged as skipped rather than silently doing
 // nothing, since no Twilio/SendGrid account exists yet.
@@ -55,7 +55,7 @@ function renderTemplate(template: string, lead: any): string {
 }
 
 // Only supports simple "column = value" equality (matches the placeholder text
-// already in the CRM's rule form, e.g. "status = converted") — not a full
+// already in the CRM's rule form, e.g. "status = converted") - not a full
 // expression language. Empty/unparseable filters are treated as "always match".
 function conditionMatches(conditionFilter: string | null, lead: any): boolean {
   if (!conditionFilter) return true;
@@ -126,7 +126,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         );
         results[rule.id] = { ok: !updateError };
       } else {
-        // email / sms — no provider configured yet. Logged, not silently dropped.
+        // email / sms - no provider configured yet. Logged, not silently dropped.
         await logComm(sb, lead.id, `[automation "${rule.name}" SKIPPED: ${rule.channel} provider not configured]`);
         results[rule.id] = { skipped: `${rule.channel} provider not configured` };
       }

@@ -1,4 +1,4 @@
-// Badar Trader CRM — Meta Lead Ads Webhook
+// Badar Trader CRM - Meta Lead Ads Webhook
 // Supabase Edge Function (Deno / TypeScript)
 //
 // Receives Meta's "leadgen" webhook (fires when someone submits a Facebook or
@@ -6,7 +6,7 @@
 // Leads Retrieval API, and creates a lead in the CRM. That insert alone is
 // enough to trigger the existing automation_lead_created Postgres trigger ->
 // fire-automation, which sends the WhatsApp message IF an active
-// automation_rule exists for trigger_event='lead_created' — no separate send
+// automation_rule exists for trigger_event='lead_created' - no separate send
 // logic needed here, this function only has to get the lead into the table.
 //
 // REQUIRES, none of which this function can verify or set up on its own:
@@ -14,16 +14,16 @@
 //      Meta App Dashboard -> Webhooks -> Page -> Verify Token, when
 //      subscribing this URL to the "leadgen" field.
 //   2. settings.meta_token must have the leads_retrieval permission granted
-//      — confirmed via debug_token that it currently does NOT (only has
+//      - confirmed via debug_token that it currently does NOT (only has
 //      ads_management, ads_read, whatsapp_business_management,
 //      whatsapp_business_messaging). Every fetchLeadFields() call will fail
 //      with a permissions error until this is granted.
 //   3. Meta requires App Review approval for leads_retrieval to work with
-//      real (non-admin/tester) leads in production — whether Badar's Meta
+//      real (non-admin/tester) leads in production - whether Badar's Meta
 //      App already has this approved is unknown and outside what an API
 //      call can check.
 //   4. The webhook subscription itself (Page -> leadgen field -> this URL)
-//      has to be done manually in Meta's Developer Console — no API call
+//      has to be done manually in Meta's Developer Console - no API call
 //      does this from the outside.
 //
 // Deploy: supabase functions deploy meta-leadgen-webhook --no-verify-jwt

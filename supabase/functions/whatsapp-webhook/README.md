@@ -1,4 +1,4 @@
-# WhatsApp Webhook — Supabase Edge Function
+# WhatsApp Webhook - Supabase Edge Function
 
 Runs the lead-qualification bot for the Badar Trader CRM: greets new leads on
 WhatsApp, asks broker choice / trader experience / $500 deposit confirmation,
@@ -13,7 +13,7 @@ offer on decline), and marks qualified leads in the CRM.
 # 1. Link your Supabase project (one-time)
 supabase link --project-ref vfskqzgphrunjxquqpks
 
-# 2. Deploy the function (skip JWT auth — Meta signs requests differently)
+# 2. Deploy the function (skip JWT auth - Meta signs requests differently)
 supabase functions deploy whatsapp-webhook --no-verify-jwt
 ```
 
@@ -25,14 +25,14 @@ Set these in **Supabase Dashboard → Settings → Edge Functions → Manage sec
 
 | Variable | Where to get it |
 |---|---|
-| `WHATSAPP_VERIFY_TOKEN` | Any secret string you choose — copy it into Meta Developer App → WhatsApp → Configuration → Verify Token |
+| `WHATSAPP_VERIFY_TOKEN` | Any secret string you choose - copy it into Meta Developer App → WhatsApp → Configuration → Verify Token |
 | `WHATSAPP_ACCESS_TOKEN` | Business Settings → System Users → Crmbot → Generate token (needs `whatsapp_business_messaging` + `whatsapp_business_management`) |
 | `WHATSAPP_PHONE_NUMBER_ID` | WhatsApp Manager → Trade Campus → Phone numbers → the lead-gen number (+92 371 5773903) → Phone Number ID, once verified |
 | `SUPABASE_URL` | Auto-injected by Supabase (no action needed) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase Dashboard → Settings → API → `service_role` key (keep this secret) |
 
 > If `WHATSAPP_ACCESS_TOKEN` or `WHATSAPP_PHONE_NUMBER_ID` are missing, the
-> function still records inbound leads/messages — it just skips sending any
+> function still records inbound leads/messages - it just skips sending any
 > reply and logs a warning instead of crashing.
 
 ---
@@ -52,8 +52,8 @@ Set these in **Supabase Dashboard → Settings → Edge Functions → Manage sec
 
 ## What it does
 
-- **GET** — responds to Meta's verification handshake (returns `hub.challenge`)
-- **POST** — parses inbound text/button messages, then:
+- **GET** - responds to Meta's verification handshake (returns `hub.challenge`)
+- **POST** - parses inbound text/button messages, then:
   - Creates a new lead in `leads` (source = `meta`, status = `new`) if no lead with that phone number exists
   - Inserts an inbound record into `communications`
   - Drives the qualification bot based on `leads.bot_stage`:

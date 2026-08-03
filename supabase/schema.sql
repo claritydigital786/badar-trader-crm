@@ -1,5 +1,5 @@
 -- ============================================================
--- Badar Trader CRM — Phase 1 Schema
+-- Badar Trader CRM - Phase 1 Schema
 -- Paste this entire file into: Supabase Dashboard → SQL Editor → Run
 -- Safe to re-run (uses IF NOT EXISTS + DROP IF EXISTS on policies).
 -- ============================================================
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS public.leads (
                                 CHECK (source IN ('manual','meta','referral','website','other')),
   meta_ad_id        TEXT,
   meta_campaign     TEXT,
-  instrument_type   TEXT,        -- forex / crypto / stocks etc. — free text
+  instrument_type   TEXT,        -- forex / crypto / stocks etc. - free text
   status            TEXT        NOT NULL DEFAULT 'new'
                                 CHECK (status IN ('new','contacted','qualified','proposal_sent','pending_approval','converted','lost')),
   notes             TEXT,
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS public.lead_activity (
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ── 4. AUDIT LOG (compliance default — not legal advice) ─────
+-- ── 4. AUDIT LOG (compliance default - not legal advice) ─────
 CREATE TABLE IF NOT EXISTS public.audit_log (
   id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   actor_id    UUID        REFERENCES public.profiles(id) ON DELETE SET NULL,
@@ -223,7 +223,7 @@ CREATE POLICY "settings: admin only" ON public.settings
 
 
 -- ============================================================
--- Badar Trader CRM — Phase 2 Schema (Financial Ledger + KYC)
+-- Badar Trader CRM - Phase 2 Schema (Financial Ledger + KYC)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- Run AFTER the Phase 1 schema above. Safe to re-run.
 -- ============================================================
@@ -237,7 +237,7 @@ ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS signal_group TEXT;
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS kyc_status TEXT NOT NULL DEFAULT 'pending'
                                 CHECK (kyc_status IN ('pending','verified','rejected','not_started'));
 
--- ── 12. TRANSACTIONS (financial ledger — record-keeping only) ─
+-- ── 12. TRANSACTIONS (financial ledger - record-keeping only) ─
 -- client_id references leads(id): in this schema "leads" holds every
 -- client record (there is no separate clients table).
 CREATE TABLE IF NOT EXISTS public.transactions (
@@ -252,7 +252,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   created_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
--- ── 13. KYC_DOCUMENTS (compliance tracking — not legal advice) ─
+-- ── 13. KYC_DOCUMENTS (compliance tracking - not legal advice) ─
 CREATE TABLE IF NOT EXISTS public.kyc_documents (
   id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   client_id     UUID        NOT NULL REFERENCES public.leads(id) ON DELETE CASCADE,
@@ -267,7 +267,7 @@ CREATE TABLE IF NOT EXISTS public.kyc_documents (
 );
 
 -- ── 14. GUARD: only admins may change leads.account_balance / kyc_status ─
--- RLS is row-level, not column-level — the "leads: agent update own" policy
+-- RLS is row-level, not column-level - the "leads: agent update own" policy
 -- lets an agent UPDATE any column of their assigned lead. This trigger
 -- closes that gap for the two admin-only fields.
 CREATE OR REPLACE FUNCTION public.guard_leads_admin_only_columns()
@@ -329,7 +329,7 @@ CREATE POLICY "kyc: agent select own clients" ON public.kyc_documents
 
 
 -- ============================================================
--- Badar Trader CRM — Phase 3 Schema (Communications + Automation + Reporting)
+-- Badar Trader CRM - Phase 3 Schema (Communications + Automation + Reporting)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- Run AFTER the Phase 1 and Phase 2 schema above. Safe to re-run.
 -- ============================================================
@@ -346,7 +346,7 @@ CREATE TABLE IF NOT EXISTS public.communications (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ── 17. AUTOMATION_RULES (admin-only; stub — no sending happens yet) ─
+-- ── 17. AUTOMATION_RULES (admin-only; stub - no sending happens yet) ─
 CREATE TABLE IF NOT EXISTS public.automation_rules (
   id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   name             TEXT        NOT NULL,
@@ -509,7 +509,7 @@ CREATE POLICY signals_auth_update ON public.signals
 
 
 -- ============================================================
--- Badar Trader CRM — Phase 4 Schema (WhatsApp lead-qualification bot)
+-- Badar Trader CRM - Phase 4 Schema (WhatsApp lead-qualification bot)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- Run AFTER Phase 1-3 schema above. Safe to re-run.
 -- ============================================================
@@ -534,7 +534,7 @@ ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS handoff_reason TEXT;
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS is_unread BOOLEAN NOT NULL DEFAULT false;
 
--- ── PENDING SQL (Phase 4 — run this on the live DB before deploying the
+-- ── PENDING SQL (Phase 4 - run this on the live DB before deploying the
 --    language/main-menu bot update) ─────────────────────────────────────
 -- The original Phase 4 migration above already ran against the live `leads`
 -- table (see ACTION_NEEDED.md), so ADD COLUMN IF NOT EXISTS is a no-op for
@@ -581,7 +581,7 @@ ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS agent_escalated BOOLEAN NOT NU
 --
 -- IMPORTANT: this job name was previously 'nudge-agents-every-5-min'. If
 -- you're re-running this against a project that still has that old job
--- (or any other rogue nudge-agents cron entries — check with
+-- (or any other rogue nudge-agents cron entries - check with
 -- `SELECT jobname FROM cron.job;`), unschedule it explicitly first:
 --   SELECT cron.unschedule('nudge-agents-every-5-min');
 CREATE EXTENSION IF NOT EXISTS pg_cron;
@@ -619,7 +619,7 @@ SELECT cron.schedule(
 
 
 -- ============================================================
--- Badar Trader CRM — Phase 6 Schema (KYC document file upload)
+-- Badar Trader CRM - Phase 6 Schema (KYC document file upload)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- ============================================================
 
@@ -655,12 +655,12 @@ CREATE POLICY "kyc-documents: agent select own clients" ON storage.objects
 
 
 -- ============================================================
--- Badar Trader CRM — Phase 7 Schema (deposit screenshot capture)
+-- Badar Trader CRM - Phase 7 Schema (deposit screenshot capture)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- ============================================================
 
 -- ── 25. Deposit screenshot storage ──────────────────────────
--- The bot previously had no handling at all for image messages — a
+-- The bot previously had no handling at all for image messages - a
 -- customer's deposit screenshot (which the bot explicitly asks for) was
 -- silently dropped. Now stored at {lead_id}/{timestamp}.{ext}, same
 -- admin-full / agent-own-client pattern as kyc-documents.
@@ -691,22 +691,22 @@ CREATE POLICY "deposit-screenshots: agent select own clients" ON storage.objects
 
 
 -- ============================================================
--- Badar Trader CRM — Phase 8 Schema (real automation rule firing)
+-- Badar Trader CRM - Phase 8 Schema (real automation rule firing)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- ============================================================
 
 -- ── 26. Automation: real triggers, WhatsApp + assign-agent only ─
--- automation_rules were previously pure CRUD — nothing fired them. These
+-- automation_rules were previously pure CRUD - nothing fired them. These
 -- triggers call the fire-automation Edge Function (via pg_net, same
 -- pattern as nudge-agents) whenever the real event happens. Email/SMS
--- channels are deliberately NOT sent for real yet — no Twilio/SendGrid
--- account exists — fire-automation logs those as skipped instead of
+-- channels are deliberately NOT sent for real yet - no Twilio/SendGrid
+-- account exists - fire-automation logs those as skipped instead of
 -- silently doing nothing, so it's easy to tell when that's ready to flip on.
 ALTER TABLE public.automation_rules ADD COLUMN IF NOT EXISTS assign_agent_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
 
 -- The original constraint only ever allowed channel IN ('email','sms'), even
 -- though the CRM form has offered 'whatsapp' and 'assign_agent' as options
--- since it was built — every attempt to save one of those two would have been
+-- since it was built - every attempt to save one of those two would have been
 -- rejected by the database. template_body was also NOT NULL, which would
 -- reject assign_agent rules too (they have no message template).
 ALTER TABLE public.automation_rules DROP CONSTRAINT IF EXISTS automation_rules_channel_check;
@@ -715,7 +715,7 @@ ALTER TABLE public.automation_rules ADD CONSTRAINT automation_rules_channel_chec
 ALTER TABLE public.automation_rules ALTER COLUMN template_body DROP NOT NULL;
 
 -- condition_filter was never a real column at all, despite the CRM form
--- (submitAutomationRule) always including it in the save payload — meaning
+-- (submitAutomationRule) always including it in the save payload - meaning
 -- every single "Save Rule" click, for any channel, has always failed outright
 -- with a PostgREST "column not found" error. This is why the table was empty.
 ALTER TABLE public.automation_rules ADD COLUMN IF NOT EXISTS condition_filter TEXT;
@@ -790,7 +790,7 @@ CREATE TRIGGER automation_deposit_recorded
 
 
 -- ============================================================
--- Badar Trader CRM — Phase 9 Schema (public form submissions)
+-- Badar Trader CRM - Phase 9 Schema (public form submissions)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- ============================================================
 
@@ -813,7 +813,7 @@ ALTER TABLE public.kyc_documents ADD CONSTRAINT kyc_documents_document_type_chec
 
 
 -- ============================================================
--- Badar Trader CRM — Phase 10 Schema (fix conversion-hook)
+-- Badar Trader CRM - Phase 10 Schema (fix conversion-hook)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- ============================================================
 
@@ -822,7 +822,7 @@ ALTER TABLE public.kyc_documents ADD CONSTRAINT kyc_documents_document_type_chec
 -- kyc_status unless is_admin() (auth.uid() in profiles with role='admin').
 -- Service-role connections (Edge Functions like conversion-hook) have no
 -- auth.uid() at all, so this was blocking every single deposit
--- confirmation through join.html — silently, since join.html swallowed
+-- confirmation through join.html - silently, since join.html swallowed
 -- the error and redirected to thankyou.html regardless of success.
 -- Confirmed by reproducing it directly against a real test lead before
 -- this fix, and confirming it succeeds after.
@@ -844,28 +844,28 @@ $$;
 
 
 -- ============================================================
--- Badar Trader CRM — Phase 11 Schema (Meta Lead Ads automation)
+-- Badar Trader CRM - Phase 11 Schema (Meta Lead Ads automation)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- ============================================================
 
 -- ── 29. Meta Lead Ads → CRM record + WhatsApp welcome message ──
 -- Feeds supabase/functions/meta-leadgen-webhook/index.ts. A lead insert
 -- alone triggers automation_lead_created -> fire-automation, which is
--- the part that actually sends the WhatsApp message — this rule is what
+-- the part that actually sends the WhatsApp message - this rule is what
 -- fire-automation looks up. Verified end-to-end with a real test lead
 -- (deleted after): trigger fired, rule matched, template rendered, and
--- a real WhatsApp API call was attempted. Left INACTIVE — the wording
+-- a real WhatsApp API call was attempted. Left INACTIVE - the wording
 -- is a draft, not reviewed/approved by Badar yet. Edit and activate from
 -- the CRM's own Automation tab once the message is approved.
 INSERT INTO automation_rules (name, trigger_event, channel, template_body, is_active)
 SELECT
-  'Meta Lead Ads — welcome message',
+  'Meta Lead Ads - welcome message',
   'lead_created',
   'whatsapp',
   'Hi {{name}}! 👋 Thanks for your interest in Badar Trader. A member of our team will be in touch with you shortly on this number.',
   false
 WHERE NOT EXISTS (
-  SELECT 1 FROM automation_rules WHERE name = 'Meta Lead Ads — welcome message'
+  SELECT 1 FROM automation_rules WHERE name = 'Meta Lead Ads - welcome message'
 );
 
 -- ── DONE (Phase 11) ───────────────────────────────────────────
@@ -873,7 +873,7 @@ WHERE NOT EXISTS (
 
 
 -- ============================================================
--- Badar Trader CRM — Phase 12 Schema (agents can send WhatsApp replies)
+-- Badar Trader CRM - Phase 12 Schema (agents can send WhatsApp replies)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- ============================================================
 
@@ -882,13 +882,13 @@ WHERE NOT EXISTS (
 -- "WhatsApp token not set" even though the credentials WERE saved.
 -- sendConvMessage (index.html) reads wa_phone_number_id/wa_access_token
 -- from public.settings in the agent's own browser session, but §"settings:
--- admin only" RLS hides all settings rows from non-admins — the select
+-- admin only" RLS hides all settings rows from non-admins - the select
 -- returns zero rows (not an error), so agents saw the misleading toast
 -- while admin sends worked fine.
 -- This policy exposes ONLY those two keys to logged-in users; every other
 -- settings row stays admin-only. Trade-off, accepted for now: any agent's
 -- browser can technically read the raw access token. The cleaner design is
--- an Edge Function proxy that keeps the token server-side — see HANDOFF.md.
+-- an Edge Function proxy that keeps the token server-side - see HANDOFF.md.
 DROP POLICY IF EXISTS "settings: agents read wa send creds" ON public.settings;
 CREATE POLICY "settings: agents read wa send creds" ON public.settings
   FOR SELECT USING (
@@ -901,12 +901,12 @@ CREATE POLICY "settings: agents read wa send creds" ON public.settings
 
 
 -- ============================================================
--- Badar Trader CRM — Phase 13 Schema (quote-reply to a specific message)
+-- Badar Trader CRM - Phase 13 Schema (quote-reply to a specific message)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- ============================================================
 
 -- ── 31. Store WhatsApp's own message ID per communication ──────
--- Needed for Meta's "context.message_id" quote-reply field — without the
+-- Needed for Meta's "context.message_id" quote-reply field - without the
 -- original wamid there's nothing to reply to. Captured on inbound in
 -- whatsapp-webhook (message.id) and on outbound in send-wa-message /
 -- the legacy browser send path (Meta's own response.messages[0].id).
@@ -917,13 +917,13 @@ ALTER TABLE public.communications ADD COLUMN IF NOT EXISTS wa_message_id TEXT;
 
 
 -- ============================================================
--- Badar Trader CRM — Phase 14 Schema (agent-editable lead tiers)
+-- Badar Trader CRM - Phase 14 Schema (agent-editable lead tiers)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- ============================================================
 
 -- ── 32. Manual tier override (New/Warm/Hot/Closed) ──────────
 -- Badar, 2026-07-14: agents should set this themselves, not have it
--- auto-computed from bot_stage — they know the real situation with each
+-- auto-computed from bot_stage - they know the real situation with each
 -- lead. computeLeadTier() in index.html checks this first, falling back
 -- to the old auto-computed guess only when nobody's set it manually yet.
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS manual_tier TEXT;
@@ -936,7 +936,7 @@ ALTER TABLE public.leads ADD CONSTRAINT leads_manual_tier_check
 
 
 -- ============================================================
--- Badar Trader CRM — Phase 15 Schema (all active staff see every lead)
+-- Badar Trader CRM - Phase 15 Schema (all active staff see every lead)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- ============================================================
 
@@ -946,12 +946,12 @@ ALTER TABLE public.leads ADD CONSTRAINT leads_manual_tier_check
 -- `leads` and `communications` tables at some earlier point (policy names
 -- "staff select all" / "staff update all" / "staff insert any", gated by
 -- is_active_staff() below) but it was never written back into this file,
--- so this file and the live database had quietly drifted apart — this
+-- so this file and the live database had quietly drifted apart - this
 -- section documents what's actually live and extends the same pattern to
 -- kyc_documents, transactions, and lead_activity, which had been missed
 -- (an agent could see a lead but not its KYC/ledger/activity history
 -- unless it was their own). Admin-only write actions (KYC verify/reject,
--- balance edits) are unchanged — this only widens read (and, for leads,
+-- balance edits) are unchanged - this only widens read (and, for leads,
 -- update) access, not who can approve compliance/financial records.
 CREATE OR REPLACE FUNCTION public.is_active_staff()
 RETURNS boolean
@@ -996,7 +996,7 @@ CREATE POLICY "activity: staff select all" ON public.lead_activity
 -- NOTE: the guard_leads_admin_only_columns trigger (Phase 2) still blocks
 -- non-admins from changing account_balance/kyc_status even though they can
 -- now UPDATE the row otherwise, and KYC/financial write policies are still
--- admin-only (see Phase 2/3 above) — only visibility changed, not who can
+-- admin-only (see Phase 2/3 above) - only visibility changed, not who can
 -- approve or edit compliance and ledger data.
 
 -- ── DONE (Phase 15) ───────────────────────────────────────────
@@ -1004,7 +1004,7 @@ CREATE POLICY "activity: staff select all" ON public.lead_activity
 
 
 -- ============================================================
--- Badar Trader CRM — Phase 16 Schema (Do Prime dropped, XM added)
+-- Badar Trader CRM - Phase 16 Schema (Do Prime dropped, XM added)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- ============================================================
 
@@ -1012,7 +1012,7 @@ CREATE POLICY "activity: staff select all" ON public.lead_activity
 -- Badar has stopped working with Do Prime and started with XM instead.
 -- Exness is unchanged. 'doprime' stays a legal value so existing historical
 -- leads aren't invalidated, but the bot (whatsapp-webhook) no longer offers
--- it as a choice — only 'exness' and 'xm' are reachable going forward.
+-- it as a choice - only 'exness' and 'xm' are reachable going forward.
 -- XM referral link/code supplied by Ehsan, 20 July 2026 afternoon.
 ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_broker_choice_check;
 ALTER TABLE public.leads ADD CONSTRAINT leads_broker_choice_check
@@ -1023,12 +1023,12 @@ ALTER TABLE public.leads ADD CONSTRAINT leads_broker_choice_check
 
 
 -- ============================================================
--- Badar Trader CRM — Phase 17 Schema ("Both" broker option)
+-- Badar Trader CRM - Phase 17 Schema ("Both" broker option)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- ============================================================
 
 -- ── 35. Broker choice: "Both" added (Muhammad, 2026-07-21) ──
--- A lead can now pick both Exness and XM instead of just one — the bot's
+-- A lead can now pick both Exness and XM instead of just one - the bot's
 -- Box 3 has a third button, and the qualified-lead message shows both
 -- brokers' referral links/codes together when this is chosen.
 ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_broker_choice_check;
@@ -1040,7 +1040,7 @@ ALTER TABLE public.leads ADD CONSTRAINT leads_broker_choice_check
 
 
 -- ============================================================
--- Badar Trader CRM — Phase 18 Schema (pending_approval status fix)
+-- Badar Trader CRM - Phase 18 Schema (pending_approval status fix)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- ============================================================
 
@@ -1049,7 +1049,7 @@ ALTER TABLE public.leads ADD CONSTRAINT leads_broker_choice_check
 -- approves/rejects" workflow (approveConversion/rejectConversion, the
 -- notifyAdminPendingApproval WhatsApp ping) have all set status to
 -- 'pending_approval' since at least Phase 3, but the live check constraint
--- was never updated to allow it — any agent picking that option would hit a
+-- was never updated to allow it - any agent picking that option would hit a
 -- raw Postgres constraint-violation error instead of it actually saving.
 -- Found while walking through the Comm Log status filters with Muhammad.
 ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_status_check;

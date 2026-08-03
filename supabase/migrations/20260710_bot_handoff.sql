@@ -1,6 +1,6 @@
 -- Bot → human handoff support (added July 2026)
 -- Adds the columns the whatsapp-webhook needs to count failed attempts per step
--- and flag a lead for a human agent. Idempotent — safe to run more than once.
+-- and flag a lead for a human agent. Idempotent - safe to run more than once.
 
 ALTER TABLE public.leads
   ADD COLUMN IF NOT EXISTS retry_count    INTEGER NOT NULL DEFAULT 0,

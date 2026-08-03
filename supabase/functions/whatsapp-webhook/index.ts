@@ -1,4 +1,4 @@
-// Badar Trader CRM — WhatsApp Cloud API Webhook
+// Badar Trader CRM - WhatsApp Cloud API Webhook
 // Supabase Edge Function (Deno / TypeScript)
 //
 // Handoff behaviour (v28): confusion/inactivity handoffs auto-expire so a lead
@@ -17,13 +17,13 @@ const GRAPH_VERSION = "v21.0";
 
 // How long before a confusion/inactivity handoff is considered stale. A lead
 // who returns after this many hours has their needs_human flag cleared and the
-// bot flow resumed (explicit agent requests are exempt — see runBotStep).
+// bot flow resumed (explicit agent requests are exempt - see runBotStep).
 const HANDOFF_STALE_HOURS = 2;
 
 // A DECLINED lead who comes back after this long is treated as a fresh
 // opportunity: the flow restarts from the greeting instead of dead-ending
 // every message in the "a team member will follow up" acknowledgement
-// (which promised a follow-up nobody was making — Badar, 2026-07-14).
+// (which promised a follow-up nobody was making - Badar, 2026-07-14).
 // Within the window the polite acknowledgement stands, so someone who just
 // said "not right now" isn't immediately re-pitched.
 const DECLINED_RESTART_HOURS = 24;
@@ -34,7 +34,7 @@ const DECLINED_RESTART_HOURS = 24;
 const NEW_LEAD_NOTIFICATIONS_ENABLED = false;
 
 // Muhammad, 23 July 2026: WhatChimp got connected to this same WABA as a
-// second subscribed app — Meta allows more than one app to receive the same
+// second subscribed app - Meta allows more than one app to receive the same
 // inbound webhook, so this bot and WhatChimp's own bot could both end up
 // replying to the same customer at once. Paused as a precaution while that
 // gets sorted out. Inbound messages/leads still get logged normally (nothing
@@ -43,7 +43,7 @@ const NEW_LEAD_NOTIFICATIONS_ENABLED = false;
 const BOT_REPLIES_ENABLED = false;
 
 // Muhammad, 22 July 2026: a real lead (Izza) explicitly asked for a human
-// agent and sat unanswered for 10+ days — escalating a lead set needs_human
+// agent and sat unanswered for 10+ days - escalating a lead set needs_human
 // but never actually told anyone, and she had no assigned agent at all to
 // even see it. Separate toggle from the one above (that's about routine new
 // leads; this is specifically "someone needs help right now").
@@ -73,7 +73,7 @@ const LINKS = {
   xm: "https://affs.click/a3Vrw",
   xmCode: "YR4PD",
   // Was a Google Form placeholder that returns 401 Unauthorized (confirmed
-  // live) — this is the real, working, hosted form (Badar, 2026-07-14).
+  // live) - this is the real, working, hosted form (Badar, 2026-07-14).
   form: "https://crm.badartrader.com/join.html",
 };
 
@@ -84,7 +84,7 @@ const WALAIKUM_REPLY = "Walaikum Assalam!";
 const NAMASTE_REPLY = "Namaste!";
 const SATSRIAKAL_REPLY = "Sat Sri Akal!";
 const ARABIC_GREETING_REPLY = "Marhaba!";
-// Rotation pool for the "confused" fallback — Muhammad wants his approved
+// Rotation pool for the "confused" fallback - Muhammad wants his approved
 // wording to be one of several variations picked at random, not the only
 // one, so more can be added here once approved without touching the
 // function itself.
@@ -156,7 +156,7 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         const statusType: string = status.status ?? "unknown";
         const errorInfo: string | null = status.errors?.length
           ? status.errors
-              .map((e: any) => `${e.code}: ${e.title}${e.error_data?.details ? " — " + e.error_data.details : ""}`)
+              .map((e: any) => `${e.code}: ${e.title}${e.error_data?.details ? " - " + e.error_data.details : ""}`)
               .join("; ")
           : null;
 
@@ -184,7 +184,7 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
           : new Date().toISOString();
 
         if (!senderPhone) {
-          console.error("Message has no sender phone number — skipping.");
+          console.error("Message has no sender phone number - skipping.");
           continue;
         }
 
@@ -193,7 +193,7 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
           senderPhone;
 
         // Blue double-tick on the customer's side, same as any real WhatsApp
-        // reply — Muhammad asked for this so the customer knows someone (the
+        // reply - Muhammad asked for this so the customer knows someone (the
         // bot) has actually seen their message. Fired in the background, not
         // awaited: it's cosmetic for the customer and must never add latency
         // to the bot's actual reply.
@@ -205,7 +205,7 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
 
         if (message.type === "image") {
           if (agent) {
-            console.log(`Image from agent ${agent.name} — ignoring (agents aren't processed as leads).`);
+            console.log(`Image from agent ${agent.name} - ignoring (agents aren't processed as leads).`);
             continue;
           }
           await handleImageMessage(sb, message, senderPhone, contactName, timestamp);
@@ -229,7 +229,7 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         if (!lead) continue;
 
         // Idle-time checks (handoff auto-expiry, 24h stage restarts) need the
-        // customer's actual last message time, not lead.updated_at — that
+        // customer's actual last message time, not lead.updated_at - that
         // column is bumped by ANY write to the row (an agent just opening the
         // conversation flips is_unread, which touches updated_at via the
         // leads_updated_at trigger), so it silently resets on CRM activity
@@ -239,7 +239,7 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         const lastCustomerTouch = wasCreated ? null : await getLastInboundAt(sb, lead.id);
 
         // Logging the inbound message doesn't need to finish before the bot
-        // can respond — neither depends on the other's result, so they run
+        // can respond - neither depends on the other's result, so they run
         // concurrently instead of adding the log write's time to the delay
         // before the customer sees a reply.
         await Promise.all([
@@ -303,7 +303,7 @@ async function upsertLead(
   }
 
   if (existing) {
-    // Nothing downstream reads is_unread before responding to the customer —
+    // Nothing downstream reads is_unread before responding to the customer -
     // this was a full extra DB round-trip (~150-300ms to the project's
     // ap-northeast-1 region) sitting in the critical path of every single
     // message from a returning lead, the most common case by far. Same
@@ -337,7 +337,7 @@ async function upsertLead(
   console.log(`New lead created: ${newLead.id}`);
 
   // Agent assignment (round-robin count + update) and the notification below
-  // both run in the background, not awaited here — nothing the customer
+  // both run in the background, not awaited here - nothing the customer
   // sees (the greeting in runBotStep) depends on assigned_agent_id, so
   // there's no reason to make them wait on it. Shaves a full round-robin
   // count query plus an update off the delay before the greeting goes out.
@@ -350,7 +350,7 @@ async function upsertLead(
         sb,
         newLead.id,
         "outbound",
-        `[assigned to ${agent.name}, notification disabled — Muhammad, 21 July 2026]`,
+        `[assigned to ${agent.name}, notification disabled - Muhammad, 21 July 2026]`,
         new Date().toISOString(),
       );
       return;
@@ -370,7 +370,7 @@ async function upsertLead(
       "outbound",
       pingResult.ok
         ? `[assigned to ${agent.name}, notified]`
-        : `[assigned to ${agent.name}, notification SEND FAILED — ${pingResult.error}]`,
+        : `[assigned to ${agent.name}, notification SEND FAILED - ${pingResult.error}]`,
       new Date().toISOString(),
     );
   })();
@@ -422,7 +422,7 @@ async function handleImageMessage(
   const mediaId: string | undefined = message.image?.id;
 
   if (!mediaId) {
-    await insertCommunication(sb, lead.id, "inbound", "[image received — no media ID in payload]", timestamp);
+    await insertCommunication(sb, lead.id, "inbound", "[image received - no media ID in payload]", timestamp);
     return;
   }
 
@@ -431,7 +431,7 @@ async function handleImageMessage(
     sb,
     lead.id,
     "inbound",
-    stored.ok ? "[deposit screenshot received]" : `[image received — FAILED to store: ${stored.error}]`,
+    stored.ok ? "[deposit screenshot received]" : `[image received - FAILED to store: ${stored.error}]`,
     timestamp,
     stored.ok ? stored.path : undefined,
     message.id,
@@ -451,7 +451,7 @@ async function handleImageMessage(
         sb,
         lead.id,
         "outbound",
-        pingResult.ok ? `[agent ${assignedAgent.name} notified of screenshot]` : `[SEND FAILED: agent screenshot notification — ${pingResult.error}]`,
+        pingResult.ok ? `[agent ${assignedAgent.name} notified of screenshot]` : `[SEND FAILED: agent screenshot notification - ${pingResult.error}]`,
         new Date().toISOString(),
       );
     }
@@ -518,7 +518,7 @@ async function runBotStep(
   //    lead who got stuck once (and whom no agent answered) is never left mute.
   //
   // lastCustomerTouch (the prior inbound message's timestamp) is used here
-  // instead of lead.updated_at deliberately — updated_at is bumped by ANY
+  // instead of lead.updated_at deliberately - updated_at is bumped by ANY
   // write to the lead row (an agent opening the conversation, a note, a tag),
   // not just real customer messages, which silently reset every idle-time
   // check below whenever the CRM was merely looked at.
@@ -534,7 +534,7 @@ async function runBotStep(
   }
 
   // A returning lead's old near-limit retry count shouldn't instantly re-escalate
-  // them on the first message back — give the resumed flow a fresh count.
+  // them on the first message back - give the resumed flow a fresh count.
   if (returningAfterGap && (lead.retry_count ?? 0) > 0) {
     await sb.from("leads").update({ retry_count: 0 }).eq("id", lead.id);
     lead.retry_count = 0;
@@ -542,7 +542,7 @@ async function runBotStep(
 
   if (wasCreated) {
     const greeting = matchGreeting(input) ?? "hello";
-    // Sequential, not parallel — a brand new customer's very first message
+    // Sequential, not parallel - a brand new customer's very first message
     // is the worst possible place for a delivery-order gamble. Sending both
     // at once shaved a little latency but Meta could (and, reported live,
     // did) deliver the language card before the greeting text, reading as
@@ -557,7 +557,7 @@ async function runBotStep(
   const lang: Lang = lead.language === "ur" ? "ur" : "en";
 
   // A lead abandoned mid-flow (never explicitly declined, just went quiet)
-  // has no restart rule today — only "declined" gets one. Anyone returning
+  // has no restart rule today - only "declined" gets one. Anyone returning
   // to any of these stages after a long gap has their new message
   // misinterpreted as an answer to whatever question they left hanging,
   // days or weeks ago, which reads as the bot behaving inconsistently
@@ -566,7 +566,7 @@ async function runBotStep(
   // abandonable mid-flow stage instead of only one.
   //
   // input.selectionId is only ever set when the customer tapped a REAL
-  // button/list option still on their screen (never for typed free text) —
+  // button/list option still on their screen (never for typed free text) -
   // that is always intentional and tied to the exact stage they're in, so
   // it must never be discarded as "stale." Found live, 22 July 2026: M
   // Junaid tapped "FAQs" on a >24h-old Main Menu card and the bot restarted
@@ -580,7 +580,7 @@ async function runBotStep(
   if (!wasCreated && !input.selectionId && MIDFLOW_RESTART_STAGES.includes(lead.bot_stage) && hoursIdle >= DECLINED_RESTART_HOURS) {
     await sb.from("leads").update({ bot_stage: "awaiting_language", retry_count: 0 }).eq("id", lead.id);
     const greeting = matchGreeting(input) ?? "hello";
-    // Sequential — same fix as the wasCreated path above, guaranteed order.
+    // Sequential - same fix as the wasCreated path above, guaranteed order.
     const r1 = await sendText(to, greetingReplyText(greeting));
     const r2 = await sendLanguageCard(to);
     await logOutbound(sb, lead.id, `[Stale mid-flow lead, was ${lead.bot_stage}, restarted after 24h+]\n${combineSendLog(r1, r2)}`);
@@ -588,7 +588,7 @@ async function runBotStep(
   }
 
   // A mistaken tap (wrong broker, wrong experience level, etc.) previously
-  // had no way back — the lead was stuck re-answering the current question
+  // had no way back - the lead was stuck re-answering the current question
   // or had to be manually reset. bot_stage_history is a stack of every stage
   // this lead has moved forward through; "Back" pops one level and re-sends
   // that stage's prompt, undoing whatever field that stage's forward
@@ -699,7 +699,7 @@ async function runBotStep(
     case "awaiting_deposit_confirm": {
       const yesNo = matchYesNo(input);
       if (!yesNo) {
-        // A question about depositing less than $500 skips the re-prompt —
+        // A question about depositing less than $500 skips the re-prompt -
         // that's a real objection needing a person's answer, not ambiguous
         // input worth re-asking Yes/No over.
         if (asksAboutLowerDeposit(input)) {
@@ -716,7 +716,7 @@ async function runBotStep(
 
       if (yesNo === "yes") {
         // "Both" (added 21 July 2026, Badar) shows both brokers' links/codes
-        // together instead of picking one — a lead who wants to use both
+        // together instead of picking one - a lead who wants to use both
         // Exness and XM gets both referral links in the same message.
         const brokerName = lead.broker_choice === "xm" ? "XM" : lead.broker_choice === "both" ? "Exness or XM" : "Exness";
         const linkSection = lead.broker_choice === "both"
@@ -737,7 +737,7 @@ async function runBotStep(
           subject: "Qualified lead summary", body: summary, created_at: new Date().toISOString(),
         });
 
-        // 2026-07-21 (Badar): don't assume every lead is starting from zero —
+        // 2026-07-21 (Badar): don't assume every lead is starting from zero -
         // some are already trading on this broker. Either a fresh $500
         // deposit or an existing $500+ balance both count, the screenshot is
         // what actually matters (it's the real signal a lead has closed, see
@@ -751,7 +751,7 @@ async function runBotStep(
       }
 
       // 21 July 2026 (Badar, live-tested): same fix as the Premium Signalling
-      // Group menu option — this used to auto-dump the full deposit
+      // Group menu option - this used to auto-dump the full deposit
       // instructions as a downsell pitch instead of a real handoff. Same
       // treatment now: a human takes it from here.
       await sb.from("leads").update({
@@ -765,19 +765,19 @@ async function runBotStep(
     }
 
     default: {
-      // qualified / declined — conversation already resolved.
+      // qualified / declined - conversation already resolved.
 
       // Declined leads returning after a day restart from scratch (greeting +
       // language picker), same shape as the wasCreated flow. Qualified leads
       // get the same 24h+ restart, but via MIDFLOW_RESTART_STAGES above (it
       // runs before this switch), so they never actually reach this branch
-      // once stale — this check only fires for declined leads still within
+      // once stale - this check only fires for declined leads still within
       // the window, or qualified leads that haven't gone stale yet.
       const hoursSinceTouch = (Date.now() - lastTouch) / 3600000;
       if (lead.bot_stage === "declined" && hoursSinceTouch >= DECLINED_RESTART_HOURS) {
         await sb.from("leads").update({ bot_stage: "awaiting_language", retry_count: 0 }).eq("id", lead.id);
         const greeting = matchGreeting(input) ?? "hello";
-        // Sequential — same fix as the wasCreated path above, guaranteed order.
+        // Sequential - same fix as the wasCreated path above, guaranteed order.
         const r1 = await sendText(to, greetingReplyText(greeting));
         const r2 = await sendLanguageCard(to);
         await logOutbound(sb, lead.id, `[Declined lead returned after 24h+, restarted]\n${combineSendLog(r1, r2)}`);
@@ -785,7 +785,7 @@ async function runBotStep(
       }
 
       // A question about depositing less than $500 needs a person, not a
-      // generic ack — escalate with a specific reason so the agent knows
+      // generic ack - escalate with a specific reason so the agent knows
       // exactly what to answer instead of reconstructing context later.
       if (asksAboutLowerDeposit(input)) {
         await escalate(sb, lead, to, "asked about depositing less than $500");
@@ -793,12 +793,12 @@ async function runBotStep(
       }
 
       // A lead whose conversation already resolved (declined/qualified) used
-      // to get this identical canned ack forever, no matter what they said —
+      // to get this identical canned ack forever, no matter what they said -
       // this was the actual cause behind "why do I keep getting the same
       // reply" reports (Junaid, 21 July). Every other stuck point in the
       // funnel escalates to a human after repeated messages via
       // handleUnmatched; this branch never did. Same threshold (2) applied
-      // here now. Greetings are exempt from the count, same as elsewhere —
+      // here now. Greetings are exempt from the count, same as elsewhere -
       // someone just saying "hi" again isn't "stuck".
       const greeting = matchGreeting(input);
       if (!greeting) {
@@ -839,7 +839,7 @@ async function handleUnmatched(
   if (retries >= limit) {
     // Badar's call, 22 July 2026: whenever the bot genuinely can't understand
     // what's being asked, always use one of the two approved "we've received
-    // your question, a team member will contact you" templates — the same
+    // your question, a team member will contact you" templates - the same
     // wording whether this is the 1st unclear message (confusedReply below)
     // or the 2nd that triggers the actual handoff, not a different-sounding
     // escalation message.
@@ -858,7 +858,7 @@ async function handleUnmatched(
 
 // Every forward step in the funnel goes through this instead of a bare
 // `.update()` so bot_stage_history always has an accurate stack of where the
-// lead has been — that stack is what makes "Go Back" possible. extraFields
+// lead has been - that stack is what makes "Go Back" possible. extraFields
 // is whatever that transition saves alongside the stage change (broker
 // choice, trader experience, etc.); goBack() undoes exactly these when a
 // lead backs out of the stage that set them.
@@ -935,7 +935,7 @@ async function escalate(
   reason: string,
   message?: string,
 ): Promise<void> {
-  // A lead escalating with nobody assigned would otherwise sit invisible —
+  // A lead escalating with nobody assigned would otherwise sit invisible -
   // exactly what happened to Izza (10+ days, no agent, no ping, nobody knew).
   let assignedAgentId: string | null = lead.assigned_agent_id ?? null;
   let assignedAgent = AGENT_ROTATION.find((a) => a.id === assignedAgentId) ?? null;
@@ -966,7 +966,7 @@ async function escalate(
       sb,
       lead.id,
       "outbound",
-      pingResult.ok ? `[agent ${assignedAgent.name} notified of escalation]` : `[SEND FAILED: agent escalation notification — ${pingResult.error}]`,
+      pingResult.ok ? `[agent ${assignedAgent.name} notified of escalation]` : `[SEND FAILED: agent escalation notification - ${pingResult.error}]`,
       new Date().toISOString(),
     );
   }
@@ -979,7 +979,7 @@ async function handleAgentReply(
 ): Promise<void> {
   const leadId = input.selectionId?.startsWith("ack_") ? input.selectionId.slice(4) : null;
   if (!leadId) {
-    console.log(`Message from agent ${agent.name} was not an ack button — ignoring.`);
+    console.log(`Message from agent ${agent.name} was not an ack button - ignoring.`);
     return;
   }
 
@@ -992,7 +992,7 @@ async function handleAgentReply(
 }
 
 // Caller is responsible for logging the result (matches every other send*
-// helper) — this used to log internally, which double-logged when reused as
+// helper) - this used to log internally, which double-logged when reused as
 // handleUnmatched's rePrompt (handleUnmatched logs its own combined result).
 async function sendDepositConfirm(to: string, brokerChoice: string, bodyText?: string): Promise<SendResult> {
   const brokerLabel = brokerChoice === "xm" ? "XM" : brokerChoice === "both" ? "Exness or XM" : "Exness";
@@ -1052,7 +1052,7 @@ async function sendMainMenuCard(to: string, lang: Lang): Promise<SendResult> {
   );
 }
 
-// Broker choice already had 3 options (Exness/XM/Both) — WhatsApp caps
+// Broker choice already had 3 options (Exness/XM/Both) - WhatsApp caps
 // interactive button messages at 3, leaving no room for a 4th "Back" button,
 // so this step uses a list message instead (same pattern as the menu/language
 // cards) purely to fit the back option in.
@@ -1093,7 +1093,7 @@ async function logOutbound(sb: SupabaseClient, leadId: string, body: string): Pr
 
 // A lead asking whether they can deposit less than $500 (or otherwise trying
 // to negotiate the amount) needs a real answer from a person, not the bot's
-// generic "a team member will follow up" ack — that ack doesn't tell the
+// generic "a team member will follow up" ack - that ack doesn't tell the
 // agent WHY they're being pinged, so the agent has no context and (as
 // happened in practice) can end up giving inconsistent or wrong info hours
 // later. Requires both an amount mention and a "less/lower" word in the same
@@ -1106,7 +1106,7 @@ function asksAboutLowerDeposit(input: UserInput): boolean {
   const mentionsLess = /\b(kam|km|less|lower|under|kum|discount|reduce|negotiate)\b/.test(t);
   // "What's the minimum deposit?" never mentions 500 or a "less/lower" word
   // at all, so the check above missed one of the most natural phrasings of
-  // exactly this objection — found 21 July 2026 after a real lead asked
+  // exactly this objection - found 21 July 2026 after a real lead asked
   // this and the bot never escalated it.
   const mentionsMinimumDeposit = /\bdeposit\b/.test(t) && /\b(minimum|kam se kam|kum se kum)\b/.test(t);
   return (mentionsAmount && mentionsLess) || mentionsMinimumDeposit;
@@ -1245,14 +1245,14 @@ async function sendList(
   return { ...result, text: fallbackText };
 }
 
-// `text` is what was actually sent (or attempted), always populated —
+// `text` is what was actually sent (or attempted), always populated -
 // this is what the CRM's Conversations tab shows agents, so it must never
 // be a placeholder description. See combineSendLog below, used everywhere
 // this used to be replaced with a hand-typed "[thing sent]" bracket note.
 type SendResult = { ok: boolean; error?: string; text: string };
 
 // Builds one log line from one or more send attempts, real content always,
-// never a description of the content. Fixed 21 July 2026 — every outbound
+// never a description of the content. Fixed 21 July 2026 - every outbound
 // log entry used to be a bracketed internal note ("[screenshot ack sent]")
 // instead of what was actually said, which left agents with no way to see
 // what the bot had told a customer, a real, live problem found in practice.
@@ -1276,7 +1276,7 @@ async function callGraphApi(payload: unknown): Promise<SendResult> {
   const { token, phoneId } = await getWaCredentials();
   if (!token || !phoneId) {
     const msg = "No WhatsApp access token / phone number ID available (checked env vars and settings table)";
-    console.error(msg + " — skipping outbound send.");
+    console.error(msg + " - skipping outbound send.");
     return { ok: false, error: msg };
   }
 
