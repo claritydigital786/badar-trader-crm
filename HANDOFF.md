@@ -49,6 +49,7 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 - Junaid - Part 3 items 1 and 2: Train AI (knowledge base storage) and Create Flow (keyword-reply builder), incl. their two migrations - 2026-08-03, claimed and pushed before starting
+- Muhammad - full mobile usability pass, tab by tab at phone width (375px) - the 2026-07-19 backlog item that was never systematically tested - 2026-08-03, claimed before starting
 
 **DONE (2026-08-03) - Muhammad's Guide tab expansion:** admin + agent Guide tabs expanded with "Omnichannel Inbox" rename, new "Create Flow" and "Train AI" cards, and admin-only "User Manager"/"User Permission" cards. Also fixed a real dark-mode bug found during verification: card heading text (inline `color:#0f172a`) was illegible on dark backgrounds - added a targeted `[data-theme="dark"] [style*="color:#0f172a"]` override. Verified locally in both light and dark mode, admin and agent views, zero console errors, before pushing.
 
