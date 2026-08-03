@@ -1,0 +1,15 @@
+-- Placeholder. NOT the real contents of this migration.
+--
+-- Version 20260710041434 exists in the remote database's migration history but its
+-- file was never in this repo, because nearly every schema change in this
+-- project was applied by pasting into the Supabase SQL Editor (which is what
+-- schema.sql's own section headers instruct) rather than through the CLI.
+--
+-- Without a local file for every remote version, "supabase db push" refuses
+-- to run at all (LegacyDbPushMissingLocalError), which blocked applying new
+-- migrations entirely. This empty placeholder exists ONLY to align the CLI's
+-- view of history. It is intentionally a no-op: the real schema change is
+-- already applied in production, and re-running an unknown statement would
+-- be far more dangerous than recording nothing.
+--
+-- The authoritative record of the schema remains supabase/schema.sql.
