@@ -49,6 +49,7 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 - Muhammad - expanding the Guide tab into a proper onboarding guide (admin + agent) - 2026-08-03, claimed before starting per the process note above
+- Junaid - Part 3 items 1 and 2: Train AI (knowledge base storage) and Create Flow (keyword-reply builder), incl. their two migrations - 2026-08-03, claimed and pushed before starting
 
 Prior version of this doc (2026-07-13) covered the main/feat branch-divergence discovery
 and merge into `integration/merge-bot-human-handoff`. That merge is still the base - a
