@@ -48,7 +48,6 @@ Whoever finishes their piece first should update this section (mark it done, sam
 **Standing rule, reinforced hard tonight: zero em dashes, anywhere, ever - user-facing text, code comments, this file, everything.** Muhammad was extremely direct about this. All 158 occurrences in `index.html` and all 184 in this file were swept and replaced with plain hyphens tonight. Check before ever writing one again.
 
 ### Active Work Claims
-- Junaid - Part 3 next slice: Follow-up Sequences (timed nudge messages for leads that go quiet). Storage + admin UI, same honest pattern as Train AI / Create Flow, not wired to send - 2026-08-03
 
 **DONE (2026-08-03) - Muhammad's mobile usability pass, tab by tab at 375px** (the 2026-07-19 backlog item flagged as "never systematically tested"). Found and fixed real bugs, not just checked the box:
 - Sidebar didn't fully hide when collapsed on mobile - it translated by a hardcoded `-220px` while its actual width was `232px`, leaving a permanent ~12px sliver on-screen at every phone width. Switched to `translateX(-100%)` so it can never drift out of sync with the real width again.
@@ -906,3 +905,17 @@ Verified in-browser: pressing Send produces "Not sent. Nothing was delivered and
 **Not doing step 2 blind, and this is an engineering judgement rather than a request for permission:** flipping it without checking step 1 risks double-replying to real prospects arriving from live ad spend on the 1st August campaign. The check takes about two minutes in the WhatChimp UI.
 
 **Still genuinely a business call, not a technical one:** whether to cancel or let the subscription lapse, and whether Badar's agents prefer WhatChimp's Shared Inbox to the CRM's Omnichannel Inbox as their day-to-day workspace. Those involve money and Badar's team, so they are noted here rather than decided.
+
+---
+
+## 2026-08-03 - Follow-up Sequences added, and the migration filename format fixed
+
+**New Part 3 slice: Follow-ups tab (`follow_up_sequences`).** A rule says: when a lead has sat in a given status for N hours without moving, send this message. Create / edit / pause / delete, admin-only RLS, `trigger_status` mirrors the `leads_status_check` constraint from Phase 18 so a rule can never target a status a lead cannot hold. Mirrored into `schema.sql` as Phase 20.
+
+**Storage and UI only, same as the other two.** No scheduled job reads the table, and the tab says so plainly. Wiring it to actually send is a separate step, and the July nudge-scheduling questions (the duplicate-spam incident, whether agents should be pinged at all) need settling first.
+
+**Also fixed a migration problem I caused earlier today.** The 13 placeholder files use 14-digit versions while the three real migrations used 8-digit ones. Once both formats existed in remote history the CLI could no longer pair local `20260710` with remote `20260710` - `migration list` showed that version twice, once with no local and once with no remote - so `db push` failed permanently with `LegacyDbPushMissingLocalError`. Renamed all four real migrations to 14-digit versions and repaired the history table to match: dropped the three short-form rows, re-recorded them under the new versions. Bookkeeping only, no schema or data touched, and every affected migration is idempotent regardless. `migration list` now shows 17 rows with the only mismatch being whatever is genuinely unapplied.
+
+**Lesson worth keeping: use 14-digit `<YYYYMMDDHHMMSS>_name.sql` for every new migration in this repo.** Mixing formats breaks the CLI's pairing in a way that is not obvious from the error message.
+
+Verified against the real database rather than assumed: `follow_up_sequences` selects fine, an anonymous INSERT is rejected with `42501` row-level security violation, and the tab renders a proper empty state. Full CRUD, validation and both themes exercised in demo mode, zero console errors.
