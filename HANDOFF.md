@@ -48,7 +48,7 @@ Whoever finishes their piece first should update this section (mark it done, sam
 **Standing rule, reinforced hard tonight: zero em dashes, anywhere, ever - user-facing text, code comments, this file, everything.** Muhammad was extremely direct about this. All 158 occurrences in `index.html` and all 184 in this file were swept and replaced with plain hyphens tonight. Check before ever writing one again.
 
 ### Active Work Claims
-(none right now)
+- Junaid - Part 3 next slice: Follow-up Sequences (timed nudge messages for leads that go quiet). Storage + admin UI, same honest pattern as Train AI / Create Flow, not wired to send - 2026-08-03
 
 **DONE (2026-08-03) - Muhammad's mobile usability pass, tab by tab at 375px** (the 2026-07-19 backlog item flagged as "never systematically tested"). Found and fixed real bugs, not just checked the box:
 - Sidebar didn't fully hide when collapsed on mobile - it translated by a hardcoded `-220px` while its actual width was `232px`, leaving a permanent ~12px sliver on-screen at every phone width. Switched to `translateX(-100%)` so it can never drift out of sync with the real width again.
