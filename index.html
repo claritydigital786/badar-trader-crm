@@ -808,6 +808,7 @@
       <div class="nav-item" data-tab="train-ai"><span class="nav-icon" style="background:var(--tint-warn-bg)">🧠</span> Train AI</div>
       <div class="nav-item" data-tab="follow-ups"><span class="nav-icon" style="background:var(--tint-success-bg)">⏰</span> Follow-ups</div>
       <div class="nav-item" data-tab="templates"><span class="nav-icon" style="background:var(--tint-sky-bg)">📄</span> Templates</div>
+      <div class="nav-item" data-tab="appointments"><span class="nav-icon" style="background:var(--tint-danger-bg)">📅</span> Appointments</div>
       <div class="nav-section-label">FINANCE</div>
       <div class="nav-item" data-tab="payroll"><span class="nav-icon" style="background:var(--tint-gold-bg)">💰</span> Payroll</div>
       <div class="nav-section-label">WHATSAPP SIGNALS</div>
@@ -1456,6 +1457,83 @@
       <div id="tpl-msg" class="msg"></div>
       <button class="btn btn-primary" onclick="submitTemplate()">Save Template</button>
       <button class="btn btn-secondary" onclick="resetTemplateForm()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Appointments -->
+  <div id="admin-tab-appointments" class="tab-content">
+    <h3>Appointments</h3>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+      <div class="stat-card"><div class="stat-value" id="appt-today">0</div><div class="stat-label">Today</div></div>
+      <div class="stat-card"><div class="stat-value" id="appt-upcoming">0</div><div class="stat-label">Upcoming</div></div>
+      <div class="stat-card"><div class="stat-value" id="appt-overdue" style="color:#dc4c40">0</div><div class="stat-label">Overdue</div></div>
+      <div class="stat-card"><div class="stat-value" id="appt-done">0</div><div class="stat-label">Completed</div></div>
+    </div>
+
+    <div class="filter-bar" style="margin-bottom:14px">
+      <input type="text" id="appt-search" placeholder="🔍 Search contact or title…" oninput="renderAppointmentsTable()"
+        style="flex:1;min-width:180px;max-width:280px" />
+      <select id="appt-filter" onchange="renderAppointmentsTable()">
+        <option value="upcoming">Upcoming and overdue</option>
+        <option value="today">Today</option>
+        <option value="all">All</option>
+        <option value="scheduled">Scheduled</option>
+        <option value="completed">Completed</option>
+        <option value="cancelled">Cancelled</option>
+        <option value="no_show">No show</option>
+      </select>
+    </div>
+
+    <div class="card" style="padding:0">
+      <table>
+        <thead><tr>
+          <th>When</th><th>Title</th><th>Contact</th><th>Owner</th><th>Status</th><th></th>
+        </tr></thead>
+        <tbody id="appt-tbody">
+          <tr><td colspan="6" class="empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h4 id="appt-form-title" style="margin-bottom:14px">Book Appointment</h4>
+      <input type="hidden" id="appt-id" />
+      <div class="form-row">
+        <div class="form-group">
+          <label>Title</label>
+          <input type="text" id="appt-title" placeholder="e.g. Callback re: account setup" />
+        </div>
+        <div class="form-group">
+          <label>Date and time</label>
+          <input type="datetime-local" id="appt-when" />
+        </div>
+        <div class="form-group">
+          <label>Duration (mins)</label>
+          <input type="number" id="appt-duration" min="5" step="5" value="30" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Contact name</label>
+          <input type="text" id="appt-contact" placeholder="Who the call is with" />
+        </div>
+        <div class="form-group">
+          <label>Phone</label>
+          <input type="text" id="appt-phone" placeholder="+92 300 1234567" />
+        </div>
+        <div class="form-group">
+          <label>Owner</label>
+          <select id="appt-agent"><option value="">Unassigned</option></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Notes <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+        <textarea id="appt-notes" rows="3" placeholder="Anything the owner should know before the call."></textarea>
+      </div>
+      <div id="appt-msg" class="msg"></div>
+      <button class="btn btn-primary" onclick="submitAppointment()">Save Appointment</button>
+      <button class="btn btn-secondary" onclick="resetAppointmentForm()">Cancel</button>
     </div>
   </div>
 
@@ -2849,7 +2927,7 @@ function adminTab(name, el) {
     'comm-log': 'Communication Log',
     'signal-broadcast': 'Broadcast Signal', subscribers: 'Subscribers', 'ai-signals': 'AI Signals',
     guide: 'Guide', 'user-manager': 'User Manager', 'user-permission': 'User Permission',
-    'create-flow': 'Create Flow', 'train-ai': 'Train AI', 'follow-ups': 'Follow-ups', templates: 'Message Templates'
+    'create-flow': 'Create Flow', 'train-ai': 'Train AI', 'follow-ups': 'Follow-ups', templates: 'Message Templates', appointments: 'Appointments'
   };
   const titleEl = document.getElementById('current-tab-title');
   if (titleEl) titleEl.textContent = titles[name] || name;
@@ -2866,6 +2944,7 @@ function adminTab(name, el) {
   if (name === 'create-flow')      loadKeywordReplies();
   if (name === 'follow-ups')       loadFollowUps();
   if (name === 'templates')        loadTemplates();
+  if (name === 'appointments')     loadAppointments();
   if (name === 'reports')          loadReports();
   if (name === 'comm-log')         loadCommLog();
   if (name === 'payroll')          { if (!document.querySelector('#payroll-setup-tbody strong')) renderPayrollSetup(); }
@@ -4410,6 +4489,211 @@ let cachedKeywordReplies = [];
 let cachedFollowUps      = [];
 
 let cachedTemplates = [];
+
+let cachedAppointments = [];
+
+// ── APPOINTMENTS ──────────────────────────────────────────────
+// Scheduling calls with prospects. Visible to all active staff, matching
+// how leads behave. Deliberately decoupled from public.leads: the contact
+// is stored as plain name and phone text, so nothing here can read, lock
+// or alter live lead or conversation data.
+const APPT_STATUS_COLOURS = { scheduled:'#0ea5e9', completed:'#1fa971', cancelled:'#64748b', no_show:'#dc4c40' };
+const APPT_STATUS_LABELS  = { scheduled:'Scheduled', completed:'Completed', cancelled:'Cancelled', no_show:'No show' };
+
+const _DEMO_APPOINTMENTS = [
+  { id:'ap1', title:'Callback re: gold account setup', contact_name:'Omar Farooq', contact_phone:'+923214567890',
+    scheduled_at:new Date(Date.now()+3*3600e3).toISOString(), duration_mins:30, agent_id:null, status:'scheduled', notes:'Wants to discuss spreads.' },
+  { id:'ap2', title:'Deposit walkthrough', contact_name:'Ayesha Malik', contact_phone:'+923009876543',
+    scheduled_at:new Date(Date.now()-26*3600e3).toISOString(), duration_mins:20, agent_id:null, status:'scheduled', notes:'' },
+  { id:'ap3', title:'Onboarding call', contact_name:'Bilal Khan', contact_phone:'+923457890123',
+    scheduled_at:new Date(Date.now()-5*24*3600e3).toISOString(), duration_mins:45, agent_id:null, status:'completed', notes:'Went well, funded.' },
+];
+
+async function loadAppointments() {
+  populateApptAgentDropdown();
+  if (demoMode) { cachedAppointments = _DEMO_APPOINTMENTS.slice(); renderAppointmentsTable(); return; }
+  const { data, error } = await sb
+    .from('appointments').select('*').order('scheduled_at', { ascending: true });
+  if (error) { console.error('loadAppointments:', error); showTableError('appt-tbody', error); return; }
+  cachedAppointments = data || [];
+  renderAppointmentsTable();
+}
+
+function populateApptAgentDropdown() {
+  const sel = document.getElementById('appt-agent');
+  if (!sel) return;
+  const current = sel.value;
+  const staff = (cachedProfiles || []).filter(p => !p.is_suspended);
+  sel.innerHTML = '<option value="">Unassigned</option>' +
+    staff.map(p => `<option value="${esc(p.id)}">${esc(p.full_name || p.email || 'Unnamed')}</option>`).join('');
+  if ([...sel.options].some(o => o.value === current)) sel.value = current;
+}
+
+function apptAgentName(id) {
+  if (!id) return '<span style="color:#94a3b8">Unassigned</span>';
+  const p = (cachedProfiles || []).find(x => x.id === id);
+  return esc(p ? (p.full_name || p.email) : 'Unknown');
+}
+
+function renderAppointmentsTable() {
+  const tbody = document.getElementById('appt-tbody');
+  if (!tbody) return;
+  const q      = (document.getElementById('appt-search')?.value || '').toLowerCase();
+  const filter = document.getElementById('appt-filter')?.value || 'upcoming';
+  const now    = Date.now();
+  const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
+  const endOfToday   = new Date(); endOfToday.setHours(23,59,59,999);
+
+  let rows = cachedAppointments.slice();
+  if (filter === 'upcoming') {
+    rows = rows.filter(a => a.status === 'scheduled');
+  } else if (filter === 'today') {
+    rows = rows.filter(a => { const t = new Date(a.scheduled_at).getTime();
+      return t >= startOfToday.getTime() && t <= endOfToday.getTime(); });
+  } else if (filter !== 'all') {
+    rows = rows.filter(a => a.status === filter);
+  }
+  if (q) rows = rows.filter(a =>
+    (a.title || '').toLowerCase().includes(q) ||
+    (a.contact_name || '').toLowerCase().includes(q) ||
+    (a.contact_phone || '').includes(q));
+
+  updateApptStats();
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">${cachedAppointments.length ? 'Nothing matches this filter.' : 'No appointments yet. Book one below.'}</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(a => {
+    const when    = new Date(a.scheduled_at);
+    const overdue = a.status === 'scheduled' && when.getTime() < now;
+    return `
+    <tr>
+      <td style="white-space:nowrap">
+        <strong style="color:${overdue ? '#dc4c40' : '#0f172a'}">${when.toLocaleDateString()}</strong>
+        <br><span style="color:#64748b;font-size:0.78rem">${when.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} &middot; ${Number(a.duration_mins)}m</span>
+        ${overdue ? '<br><span style="color:#dc4c40;font-size:0.72rem;font-weight:700">OVERDUE</span>' : ''}
+      </td>
+      <td><strong style="color:#0f172a">${esc(a.title)}</strong>${a.notes ? `<br><span style="color:#94a3b8;font-size:0.75rem">${esc(truncate(a.notes, 60))}</span>` : ''}</td>
+      <td style="white-space:nowrap">${esc(a.contact_name || '-')}${a.contact_phone ? `<br><span style="color:#64748b;font-size:0.76rem;font-family:monospace">${esc(a.contact_phone)}</span>` : ''}</td>
+      <td style="white-space:nowrap;font-size:0.82rem">${apptAgentName(a.agent_id)}</td>
+      <td><span style="font-size:0.76rem;font-weight:700;color:${APPT_STATUS_COLOURS[a.status] || '#64748b'}">${esc(APPT_STATUS_LABELS[a.status] || a.status)}</span></td>
+      <td style="white-space:nowrap">
+        ${a.status === 'scheduled' ? `<button class="btn btn-secondary btn-sm" onclick="setAppointmentStatus('${a.id}','completed')" title="Mark done">Done</button>` : ''}
+        <button class="btn btn-secondary btn-sm" onclick="editAppointmentLoad('${a.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteAppointment('${a.id}')">Delete</button>
+      </td>
+    </tr>`; }).join('');
+}
+
+function updateApptStats() {
+  const now = Date.now();
+  const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
+  const endOfToday   = new Date(); endOfToday.setHours(23,59,59,999);
+  const sched = cachedAppointments.filter(a => a.status === 'scheduled');
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('appt-today',    sched.filter(a => { const t = new Date(a.scheduled_at).getTime(); return t >= startOfToday.getTime() && t <= endOfToday.getTime(); }).length);
+  set('appt-upcoming', sched.filter(a => new Date(a.scheduled_at).getTime() >= now).length);
+  set('appt-overdue',  sched.filter(a => new Date(a.scheduled_at).getTime() <  now).length);
+  set('appt-done',     cachedAppointments.filter(a => a.status === 'completed').length);
+}
+
+function resetAppointmentForm() {
+  ['appt-id','appt-title','appt-when','appt-contact','appt-phone','appt-notes'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const d = document.getElementById('appt-duration'); if (d) d.value = '30';
+  const a = document.getElementById('appt-agent');    if (a) a.value = '';
+  const t = document.getElementById('appt-form-title'); if (t) t.textContent = 'Book Appointment';
+  const m = document.getElementById('appt-msg');      if (m) m.textContent = '';
+}
+
+function editAppointmentLoad(id) {
+  const a = cachedAppointments.find(x => String(x.id) === String(id));
+  if (!a) return;
+  document.getElementById('appt-id').value       = a.id;
+  document.getElementById('appt-title').value    = a.title || '';
+  // datetime-local needs local time without the timezone suffix
+  const d = new Date(a.scheduled_at);
+  const pad = n => String(n).padStart(2,'0');
+  document.getElementById('appt-when').value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  document.getElementById('appt-duration').value = a.duration_mins || 30;
+  document.getElementById('appt-contact').value  = a.contact_name || '';
+  document.getElementById('appt-phone').value    = a.contact_phone || '';
+  document.getElementById('appt-agent').value    = a.agent_id || '';
+  document.getElementById('appt-notes').value    = a.notes || '';
+  document.getElementById('appt-form-title').textContent = 'Edit Appointment';
+  document.getElementById('appt-form-title').scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+async function submitAppointment() {
+  const id       = v('appt-id');
+  const title    = v('appt-title');
+  const whenRaw  = v('appt-when');
+  const duration = parseInt(v('appt-duration'), 10);
+  const msgEl    = document.getElementById('appt-msg');
+
+  if (!title)   { setMsg(msgEl, 'Title is required.', 'err'); return; }
+  if (!whenRaw) { setMsg(msgEl, 'Date and time are required.', 'err'); return; }
+  if (!Number.isFinite(duration) || duration < 5) { setMsg(msgEl, 'Duration must be at least 5 minutes.', 'err'); return; }
+
+  const payload = {
+    title,
+    scheduled_at:  new Date(whenRaw).toISOString(),
+    duration_mins: duration,
+    contact_name:  v('appt-contact') || null,
+    contact_phone: v('appt-phone')   || null,
+    agent_id:      v('appt-agent')   || null,
+    notes:         (document.getElementById('appt-notes')?.value || '').trim() || null,
+  };
+
+  if (demoMode) {
+    if (id) {
+      const a = cachedAppointments.find(x => String(x.id) === String(id));
+      if (a) Object.assign(a, payload);
+    } else {
+      cachedAppointments.push({ id:'ap' + Date.now(), ...payload, status:'scheduled' });
+    }
+    cachedAppointments.sort((a,b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
+    resetAppointmentForm();
+    setMsg(msgEl, 'Appointment saved. (demo)', 'ok');
+    renderAppointmentsTable();
+    return;
+  }
+
+  const { error } = id
+    ? await sb.from('appointments').update(payload).eq('id', id)
+    : await sb.from('appointments').insert({ ...payload, created_by: currentUser.id });
+  if (error) { setMsg(msgEl, error.message, 'err'); return; }
+  resetAppointmentForm();
+  setMsg(msgEl, 'Appointment saved.', 'ok');
+  await loadAppointments();
+}
+
+async function setAppointmentStatus(id, status) {
+  if (demoMode) {
+    const a = cachedAppointments.find(x => String(x.id) === String(id));
+    if (a) a.status = status;
+    renderAppointmentsTable();
+    return;
+  }
+  const { error } = await sb.from('appointments').update({ status }).eq('id', id);
+  if (error) { alert(error.message); return; }
+  await loadAppointments();
+}
+
+async function deleteAppointment(id) {
+  if (!confirm('Delete this appointment?')) return;
+  if (demoMode) {
+    cachedAppointments = cachedAppointments.filter(x => String(x.id) !== String(id));
+    renderAppointmentsTable();
+    return;
+  }
+  const { error } = await sb.from('appointments').delete().eq('id', id);
+  if (error) { alert(error.message); return; }
+  await loadAppointments();
+}
 
 // ── TRAIN AI PREVIEW ──────────────────────────────────────────
 // Builds the instruction text a campaign would give an AI, so you can read
