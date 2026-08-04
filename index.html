@@ -2291,7 +2291,7 @@
   <div id="admin-tab-ai-signals" class="tab-content">
     <h3>🤖 AI Signal Generator</h3>
     <div class="info-box">
-      <strong>Demo data.</strong> The pattern names, confidence figures and win rates below are sample values for previewing the interface, not real market analysis. The layout, controls and broadcast flow are what this screen is showing you. Real signal generation gets connected before launch, and this notice goes away when it does.
+      <strong>Real technical analysis, not demo data.</strong> Pattern, trend and confidence are computed from real historical price data (SMA crossover, RSI, 20-period breakout/breakdown) - not picked from a fixed list. BTCUSD and XAUUSD use real Binance candles (XAUUSD via PAXG, a gold-backed token, since no free intraday gold feed with browser access exists). EURUSD/GBPUSD/USDJPY use real ECB daily rates - daily closes only, no free intraday FX feed is available either. It is normal for "Generate Signal" to sometimes return no clear signal - that is a real result, not a bug, when price is range-bound. Win rate and signal history stay empty until signals are actually broadcast and their outcomes tracked, which is not built yet.
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
@@ -2358,7 +2358,7 @@
         </div>
       </div>
       <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;font-size:0.78rem;color:#92400e;margin-bottom:14px">
-        ⚠️ <strong>Disclaimer:</strong> AI signals are based on simulated technical analysis patterns. Always conduct your own analysis before broadcasting to subscribers. Badar Trader is not liable for trading decisions made based on these suggestions.
+        ⚠️ <strong>Disclaimer:</strong> Signals are generated from real historical price data using standard technical indicators (SMA crossover, RSI, breakout detection), not a licensed analyst. Always conduct your own analysis before broadcasting to subscribers. Badar Trader is not liable for trading decisions made based on these suggestions.
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn btn-primary btn-inline" onclick="sendAISignalToBroadcast()">📡 Send to Broadcast →</button>
@@ -3134,7 +3134,7 @@ function importLeadsCSV() {
       cols = cols.map(function(c){ return c.trim().replace(/^"|"$/g,''); });
       var row = {
         full_name:       cols[nameIdx]  || '',
-        phone:           phoneIdx >= 0  ? (cols[phoneIdx]  || '') : '',
+        phone:           phoneIdx >= 0  ? normalizePhone(cols[phoneIdx] || '') : '',
         email:           emailIdx >= 0  ? (cols[emailIdx]  || '') : '',
         source:          srcIdx >= 0    ? (cols[srcIdx]    || 'manual') : 'manual',
         instrument_type: instrIdx >= 0  ? (cols[instrIdx]  || '') : '',
@@ -3191,7 +3191,7 @@ function filterLeadsLocal() {
 
 async function addLead() {
   const name       = v('nl-name');
-  const phone      = v('nl-phone');
+  const phone      = normalizePhone(v('nl-phone'));
   const email      = v('nl-email');
   const instrument = v('nl-instrument');
   const source     = v('nl-source');
@@ -4469,6 +4469,19 @@ async function fetchMetaAnalytics() {
 
 // ── Utilities ─────────────────────────────────────────────────
 function v(id) { return (document.getElementById(id)?.value || '').trim(); }
+
+// Bug found in a full audit (2026-08-04): every automated lead-creation
+// path (whatsapp-webhook, meta-leadgen-webhook, submit-lead-form,
+// conversion-hook) normalises phone to a leading "+", but Add Lead and CSV
+// import stored whatever was typed/in the file as-is. A lead added here
+// without a "+" would not match those paths' lookups, creating a silent
+// duplicate the next time that person messaged the bot or submitted a
+// deposit form. Matches the edge functions' normalisePhone/normPhone.
+function normalizePhone(p) {
+  p = (p || '').trim();
+  if (!p) return '';
+  return p.startsWith('+') ? p : '+' + p.replace(/\D/g, '');
+}
 
 function esc(s) {
   if (s == null) return '';
@@ -7353,22 +7366,6 @@ function initAISignalsTab() {
 let _aiLastSignal = null;
 let _signalHistory = [];
 
-// Simulated technical analysis patterns
-const _AI_PATTERNS = [
-  { name: 'Bull Flag', trend: 'Bullish', bias: 'buy', confidence: 82 },
-  { name: 'Bear Flag', trend: 'Bearish', bias: 'sell', confidence: 79 },
-  { name: 'Double Bottom', trend: 'Bullish reversal', bias: 'buy', confidence: 76 },
-  { name: 'Double Top', trend: 'Bearish reversal', bias: 'sell', confidence: 77 },
-  { name: 'Golden Cross (MA)', trend: 'Bullish', bias: 'buy', confidence: 71 },
-  { name: 'Death Cross (MA)', trend: 'Bearish', bias: 'sell', confidence: 73 },
-  { name: 'Hammer Candle', trend: 'Bullish reversal', bias: 'buy', confidence: 68 },
-  { name: 'Shooting Star', trend: 'Bearish reversal', bias: 'sell', confidence: 67 },
-  { name: 'Breakout (resistance)', trend: 'Bullish', bias: 'buy', confidence: 80 },
-  { name: 'Breakdown (support)', trend: 'Bearish', bias: 'sell', confidence: 78 },
-];
-
-const _AI_SESSIONS = ['London Open', 'New York Open', 'London-NY Overlap', 'Asian Session'];
-
 const _BASE_PRICES = { XAUUSD: 2345, EURUSD: 1.0850, GBPUSD: 1.2720, USDJPY: 154.50, BTCUSD: 67800 }; // static fallback only
 const _PIP_SIZES   = { XAUUSD: 0.1,  EURUSD: 0.0001, GBPUSD: 0.0001, USDJPY: 0.01,   BTCUSD: 10 };
 
@@ -7408,51 +7405,199 @@ async function fetchLivePrice(inst) {
   return rec;
 }
 
+// ── Real technical analysis (2026-08-04) ───────────────────────
+// Replaces the old Math.random() pattern picker. Needs actual historical
+// price series, not just the spot price fetchLivePrice gives - none of the
+// zero-key feeds above provide history, so this uses two more, chosen only
+// after confirming from a real browser fetch (not curl, which ignores
+// CORS) that they actually work cross-origin:
+//   - BTCUSD: Binance klines (real candles, same host as the spot feed).
+//   - XAUUSD: Binance PAXGUSDT klines - PAXG is a token backed 1:1 by
+//     physical gold and tracks spot gold closely; there is no free,
+//     no-key, CORS-enabled intraday gold history feed, so this is the
+//     closest real proxy available rather than inventing one.
+//   - EURUSD/GBPUSD/USDJPY: Frankfurter.app ECB reference rates - real
+//     data, but daily closes only (no intraday), which is the daily/H1/H4
+//     tradeoff for FX pairs stated honestly in the output below.
+// Yahoo Finance's chart API was tried first (would have covered gold and
+// FX with real intraday candles) and rejected: it has no CORS headers, so
+// it works from curl but fails with "Failed to fetch" from an actual page.
+const _BINANCE_SYMBOL   = { BTCUSD: 'BTCUSDT', XAUUSD: 'PAXGUSDT' };
+const _TF_TO_INTERVAL   = { H1: '1h', H4: '4h', D1: '1d' };
+const _FX_FRANKFURTER   = { EURUSD: ['EUR','USD'], GBPUSD: ['GBP','USD'], USDJPY: ['USD','JPY'] };
+
+async function fetchHistoricalSeries(inst, timeframe) {
+  if (_BINANCE_SYMBOL[inst]) {
+    const symbol = _BINANCE_SYMBOL[inst];
+    const interval = _TF_TO_INTERVAL[timeframe] || '1h';
+    const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=60`);
+    const rows = await r.json();
+    const closes = rows.map(k => parseFloat(k[4]));
+    const highs  = rows.map(k => parseFloat(k[2]));
+    const lows   = rows.map(k => parseFloat(k[3]));
+    const proxyNote = inst === 'XAUUSD' ? ' (PAXG gold-token proxy for spot gold)' : '';
+    return { closes, highs, lows, source: `Binance ${symbol} ${interval} klines (real)${proxyNote}` };
+  }
+  if (_FX_FRANKFURTER[inst]) {
+    const [from, to] = _FX_FRANKFURTER[inst];
+    const end = new Date();
+    const start = new Date(end.getTime() - 60 * 24 * 60 * 60 * 1000);
+    const fmt = d => d.toISOString().slice(0, 10);
+    const r = await fetch(`https://api.frankfurter.dev/v1/${fmt(start)}..${fmt(end)}?from=${from}&to=${to}`);
+    const j = await r.json();
+    const dates = Object.keys(j.rates || {}).sort();
+    const closes = dates.map(d => j.rates[d][to]);
+    return { closes, highs: [], lows: [], source: 'Frankfurter.app ECB daily rates (real, daily closes only - no free intraday FX feed available)' };
+  }
+  return { closes: [], highs: [], lows: [], source: 'unavailable' };
+}
+
+function computeSMA(closes, period) {
+  if (closes.length < period) return null;
+  return closes.slice(-period).reduce((a, b) => a + b, 0) / period;
+}
+
+function computeRSI(closes, period = 14) {
+  if (closes.length < period + 1) return null;
+  let gains = 0, losses = 0;
+  for (let i = closes.length - period; i < closes.length; i++) {
+    const diff = closes[i] - closes[i - 1];
+    if (diff >= 0) gains += diff; else losses -= diff;
+  }
+  const avgGain = gains / period, avgLoss = losses / period;
+  if (avgLoss === 0) return 100;
+  return 100 - 100 / (1 + avgGain / avgLoss);
+}
+
+// True ATR needs high/low, only available from the Binance-sourced
+// instruments. FX pairs (closes only) fall back to average absolute
+// day-over-day change - a real, non-random volatility measure, just a
+// coarser one than true ATR.
+function computeATR(highs, lows, closes, period = 14) {
+  if (highs.length < period + 1) return null;
+  let sum = 0;
+  for (let i = closes.length - period; i < closes.length; i++) {
+    sum += Math.max(highs[i] - lows[i], Math.abs(highs[i] - closes[i - 1]), Math.abs(lows[i] - closes[i - 1]));
+  }
+  return sum / period;
+}
+
+function computeAvgAbsChange(closes, period = 14) {
+  if (closes.length < period + 1) return null;
+  let sum = 0;
+  for (let i = closes.length - period; i < closes.length; i++) sum += Math.abs(closes[i] - closes[i - 1]);
+  return sum / period;
+}
+
+function getCurrentSession() {
+  const h = new Date().getUTCHours();
+  if (h >= 7 && h < 12) return 'London Open';
+  if (h >= 12 && h < 16) return 'London-NY Overlap';
+  if (h >= 16 && h < 21) return 'New York Open';
+  return 'Asian Session';
+}
+
+// Real, rule-based read of the fetched series - not a random pick from a
+// fixed list. Checked in order: moving-average crossover, then RSI
+// extremes, then a 20-period breakout/breakdown. If none of those actually
+// fire, the honest answer is no signal - the old version never had this
+// case and produced a confident buy/sell on every single click.
+function analyzeSignal(series) {
+  const { closes, highs, lows } = series;
+  if (closes.length < 21) return { bias: null, reason: 'Not enough historical data returned to analyze yet - try again in a moment.' };
+
+  const smaFast = computeSMA(closes, 5);
+  const smaSlow = computeSMA(closes, 20);
+  const rsi = computeRSI(closes, 14);
+  const last = closes[closes.length - 1];
+  const recentHigh = Math.max(...closes.slice(-20, -1));
+  const recentLow = Math.min(...closes.slice(-20, -1));
+
+  let bias = null, patternName = '', trend = '';
+  if (smaFast != null && smaSlow != null && smaFast > smaSlow && last > smaFast) {
+    bias = 'buy'; patternName = 'SMA(5/20) Bullish Crossover'; trend = 'Bullish';
+  } else if (smaFast != null && smaSlow != null && smaFast < smaSlow && last < smaFast) {
+    bias = 'sell'; patternName = 'SMA(5/20) Bearish Crossover'; trend = 'Bearish';
+  } else if (rsi != null && rsi < 30) {
+    bias = 'buy'; patternName = `RSI Oversold (${rsi.toFixed(0)})`; trend = 'Bullish reversal';
+  } else if (rsi != null && rsi > 70) {
+    bias = 'sell'; patternName = `RSI Overbought (${rsi.toFixed(0)})`; trend = 'Bearish reversal';
+  } else if (last > recentHigh) {
+    bias = 'buy'; patternName = '20-period Breakout'; trend = 'Bullish';
+  } else if (last < recentLow) {
+    bias = 'sell'; patternName = '20-period Breakdown'; trend = 'Bearish';
+  }
+
+  if (!bias) {
+    return { bias: null, reason: `No clear signal right now for this instrument/timeframe - price is range-bound with no SMA crossover, RSI extreme, or 20-period breakout detected.${rsi != null ? ` (RSI ${rsi.toFixed(0)})` : ''}` };
+  }
+
+  const smaGapPct = smaSlow ? Math.abs(smaFast - smaSlow) / smaSlow * 100 : 0;
+  const rsiStrength = rsi != null ? Math.abs(rsi - 50) : 0;
+  const confidence = Math.max(50, Math.min(95, Math.round(50 + Math.min(25, smaGapPct * 20) + Math.min(20, rsiStrength / 2))));
+  const volatility = highs.length ? computeATR(highs, lows, closes, 14) : computeAvgAbsChange(closes, 14);
+
+  return { bias, patternName, trend, confidence, rsi, volatility };
+}
+
 async function generateAISignal() {
   const inst      = document.getElementById('ai-instrument')?.value || 'XAUUSD';
   const timeframe = document.getElementById('ai-timeframe')?.value || 'H4';
   const minRR     = parseFloat(document.getElementById('ai-rr')?.value || '2');
-  const live      = await fetchLivePrice(inst);
-  const pattern   = _AI_PATTERNS[Math.floor(Math.random() * _AI_PATTERNS.length)];
-  const session   = _AI_SESSIONS[Math.floor(Math.random() * _AI_SESSIONS.length)];
-  const base      = live.price;
-  const pip       = _PIP_SIZES[inst] || 0.1;
-  const slPips    = Math.floor(Math.random()*15+10);
-  const tpPips    = Math.round(slPips * minRR);
-  const spread    = pip * (Math.random() > 0.5 ? 1 : -1);
-  const entry     = +(base + spread * (Math.random()*5+1)).toFixed(inst === 'USDJPY' ? 2 : inst === 'XAUUSD' ? 2 : 5);
-  const tp        = pattern.bias === 'buy' ? +(entry + tpPips * pip).toFixed(inst === 'USDJPY' ? 2 : inst === 'XAUUSD' ? 2 : 5) : +(entry - tpPips * pip).toFixed(inst === 'USDJPY' ? 2 : inst === 'XAUUSD' ? 2 : 5);
-  const sl        = pattern.bias === 'buy' ? +(entry - slPips * pip).toFixed(inst === 'USDJPY' ? 2 : inst === 'XAUUSD' ? 2 : 5) : +(entry + slPips * pip).toFixed(inst === 'USDJPY' ? 2 : inst === 'XAUUSD' ? 2 : 5);
-  const rrActual  = (tpPips / slPips).toFixed(1);
-  const emoji     = pattern.bias === 'buy' ? '🟢' : '🔴';
 
-  _aiLastSignal = { type: pattern.bias, instrument: inst, entry, tp, sl, pattern: pattern.name, confidence: pattern.confidence, trend: pattern.trend, session, timeframe, rrActual, priceSource: live.source };
+  const card = document.getElementById('ai-signal-card');
+  const detEl = document.getElementById('ai-signal-detail');
+  if (card) card.style.display = 'block';
+  if (detEl) detEl.textContent = 'Analyzing real market data...';
 
-  const detail = `${emoji} ${pattern.bias.toUpperCase()} ${inst} - ${timeframe}\n` +
+  const [live, series] = await Promise.all([fetchLivePrice(inst), fetchHistoricalSeries(inst, timeframe)]);
+  const analysis = analyzeSignal(series);
+
+  if (!analysis.bias) {
+    _aiLastSignal = null;
+    if (detEl) detEl.textContent = `No clear signal for ${inst} right now.\n${analysis.reason}\n\nPrice basis: ${live.source}\nHistory basis: ${series.source}`;
+    const badge = document.getElementById('ai-confidence-badge');
+    if (badge) { badge.textContent = 'No signal'; badge.style.background = '#64748b'; }
+    ['ai-pattern', 'ai-rr-display', 'ai-trend', 'ai-session'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '-'; });
+    return;
+  }
+
+  const session = getCurrentSession();
+  const decimals = inst === 'USDJPY' || inst === 'XAUUSD' ? 2 : inst === 'BTCUSD' ? 0 : 5;
+  const volatility = analysis.volatility || live.price * 0.005; // only if a feed genuinely returned nothing to compute from
+  const slDistance = volatility * 1.5;
+  const tpDistance = slDistance * minRR;
+  const entry = +live.price.toFixed(decimals);
+  const tp = +(analysis.bias === 'buy' ? entry + tpDistance : entry - tpDistance).toFixed(decimals);
+  const sl = +(analysis.bias === 'buy' ? entry - slDistance : entry + slDistance).toFixed(decimals);
+  const rrActual = (Math.abs(tp - entry) / Math.abs(entry - sl)).toFixed(1);
+  const emoji = analysis.bias === 'buy' ? '🟢' : '🔴';
+
+  _aiLastSignal = { type: analysis.bias, instrument: inst, entry, tp, sl, pattern: analysis.patternName, confidence: analysis.confidence, trend: analysis.trend, session, timeframe, rrActual, priceSource: live.source };
+
+  const detail = `${emoji} ${analysis.bias.toUpperCase()} ${inst} - ${timeframe}\n` +
     `━━━━━━━━━━━━━━━━\n` +
     `📍 Entry:       ${entry}\n` +
-    `🎯 Take Profit: ${tp}   (+${tpPips} pips)\n` +
-    `🛑 Stop Loss:   ${sl}   (-${slPips} pips)\n` +
+    `🎯 Take Profit: ${tp}\n` +
+    `🛑 Stop Loss:   ${sl}\n` +
     `📐 R:R Ratio:   1:${rrActual}\n` +
     `━━━━━━━━━━━━━━━━\n` +
-    `📊 Pattern:  ${pattern.name}\n` +
-    `📈 Trend:    ${pattern.trend}\n` +
+    `📊 Pattern:  ${analysis.patternName}\n` +
+    `📈 Trend:    ${analysis.trend}\n` +
     `🕐 Session:  ${session}\n` +
     `📡 Price basis: ${live.source}\n` +
+    `📉 History basis: ${series.source}\n` +
     `⚠️ Trade at your own risk.\n` +
     `📲 Badar Trader Signals`;
 
-  const confColor = pattern.confidence >= 80 ? '#22c55e' : pattern.confidence >= 70 ? '#f59e0b' : '#ef4444';
+  const confColor = analysis.confidence >= 80 ? '#22c55e' : analysis.confidence >= 65 ? '#f59e0b' : '#ef4444';
 
-  const card = document.getElementById('ai-signal-card');
-  if (card) card.style.display = 'block';
-  const detEl = document.getElementById('ai-signal-detail');
   if (detEl) detEl.textContent = detail;
   const badge = document.getElementById('ai-confidence-badge');
-  if (badge) { badge.textContent = `Confidence: ${pattern.confidence}%`; badge.style.background = confColor; }
-  const patEl = document.getElementById('ai-pattern'); if (patEl) patEl.textContent = pattern.name;
+  if (badge) { badge.textContent = `Confidence: ${analysis.confidence}%`; badge.style.background = confColor; }
+  const patEl = document.getElementById('ai-pattern'); if (patEl) patEl.textContent = analysis.patternName;
   const rrEl  = document.getElementById('ai-rr-display'); if (rrEl) rrEl.textContent = `1:${rrActual}`;
-  const trEl  = document.getElementById('ai-trend'); if (trEl) trEl.textContent = pattern.trend;
+  const trEl  = document.getElementById('ai-trend'); if (trEl) trEl.textContent = analysis.trend;
   const seEl  = document.getElementById('ai-session'); if (seEl) seEl.textContent = session;
 }
 
@@ -7467,6 +7612,31 @@ function sendAISignalToBroadcast() {
   if (el('bc-sl'))          el('bc-sl').value            = s.sl;
   adminTab('signal-broadcast');
   setTimeout(bcAutoFill, 80);
+}
+
+// Bug found in a full audit (2026-08-04): both called below but never
+// defined anywhere - outcomeTag() every render, cycleOutcome() on the edit
+// button click. Dormant until now since _signalHistory is always empty (no
+// persistence layer for signal outcomes exists yet, honestly labelled in
+// the tab's own info box), but would have thrown the moment it wasn't.
+// Operates on the in-memory array only, matching that same "not built yet"
+// fidelity - no new persistence invented here.
+const OUTCOME_CYCLE  = ['pending', 'tp_hit', 'sl_hit', 'cancelled'];
+const OUTCOME_LABELS = { pending: 'Pending', tp_hit: 'TP Hit', sl_hit: 'SL Hit', cancelled: 'Cancelled' };
+const OUTCOME_COLORS = { pending: '#b45309', tp_hit: '#22c55e', sl_hit: '#ef4444', cancelled: '#64748b' };
+
+function outcomeTag(outcome) {
+  const label = OUTCOME_LABELS[outcome] || OUTCOME_LABELS.pending;
+  const color = OUTCOME_COLORS[outcome] || OUTCOME_COLORS.pending;
+  return `<span style="font-size:0.72rem;font-weight:700;color:${color}">${label}</span>`;
+}
+
+function cycleOutcome(id, scope) {
+  const entry = _signalHistory.find(s => String(s.id) === String(id));
+  if (!entry) return;
+  const idx = OUTCOME_CYCLE.indexOf(entry.outcome);
+  entry.outcome = OUTCOME_CYCLE[(idx + 1) % OUTCOME_CYCLE.length];
+  syncAccuracyTracker();
 }
 
 function syncAccuracyTracker() {
