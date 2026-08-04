@@ -706,6 +706,7 @@
       .conv-list-panel { width: 100%; }
       .conv-chat-panel { display: none; }
       .conversations-shell.list-collapsed .conv-chat-panel { display: flex; }
+      #dash-pipeline-grid { grid-template-columns: 1fr !important; }
     }
 
     /* ── Payroll ── */
@@ -908,6 +909,20 @@
         <div class="stat-value" style="color:#10b981" id="dash-revenue">-</div>
         <div class="stat-trend">Approved deposits</div>
         <div class="stat-trend" id="dash-rev-platform" style="margin-top:6px;color:#94a3b8;line-height:1.6"></div>
+      </div>
+    </div>
+
+    <!-- Pipeline Overview: donut + trend, real cachedLeads data -->
+    <div class="card" style="margin-bottom:20px">
+      <div style="font-weight:700;font-size:0.95rem;color:#0f172a;margin-bottom:14px">📊 Pipeline Overview</div>
+      <div style="display:grid;grid-template-columns:minmax(180px,260px) 1fr;gap:24px;align-items:center" id="dash-pipeline-grid">
+        <div style="position:relative;max-width:220px;margin:0 auto">
+          <canvas id="dash-pipeline-donut" height="220"></canvas>
+        </div>
+        <div>
+          <div id="dash-pipeline-legend" style="display:flex;flex-wrap:wrap;gap:10px 18px;margin-bottom:16px"></div>
+          <canvas id="dash-trend-chart" height="90"></canvas>
+        </div>
       </div>
     </div>
 
@@ -2818,6 +2833,13 @@ function toggleTheme(evt) {
   const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   root.setAttribute('data-theme', next);
   localStorage.setItem('bt-theme', next);
+  // Chart.js draws onto a canvas with baked-in colors - it doesn't pick up
+  // a CSS variable change on its own, so the dashboard charts need an
+  // explicit re-render or they'd keep the old theme's colors until the
+  // next full data reload.
+  if (document.getElementById('dash-pipeline-donut')) {
+    renderDashboardCharts(demoMode ? _DEMO_LEADS : cachedLeads);
+  }
 }
 (function initTheme() {
   const saved = localStorage.getItem('bt-theme');
@@ -2984,7 +3006,7 @@ function renderAgentsTable(tbodyId) {
   }
   tbody.innerHTML = cachedProfiles.map(p => `
     <tr style="${p.is_suspended ? 'opacity:0.5' : ''}">
-      <td><strong style="color:#0f172a">${esc(p.full_name)}</strong></td>
+      <td><strong style="color:#0f172a">${esc(p.full_name || '(no name set)')}</strong></td>
       <td>${esc(p.email)}</td>
       <td><span class="badge badge-${p.role}">${p.role}</span></td>
       <td style="color:#666;font-size:0.8rem">${fmtDate(p.created_at)}</td>
@@ -2993,7 +3015,9 @@ function renderAgentsTable(tbodyId) {
             ? '<span style="color:#ef4444;font-size:0.8rem;font-weight:600">🚫 Suspended</span>'
             : '<span style="color:#22c55e;font-size:0.8rem;font-weight:600">✓ Active</span>')
         : '<span style="color:#555;font-size:0.8rem">(you)</span>'}</td>
-      <td style="display:flex;gap:6px;flex-wrap:wrap">${p.id !== currentUser.id
+      <td style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" onclick="renameProfile('${p.id}','${esc(p.full_name || '')}')">Rename</button>
+        ${p.id !== currentUser.id
         ? `<button class="btn btn-secondary btn-sm"
                onclick="toggleRole('${p.id}','${p.role}')">
                Make ${p.role === 'admin' ? 'Agent' : 'Admin'}
@@ -3002,8 +3026,27 @@ function renderAgentsTable(tbodyId) {
                onclick="suspendAgent('${p.id}',${!p.is_suspended})">
                ${p.is_suspended ? 'Unsuspend' : 'Suspend'}
              </button>`
-        : '<span style="color:#555;font-size:0.8rem">(you)</span>'}</td>
+        : ''}</td>
     </tr>`).join('');
+}
+
+// Every account created via the Supabase Dashboard "Add User" flow starts
+// with no full_name set (the flow only takes an email + password), so the
+// welcome header and every greeting falls back to the raw email until an
+// admin sets a real name here - this is that missing piece.
+async function renameProfile(id, currentName) {
+  const newName = prompt('Full name to show for this person:', currentName || '');
+  if (newName === null) return; // cancelled
+  const trimmed = newName.trim();
+  if (!trimmed) { alert('Name cannot be empty.'); return; }
+  const { error } = await sb.from('profiles').update({ full_name: trimmed }).eq('id', id);
+  if (error) { alert('Error: ' + error.message); return; }
+  await loadProfiles();
+  if (id === currentUser.id) {
+    currentProfile.full_name = trimmed;
+    const dashName = document.getElementById('dash-admin-name') || document.getElementById('dash-agent-name');
+    if (dashName) dashName.textContent = trimmed;
+  }
 }
 
 async function toggleRole(id, current) {
@@ -5920,18 +5963,130 @@ function renderDashboardStats() {
         <div><div style="color:#0f172a;font-size:0.85rem;font-weight:600">Ayesha Malik</div><div style="color:#64748b;font-size:0.76rem">Send crypto signals starter pack</div></div>
         <span style="color:#94a3b8;font-size:0.78rem;white-space:nowrap">Tomorrow</span>
       </div>`;
+    renderDashboardCharts(_DEMO_LEADS);
     return;
   }
   if (el('dash-total-leads')) el('dash-total-leads').textContent = cachedLeads.length;
   if (el('dash-new-leads'))   el('dash-new-leads').textContent   = cachedLeads.filter(l => l.status === 'new').length;
   if (el('dash-converted'))   el('dash-converted').textContent   = cachedLeads.filter(l => l.status === 'converted').length;
   if (el('dash-agents'))      el('dash-agents').textContent      = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended).length;
+  renderDashboardCharts(cachedLeads);
   const revenue = cachedLeads.reduce((s, l) => s + (Number(l.account_balance) || 0), 0);
   if (el('dash-revenue'))     el('dash-revenue').textContent     = '$' + fmtMoney(revenue);
   { const bp={}; (cachedLeads||[]).forEach(l=>{ if(l.deposit_platform && Number(l.account_balance)){ bp[l.deposit_platform]=(bp[l.deposit_platform]||0)+Number(l.account_balance);} }); const pl=Object.entries(bp).map(([k,v])=>k.toUpperCase()+': $'+fmtMoney(v)).join('   ·   '); if(el('dash-rev-platform')) el('dash-rev-platform').textContent = pl ? 'By platform - '+pl : ''; }
   // Load upcoming follow-ups from lead_activity
   loadUpcomingFollowups();
   loadDashMetaAds();
+}
+
+// ── DASHBOARD CHARTS: pipeline donut + leads-added trend ───────
+const STATUS_CHART_COLORS = {
+  new: '#0ea5e9', contacted: '#f59e0b', qualified: '#8b5cf6',
+  proposal_sent: '#ec4899', converted: '#10b981', lost: '#94a3b8',
+};
+const STATUS_CHART_LABELS = {
+  new: 'New', contacted: 'Contacted', qualified: 'Qualified',
+  proposal_sent: 'Proposal Sent', converted: 'Converted', lost: 'Lost',
+};
+let _dashDonutChart = null;
+let _dashTrendChart = null;
+
+function dashChartTextColor() {
+  return document.documentElement.getAttribute('data-theme') === 'dark' ? '#cbd5e1' : '#64748b';
+}
+function dashChartGridColor() {
+  return document.documentElement.getAttribute('data-theme') === 'dark' ? '#243350' : '#f1f5f9';
+}
+
+function renderDashboardCharts(leads) {
+  const donutCanvas = document.getElementById('dash-pipeline-donut');
+  const trendCanvas = document.getElementById('dash-trend-chart');
+  const legendEl = document.getElementById('dash-pipeline-legend');
+  if (!donutCanvas || !trendCanvas || typeof Chart === 'undefined') return;
+
+  const counts = {};
+  (leads || []).forEach(l => { counts[l.status] = (counts[l.status] || 0) + 1; });
+  const statusKeys = Object.keys(STATUS_CHART_LABELS).filter(k => counts[k] > 0);
+  const total = leads?.length || 0;
+
+  if (legendEl) {
+    legendEl.innerHTML = statusKeys.length ? statusKeys.map(k => `
+      <div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:${dashChartTextColor()}">
+        <span style="width:10px;height:10px;border-radius:50%;background:${STATUS_CHART_COLORS[k]};display:inline-block"></span>
+        ${STATUS_CHART_LABELS[k]} <strong style="color:${document.documentElement.getAttribute('data-theme')==='dark'?'#f1f5f9':'#0f172a'}">${counts[k]}</strong>
+      </div>`).join('') : `<div style="color:${dashChartTextColor()};font-size:0.85rem">No leads yet</div>`;
+  }
+
+  if (_dashDonutChart) { _dashDonutChart.destroy(); _dashDonutChart = null; }
+  _dashDonutChart = new Chart(donutCanvas.getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: statusKeys.map(k => STATUS_CHART_LABELS[k]),
+      datasets: [{
+        data: statusKeys.map(k => counts[k]),
+        backgroundColor: statusKeys.map(k => STATUS_CHART_COLORS[k]),
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      responsive: true,
+      cutout: '68%',
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw} (${total ? Math.round(ctx.raw/total*100) : 0}%)` } },
+      },
+    },
+    plugins: [{
+      id: 'dashDonutCenterText',
+      afterDraw(chart) {
+        const { ctx, chartArea: { width, height, left, top } } = chart;
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '700 22px sans-serif';
+        ctx.fillStyle = document.documentElement.getAttribute('data-theme') === 'dark' ? '#f1f5f9' : '#0f172a';
+        ctx.fillText(String(total), left + width / 2, top + height / 2 - 8);
+        ctx.font = '600 11px sans-serif';
+        ctx.fillStyle = dashChartTextColor();
+        ctx.fillText('Total Leads', left + width / 2, top + height / 2 + 12);
+        ctx.restore();
+      },
+    }],
+  });
+
+  // Trend: leads added per day, last 14 days
+  const days = [];
+  const dayCounts = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    const key = d.toISOString().slice(0, 10);
+    days.push(d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }));
+    dayCounts.push((leads || []).filter(l => (l.created_at || '').slice(0, 10) === key).length);
+  }
+  if (_dashTrendChart) { _dashTrendChart.destroy(); _dashTrendChart = null; }
+  _dashTrendChart = new Chart(trendCanvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: days,
+      datasets: [{
+        label: 'Leads Added',
+        data: dayCounts,
+        borderColor: '#d4a843',
+        backgroundColor: 'rgba(212,168,67,0.15)',
+        fill: true,
+        tension: 0.35,
+        pointRadius: 2,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1, color: dashChartTextColor(), font: { size: 10 } }, grid: { color: dashChartGridColor() } },
+        x: { ticks: { color: dashChartTextColor(), font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 7 }, grid: { display: false } },
+      },
+    },
+  });
 }
 
 async function loadDashMetaAds(){
