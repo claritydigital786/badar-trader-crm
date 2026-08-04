@@ -185,6 +185,14 @@
        Kept tight (not the default .btn-sm padding) since these two read as
        a compact pair, not the header's main action. */
     .header-btn-pair { min-width: 96px; padding: 5px 8px; font-size: 0.72rem; }
+    /* Export CSV still carried the pre-redesign dark .btn-secondary fill
+       (#1e293b navy pill on a light page) - the same leftover-dark-palette
+       pattern found and fixed elsewhere after the light redesign. Scoped to
+       just this header pair so the other 45 .btn-secondary buttons
+       (Cancel, Copy, Import, etc.) are untouched. */
+    .btn-secondary.header-btn-pair { background: #fff; border: 1px solid #e5e8ef; color: #334155; }
+    .btn-secondary.header-btn-pair:hover { background: #f8fafc; opacity: 1; }
+    [data-theme="dark"] .btn-secondary.header-btn-pair { background: #111b2e; border-color: #243350; color: #cbd5e1; }
 
     .content-body {
       flex: 1;
