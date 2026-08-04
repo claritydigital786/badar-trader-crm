@@ -3134,7 +3134,7 @@ function importLeadsCSV() {
       cols = cols.map(function(c){ return c.trim().replace(/^"|"$/g,''); });
       var row = {
         full_name:       cols[nameIdx]  || '',
-        phone:           phoneIdx >= 0  ? (cols[phoneIdx]  || '') : '',
+        phone:           phoneIdx >= 0  ? normalizePhone(cols[phoneIdx] || '') : '',
         email:           emailIdx >= 0  ? (cols[emailIdx]  || '') : '',
         source:          srcIdx >= 0    ? (cols[srcIdx]    || 'manual') : 'manual',
         instrument_type: instrIdx >= 0  ? (cols[instrIdx]  || '') : '',
@@ -3191,7 +3191,7 @@ function filterLeadsLocal() {
 
 async function addLead() {
   const name       = v('nl-name');
-  const phone      = v('nl-phone');
+  const phone      = normalizePhone(v('nl-phone'));
   const email      = v('nl-email');
   const instrument = v('nl-instrument');
   const source     = v('nl-source');
@@ -4469,6 +4469,19 @@ async function fetchMetaAnalytics() {
 
 // ── Utilities ─────────────────────────────────────────────────
 function v(id) { return (document.getElementById(id)?.value || '').trim(); }
+
+// Bug found in a full audit (2026-08-04): every automated lead-creation
+// path (whatsapp-webhook, meta-leadgen-webhook, submit-lead-form,
+// conversion-hook) normalises phone to a leading "+", but Add Lead and CSV
+// import stored whatever was typed/in the file as-is. A lead added here
+// without a "+" would not match those paths' lookups, creating a silent
+// duplicate the next time that person messaged the bot or submitted a
+// deposit form. Matches the edge functions' normalisePhone/normPhone.
+function normalizePhone(p) {
+  p = (p || '').trim();
+  if (!p) return '';
+  return p.startsWith('+') ? p : '+' + p.replace(/\D/g, '');
+}
 
 function esc(s) {
   if (s == null) return '';
@@ -7599,6 +7612,31 @@ function sendAISignalToBroadcast() {
   if (el('bc-sl'))          el('bc-sl').value            = s.sl;
   adminTab('signal-broadcast');
   setTimeout(bcAutoFill, 80);
+}
+
+// Bug found in a full audit (2026-08-04): both called below but never
+// defined anywhere - outcomeTag() every render, cycleOutcome() on the edit
+// button click. Dormant until now since _signalHistory is always empty (no
+// persistence layer for signal outcomes exists yet, honestly labelled in
+// the tab's own info box), but would have thrown the moment it wasn't.
+// Operates on the in-memory array only, matching that same "not built yet"
+// fidelity - no new persistence invented here.
+const OUTCOME_CYCLE  = ['pending', 'tp_hit', 'sl_hit', 'cancelled'];
+const OUTCOME_LABELS = { pending: 'Pending', tp_hit: 'TP Hit', sl_hit: 'SL Hit', cancelled: 'Cancelled' };
+const OUTCOME_COLORS = { pending: '#b45309', tp_hit: '#22c55e', sl_hit: '#ef4444', cancelled: '#64748b' };
+
+function outcomeTag(outcome) {
+  const label = OUTCOME_LABELS[outcome] || OUTCOME_LABELS.pending;
+  const color = OUTCOME_COLORS[outcome] || OUTCOME_COLORS.pending;
+  return `<span style="font-size:0.72rem;font-weight:700;color:${color}">${label}</span>`;
+}
+
+function cycleOutcome(id, scope) {
+  const entry = _signalHistory.find(s => String(s.id) === String(id));
+  if (!entry) return;
+  const idx = OUTCOME_CYCLE.indexOf(entry.outcome);
+  entry.outcome = OUTCOME_CYCLE[(idx + 1) % OUTCOME_CYCLE.length];
+  syncAccuracyTracker();
 }
 
 function syncAccuracyTracker() {
