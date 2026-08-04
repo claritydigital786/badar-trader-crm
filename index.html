@@ -6456,7 +6456,16 @@ async function sendConvMessage(convId, scope = '') {
 
     if (input) { input.value = ''; input.style.height = 'auto'; }
     showToast('Message sent ✓');
-    openConversation(convId, scope); // refresh thread
+    // No full reload here on purpose. startConvRealtime() is already
+    // subscribed by the time this conversation could be open (it starts
+    // the moment the Conversations tab loads), and it appends this exact
+    // outbound row the instant Postgres confirms the insert - the same
+    // mechanism already used for a customer's incoming replies. A full
+    // openConversation() reload used to run here too: every send wiped the
+    // whole panel to "Loading conversation…" and re-fetched every message
+    // and the lead record from scratch, which is real, avoidable latency
+    // on top of whatever the WhatsApp send itself takes - this is very
+    // likely what "message speed being a mess" was actually describing.
   } catch(err) {
     showToast(`Send failed: ${err.message}`, 'err');
     // Previously this error only ever appeared in a toast and vanished -
