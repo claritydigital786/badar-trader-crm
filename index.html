@@ -3418,11 +3418,20 @@ function agentTab(name, btn) {
 }
 
 async function loadAgentLeads() {
-  // RLS grants any active staff member (agent or admin) all leads, not just their own - see schema.sql Phase 15
-  const { data, error } = await sb
-    .from('leads').select('*').order('created_at', { ascending: false });
-  if (error) { console.error('loadAgentLeads:', error); return; }
-  cachedLeads = data || [];
+  // Bug found 2026-08-04: this had no demoMode branch at all, unlike its
+  // admin counterpart loadAdminLeads() - it always fired a real Supabase
+  // call, which RLS quietly returns zero rows for in demo mode (no thrown
+  // error, just an empty result), leaving My Leads permanently stuck on
+  // "No leads assigned to you yet." instead of showing the demo data.
+  if (demoMode) {
+    cachedLeads = _DEMO_LEADS.slice();
+  } else {
+    // RLS grants any active staff member (agent or admin) all leads, not just their own - see schema.sql Phase 15
+    const { data, error } = await sb
+      .from('leads').select('*').order('created_at', { ascending: false });
+    if (error) { console.error('loadAgentLeads:', error); return; }
+    cachedLeads = data || [];
+  }
   renderLeadsTable('agent-leads-tbody', cachedLeads, false);
 
   // Update quick stats bar
