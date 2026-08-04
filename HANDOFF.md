@@ -49,6 +49,16 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**DONE (2026-08-04) - Broadcast Signal send loop paced and capped, real bug fixed before any real send was ever attempted.** `send-broadcast-signal` had zero delay between Graph API calls and no cap on recipient count. This number's live WhatsApp tier (checked 2026-07-20) allows only 250 business-initiated conversations per rolling 24h; Subscribers is now a real ~4,000-row table, so an unpaced, uncapped broadcast would blow past that limit almost immediately - every send past it fails, which is what "a mess" looks like in practice. Added a 300ms pace between sends and a 200-recipient safety cap that refuses to send (with a clear reason) instead of silently failing past the limit. Verified the new logic in isolation - zero real network calls, zero real subscribers involved - confirming the cap correctly refuses 4000/201 and allows 200/50, and the pacing loop's measured gaps land at ~300ms per send. `SIGNAL_BROADCAST_ENABLED` stays false, unchanged.
+
+**Pending account creation (2026-08-04) - four people need real Supabase Auth users, nobody with Supabase Dashboard access has done it yet:**
+- Hanzla - `cjhanzla@gmail.com`
+- Ehsan Wazir - `ehsanwazir8@gmail.com`
+- Syed Bilal Ahmed Hashmi - `syedbilalahmadhashmi786@gmail.com`
+- Syed Hamza - `hsyed9050@gmail.com`, phone `+92 320 1946494` (new addition, no existing WhatChimp account)
+
+Create via Supabase Dashboard -> Authentication -> Users -> Add User (email + temporary password, leave User Metadata as `{}` for the default Agent role), same process the User Manager tab's own guide text already describes. No Claude session should do this step - it requires setting a real authentication password, which stays a human-only action regardless of which system it's in.
+
 **DONE (2026-08-04) - Muhammad's mobile/dark-mode check of the four new Part 3 tabs** (Train AI, Create Flow, Follow-ups, Message Templates - built after the earlier mobile/dark-mode passes, so never checked). Found and fixed two real bugs, not just checked the box:
 - All four tables were missing `white-space:nowrap` on their long-content cells (system prompts, reply bodies, template names), so text wrapped across many lines on mobile instead of scrolling on one line like every other table in the app. Fixed to match the established pattern.
 - Bigger find: a bare `td { color:#334155 }` rule (dark slate, meant for light backgrounds) was silently winning over the intended `[data-theme="dark"] table { color:#cbd5e1 }` rule via direct-property-beats-inheritance, because it was never given its own dark-mode override. This made plain table cell text (bot numbers, categories, anything without its own inline color) nearly illegible in dark mode - **on every table in the app, not just the new ones.** Added the missing `[data-theme="dark"] td` override, verified across all four tabs plus a re-check of Train AI/All Leads.
