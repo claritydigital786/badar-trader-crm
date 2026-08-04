@@ -2842,8 +2842,11 @@ function toggleTheme(evt) {
   }
 }
 (function initTheme() {
+  // Navy/gold dark is now the default look for everyone - Muhammad's call,
+  // 2026-08-04. Anyone who explicitly toggles back to light keeps that choice
+  // via localStorage; only first-time visitors with no saved preference get dark.
   const saved = localStorage.getItem('bt-theme');
-  const theme = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const theme = saved || 'dark';
   document.documentElement.setAttribute('data-theme', theme);
 })();
 
