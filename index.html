@@ -3477,6 +3477,17 @@ async function logActivityStandalone() {
   if (!leadId || !summary) {
     setMsg(msgEl, 'Please select a lead and enter a summary.', 'err'); return;
   }
+
+  // Bug found 2026-08-04: no demoMode branch - same gap as agentSaveStatus,
+  // a real Supabase insert against a fake demo lead id would surface a raw
+  // Postgres error instead of the intended "logged" confirmation.
+  if (demoMode) {
+    setMsg(msgEl, 'Activity logged. (demo)', 'ok');
+    document.getElementById('act-summary').value  = '';
+    document.getElementById('act-followup').value = '';
+    return;
+  }
+
   const { error } = await sb.from('lead_activity').insert({
     lead_id: leadId, actor_id: currentUser.id,
     channel, summary, follow_up_date: followup,
@@ -4262,6 +4273,18 @@ async function agentSaveStatus(leadId, ctx) {
   const msgEl    = document.getElementById('det-save-msg');
   const lead     = cachedLeads.find(l => l.id === leadId);
   const prevStatus = lead?.status;
+
+  // Bug found 2026-08-04: no demoMode branch at all - an agent updating a
+  // lead's status in demo mode hit a real Supabase call against a fake
+  // demo id, surfacing a raw Postgres error ("invalid input syntax for
+  // type uuid") directly in the UI instead of the intended save flow.
+  if (demoMode) {
+    if (lead) lead.status = status;
+    setMsg(msgEl, 'Status updated. (demo)', 'ok');
+    renderLeadsTable('agent-leads-tbody', cachedLeads, false);
+    await openDetail(leadId, ctx);
+    return;
+  }
 
   const { error } = await sb.from('leads').update({ status }).eq('id', leadId);
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
