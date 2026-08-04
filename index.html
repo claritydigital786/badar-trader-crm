@@ -444,6 +444,18 @@
        Guide tab) - class-level overrides above can't beat an inline style,
        so this specifically targets that literal pattern. */
     [data-theme="dark"] [style*="color:#0f172a"] { color: #f1f5f9 !important; }
+    /* Bug found 2026-08-04: the catch-all above assumes every inline
+       color:#0f172a sits on a card that goes dark in dark mode. These sit on
+       boxes hardcoded to stay light on purpose (AI Signals' result stat
+       boxes, Train AI's prompt preview) - the catch-all was force-flipping
+       their text to near-white, making it unreadable against its own
+       always-light background. ID selectors beat the attribute-selector
+       catch-all on specificity, so this wins regardless of source order. */
+    [data-theme="dark"] #ai-pattern,
+    [data-theme="dark"] #ai-rr-display,
+    [data-theme="dark"] #ai-trend,
+    [data-theme="dark"] #ai-session,
+    [data-theme="dark"] #akb-preview-pre { color: #0f172a !important; }
     td { color: #334155; }
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: #f8fafc; }
@@ -4816,7 +4828,7 @@ function runAiKbPreview() {
       <span>Bot number: <strong style="color:#0f172a">${esc(k.bot_number || 'not set')}</strong></span>
     </div>
     ${warn.map(w => `<div style="border-left:3px solid #b45309;padding:6px 10px;background:rgba(180,83,9,.08);border-radius:6px;margin-bottom:8px;font-size:0.82rem;color:#b45309">${esc(w)}</div>`).join('')}
-    <pre style="white-space:pre-wrap;word-break:break-word;background:#f8fafc;border:1px solid #e5e8ef;border-radius:8px;padding:12px;font-size:0.8rem;line-height:1.5;color:#0f172a;max-height:320px;overflow:auto;margin:0">${esc(text)}</pre>`;
+    <pre id="akb-preview-pre" style="white-space:pre-wrap;word-break:break-word;background:#f8fafc;border:1px solid #e5e8ef;border-radius:8px;padding:12px;font-size:0.8rem;line-height:1.5;color:#0f172a;max-height:320px;overflow:auto;margin:0">${esc(text)}</pre>`;
 }
 
 // ── RULE TESTERS ──────────────────────────────────────────────
