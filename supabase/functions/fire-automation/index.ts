@@ -17,6 +17,16 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const GRAPH_VERSION = "v21.0";
 
+// OFF by default, on purpose - matches BOT_REPLIES_ENABLED / KEYWORD_REPLIES_ENABLED
+// / FOLLOW_UPS_ENABLED / SIGNAL_BROADCAST_ENABLED in the other send-capable
+// functions. Found in a full audit (2026-08-04): this was the one send path with
+// no code-level kill-switch of its own, relying solely on there being no active
+// automation_rules row. That's true today but has no safety net if that ever
+// changes - this flag is that safety net. Flip only with the same care as the
+// other _ENABLED flags: confirm the specific rule being enabled is intended to
+// fire for real before setting this true.
+const AUTOMATION_ENABLED = false;
+
 function makeSupabase(): SupabaseClient {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 }
@@ -68,6 +78,10 @@ function conditionMatches(conditionFilter: string | null, lead: any): boolean {
 
 Deno.serve(async (req: Request): Promise<Response> => {
   try {
+    if (!AUTOMATION_ENABLED) {
+      return new Response(JSON.stringify({ ok: false, error: "Automation is disabled (AUTOMATION_ENABLED = false). Nothing was sent, nothing was changed." }), { headers: { "Content-Type": "application/json" } });
+    }
+
     const { trigger_event, lead_id } = await req.json();
     if (!trigger_event || !lead_id) {
       return new Response(JSON.stringify({ ok: false, error: "trigger_event and lead_id are required" }), { status: 400 });
