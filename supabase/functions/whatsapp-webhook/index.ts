@@ -56,6 +56,26 @@ const BOT_REPLIES_ENABLED = false;
 // conversation that has been silent 24h+ will be rejected and logged as failed.
 const KEYWORD_REPLIES_ENABLED = false;
 
+// AI Signals sibling for real customer replies (2026-08-04 prep work) - the
+// Train AI tab stores a system prompt + knowledge notes per campaign but
+// nothing ever read them. This wires that config into a real OpenAI call,
+// same "structured, tested, switched off" state as KEYWORD_REPLIES_ENABLED
+// above. OpenAI specifically because HANDOFF.md already documents Badar's
+// brother has an OpenAI account with a real key funding the WhatChimp AI
+// Agent for this same number - reusing that provider means the prompt is
+// portable if WhatChimp is ever dropped, not a guess.
+//
+// Needs, in order, before this can ever be set true:
+//   1. settings.openai_api_key saved (Meta Integration pattern - key/value
+//      in the settings table, nothing in this file).
+//   2. An active row in ai_knowledge_base with a real system_prompt.
+//   3. The exact same WhatChimp double-reply check KEYWORD_REPLIES_ENABLED
+//      requires - AI Agent / keyword replies off on the same WABA.
+//   4. Someone has actually read the assembled prompt (Train AI tab's own
+//      preview shows the exact text) and is comfortable with a live AI
+//      answering real customers with it.
+const AI_REPLIES_ENABLED = false;
+
 // Muhammad, 22 July 2026: a real lead (Izza) explicitly asked for a human
 // agent and sat unanswered for 10+ days - escalating a lead set needs_human
 // but never actually told anyone, and she had no assigned agent at all to
@@ -259,13 +279,17 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         // A keyword rule, when one matches, answers INSTEAD of the funnel step,
         // never as well as it - otherwise the customer would get two replies to
         // one message. Returns null when the feature is off or nothing matched,
-        // which is the normal path today.
+        // which is the normal path today. AI is checked second, only when no
+        // keyword rule fired - a specific rule match is more deterministic and
+        // intentional than an LLM's judgment call, so it wins when both apply.
         const keywordResult = await tryKeywordReply(sb, lead, input);
+        const aiResult = keywordResult ? null : await tryAIReply(sb, lead, input);
+        const replyResult = keywordResult || aiResult;
 
         await Promise.all([
           insertCommunication(sb, lead.id, "inbound", input.text, timestamp, undefined, message.id),
-          keywordResult
-            ? insertCommunication(sb, lead.id, "outbound", combineSendLog(keywordResult), timestamp)
+          replyResult
+            ? insertCommunication(sb, lead.id, "outbound", combineSendLog(replyResult), timestamp)
             : runBotStep(sb, lead, wasCreated, input, lastCustomerTouch),
         ]);
       }
@@ -558,6 +582,78 @@ async function tryKeywordReply(
 
   const to = lead.phone.replace(/^\+/, "");
   return await sendKeywordText(to, match.reply_message);
+}
+
+async function getOpenAIKey(sb: SupabaseClient): Promise<string> {
+  const { data } = await sb.from("settings").select("value").eq("key", "openai_api_key").maybeSingle();
+  return (data?.value || "").trim();
+}
+
+// Real AI reply path (2026-08-04 prep work). Same silent-fallthrough shape
+// as tryKeywordReply - any missing piece (flag, table, key, empty model
+// output) falls through to the normal bot step, never breaks inbound
+// handling. Checked after keyword replies, not before: a specific rule
+// match is more deterministic and intentional than an LLM's judgment call,
+// so it should win when both could apply.
+async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Promise<SendResult | null> {
+  if (!AI_REPLIES_ENABLED) return null;
+  if (lead.needs_human) return null;
+
+  const text = (input.text || "").trim();
+  if (!text) return null;
+
+  const { data: campaigns, error } = await sb
+    .from("ai_knowledge_base")
+    .select("system_prompt, knowledge_notes")
+    .eq("is_active", true)
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  if (error) {
+    console.error("tryAIReply: could not read ai_knowledge_base:", error.message);
+    return null;
+  }
+  if (!campaigns || !campaigns.length) return null;
+  const campaign = campaigns[0];
+
+  const apiKey = await getOpenAIKey(sb);
+  if (!apiKey) {
+    console.error("tryAIReply: AI_REPLIES_ENABLED is true but settings.openai_api_key is not set");
+    return null;
+  }
+
+  const systemPrompt = campaign.knowledge_notes
+    ? `${campaign.system_prompt}\n\nKnowledge notes:\n${campaign.knowledge_notes}`
+    : campaign.system_prompt;
+
+  let reply = "";
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: text },
+        ],
+        max_tokens: 300,
+      }),
+    });
+    if (!res.ok) {
+      const errBody = await res.text();
+      console.error("tryAIReply: OpenAI call failed:", res.status, errBody.slice(0, 300));
+      return null;
+    }
+    const json = await res.json();
+    reply = (json?.choices?.[0]?.message?.content || "").trim();
+    if (!reply) return null;
+  } catch (e) {
+    console.error("tryAIReply: exception calling OpenAI:", e instanceof Error ? e.message : String(e));
+    return null;
+  }
+
+  const to = lead.phone.replace(/^\+/, "");
+  return await sendAIText(to, reply);
 }
 
 async function getLastInboundAt(sb: SupabaseClient, leadId: string): Promise<string | null> {
@@ -1259,6 +1355,19 @@ function matchYesNo(input: UserInput): "yes" | "no" | null {
 async function sendKeywordText(to: string, body: string): Promise<SendResult> {
   if (!KEYWORD_REPLIES_ENABLED) {
     return { ok: false, error: "Keyword replies paused (KEYWORD_REPLIES_ENABLED = false)", text: body };
+  }
+  const result = await callGraphApi({
+    messaging_product: "whatsapp",
+    to,
+    type: "text",
+    text: { body },
+  });
+  return { ...result, text: body };
+}
+
+async function sendAIText(to: string, body: string): Promise<SendResult> {
+  if (!AI_REPLIES_ENABLED) {
+    return { ok: false, error: "AI replies paused (AI_REPLIES_ENABLED = false)", text: body };
   }
   const result = await callGraphApi({
     messaging_product: "whatsapp",
