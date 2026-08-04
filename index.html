@@ -1026,6 +1026,7 @@
         <option value="contacted">Contacted</option>
         <option value="qualified">Qualified</option>
         <option value="proposal_sent">Proposal Sent</option>
+        <option value="pending_approval">Pending Approval</option>
         <option value="converted">Converted</option>
         <option value="lost">Lost</option>
       </select>
@@ -3905,6 +3906,12 @@ async function addKycDocument(leadId, ctx) {
   const file    = document.getElementById('det-kyc-file')?.files?.[0] || null;
   const msgEl   = document.getElementById('det-kyc-add-msg');
 
+  if (demoMode) {
+    setMsg(msgEl, 'Saved. (demo - no persistent document store in demo mode)', 'ok');
+    await openDetail(leadId, ctx);
+    return;
+  }
+
   const { data: doc, error } = await sb.from('kyc_documents')
     .insert({ client_id: leadId, document_type: docType, notes: notes || null })
     .select().single();
@@ -3934,6 +3941,12 @@ async function viewDepositScreenshot(path) {
 async function reviewKycDocument(docId, decision, leadId, ctx) {
   const note = prompt(decision === 'verified'
     ? 'Optional note for verification:' : 'Reason for rejection:') || '';
+
+  if (demoMode) {
+    await openDetail(leadId, ctx);
+    return;
+  }
+
   const updates = {
     status: decision, reviewed_by: currentUser.id,
     reviewed_at: new Date().toISOString(),
@@ -4131,6 +4144,7 @@ async function saveLeadDetail(leadId, ctx) {
     if (prevLead) { prevLead.status = status; prevLead.assigned_agent_id = agentId; }
     setMsg(msgEl, 'Saved. (demo)', 'ok');
     renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+    await openDetail(leadId, ctx);
     return;
   }
 
@@ -4141,6 +4155,7 @@ async function saveLeadDetail(leadId, ctx) {
 
   if (prevLead) { prevLead.status = status; prevLead.assigned_agent_id = agentId; }
   renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+  await openDetail(leadId, ctx);
 
   // Notify Badar on WhatsApp when any lead moves to Pending Approval
   if (status === 'pending_approval' && prevStatus !== 'pending_approval') {
@@ -4175,6 +4190,15 @@ async function notifyAdminPendingApproval(leadId, leadName, agentName) {
 async function approveConversion(leadId, ctx) {
   if (!confirm('Approve this conversion? The lead will be marked as Converted.')) return;
   const lead  = cachedLeads.find(l => l.id === leadId);
+
+  if (demoMode) {
+    if (lead) lead.status = 'converted';
+    showToast('✅ Conversion approved - lead marked as Converted! (demo)');
+    renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+    await openDetail(leadId, ctx);
+    return;
+  }
+
   const { error } = await sb.from('leads')
     .update({ status: 'converted', converted_at: new Date().toISOString() }).eq('id', leadId);
   if (error) { showToast('Error approving: ' + error.message, 'err'); return; }
@@ -4188,6 +4212,15 @@ async function approveConversion(leadId, ctx) {
 async function rejectConversion(leadId, ctx) {
   const reason = prompt('Reason for rejection (optional):') ?? '';
   const lead   = cachedLeads.find(l => l.id === leadId);
+
+  if (demoMode) {
+    if (lead) lead.status = 'contacted';
+    showToast('❌ Conversion rejected - lead returned to Contacted. (demo)');
+    renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+    await openDetail(leadId, ctx);
+    return;
+  }
+
   const { error } = await sb.from('leads')
     .update({ status: 'contacted' }).eq('id', leadId); // send back to Contacted
   if (error) { showToast('Error rejecting: ' + error.message, 'err'); return; }
