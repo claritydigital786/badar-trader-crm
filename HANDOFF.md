@@ -1054,6 +1054,26 @@ Verified in demo mode (stats, overdue flagging, all three validation paths, crea
 
 ---
 
+## 2026-08-04 (later still) - AI Signals made real; Train AI wired to a real webhook path; go-live checklist for Muhammad's laptop
+
+**AI Signals replaced Math.random() with real technical analysis**, verified live against all 5 instruments in a real browser (not curl, not demo mode) - see the Section index entry below for the exact indicators and data sources (Binance for BTC/gold-via-PAXG, Frankfurter.app for FX). Can now honestly return "no clear signal."
+
+**Train AI now has a real webhook integration, same "built, tested, switched off" shape as Create Flow's `KEYWORD_REPLIES_ENABLED`.** `whatsapp-webhook` gained `tryAIReply()`: reads the active `ai_knowledge_base` campaign, assembles the same prompt the tab's own preview shows, calls OpenAI's Chat Completions API, sends the reply. Checked after keyword replies (a specific rule match should win over an LLM's judgment call), falls through silently on any missing piece. New flag `AI_REPLIES_ENABLED = false`. OpenAI specifically because Badar's brother already has a real OpenAI key funding WhatChimp's AI Agent for this same number (see the 2026-08-02 entry) - reusing that provider keeps the prompt portable, not a new vendor guess. Deployed with all four webhook flags confirmed false first - zero behaviour change on this deploy.
+
+**Full go-live checklist, in order, for whenever Muhammad sits down to actually turn any of this on. All of it needs his laptop and his presence, per the standing rule in this file - not something to do from Junaid's laptop, and not something to do piecemeal without him.**
+
+1. **WhatChimp precondition (blocks Create Flow and Train AI both):** confirm WhatChimp's AI Agent and its own Keyword Replies are still off for the `3903` bot. If either is live, flipping `KEYWORD_REPLIES_ENABLED` or `AI_REPLIES_ENABLED` will double-reply to real customers. Two-minute check in the WhatChimp UI, same one the 2026-08-03 WhatChimp-decision entry already describes.
+2. **Meta template approval (blocks Follow-ups and Broadcast Signal both):** submit and get approved at least one WhatsApp message template in Meta's WhatsApp Manager. Without this, sends to anyone outside the 24h customer-service window get rejected - which is most Follow-ups targets and nearly all Broadcast Signal subscribers.
+3. **For Train AI specifically, also needed before `AI_REPLIES_ENABLED` can do anything:**
+   - Save a real OpenAI API key to `settings.openai_api_key` (SQL Editor: `INSERT INTO public.settings (key, value) VALUES ('openai_api_key', 'sk-...') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;` - no UI field exists for this yet, deliberately not built ahead of the provider decision being confirmed).
+   - Have an active row in `ai_knowledge_base` with a real system prompt - use the Train AI tab's own preview to read exactly what the AI would be told before turning it on.
+4. **Flip the flag(s)** in the relevant edge function source (`FOLLOW_UPS_ENABLED`, `SIGNAL_BROADCAST_ENABLED`, `KEYWORD_REPLIES_ENABLED`, `AI_REPLIES_ENABLED` - each is its own switch, in `send-follow-ups`, `send-broadcast-signal`, and `whatsapp-webhook` respectively), redeploy that one function, and verify the flip actually landed by re-downloading the deployed source rather than trusting the deploy command's success message alone.
+5. **Test with a real message before trusting it** - send one real WhatsApp message through whichever path was just enabled and confirm the reply actually arrives correctly, the same way `BOT_REPLIES_ENABLED` was originally verified.
+
+None of this is a coding task at that point - it's account access, a business decision on template copy, and a deliberate, watched first real send.
+
+---
+
 ## Section index - what each part of the CRM actually does
 
 Written 2026-08-04. Useful when showing the CRM to anyone, and as a map into the rest of this very long file. **Honest labels: "real" means it reads and writes live data; "stores only" means the screen saves configuration that nothing acts on yet; "demo data" means the figures on screen are samples.**
@@ -1075,7 +1095,7 @@ Written 2026-08-04. Useful when showing the CRM to anyone, and as a map into the
 ### Automation (stores only, nothing sends yet)
 - **Create Flow** - keyword replies: trigger keyword plus the reply to send. Includes a tester: type a customer message, see which rule matches and what would go out. The webhook can read this table but is gated off by `KEYWORD_REPLIES_ENABLED = false`.
 - **Follow-ups** - timed nudges: when a lead sits in a status for N hours, send this. Includes a tester by status and hours. A real scheduled sender (`send-follow-ups`, cron every 30 min) now exists and can actually send, but ships with `FOLLOW_UPS_ENABLED = false`.
-- **Train AI** - system prompt plus knowledge notes per bot number, with a preview that assembles the exact instruction text an AI would receive, character and token counts, and warnings for paused, empty or oversized prompts. Makes no AI call.
+- **Train AI** - system prompt plus knowledge notes per bot number, with a preview that assembles the exact instruction text an AI would receive, character and token counts, and warnings for paused, empty or oversized prompts. The webhook can now read the active campaign and call a real OpenAI model with it, but this is gated off by `AI_REPLIES_ENABLED = false` until an API key is saved and the WhatChimp precondition is checked.
 - **Message Templates** - WhatsApp template copy and Meta approval status. Nothing is submitted to Meta from here; status is set by hand. Needed because WhatsApp blocks free-form replies more than 24h after a customer's last message.
 - **Automation** - the older rules engine (trigger event to channel action). Predates the Part 3 work.
 
@@ -1085,7 +1105,7 @@ Written 2026-08-04. Useful when showing the CRM to anyone, and as a map into the
 
 ### Signals
 - **Broadcast Signal** - real target group/subscriber counts and signal history. A real send path (`send-broadcast-signal`, individual DMs to each active subscriber - Cloud API cannot post into WhatsApp Communities at all) now exists but ships with `SIGNAL_BROADCAST_ENABLED = false`; going live almost certainly needs Meta template approval first since most subscribers are outside the 24h customer-service window.
-- **AI Signals** - **demo data.** Pattern names and confidence figures on screen are samples for previewing the interface, clearly labelled as such. Real signal generation is not connected.
+- **AI Signals** - real technical analysis (SMA crossover, RSI, 20-period breakout/breakdown) against real historical price data (Binance for BTC/XAU-via-PAXG, Frankfurter.app ECB daily rates for FX pairs). Can honestly return "no clear signal." Win rate and signal history stay empty until signals are broadcast and outcomes tracked, which is not built.
 
 ### Admin and setup
 - **User Manager** - promote, suspend and manage staff accounts.

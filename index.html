@@ -1280,7 +1280,7 @@
   <div id="admin-tab-train-ai" class="tab-content">
     <h3>Train AI</h3>
     <div class="info-box">
-      This stores AI training material: a system prompt plus knowledge notes, per bot number. Saving here is real and persists to the database. <strong>It does not change live bot behaviour yet</strong> - the WhatsApp webhook does not read these entries. Wiring that up is a separate step, deliberately not done automatically.
+      This stores AI training material: a system prompt plus knowledge notes, per bot number. Saving here is real and persists to the database. The WhatsApp webhook can now read the active campaign and call a real AI model with it, but this is gated off by <code>AI_REPLIES_ENABLED = false</code> - it needs an OpenAI API key saved to the database and a WhatChimp double-reply check before it can ever answer a real customer. Preview below shows exactly what the AI would be told.
     </div>
 
     <div class="card">
