@@ -437,6 +437,26 @@
     [data-theme="dark"] th { background: #16223a; color: #94a3b8; }
     [data-theme="dark"] th, [data-theme="dark"] td { border-bottom-color: #243350; }
     [data-theme="dark"] .info-box { background: #16223a; color: #cbd5e1; }
+    /* Bug found 2026-08-04: the lead detail panel (opened from All Leads /
+       My Leads - the single most-used view in the CRM) had zero dark-mode
+       coverage at all, just a hardcoded background:#fff. Every dark-mode
+       agent/admin would see a plain white panel with dark-styled inputs
+       inside it (native selects already flip via the input/textarea/select
+       rule above), a jarring mismatch. Matches the .card dark pattern. */
+    [data-theme="dark"] .detail-panel { background: #111b2e; box-shadow: none; }
+    [data-theme="dark"] .detail-header { border-bottom-color: #243350; }
+    [data-theme="dark"] .detail-header h3 { color: #f1f5f9; }
+    [data-theme="dark"] .detail-row { border-bottom-color: #243350; }
+    [data-theme="dark"] .detail-label { color: #94a3b8; }
+    [data-theme="dark"] .subtabs { border-bottom-color: #243350; }
+    [data-theme="dark"] .subtab-btn { color: #94a3b8; }
+    [data-theme="dark"] .section-h { color: #f1f5f9; }
+    /* Same pattern as the color:#0f172a catch-all below, for the app's other
+       common hardcoded muted-text color. Checked all 8 occurrences - none
+       sit on an always-light box, so lightening this in dark mode is a pure
+       improvement everywhere it appears (empty states, secondary table
+       text, "(you)" labels, character counters). */
+    [data-theme="dark"] [style*="color:#555"] { color: #94a3b8 !important; }
     [data-theme="dark"] input, [data-theme="dark"] textarea, [data-theme="dark"] select {
       background: #0f172a; border-color: #243350; color: #f1f5f9;
     }
