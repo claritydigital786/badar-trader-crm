@@ -27,6 +27,25 @@ const GRAPH_VERSION = "v21.0";
 // (see the Message Templates tab) is very likely required first.
 const SIGNAL_BROADCAST_ENABLED = false;
 
+// Real bug found 2026-08-04: the send loop below had zero pacing between
+// Graph API calls and no cap on recipient count. This number's WhatsApp
+// Manager tier (checked live 2026-07-20) allows only 250 business-initiated
+// conversations per rolling 24h. Subscribers is a real table of ~4,000 rows,
+// so an unpaced, uncapped broadcast would fire past that limit almost
+// immediately - every send past it fails, which is what "a mess" means in
+// practice. MAX_RECIPIENTS_PER_RUN sits below the known 250 cap to leave
+// headroom for any other business-initiated conversations the same day
+// (agent-initiated follow-ups, etc). Re-check the live tier in WhatsApp
+// Manager before raising this if the account has since been upgraded.
+const MAX_RECIPIENTS_PER_RUN = 200;
+// Spacing between individual sends, purely to avoid tripping Meta's
+// per-second throughput limit on top of the 24h conversation cap above.
+const SEND_DELAY_MS = 300;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
@@ -93,12 +112,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!subscribers || !subscribers.length) {
     return json({ ok: false, error: "No active subscribers in that target - nothing to send to." });
   }
+  if (subscribers.length > MAX_RECIPIENTS_PER_RUN) {
+    return json({
+      ok: false,
+      error: `Refusing to send: ${subscribers.length} active subscribers in this target exceeds the safe per-run cap of ${MAX_RECIPIENTS_PER_RUN}. ` +
+        `This number's WhatsApp tier allows only 250 business-initiated conversations per 24h - sending to all of them in one run will fail past that ` +
+        `limit and nothing was designed to retry or resume. Narrow the target (pick a single community) or split this into multiple runs across ` +
+        `different days, and re-check the live tier limit in WhatsApp Manager if this cap needs to change.`,
+    });
+  }
 
   const { token, phoneId } = await getWaCredentials(sb);
   if (!token || !phoneId) return json({ ok: false, error: "WhatsApp credentials not configured - admin must save them in Meta Integration" });
 
   const results: Array<{ subscriber_id: string; ok: boolean; error?: string }> = [];
-  for (const s of subscribers) {
+  for (let i = 0; i < subscribers.length; i++) {
+    const s = subscribers[i];
     const phoneDigits = (s.phone ?? "").replace(/\D/g, "");
     if (!phoneDigits) {
       results.push({ subscriber_id: s.id, ok: false, error: "No phone number" });
@@ -119,6 +148,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     } catch (err) {
       results.push({ subscriber_id: s.id, ok: false, error: err instanceof Error ? err.message : String(err) });
     }
+    // Pace sends so we never fire faster than Meta's per-second throughput
+    // limit - skip the wait after the very last recipient.
+    if (i < subscribers.length - 1) await sleep(SEND_DELAY_MS);
   }
 
   const successCount = results.filter((r) => r.ok).length;
