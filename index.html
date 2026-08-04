@@ -958,23 +958,23 @@
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:16px">
         <div style="text-align:center;padding:10px">
           <div style="color:#94a3b8;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Impressions</div>
-          <div id="dma-impr" style="color:#cbd5e1;font-size:1.8rem;font-weight:700">--</div>
+          <div id="dma-impr" style="font-size:1.8rem;font-weight:700">--</div>
         </div>
         <div style="text-align:center;padding:10px">
           <div style="color:#94a3b8;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Clicks</div>
-          <div id="dma-clicks" style="color:#cbd5e1;font-size:1.8rem;font-weight:700">--</div>
+          <div id="dma-clicks" style="font-size:1.8rem;font-weight:700">--</div>
         </div>
         <div style="text-align:center;padding:10px">
           <div style="color:#94a3b8;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Cost per Lead</div>
-          <div id="dma-cpl" style="color:#cbd5e1;font-size:1.8rem;font-weight:700">--</div>
+          <div id="dma-cpl" style="font-size:1.8rem;font-weight:700">--</div>
         </div>
         <div style="text-align:center;padding:10px">
           <div style="color:#94a3b8;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Ad Spend</div>
-          <div id="dma-spend" style="color:#cbd5e1;font-size:1.8rem;font-weight:700">--</div>
+          <div id="dma-spend" style="font-size:1.8rem;font-weight:700">--</div>
         </div>
         <div style="text-align:center;padding:10px">
           <div style="color:#94a3b8;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Leads</div>
-          <div id="dma-leads" style="color:#cbd5e1;font-size:1.8rem;font-weight:700">--</div>
+          <div id="dma-leads" style="font-size:1.8rem;font-weight:700">--</div>
         </div>
       </div>
       <div style="margin-top:12px;color:#64748b;font-size:0.75rem">Ad Account: act_1024848662493589</div>
@@ -6101,23 +6101,23 @@ function renderDashboardCharts(leads) {
 }
 
 async function loadDashMetaAds(){
+  const s0=document.getElementById('dma-sub');
   try{
     const token=await maGetSetting('meta_token'); const acct=await maGetSetting('meta_account_id');
-    if(!token||token.length<20||!acct) return;
+    if(!token||token.length<20||!acct){ if(s0) s0.textContent='Connect Meta Ads in Meta Integration to see performance'; return; }
     const url=`${META_API_BASE}/${acct}/insights?level=account&fields=impressions,clicks,spend,actions&date_preset=last_30d&access_token=${token}`;
     const r=await fetch(url); const d=await r.json();
-    const s0=document.getElementById('dma-sub');
     if(d.error){ if(s0) s0.textContent='Meta API error: '+d.error.message; return; }
     if(!d.data||!d.data[0]){ if(s0) s0.textContent='No active campaigns in the last 30 days'; return; }
     const a=d.data[0]; const leads=maGetLeadCount(a.actions);
-    const g=(id,v)=>{const e=document.getElementById(id); if(e){e.textContent=v; e.style.color='#0f172a';}};
+    const g=(id,v)=>{const e=document.getElementById(id); if(e){e.textContent=v;}};
     g('dma-impr',Number(a.impressions||0).toLocaleString());
     g('dma-clicks',Number(a.clicks||0).toLocaleString());
     g('dma-cpl',leads?'PKR '+(Number(a.spend||0)/leads).toFixed(0):'-');
     g('dma-spend','PKR '+fmtMoney(a.spend||0));
     g('dma-leads',leads||'-');
-    const s=document.getElementById('dma-sub'); if(s){s.textContent='Live · last 30 days';}
-  }catch(e){}
+    if(s0){s0.textContent='Live · last 30 days';}
+  }catch(e){ if(s0) s0.textContent='Could not load Meta Ads metrics'; }
 }
 
 async function loadUpcomingFollowups(scope = '') {
