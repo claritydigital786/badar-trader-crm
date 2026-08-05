@@ -854,7 +854,7 @@
       <div class="nav-item" data-tab="reports"><span class="nav-icon" style="background:var(--tint-warn-bg)">📋</span> Reports</div>
       <div class="nav-item" data-tab="automation"><span class="nav-icon" style="background:var(--tint-danger-bg)">⚡</span> Automation</div>
       <div class="nav-item" data-tab="create-flow"><span class="nav-icon" style="background:var(--tint-gold-bg)">🧩</span> Create Flow</div>
-      <div class="nav-item" data-tab="train-ai"><span class="nav-icon" style="background:var(--tint-warn-bg)">🧠</span> Train AI</div>
+      <div class="nav-item" data-tab="train-ai"><span class="nav-icon" style="background:var(--tint-warn-bg)">🧠</span> Bot Manager</div>
       <div class="nav-item" data-tab="follow-ups"><span class="nav-icon" style="background:var(--tint-success-bg)">⏰</span> Follow-ups</div>
       <div class="nav-item" data-tab="templates"><span class="nav-icon" style="background:var(--tint-sky-bg)">📄</span> Templates</div>
       <div class="nav-item" data-tab="appointments"><span class="nav-icon" style="background:var(--tint-danger-bg)">📅</span> Appointments</div>
@@ -924,7 +924,7 @@
       </div>
       <div class="quick-tile" onclick="adminTab('train-ai')">
         <span class="quick-tile-icon" style="background:var(--tint-warn-bg)">🧠</span>
-        <div><h4>Train AI</h4><p>Improve AI responses</p></div>
+        <div><h4>Bot Manager</h4><p>Improve AI responses</p></div>
       </div>
       <div class="quick-tile" onclick="adminTab('meta')">
         <span class="quick-tile-icon" style="background:var(--tint-danger-bg)">🔗</span>
@@ -1317,9 +1317,9 @@
     </div>
   </div>
 
-  <!-- Train AI -->
+  <!-- Bot Manager (Train AI) -->
   <div id="admin-tab-train-ai" class="tab-content">
-    <h3>Train AI</h3>
+    <h3>Bot Manager</h3>
     <div class="info-box">
       This stores AI training material: a system prompt plus knowledge notes, per bot number. Saving here is real and persists to the database. The WhatsApp webhook can now read the active campaign and call a real AI model with it, but this is gated off by <code>AI_REPLIES_ENABLED = false</code> - it needs the OpenAI API key below and a WhatChimp double-reply check before it can ever answer a real customer. Preview below shows exactly what the AI would be told.
     </div>
@@ -1904,7 +1904,7 @@
       <p style="color:#475569;font-size:0.88rem">A simple automation builder: set a trigger keyword and the reply to send. Create, edit, pause and delete rules here; they save to the database for real. Note the bot does not act on them yet, that wiring is a separate step.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Train AI</p>
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Bot Manager</p>
       <p style="color:#475569;font-size:0.88rem">Where the bot's system prompt and knowledge notes are managed per number. Create, edit, pause and delete training campaigns here; they save to the database for real. Same caveat as Create Flow: the bot does not read them yet.</p>
     </div>
     <div class="card">
@@ -3023,7 +3023,7 @@ function adminTab(name, el) {
     'comm-log': 'Communication Log',
     'signal-broadcast': 'Broadcast Signal', subscribers: 'Subscribers', 'ai-signals': 'AI Signals',
     guide: 'Guide', 'user-manager': 'User Manager', 'user-permission': 'User Permission',
-    'create-flow': 'Create Flow', 'train-ai': 'Train AI', 'follow-ups': 'Follow-ups', templates: 'Message Templates', appointments: 'Appointments'
+    'create-flow': 'Create Flow', 'train-ai': 'Bot Manager', 'follow-ups': 'Follow-ups', templates: 'Message Templates', appointments: 'Appointments'
   };
   const titleEl = document.getElementById('current-tab-title');
   if (titleEl) titleEl.textContent = titles[name] || name;
