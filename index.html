@@ -479,6 +479,14 @@
     td { color: #334155; }
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: #f8fafc; }
+    /* Bug found 2026-08-05: this hover rule was never scoped per-theme, unlike
+       every other rule in the dark-mode block above. In dark mode the
+       color:#0f172a catch-all (line ~466) flips row text to near-white on the
+       assumption it sits on a dark card - true everywhere except on hover,
+       where this rule was still painting the row near-white too, making the
+       text disappear against its own hover background on every table in the
+       app. */
+    [data-theme="dark"] tr:hover td { background: #16223a; }
     .empty-state { color: #94a3b8; text-align: center; padding: 32px 0; font-size: 0.875rem; }
 
     /* ── Filter bar ── */
