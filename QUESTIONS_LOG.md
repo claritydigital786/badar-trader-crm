@@ -26,3 +26,9 @@ Muhammad asked for this to be kept starting 2026-08-04, so he can access it from
 - "I am not sure if everything's working in My Leads section... test it while following each and every such practice which finally leads this CRM to be delivered error free."
 - "Moving forward, whatever I'll ask from you as a question related to this project, you'll start memorizing it somewhere in a file... so I could access it each and every time." → this file.
 - "Is it possible to update the data, of the supabase CRM while integrating it with LIVE campaign, so we don't disturb the LIVE campaign."
+
+## 2026-08-05
+
+- "President Faisal Shah cannot see anything on his screen... let him see or assign him the right so he could see the Omnichannel conversations." (initially assumed Supabase CRM, corrected to WhatChimp - declined to operate WhatChimp directly per standing rule, guided Muhammad through his own screenshots instead.)
+- Faisal added to WhatChimp User Manager (Agent role, active) but still doesn't appear in the "Assign Agent" dropdown in Omnichannel Inbox, unlike Hanzla/Bilal/Ehsan. Confirmed he has already logged in successfully (rules out an activation theory). Checked WhatChimp's own Usage Log: Team Member limit 5, used 4 - not over the seat limit, so inconclusive. Landed on: send WhatChimp support one consolidated message with everything found, rather than continuing to click through settings screens.
+- "Please remember to divide the conversations into batches." (standing instruction)
