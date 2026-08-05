@@ -25,3 +25,4 @@ Muhammad asked for this to be kept starting 2026-08-04, so he can access it from
 - "We have just started testing each and everything... in all the lead sections, start testing." Screenshot from Junaid's Claude session (go-live checklist table) - "What is this?"
 - "I am not sure if everything's working in My Leads section... test it while following each and every such practice which finally leads this CRM to be delivered error free."
 - "Moving forward, whatever I'll ask from you as a question related to this project, you'll start memorizing it somewhere in a file... so I could access it each and every time." → this file.
+- "Is it possible to update the data, of the supabase CRM while integrating it with LIVE campaign, so we don't disturb the LIVE campaign."
