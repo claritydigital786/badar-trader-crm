@@ -761,34 +761,71 @@
     /* ── Agent tab content padding ── */
     #agent-dashboard .tab-content.active { padding: 24px; }
 
-    /* ── Conversations ── */
+    /* ── Conversations ──
+       Skinned to match WhatsApp Web closely, Muhammad's explicit request
+       ("inch by inch the same"). Palette values below are WhatsApp's own, in
+       both light and dark, rather than this CRM's navy/gold - the inbox is
+       treated as its own surface, the way WhatsApp is its own app. Every other
+       tab keeps the CRM theme. */
     .conversations-shell {
       display: flex; height: calc(100vh - 160px); position: relative;
-      border: 1px solid #e5e8ef; border-radius: 10px; overflow: hidden;
-      background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.1);
+      border: 1px solid #d1d7db; border-radius: 6px; overflow: hidden;
+      background: #fff; box-shadow: 0 1px 3px rgba(11,20,26,.13);
     }
-    .conv-list-panel { width: 280px; border-right: 1px solid #f1f5f9; display: flex; flex-direction: column; flex-shrink: 0; }
-    .conv-search { padding: 12px; border-bottom: 1px solid #f1f5f9; display: flex; gap: 8px; align-items: center; }
+    .conv-list-panel { width: 30%; min-width: 300px; max-width: 420px; border-right: 1px solid #d1d7db; display: flex; flex-direction: column; flex-shrink: 0; background:#fff; }
+    .conv-search { padding: 7px 12px; display: flex; gap: 8px; align-items: center; background:#fff; }
     .conv-search input { flex: 1; min-width: 0; }
     .conv-show-list-btn { display: none; }
     .conversations-shell.list-collapsed .conv-chat-header { padding-left: 56px; }
-    .conv-search input { width:100%; background:#f8fafc; border:1px solid #e2e8f0; border-radius:20px; padding:8px 14px; font-size:0.85rem; outline:none; color:#0f172a; }
-    .conv-search input:focus { border-color:#0ea5e9; }
-    .conv-filter-tab { flex-shrink: 0; } /* scroll the row instead of wrapping/squeezing chips onto a second line */
-    .conv-list { flex:1; overflow-y:auto; }
-    .conv-item { display:flex; align-items:center; gap:10px; padding:12px 14px; cursor:pointer; border-bottom:1px solid #f8fafc; transition:background .12s; }
-    .conv-item:hover { background:#f1f5f9; }
-    .conv-item.active { background:#e0f2fe; border-left:3px solid #0ea5e9; }
-    .conv-avatar { width:40px; height:40px; border-radius:50%; background:#0ea5e9; color:#fff; font-size:0.85rem; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; text-transform:uppercase; } /* background overridden inline per-conversation by avatarColor() */
+    /* WhatsApp's search field: flat pill on a tinted panel, no focus ring. */
+    .conv-search input { width:100%; background:#f0f2f5; border:1px solid transparent; border-radius:8px; padding:7px 14px; font-size:0.875rem; outline:none; color:#111b21; }
+    .conv-search input:focus { background:#fff; border-color:#00a884; }
+    .conv-search input::placeholder { color:#8696a0; }
+    /* Filter row: WhatsApp's own All / Unread pill style. */
+    .conv-filter-tabs {
+      display:flex; flex-wrap:nowrap; overflow-x:auto; gap:6px;
+      padding:0 12px 8px; background:#fff; border-bottom:1px solid #e9edef;
+    }
+    .conv-list-toggle {
+      flex-shrink:0; border:none; background:transparent; border-radius:50%;
+      width:34px; height:34px; cursor:pointer; color:#54656f; font-size:0.9rem;
+    }
+    .conv-list-toggle:hover { background:#f0f2f5; }
+    .conv-filter-tab {
+      flex-shrink: 0; cursor:pointer; border:none; border-radius:14px;
+      padding:5px 12px; font-size:0.78rem; font-weight:500;
+      background:#f0f2f5; color:#54656f;
+    }
+    .conv-filter-tab:hover  { background:#e9edef; }
+    .conv-filter-tab.active { background:#d9fdd3; color:#04785a; }
+    .conv-list { flex:1; overflow-y:auto; background:#fff; }
+    /* 72px row with the divider starting after the avatar, as WhatsApp does. */
+    .conv-item { display:flex; align-items:center; gap:13px; padding:0 13px; height:72px; cursor:pointer; transition:background .12s; position:relative; }
+    .conv-item::after { content:''; position:absolute; left:68px; right:0; bottom:0; height:1px; background:#e9edef; }
+    .conv-item:last-child::after { display:none; }
+    .conv-item:hover { background:#f5f6f6; }
+    .conv-item.active { background:#f0f2f5; }
+    .conv-avatar { width:49px; height:49px; border-radius:50%; background:#00a884; color:#fff; font-size:0.95rem; font-weight:600; display:flex; align-items:center; justify-content:center; flex-shrink:0; text-transform:uppercase; } /* background overridden inline per-conversation by avatarColor() */
     .conv-info { flex:1; min-width:0; }
-    .conv-name { color:#0f172a; font-size:0.875rem; font-weight:600; margin-bottom:2px; }
-    .conv-preview { color:#94a3b8; font-size:0.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .conv-time { color:#94a3b8; font-size:0.72rem; margin-bottom:4px; }
+    .conv-name { color:#111b21; font-size:1rem; font-weight:400; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .conv-preview { color:#667781; font-size:0.875rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .conv-time { color:#667781; font-size:0.75rem; margin-bottom:4px; }
     .conv-chat-panel { flex:1; display:flex; flex-direction:column; min-width:0; }
-    .conv-chat-header { padding:14px 18px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:12px; background:#fff; }
-    .conv-chat-header-info h3 { color:#0f172a; font-size:0.95rem; font-weight:700; margin:0 0 2px; }
-    .conv-chat-header-info p { color:#64748b; font-size:0.78rem; margin:0; display:flex; align-items:center; gap:8px; }
-    .conv-messages { flex:1; overflow-y:auto; padding:16px; background:#efe9e1; display:flex; flex-direction:column; gap:8px; }
+    .conv-chat-header { padding:10px 16px; border-bottom:1px solid #d1d7db; display:flex; align-items:center; gap:12px; background:#f0f2f5; min-height:59px; }
+    .conv-chat-header-info h3 { color:#111b21; font-size:1rem; font-weight:500; margin:0 0 1px; }
+    .conv-chat-header-info p { color:#667781; font-size:0.8125rem; margin:0; display:flex; align-items:center; gap:8px; }
+    /* WhatsApp's wallpaper: the beige base plus a faint doodle. The real
+       artwork is a Meta asset, so this is a self-contained approximation at
+       the same tone rather than a hotlinked image. */
+    .conv-messages {
+      flex:1; overflow-y:auto; padding:12px 5%; display:flex; flex-direction:column; gap:2px;
+      background-color:#efeae2;
+      background-image:
+        radial-gradient(circle at 20% 30%, rgba(11,20,26,.030) 0 2px, transparent 2px),
+        radial-gradient(circle at 70% 65%, rgba(11,20,26,.030) 0 2px, transparent 2px),
+        radial-gradient(circle at 45% 85%, rgba(11,20,26,.022) 0 3px, transparent 3px);
+      background-size: 220px 220px, 180px 180px, 260px 260px;
+    }
     /* No align-items here defaulted to "stretch", so every bubble was forced
        to the full max-width below regardless of how short its text was -
        a short reply's bubble still stretched to 70% width, which (combined
@@ -808,16 +845,90 @@
        bubble ever would, reading as "not the same as the WhatsApp pattern."
        min() keeps the 70% behavior on narrow/mobile panels where 480px
        would be too wide, and caps at 480px on wide desktop panels. */
-    .msg-bubble { max-width:min(55%, 380px); padding:7px 11px; border-radius:10px; font-size:0.85rem; line-height:1.4; word-break:break-word; white-space:pre-wrap; box-shadow:0 1px 1px rgba(0,0,0,.08); }
-    .conv-msg-textarea { width:100%; resize:none; overflow-y:auto; min-height:64px; max-height:320px; padding:12px 14px; border-radius:14px; border:1px solid #cbd5e1; font-family:inherit; font-size:0.875rem; line-height:1.4; }
-    .msg-bubble.incoming { background:#fff; color:#111b21; border-bottom-left-radius:2px; }
-    .msg-bubble.outgoing { background:#d9fdd3; color:#111b21; border-bottom-right-radius:2px; }
-    .msg-time { font-size:0.7rem; color:#94a3b8; margin-top:4px; padding:0 4px; }
-    .msg-time.outgoing { text-align:right; }
-    .conv-input-bar { padding:12px 16px; border-top:1px solid #f1f5f9; display:flex; gap:10px; align-items:flex-end; background:#fff; }
-    .conv-input-bar input { flex:1; border:1px solid #e2e8f0; border-radius:20px; padding:10px 16px; font-size:0.875rem; outline:none; color:#0f172a; }
-    .conv-input-bar input:focus { border-color:#0ea5e9; box-shadow:0 0 0 3px rgba(14,165,233,.12); }
-    .conv-empty-chat { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#94a3b8; }
+    /* 7.5px radius and the 1.5px shadow are WhatsApp's own bubble values. */
+    .msg-bubble { max-width:min(55%, 380px); padding:6px 7px 8px 9px; border-radius:7.5px; font-size:0.8885rem; line-height:1.34; word-break:break-word; white-space:pre-wrap; box-shadow:0 1px .5px rgba(11,20,26,.13); position:relative; }
+    .conv-msg-textarea { width:100%; resize:none; overflow-y:auto; min-height:64px; max-height:320px; padding:9px 12px; border-radius:8px; border:1px solid transparent; background:#fff; color:#111b21; font-family:inherit; font-size:0.9375rem; line-height:1.4; outline:none; }
+    .msg-bubble.incoming { background:#fff; color:#111b21; border-top-left-radius:0; }
+    .msg-bubble.outgoing { background:#d9fdd3; color:#111b21; border-top-right-radius:0; }
+    /* The little pointer WhatsApp puts on the first bubble of each side. */
+    .msg-bubble.incoming::before,
+    .msg-bubble.outgoing::before {
+      content:''; position:absolute; top:0; width:8px; height:13px;
+    }
+    .msg-bubble.incoming::before {
+      left:-8px;
+      background:#fff;
+      clip-path: polygon(100% 0, 0 0, 100% 100%);
+    }
+    .msg-bubble.outgoing::before {
+      right:-8px;
+      background:#d9fdd3;
+      clip-path: polygon(0 0, 100% 0, 0 100%);
+    }
+    /* WhatsApp only tails the first bubble of a consecutive run from the same
+       side, and opens a wider gap when the speaker changes. */
+    .msg-wrapper.outgoing + .msg-wrapper.outgoing .msg-bubble::before,
+    .msg-wrapper:not(.outgoing) + .msg-wrapper:not(.outgoing) .msg-bubble::before { display:none; }
+    .msg-wrapper.outgoing + .msg-wrapper.outgoing .msg-bubble { border-top-right-radius:7.5px; }
+    .msg-wrapper:not(.outgoing) + .msg-wrapper:not(.outgoing) .msg-bubble { border-top-left-radius:7.5px; }
+    .msg-wrapper.outgoing + .msg-wrapper:not(.outgoing),
+    .msg-wrapper:not(.outgoing) + .msg-wrapper.outgoing { margin-top:10px; }
+    /* WhatsApp puts the timestamp inside the bubble, bottom right, and floats
+       it so a short last line wraps around it instead of sitting above it. */
+    .msg-time {
+      float:right; font-size:0.6875rem; color:rgba(17,27,33,.45);
+      margin:6px 0 -3px 8px; line-height:1; white-space:nowrap;
+    }
+    .conv-input-bar { padding:10px 16px; border-top:1px solid #d1d7db; display:flex; gap:10px; align-items:flex-end; background:#f0f2f5; }
+    .conv-input-bar input { flex:1; border:1px solid transparent; border-radius:8px; padding:9px 14px; font-size:0.9375rem; outline:none; color:#111b21; background:#fff; }
+    .conv-input-bar input:focus { border-color:#00a884; }
+    .conv-empty-chat { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#667781; background:#f0f2f5; }
+
+    /* ── Conversations: WhatsApp dark ──
+       WhatsApp's own dark palette, not this CRM's navy/gold, so the inbox
+       reads as WhatsApp in both themes. */
+    [data-theme="dark"] .conversations-shell { background:#111b21; border-color:#222d34; }
+    [data-theme="dark"] .conv-list-panel,
+    [data-theme="dark"] .conv-search,
+    [data-theme="dark"] .conv-filter-tabs,
+    [data-theme="dark"] .conv-list          { background:#111b21; }
+    [data-theme="dark"] .conv-filter-tabs   { border-bottom-color:#222d34; }
+    [data-theme="dark"] .conv-list-toggle       { color:#aebac1; }
+    [data-theme="dark"] .conv-list-toggle:hover { background:#202c33; }
+    [data-theme="dark"] .conv-list-panel    { border-right-color:#222d34; }
+    [data-theme="dark"] .conv-search input  { background:#202c33; color:#d1d7db; }
+    [data-theme="dark"] .conv-search input:focus { background:#202c33; border-color:#00a884; }
+    [data-theme="dark"] .conv-search input::placeholder { color:#8696a0; }
+    [data-theme="dark"] .conv-filter-tab        { background:#202c33; color:#8696a0; }
+    [data-theme="dark"] .conv-filter-tab:hover  { background:#2a3942; }
+    [data-theme="dark"] .conv-filter-tab.active { background:#103529; color:#00a884; }
+    [data-theme="dark"] .conv-item::after   { background:#222d34; }
+    [data-theme="dark"] .conv-item:hover    { background:#202c33; }
+    [data-theme="dark"] .conv-item.active   { background:#2a3942; }
+    [data-theme="dark"] .conv-name          { color:#e9edef; }
+    [data-theme="dark"] .conv-preview,
+    [data-theme="dark"] .conv-time          { color:#8696a0; }
+    [data-theme="dark"] .conv-chat-header   { background:#202c33; border-bottom-color:#222d34; }
+    [data-theme="dark"] .conv-chat-header-info h3 { color:#e9edef; }
+    [data-theme="dark"] .conv-chat-header-info p  { color:#8696a0; }
+    /* The doodle is drawn in a dark ink for the light wallpaper, so dark mode
+       needs its own light-ink version or the pattern vanishes entirely. */
+    [data-theme="dark"] .conv-messages {
+      background-color:#0b141a;
+      background-image:
+        radial-gradient(circle at 20% 30%, rgba(233,237,239,.030) 0 2px, transparent 2px),
+        radial-gradient(circle at 70% 65%, rgba(233,237,239,.030) 0 2px, transparent 2px),
+        radial-gradient(circle at 45% 85%, rgba(233,237,239,.022) 0 3px, transparent 3px);
+    }
+    [data-theme="dark"] .msg-bubble.incoming { background:#202c33; color:#e9edef; }
+    [data-theme="dark"] .msg-bubble.outgoing { background:#005c4b; color:#e9edef; }
+    [data-theme="dark"] .msg-bubble.incoming::before { background:#202c33; }
+    [data-theme="dark"] .msg-bubble.outgoing::before { background:#005c4b; }
+    [data-theme="dark"] .msg-time           { color:rgba(233,237,239,.5); }
+    [data-theme="dark"] .conv-input-bar     { background:#202c33; border-top-color:#222d34; }
+    [data-theme="dark"] .conv-input-bar input,
+    [data-theme="dark"] .conv-msg-textarea  { background:#2a3942; color:#d1d7db; }
+    [data-theme="dark"] .conv-empty-chat    { background:#222e35; color:#8696a0; }
 
     /* ── Conversations: single-panel view on narrow screens ──
        Reuses the existing list-collapsed toggle (desktop's manual "hide list"
@@ -825,7 +936,10 @@
        hidden until a conversation is opened, which now auto-collapses the
        list (see openConversation's collapseConvListOnMobile call). */
     @media (max-width: 768px) {
-      .conv-list-panel { width: 100%; }
+      /* min-width/max-width are for the desktop three-column feel; on a phone
+         the panel is the whole screen, and a 300px floor would overflow a
+         320px device. */
+      .conv-list-panel { width: 100%; min-width: 0; max-width: none; }
       .conv-chat-panel { display: none; }
       .conversations-shell.list-collapsed .conv-chat-panel { display: flex; }
       #dash-pipeline-grid { grid-template-columns: 1fr !important; }
@@ -1243,16 +1357,16 @@
       <!-- Left: Lead List -->
       <div class="conv-list-panel" id="conv-list-panel">
         <div class="conv-search">
-          <button type="button" title="Hide the lead list" onclick="toggleConvListPanel('')" style="flex-shrink:0;border:1px solid #cbd5e1;background:#fff;border-radius:8px;width:34px;height:34px;cursor:pointer;color:#475569;font-size:0.9rem">☰</button>
+          <button type="button" class="conv-list-toggle" title="Hide the lead list" onclick="toggleConvListPanel('')">☰</button>
           <input type="text" id="conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations()" />
         </div>
-        <div class="conv-filter-tabs" id="conv-filter-tabs" style="display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;padding:8px 12px;border-bottom:1px solid #e2e8f0">
-          <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">All</button>
-          <button class="conv-filter-tab" data-tier="new" onclick="setConvFilter('new')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🆕 New</button>
-          <button class="conv-filter-tab" data-tier="unread" onclick="setConvFilter('unread')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">📩 Unread</button>
-          <button class="conv-filter-tab" data-tier="warm" onclick="setConvFilter('warm')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🌤 Warm</button>
-          <button class="conv-filter-tab" data-tier="hot" onclick="setConvFilter('hot')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🔥 Hot</button>
-          <button class="conv-filter-tab" data-tier="closed" onclick="setConvFilter('closed')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">✅ Converted</button>
+        <div class="conv-filter-tabs" id="conv-filter-tabs" >
+          <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all')">All</button>
+          <button class="conv-filter-tab" data-tier="new" onclick="setConvFilter('new')">🆕 New</button>
+          <button class="conv-filter-tab" data-tier="unread" onclick="setConvFilter('unread')">📩 Unread</button>
+          <button class="conv-filter-tab" data-tier="warm" onclick="setConvFilter('warm')">🌤 Warm</button>
+          <button class="conv-filter-tab" data-tier="hot" onclick="setConvFilter('hot')">🔥 Hot</button>
+          <button class="conv-filter-tab" data-tier="closed" onclick="setConvFilter('closed')">✅ Converted</button>
         </div>
         <div class="conv-list" id="conv-list"></div>
       </div>
@@ -2888,16 +3002,16 @@
       <!-- Left: Lead List -->
       <div class="conv-list-panel" id="agent-conv-list-panel">
         <div class="conv-search">
-          <button type="button" title="Hide the lead list" onclick="toggleConvListPanel('agent-')" style="flex-shrink:0;border:1px solid #cbd5e1;background:#fff;border-radius:8px;width:34px;height:34px;cursor:pointer;color:#475569;font-size:0.9rem">☰</button>
+          <button type="button" class="conv-list-toggle" title="Hide the lead list" onclick="toggleConvListPanel('agent-')">☰</button>
           <input type="text" id="agent-conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations('agent-')" />
         </div>
-        <div class="conv-filter-tabs" id="agent-conv-filter-tabs" style="display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;padding:8px 12px;border-bottom:1px solid #e2e8f0">
-          <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">All</button>
-          <button class="conv-filter-tab" data-tier="new" onclick="setConvFilter('new','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🆕 New</button>
-          <button class="conv-filter-tab" data-tier="unread" onclick="setConvFilter('unread','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">📩 Unread</button>
-          <button class="conv-filter-tab" data-tier="warm" onclick="setConvFilter('warm','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🌤 Warm</button>
-          <button class="conv-filter-tab" data-tier="hot" onclick="setConvFilter('hot','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">🔥 Hot</button>
-          <button class="conv-filter-tab" data-tier="closed" onclick="setConvFilter('closed','agent-')" style="border:1px solid #cbd5e1;background:#fff;border-radius:14px;padding:4px 10px;font-size:0.72rem;font-weight:600;cursor:pointer;color:#475569">✅ Converted</button>
+        <div class="conv-filter-tabs" id="agent-conv-filter-tabs" >
+          <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all','agent-')">All</button>
+          <button class="conv-filter-tab" data-tier="new" onclick="setConvFilter('new','agent-')">🆕 New</button>
+          <button class="conv-filter-tab" data-tier="unread" onclick="setConvFilter('unread','agent-')">📩 Unread</button>
+          <button class="conv-filter-tab" data-tier="warm" onclick="setConvFilter('warm','agent-')">🌤 Warm</button>
+          <button class="conv-filter-tab" data-tier="hot" onclick="setConvFilter('hot','agent-')">🔥 Hot</button>
+          <button class="conv-filter-tab" data-tier="closed" onclick="setConvFilter('closed','agent-')">✅ Converted</button>
         </div>
         <div class="conv-list" id="agent-conv-list"></div>
       </div>
@@ -7034,11 +7148,11 @@ function tierBadge(tier) {
 
 function setConvFilter(tier, scope = '') {
   _activeConvFilter = tier;
+  // Styling moved to the .conv-filter-tab / .active CSS rules so the pills
+  // follow WhatsApp's palette in both themes; setting colours inline here beat
+  // those rules and left the dark theme with light chips.
   document.querySelectorAll(`#${scope}conv-filter-tabs .conv-filter-tab`).forEach(btn => {
-    const active = btn.dataset.tier === tier;
-    btn.style.background = active ? '#1e293b' : '#fff';
-    btn.style.color = active ? '#fff' : '#475569';
-    btn.style.borderColor = active ? '#1e293b' : '#cbd5e1';
+    btn.classList.toggle('active', btn.dataset.tier === tier);
   });
   filterConversations(scope);
 }
@@ -7181,8 +7295,7 @@ async function openConversation(convId, scope = '') {
       <div class="conv-messages" id="conv-msgs-${convId}">
         ${conv.messages.map(m => `
           <div class="msg-wrapper${m.from === 'agent' ? ' outgoing' : ''}">
-            <div class="msg-bubble ${m.from === 'agent' ? 'outgoing' : 'incoming'}">${esc(m.text)}</div>
-            <div class="msg-time${m.from === 'agent' ? ' outgoing' : ''}">${m.time}</div>
+            <div class="msg-bubble ${m.from === 'agent' ? 'outgoing' : 'incoming'}">${esc(m.text)}<span class="msg-time">${m.time}</span></div>
           </div>`).join('')}
       </div>
       <div class="conv-input-bar">
@@ -7249,9 +7362,8 @@ async function openConversation(convId, scope = '') {
                 <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}" style="position:relative">
                   ${esc(m.body)}
                   ${m.attachment_path ? `<div class="msg-attachment" id="conv-att-${convId}-${i}" data-path="${esc(m.attachment_path)}" style="margin-top:8px;cursor:pointer;color:inherit">🖼 Loading image…</div>` : ''}
-                  ${m.wa_message_id ? `<button type="button" title="Reply to this message" onclick="setReplyTarget('${esc(m.wa_message_id)}', ${JSON.stringify(truncate(m.body || '', 60))})" style="position:absolute;top:-10px;${m.direction === 'outbound' ? 'left' : 'right'}:-10px;width:22px;height:22px;border-radius:50%;border:1px solid #cbd5e1;background:#fff;color:#475569;font-size:0.7rem;cursor:pointer;line-height:1">↩</button>` : ''}
+                  ${m.wa_message_id ? `<button type="button" title="Reply to this message" onclick="setReplyTarget('${esc(m.wa_message_id)}', ${JSON.stringify(truncate(m.body || '', 60))})" style="position:absolute;top:-10px;${m.direction === 'outbound' ? 'left' : 'right'}:-10px;width:22px;height:22px;border-radius:50%;border:1px solid #cbd5e1;background:#fff;color:#475569;font-size:0.7rem;cursor:pointer;line-height:1">↩</button>` : ''}<span class="msg-time">${fmtConvTime(m.created_at)}</span>
                 </div>
-                <div class="msg-time${m.direction === 'outbound' ? ' outgoing' : ''}">${fmtConvTime(m.created_at)}</div>
               </div>`).join('')
           : '<div style="text-align:center;color:#64748b;font-size:0.85rem;padding:32px">No messages yet.</div>'}
       </div>
@@ -7401,7 +7513,7 @@ async function sendConvMessage(convId, scope = '') {
     if (msgArea) {
       const div = document.createElement('div');
       div.className = 'msg-wrapper outgoing';
-      div.innerHTML = `<div class="msg-bubble outgoing">${esc(text)}</div><div class="msg-time outgoing">${timeStr}</div>`;
+      div.innerHTML = `<div class="msg-bubble outgoing">${esc(text)}<span class="msg-time">${timeStr}</span></div>`;
       msgArea.appendChild(div);
       msgArea.scrollTop = msgArea.scrollHeight;
     }
@@ -7563,7 +7675,7 @@ function startConvRealtime(scope = '') {
         if (msgArea) {
           const div = document.createElement('div');
           div.className = 'msg-wrapper' + (payload.new.direction === 'outbound' ? ' outgoing' : '');
-          div.innerHTML = `<div class="msg-bubble ${payload.new.direction === 'outbound' ? 'outgoing' : 'incoming'}">${esc(payload.new.body)}</div><div class="msg-time${payload.new.direction === 'outbound' ? ' outgoing' : ''}">${fmtConvTime(payload.new.created_at)}</div>`;
+          div.innerHTML = `<div class="msg-bubble ${payload.new.direction === 'outbound' ? 'outgoing' : 'incoming'}">${esc(payload.new.body)}<span class="msg-time">${fmtConvTime(payload.new.created_at)}</span></div>`;
           msgArea.appendChild(div);
           msgArea.scrollTop = msgArea.scrollHeight;
         }
