@@ -1321,7 +1321,18 @@
   <div id="admin-tab-train-ai" class="tab-content">
     <h3>Train AI</h3>
     <div class="info-box">
-      This stores AI training material: a system prompt plus knowledge notes, per bot number. Saving here is real and persists to the database. The WhatsApp webhook can now read the active campaign and call a real AI model with it, but this is gated off by <code>AI_REPLIES_ENABLED = false</code> - it needs an OpenAI API key saved to the database and a WhatChimp double-reply check before it can ever answer a real customer. Preview below shows exactly what the AI would be told.
+      This stores AI training material: a system prompt plus knowledge notes, per bot number. Saving here is real and persists to the database. The WhatsApp webhook can now read the active campaign and call a real AI model with it, but this is gated off by <code>AI_REPLIES_ENABLED = false</code> - it needs the OpenAI API key below and a WhatChimp double-reply check before it can ever answer a real customer. Preview below shows exactly what the AI would be told.
+    </div>
+
+    <div class="card">
+      <h4 style="margin-bottom:10px">AI Provider</h4>
+      <p style="color:#64748b;font-size:0.82rem;margin-bottom:12px">The key the webhook will use for <code>tryAIReply()</code> once <code>AI_REPLIES_ENABLED</code> is flipped on. Saved to this CRM's own <code>settings</code> table only - never sent anywhere else from this screen.</p>
+      <label>OpenAI API Key</label>
+      <input type="text" id="openai-api-key" placeholder="sk-… (leave blank until Muhammad provides it)" />
+      <div class="form-actions" style="margin-top:12px">
+        <button class="btn btn-primary btn-inline" onclick="saveOpenAiSettings()">Save Key</button>
+        <span class="success-msg" id="openai-msg"></span>
+      </div>
     </div>
 
     <div class="card">
@@ -3012,7 +3023,7 @@ function adminTab(name, el) {
   if (name === 'meta')             loadMetaSettings();
   if (name === 'meta-ads')         initMetaAnalytics();
   if (name === 'automation')       { loadAutomationRules(); populateArAgentDropdown(); }
-  if (name === 'train-ai')         loadAiKb();
+  if (name === 'train-ai')         { loadAiKb(); loadOpenAiSettings(); }
   if (name === 'create-flow')      loadKeywordReplies();
   if (name === 'follow-ups')       loadFollowUps();
   if (name === 'templates')        loadTemplates();
@@ -3340,6 +3351,26 @@ async function saveMetaSettings() {
   const { error } = await sb.from('settings').upsert(rows, { onConflict: 'key' });
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
   setMsg(msgEl, 'Settings saved.', 'ok');
+}
+
+async function loadOpenAiSettings() {
+  if (demoMode) return; // no settings table in demo
+  const el = document.getElementById('openai-api-key');
+  if (!el) return;
+  const { data } = await sb.from('settings').select('value').eq('key', 'openai_api_key').maybeSingle();
+  el.value = (data && data.value) || '';
+}
+
+async function saveOpenAiSettings() {
+  const msgEl = document.getElementById('openai-msg');
+  if (demoMode) { setMsg(msgEl, 'Key saved. (demo - not written to a real database)', 'ok'); return; }
+  const key = v('openai-api-key');
+  const { error } = await sb.from('settings').upsert(
+    { key: 'openai_api_key', value: key, updated_by: currentUser.id, updated_at: new Date().toISOString() },
+    { onConflict: 'key' }
+  );
+  if (error) { setMsg(msgEl, error.message, 'err'); return; }
+  setMsg(msgEl, 'Key saved.', 'ok');
 }
 
 function copyWebhookUrl() {
