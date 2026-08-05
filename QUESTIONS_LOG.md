@@ -36,3 +36,5 @@ Muhammad asked for this to be kept starting 2026-08-04, so he can access it from
 - This laptop had no GitHub auth at all - set up an SSH key and got it added to the shared account to unblock pushing.
 - "what is remaining the 5 buttons available at dashboard" - checked actual deployed logic, all 3 gated tiles (Broadcast Signal, Create Flow, Train AI) are code-complete, blocked only on non-coding steps.
 - "start working on the remaining parts of 3 section" - clarified there was no real coding left on those 3, then built the one genuine gap found: a UI field for the OpenAI key in Train AI.
+- "can we use same open AI key here for Train AI section which is saved in whatchimp" - confirmed yes (it's Badar's own OpenAI account either way, per the 2026-08-04 entry), flagged that the key still has to come from Muhammad/Junaid, not typed in by Claude.
+- Sent a screenshot of WhatChimp's AI API Integration page, asked if the CRM's version is the same - it wasn't (no key masking, no model picker, older hardcoded model), so both were added.

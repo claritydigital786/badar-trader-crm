@@ -1328,7 +1328,20 @@
       <h4 style="margin-bottom:10px">AI Provider</h4>
       <p style="color:#64748b;font-size:0.82rem;margin-bottom:12px">The key the webhook will use for <code>tryAIReply()</code> once <code>AI_REPLIES_ENABLED</code> is flipped on. Saved to this CRM's own <code>settings</code> table only - never sent anywhere else from this screen.</p>
       <label>OpenAI API Key</label>
-      <input type="text" id="openai-api-key" placeholder="sk-… (leave blank until Muhammad provides it)" />
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="password" id="openai-api-key" placeholder="sk-… (leave blank until Muhammad provides it)" style="flex:1" />
+        <button type="button" class="btn btn-secondary btn-sm" id="openai-key-toggle" onclick="toggleOpenAiKeyVisibility()" style="white-space:nowrap">Show</button>
+      </div>
+      <label style="margin-top:12px">Model</label>
+      <select id="openai-model">
+        <option value="gpt-4o-mini">gpt-4o-mini (current default - what the webhook calls today)</option>
+        <option value="gpt-4.1">gpt-4.1</option>
+        <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+        <option value="gpt-4.1-nano">gpt-4.1-nano</option>
+        <option value="gpt-5">gpt-5</option>
+        <option value="gpt-5-mini">gpt-5-mini</option>
+        <option value="gpt-5-nano">gpt-5-nano</option>
+      </select>
       <div class="form-actions" style="margin-top:12px">
         <button class="btn btn-primary btn-inline" onclick="saveOpenAiSettings()">Save Key</button>
         <span class="success-msg" id="openai-msg"></span>
@@ -3353,22 +3366,37 @@ async function saveMetaSettings() {
   setMsg(msgEl, 'Settings saved.', 'ok');
 }
 
+function toggleOpenAiKeyVisibility() {
+  const el  = document.getElementById('openai-api-key');
+  const btn = document.getElementById('openai-key-toggle');
+  if (!el || !btn) return;
+  const hidden = el.type === 'password';
+  el.type = hidden ? 'text' : 'password';
+  btn.textContent = hidden ? 'Hide' : 'Show';
+}
+
 async function loadOpenAiSettings() {
   if (demoMode) return; // no settings table in demo
-  const el = document.getElementById('openai-api-key');
-  if (!el) return;
-  const { data } = await sb.from('settings').select('value').eq('key', 'openai_api_key').maybeSingle();
-  el.value = (data && data.value) || '';
+  const keyEl   = document.getElementById('openai-api-key');
+  const modelEl = document.getElementById('openai-model');
+  if (!keyEl) return;
+  const { data } = await sb.from('settings').select('key,value').in('key', ['openai_api_key','openai_model']);
+  const get = k => (data || []).find(r => r.key === k)?.value || '';
+  keyEl.value = get('openai_api_key');
+  if (modelEl) modelEl.value = get('openai_model') || 'gpt-4o-mini';
 }
 
 async function saveOpenAiSettings() {
   const msgEl = document.getElementById('openai-msg');
+  const model = document.getElementById('openai-model')?.value || 'gpt-4o-mini';
   if (demoMode) { setMsg(msgEl, 'Key saved. (demo - not written to a real database)', 'ok'); return; }
   const key = v('openai-api-key');
-  const { error } = await sb.from('settings').upsert(
-    { key: 'openai_api_key', value: key, updated_by: currentUser.id, updated_at: new Date().toISOString() },
-    { onConflict: 'key' }
-  );
+  const now = new Date().toISOString();
+  const rows = [
+    { key: 'openai_api_key', value: key,   updated_by: currentUser.id, updated_at: now },
+    { key: 'openai_model',   value: model, updated_by: currentUser.id, updated_at: now },
+  ];
+  const { error } = await sb.from('settings').upsert(rows, { onConflict: 'key' });
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
   setMsg(msgEl, 'Key saved.', 'ok');
 }

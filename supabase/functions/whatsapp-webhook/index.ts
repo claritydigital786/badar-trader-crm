@@ -589,6 +589,14 @@ async function getOpenAIKey(sb: SupabaseClient): Promise<string> {
   return (data?.value || "").trim();
 }
 
+// Defaults to the model this function has always called, so leaving
+// settings.openai_model unset changes nothing - only an explicit save from
+// the Train AI tab's model picker overrides it.
+async function getOpenAIModel(sb: SupabaseClient): Promise<string> {
+  const { data } = await sb.from("settings").select("value").eq("key", "openai_model").maybeSingle();
+  return (data?.value || "").trim() || "gpt-4o-mini";
+}
+
 // Real AI reply path (2026-08-04 prep work). Same silent-fallthrough shape
 // as tryKeywordReply - any missing piece (flag, table, key, empty model
 // output) falls through to the normal bot step, never breaks inbound
@@ -620,6 +628,7 @@ async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Prom
     console.error("tryAIReply: AI_REPLIES_ENABLED is true but settings.openai_api_key is not set");
     return null;
   }
+  const model = await getOpenAIModel(sb);
 
   const systemPrompt = campaign.knowledge_notes
     ? `${campaign.system_prompt}\n\nKnowledge notes:\n${campaign.knowledge_notes}`
@@ -631,7 +640,7 @@ async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Prom
       method: "POST",
       headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: text },
