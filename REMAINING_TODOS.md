@@ -1,10 +1,28 @@
-# Questions Log
+# Remaining To-Dos
 
-Every question or request Muhammad (or Junaid) asks Claude about this project, logged chronologically. This is a raw log of what was asked, not a record of what was built (that's `HANDOFF.md`) and not a distillation of decisions (that's Claude's own memory files, which are per-laptop and don't travel - this file does, since it's committed to git like everything else in this repo).
+Renamed from `QUESTIONS_LOG.md` on 2026-08-06 at Muhammad's request, so he can add
+to-dos into it directly. It travels between laptops and accounts because it is committed
+to git, unlike Claude's own memory files.
 
-Muhammad asked for this to be kept starting 2026-08-04, so he can access it from any laptop/account at any time.
+Two things live here, kept apart on purpose:
+- **To-Dos** - what still needs doing. Muhammad and Junaid add to this.
+- **Questions Log** - the chronological record of what was asked, kept from 2026-08-04
+  onward. Nothing was deleted in the rename. What got *built* is still in `HANDOFF.md`.
 
 ---
+
+## To-Dos
+
+_Add items here._
+
+- [ ] Deploy `whatsapp-webhook` so the Train AI model picker actually takes effect. Verified 2026-08-06: the live function is v68 and differs from the repo by only that one change, and it enables no sends (all reply gates false). Command: `supabase functions deploy whatsapp-webhook --no-verify-jwt`. Muhammad declined to run it on 2026-08-05, so it is parked until he says go.
+- [ ] Apply `supabase/migrations/20260806000000_ai_agents.sql` so the Bot Manager Agents tab has a real table. Until then that tab says so plainly instead of erroring.
+- [ ] Create the four pending Supabase Auth users (Hanzla, Ehsan Wazir, Syed Bilal Ahmed Hashmi, Syed Hamza) - human-only step, needs a real password set.
+- [ ] Confirm the `AYESHA` git author on commits `45f747d`, `295eeca`, `928a01b` - a third machine is pushing and the `user.name` convention in `CLAUDE.md` does not cover it.
+
+---
+
+## Questions Log
 
 ## 2026-08-04
 
@@ -45,3 +63,5 @@ Muhammad asked for this to be kept starting 2026-08-04, so he can access it from
 - Set up a real training campaign in the live CRM (confirmed save worked correctly by checking the code's known reset-after-save behavior, not a bug).
 - "how to make it reply to the real customer" then "i have changed the number to another UAE number so start testing it" - declined both: flag flips stay Muhammad-laptop-only, and separately confirmed by code that `bot_number` isn't actually used anywhere in the webhook, so a flip wouldn't have stayed scoped to just the UAE number anyway.
 - "change the train ai section into bot manger" - clarified scope (rename only, not merging other tabs), renamed every user-visible occurrence of "Train AI" to "Bot Manager."
+- "Continue." - picked up the one open item in HANDOFF (the undeployed webhook model-picker change). Verified it independently: `deno check` shows the same 7 pre-existing errors before and after the change (so it added none), and the live deployed function v68 differs from local by exactly that change and nothing else. Asked whether to deploy; Muhammad declined for now, so the live webhook was left untouched.
+- "Create a separate section entitled Bot Manager" mirroring WhatChimp's own burger-menu item (4th or 5th in that list), move the chatbot section into it, and leave the icon on the main dashboard. Screenshots from Junaid (originally from WhatChimp/Badar) to follow in the next message.

@@ -607,6 +607,80 @@
     .subtab-content { display: none; }
     .subtab-content.active { display: block; }
 
+    /* ── Bot Manager ── */
+    .bm-layout { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
+    .bm-bots { background: #fff; border: 1px solid #e5e8ef; border-radius: 10px; padding: 16px; }
+    .bm-bots-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .bm-bots-head h4 { margin: 0; font-size: 0.95rem; }
+    .bm-chips { display: flex; flex-wrap: wrap; gap: 6px; background: #f1f5f9; border-radius: 8px; padding: 6px; margin: 10px 0; }
+    .bm-chip {
+      border: none; background: none; cursor: pointer; border-radius: 6px;
+      padding: 4px 10px; font-size: 0.78rem; font-weight: 600; color: #64748b;
+    }
+    .bm-chip.active { background: #fff; color: #0f172a; box-shadow: 0 1px 2px rgba(15,23,42,.12); }
+    .bm-bot-item {
+      display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+      border: 1px solid transparent; background: none; cursor: pointer;
+      border-radius: 8px; padding: 10px; margin-bottom: 6px;
+    }
+    .bm-bot-item:hover  { background: #f8fafc; }
+    .bm-bot-item.active { background: #eef2ff; border-color: #c7d2fe; }
+    .bm-bot-avatar {
+      width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 1rem;
+      background: #dcfce7;
+    }
+    .bm-bot-name { font-weight: 600; font-size: 0.85rem; color: #0f172a; }
+    .bm-bot-num  { font-size: 0.76rem; color: #64748b; }
+    .bm-bot-header {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      background: #fff; border: 1px solid #e5e8ef; border-radius: 10px;
+      padding: 16px; margin-bottom: 14px;
+    }
+    .bm-status-pill {
+      font-size: 0.72rem; font-weight: 700; border-radius: 20px; padding: 3px 10px;
+      background: #dcfce7; color: #166534;
+    }
+    .bm-status-pill.off { background: #fee2e2; color: #991b1b; }
+    .bm-primary-tabs {
+      display: flex; flex-wrap: wrap; gap: 4px;
+      background: #fff; border: 1px solid #e5e8ef; border-radius: 10px;
+      padding: 6px; margin-bottom: 14px;
+    }
+    .bm-ptab {
+      display: flex; align-items: center; gap: 7px;
+      border: none; background: none; cursor: pointer;
+      padding: 9px 14px; border-radius: 8px;
+      font-size: 0.84rem; font-weight: 600; color: #64748b;
+      border-bottom: 2px solid transparent;
+    }
+    .bm-ptab:hover  { color: #0ea5e9; }
+    .bm-ptab.active { color: #0ea5e9; border-bottom-color: #0ea5e9; background: #f0f9ff; }
+    .bm-section { display: none; }
+    .bm-section.active { display: block; }
+    .bm-panel { display: none; }
+    .bm-panel.active { display: block; }
+    .bm-gate {
+      display: flex; align-items: center; justify-content: space-between; gap: 14px;
+      flex-wrap: wrap; border: 1px solid #e5e8ef; border-radius: 10px; padding: 14px;
+    }
+
+    [data-theme="dark"] .bm-bots,
+    [data-theme="dark"] .bm-bot-header,
+    [data-theme="dark"] .bm-primary-tabs { background: #111b2e; border-color: #1e293b; }
+    [data-theme="dark"] .bm-chips        { background: #16223a; }
+    [data-theme="dark"] .bm-chip         { color: #94a3b8; }
+    [data-theme="dark"] .bm-chip.active  { background: #0b1220; color: #f1f5f9; }
+    [data-theme="dark"] .bm-bot-item:hover  { background: #16223a; }
+    [data-theme="dark"] .bm-bot-item.active { background: #16223a; border-color: #d4a843; }
+    [data-theme="dark"] .bm-bot-name     { color: #f1f5f9; }
+    [data-theme="dark"] .bm-ptab.active  { background: #16223a; }
+    [data-theme="dark"] .bm-gate         { border-color: #1e293b; }
+
+    @media (max-width: 900px) {
+      .bm-layout { grid-template-columns: 1fr; }
+    }
+
     /* ── Lead detail panel ── */
     .detail-panel {
       background: #fff;
@@ -847,16 +921,14 @@
       <div class="nav-item" data-tab="leads"><span class="nav-icon" style="background:var(--tint-sky-bg)">👥</span> All Leads <span class="nav-badge" id="leads-count-badge"></span></div>
       <div class="nav-item" data-tab="agents"><span class="nav-icon" style="background:var(--tint-success-bg)">🏆</span> My Team</div>
       <div class="nav-item" data-tab="meta-ads"><span class="nav-icon" style="background:var(--tint-warn-bg)">📈</span> Meta Ads</div>
+      <div class="nav-section-label">BOT MANAGER</div>
+      <div class="nav-item" data-tab="bot-manager"><span class="nav-icon" style="background:var(--tint-sky-bg)">🤖</span> Bot Manager</div>
       <div class="nav-section-label">TOOLS</div>
       <div class="nav-item" data-tab="add-lead"><span class="nav-icon" style="background:var(--tint-gold-bg)">➕</span> Add Lead</div>
       <div class="nav-item" data-tab="conversations"><span class="nav-icon" style="background:var(--tint-sky-bg)">💬</span> Omnichannel Inbox <span id="conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
       <div class="nav-item" data-tab="comm-log"><span class="nav-icon" style="background:var(--tint-success-bg)">🕐</span> Comm Log</div>
       <div class="nav-item" data-tab="reports"><span class="nav-icon" style="background:var(--tint-warn-bg)">📋</span> Reports</div>
       <div class="nav-item" data-tab="automation"><span class="nav-icon" style="background:var(--tint-danger-bg)">⚡</span> Automation</div>
-      <div class="nav-item" data-tab="create-flow"><span class="nav-icon" style="background:var(--tint-gold-bg)">🧩</span> Create Flow</div>
-      <div class="nav-item" data-tab="train-ai"><span class="nav-icon" style="background:var(--tint-warn-bg)">🧠</span> Bot Manager</div>
-      <div class="nav-item" data-tab="follow-ups"><span class="nav-icon" style="background:var(--tint-success-bg)">⏰</span> Follow-ups</div>
-      <div class="nav-item" data-tab="templates"><span class="nav-icon" style="background:var(--tint-sky-bg)">📄</span> Templates</div>
       <div class="nav-item" data-tab="appointments"><span class="nav-icon" style="background:var(--tint-danger-bg)">📅</span> Appointments</div>
       <div class="nav-section-label">FINANCE</div>
       <div class="nav-item" data-tab="payroll"><span class="nav-icon" style="background:var(--tint-gold-bg)">💰</span> Payroll</div>
@@ -1261,290 +1333,509 @@
     </div>
   </div>
 
-  <!-- Create Flow -->
-  <div id="admin-tab-create-flow" class="tab-content">
-    <h3>Create Flow</h3>
-    <div class="info-box">
-      Keyword replies: pick a trigger word and the reply to send. Saving here is real and persists to the database. <strong>It does not change live bot behaviour yet</strong> - the WhatsApp webhook does not read these rules. This is the simplest real version on purpose; a visual drag-and-drop flow builder is a much larger, later phase.
-    </div>
-
-    <div class="card">
-      <h4 style="margin-bottom:10px">Test a message</h4>
-      <p style="color:#64748b;font-size:0.82rem;margin-bottom:12px">Type what a customer might send and see which rule matches. This only checks your rules, it does not message anyone.</p>
-      <div class="form-row">
-        <div class="form-group" style="flex:2">
-          <input type="text" id="kw-test-input" placeholder="e.g. what is the price?" oninput="runKeywordTest()" />
-        </div>
-      </div>
-      <div id="kw-test-result" style="font-size:0.86rem"></div>
-    </div>
-
-    <div class="card">
-      <table>
-        <thead><tr>
-          <th>Keyword</th><th>Match</th><th>Reply</th><th>Active</th><th></th>
-        </tr></thead>
-        <tbody id="kw-tbody">
-          <tr><td colspan="5" class="empty-state">Loading…</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="card">
-      <h4 id="kw-form-title" style="margin-bottom:14px">Create Keyword Reply</h4>
-      <input type="hidden" id="kw-id" />
-      <div class="form-row">
-        <div class="form-group">
-          <label>Trigger Keyword</label>
-          <input type="text" id="kw-keyword" placeholder="e.g. price" />
-        </div>
-        <div class="form-group">
-          <label>Match Type</label>
-          <select id="kw-match">
-            <option value="contains">Contains the keyword</option>
-            <option value="exact">Exactly matches the keyword</option>
-            <option value="starts_with">Starts with the keyword</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Reply Message</label>
-        <textarea id="kw-reply" rows="5" placeholder="The message to send back when this keyword matches."></textarea>
-      </div>
-      <div id="kw-msg" class="msg"></div>
-      <button class="btn btn-primary" onclick="submitKeywordReply()">Save Rule</button>
-      <button class="btn btn-secondary" onclick="resetKeywordForm()">Cancel</button>
-    </div>
-  </div>
-
-  <!-- Bot Manager (Train AI) -->
-  <div id="admin-tab-train-ai" class="tab-content">
+  <!-- Bot Manager -->
+  <div id="admin-tab-bot-manager" class="tab-content">
     <h3>Bot Manager</h3>
     <div class="info-box">
-      This stores AI training material: a system prompt plus knowledge notes, per bot number. Saving here is real and persists to the database. The WhatsApp webhook can now read the active campaign and call a real AI model with it, but this is gated off by <code>AI_REPLIES_ENABLED = false</code> - it needs the OpenAI API key below and a WhatChimp double-reply check before it can ever answer a real customer. Preview below shows exactly what the AI would be told.
+      Everything that shapes what the bot says now lives here, grouped the way WhatChimp groups it: pick a bot on the left, then work through Automation, Data Collection, AI, Engagement, Commerce and Integrations. Sections backed by a real feature in this CRM are marked <strong>Built</strong> and save to the database. The rest are marked <strong>Not built yet</strong> and say what they would need, rather than showing an empty screen that looks broken.
     </div>
 
-    <div class="card">
-      <h4 style="margin-bottom:10px">AI Provider</h4>
-      <p style="color:#64748b;font-size:0.82rem;margin-bottom:12px">The key the webhook will use for <code>tryAIReply()</code> once <code>AI_REPLIES_ENABLED</code> is flipped on. Saved to this CRM's own <code>settings</code> table only - never sent anywhere else from this screen.</p>
-      <label>OpenAI API Key</label>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input type="password" id="openai-api-key" placeholder="sk-… (leave blank until Muhammad provides it)" style="flex:1" />
-        <button type="button" class="btn btn-secondary btn-sm" id="openai-key-toggle" onclick="toggleOpenAiKeyVisibility()" style="white-space:nowrap">Show</button>
-      </div>
-      <label style="margin-top:12px">Model</label>
-      <select id="openai-model">
-        <option value="gpt-4o-mini">gpt-4o-mini (current default - what the webhook calls today)</option>
-        <option value="gpt-4.1">gpt-4.1</option>
-        <option value="gpt-4.1-mini">gpt-4.1-mini</option>
-        <option value="gpt-4.1-nano">gpt-4.1-nano</option>
-        <option value="gpt-5">gpt-5</option>
-        <option value="gpt-5-mini">gpt-5-mini</option>
-        <option value="gpt-5-nano">gpt-5-nano</option>
-      </select>
-      <div class="form-actions" style="margin-top:12px">
-        <button class="btn btn-primary btn-inline" onclick="saveOpenAiSettings()">Save Key</button>
-        <span class="success-msg" id="openai-msg"></span>
-      </div>
-    </div>
+    <div class="bm-layout">
 
-    <div class="card">
-      <h4 style="margin-bottom:10px">Preview what the bot would be told</h4>
-      <p style="color:#64748b;font-size:0.82rem;margin-bottom:12px">Assembles a campaign into the exact instructions an AI would receive. This builds the text only, it makes no AI call and sends nothing.</p>
-      <div class="form-row">
-        <div class="form-group" style="flex:2">
-          <label>Campaign</label>
-          <select id="akb-preview-select" onchange="runAiKbPreview()"></select>
+      <!-- Bots / Accounts -->
+      <div class="bm-bots">
+        <div class="bm-bots-head">
+          <h4>Bots / Accounts</h4>
+          <button class="btn btn-secondary btn-sm" onclick="adminTab('meta')" title="Numbers are connected in Meta Integration">+ Add Bot</button>
         </div>
+        <input type="text" id="bm-bot-search" placeholder="Search by name or number..." oninput="renderBotList()" />
+        <div class="bm-chips">
+          <button class="bm-chip active" data-ch="all"       onclick="bmChannel('all',this)">All <span id="bm-count-all">0</span></button>
+          <button class="bm-chip"        data-ch="whatsapp"  onclick="bmChannel('whatsapp',this)">WhatsApp <span id="bm-count-whatsapp">0</span></button>
+          <button class="bm-chip"        data-ch="facebook"  onclick="bmChannel('facebook',this)">Facebook 0</button>
+          <button class="bm-chip"        data-ch="instagram" onclick="bmChannel('instagram',this)">Instagram 0</button>
+        </div>
+        <div id="bm-bot-list"></div>
       </div>
-      <div id="akb-preview-result"></div>
-    </div>
 
-    <div class="card">
-      <table>
-        <thead><tr>
-          <th>Campaign</th><th>Bot Number</th><th>Prompt</th><th>Active</th><th></th>
-        </tr></thead>
-        <tbody id="ai-kb-tbody">
-          <tr><td colspan="5" class="empty-state">Loading…</td></tr>
-        </tbody>
-      </table>
-    </div>
+      <div class="bm-main">
 
-    <div class="card">
-      <h4 id="ai-kb-form-title" style="margin-bottom:14px">Create Training Campaign</h4>
-      <input type="hidden" id="akb-id" />
-      <div class="form-row">
-        <div class="form-group">
-          <label>Campaign Name</label>
-          <input type="text" id="akb-name" placeholder="e.g. Team Badar Support Bot Training" />
+        <!-- Selected bot header -->
+        <div class="bm-bot-header">
+          <div class="bm-bot-avatar" id="bm-sel-avatar">💬</div>
+          <div style="flex:1;min-width:150px">
+            <div class="bm-bot-name" id="bm-sel-name" style="font-size:1rem">No bot selected</div>
+            <div class="bm-bot-num"  id="bm-sel-num">-</div>
+          </div>
+          <span class="bm-status-pill" id="bm-sel-status">Active</span>
+          <button class="btn btn-secondary btn-sm" onclick="bmPrimary('settings')">Bot Settings</button>
         </div>
-        <div class="form-group">
-          <label>Bot Number</label>
-          <input type="text" id="akb-number" placeholder="e.g. +923715773903" />
-        </div>
-      </div>
-      <div class="form-group">
-        <label>System Prompt</label>
-        <textarea id="akb-prompt" rows="7" placeholder="Who the assistant is, its tone, language rules, what it must never promise, when to hand off to a human."></textarea>
-      </div>
-      <div class="form-group">
-        <label>Knowledge Notes <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
-        <textarea id="akb-notes" rows="5" placeholder="Facts the assistant should know: links, referral codes, deposit amounts, course details."></textarea>
-      </div>
-      <div id="akb-msg" class="msg"></div>
-      <button class="btn btn-primary" onclick="submitAiKb()">Save Campaign</button>
-      <button class="btn btn-secondary" onclick="resetAiKbForm()">Cancel</button>
-    </div>
-  </div>
 
-  <!-- Follow-ups -->
-  <div id="admin-tab-follow-ups" class="tab-content">
-    <h3>Follow-ups</h3>
-    <div class="info-box">
-      A follow-up says: when a lead has sat in a given status for this many hours without moving, send them this message. Saving here is real and persists to the database. <strong>Nothing is sent yet</strong> - no scheduled job reads these rules. Turning them into actual sends is a separate step, and the nudge scheduling questions from July need settling first.
-    </div>
+        <!-- Primary sections -->
+        <div class="bm-primary-tabs" id="bm-primary-tabs">
+          <button class="bm-ptab active" data-bm="automation"      onclick="bmPrimary('automation')">⚡ Automation</button>
+          <button class="bm-ptab"        data-bm="data-collection" onclick="bmPrimary('data-collection')">📂 Data Collection</button>
+          <button class="bm-ptab"        data-bm="ai"              onclick="bmPrimary('ai')">🧠 AI</button>
+          <button class="bm-ptab"        data-bm="engagement"      onclick="bmPrimary('engagement')">📣 Engagement</button>
+          <button class="bm-ptab"        data-bm="commerce"        onclick="bmPrimary('commerce')">🛍️ Commerce</button>
+          <button class="bm-ptab"        data-bm="integrations"    onclick="bmPrimary('integrations')">🔌 Integrations</button>
+          <button class="bm-ptab"        data-bm="settings"        onclick="bmPrimary('settings')">⚙️ Settings</button>
+        </div>
 
-    <div class="card">
-      <h4 style="margin-bottom:10px">Test a lead</h4>
-      <p style="color:#64748b;font-size:0.82rem;margin-bottom:12px">Pick a status and how long a lead has been sitting in it, to see which follow-ups would fire. This only checks your rules, it does not message anyone.</p>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Lead status</label>
-          <select id="fus-test-status" onchange="runFollowUpTest()">
-            <option value="new">New</option>
-            <option value="contacted">Contacted</option>
-            <option value="qualified">Qualified</option>
-            <option value="proposal_sent">Proposal Sent</option>
-            <option value="pending_approval">Pending Approval</option>
-            <option value="converted">Converted</option>
-            <option value="lost">Lost</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Hours since last movement</label>
-          <input type="number" id="fus-test-hours" min="0" value="48" oninput="runFollowUpTest()" />
-        </div>
-      </div>
-      <div id="fus-test-result" style="font-size:0.86rem"></div>
-    </div>
+        <!-- ══════════ AUTOMATION ══════════ -->
+        <div class="bm-section active" id="bm-section-automation">
+          <div class="subtabs">
+            <button class="subtab-btn active" onclick="bmSub('automation','keyword-replies',this)">Keyword Replies</button>
+            <button class="subtab-btn"        onclick="bmSub('automation','message-templates',this)">Message Templates</button>
+            <button class="subtab-btn"        onclick="bmSub('automation','follow-up-sequences',this)">Follow-up Sequences</button>
+            <button class="subtab-btn"        onclick="bmSub('automation','click-ads',this)">Click Ads</button>
+            <button class="subtab-btn"        onclick="bmSub('automation','quick-actions',this)">Quick Actions</button>
+            <button class="subtab-btn"        onclick="bmSub('automation','outbound-actions',this)">Outbound Actions</button>
+            <button class="subtab-btn"        onclick="bmSub('automation','webhook-workflows',this)">Webhook Workflows</button>
+          </div>
 
-    <div class="card">
-      <table>
-        <thead><tr>
-          <th>Name</th><th>When</th><th>Message</th><th>Active</th><th></th>
-        </tr></thead>
-        <tbody id="fus-tbody">
-          <tr><td colspan="5" class="empty-state">Loading…</td></tr>
-        </tbody>
-      </table>
-    </div>
+          <!-- Keyword Replies (was: Create Flow) -->
+          <div class="bm-panel active" id="bm-panel-keyword-replies">
+            <div class="info-box">
+              Keyword replies: pick a trigger word and the reply to send. Saving here is real and persists to the database. <strong>It does not change live bot behaviour yet</strong> - the WhatsApp webhook does not read these rules. This is the simplest real version on purpose; a visual drag-and-drop flow builder is a much larger, later phase.
+            </div>
 
-    <div class="card">
-      <h4 id="fus-form-title" style="margin-bottom:14px">Create Follow-up</h4>
-      <input type="hidden" id="fus-id" />
-      <div class="form-row">
-        <div class="form-group">
-          <label>Name</label>
-          <input type="text" id="fus-name" placeholder="e.g. Nudge new leads after a day" />
-        </div>
-        <div class="form-group">
-          <label>Lead Status</label>
-          <select id="fus-status">
-            <option value="new">New</option>
-            <option value="contacted">Contacted</option>
-            <option value="qualified">Qualified</option>
-            <option value="proposal_sent">Proposal Sent</option>
-            <option value="pending_approval">Pending Approval</option>
-            <option value="converted">Converted</option>
-            <option value="lost">Lost</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Send After (hours)</label>
-          <input type="number" id="fus-delay" min="1" value="24" />
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Message</label>
-        <textarea id="fus-message" rows="5" placeholder="What to send the lead when this triggers."></textarea>
-      </div>
-      <div id="fus-msg" class="msg"></div>
-      <button class="btn btn-primary" onclick="submitFollowUp()">Save Follow-up</button>
-      <button class="btn btn-secondary" onclick="resetFollowUpForm()">Cancel</button>
-    </div>
-  </div>
+            <div class="card">
+              <h4 style="margin-bottom:10px">Test a message</h4>
+              <p style="color:#64748b;font-size:0.82rem;margin-bottom:12px">Type what a customer might send and see which rule matches. This only checks your rules, it does not message anyone.</p>
+              <div class="form-row">
+                <div class="form-group" style="flex:2">
+                  <input type="text" id="kw-test-input" placeholder="e.g. what is the price?" oninput="runKeywordTest()" />
+                </div>
+              </div>
+              <div id="kw-test-result" style="font-size:0.86rem"></div>
+            </div>
 
-  <!-- Message Templates -->
-  <div id="admin-tab-templates" class="tab-content">
-    <h3>Message Templates</h3>
-    <div class="info-box">
-      WhatsApp only allows free-form replies within 24 hours of a customer's last message. After that, only a template Meta has approved can be sent. This is the CRM's record of your template copy and where each one sits in Meta's review. <strong>Nothing here is submitted to Meta automatically</strong> - templates are created and approved in WhatsApp Manager, and the status below is set by hand until that API is wired up. Both Follow-ups and Broadcast Signal need an approved template before they can reach anyone outside the 24 hour window.
-    </div>
+            <div class="card">
+              <table>
+                <thead><tr>
+                  <th>Keyword</th><th>Match</th><th>Reply</th><th>Active</th><th></th>
+                </tr></thead>
+                <tbody id="kw-tbody">
+                  <tr><td colspan="5" class="empty-state">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
 
-    <div class="card">
-      <table>
-        <thead><tr>
-          <th>Name</th><th>Category</th><th>Lang</th><th>Status</th><th>Body</th><th></th>
-        </tr></thead>
-        <tbody id="tpl-tbody">
-          <tr><td colspan="6" class="empty-state">Loading…</td></tr>
-        </tbody>
-      </table>
-    </div>
+            <div class="card">
+              <h4 id="kw-form-title" style="margin-bottom:14px">Create Keyword Reply</h4>
+              <input type="hidden" id="kw-id" />
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Trigger Keyword</label>
+                  <input type="text" id="kw-keyword" placeholder="e.g. price" />
+                </div>
+                <div class="form-group">
+                  <label>Match Type</label>
+                  <select id="kw-match">
+                    <option value="contains">Contains the keyword</option>
+                    <option value="exact">Exactly matches the keyword</option>
+                    <option value="starts_with">Starts with the keyword</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Reply Message</label>
+                <textarea id="kw-reply" rows="5" placeholder="The message to send back when this keyword matches."></textarea>
+              </div>
+              <div id="kw-msg" class="msg"></div>
+              <button class="btn btn-primary" onclick="submitKeywordReply()">Save Rule</button>
+              <button class="btn btn-secondary" onclick="resetKeywordForm()">Cancel</button>
+            </div>
+          </div>
 
-    <div class="card">
-      <h4 id="tpl-form-title" style="margin-bottom:14px">Create Template</h4>
-      <input type="hidden" id="tpl-id" />
-      <div class="form-row">
-        <div class="form-group">
-          <label>Name</label>
-          <input type="text" id="tpl-name" placeholder="e.g. Reopen stale conversation" />
+          <!-- Message Templates -->
+          <div class="bm-panel" id="bm-panel-message-templates">
+            <div class="info-box">
+              WhatsApp only allows free-form replies within 24 hours of a customer's last message. After that, only a template Meta has approved can be sent. This is the CRM's record of your template copy and where each one sits in Meta's review. <strong>Nothing here is submitted to Meta automatically</strong> - templates are created and approved in WhatsApp Manager, and the status below is set by hand until that API is wired up. Both Follow-ups and Broadcast Signal need an approved template before they can reach anyone outside the 24 hour window.
+            </div>
+
+            <div class="card">
+              <table>
+                <thead><tr>
+                  <th>Name</th><th>Category</th><th>Lang</th><th>Status</th><th>Body</th><th></th>
+                </tr></thead>
+                <tbody id="tpl-tbody">
+                  <tr><td colspan="6" class="empty-state">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="card">
+              <h4 id="tpl-form-title" style="margin-bottom:14px">Create Template</h4>
+              <input type="hidden" id="tpl-id" />
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Name</label>
+                  <input type="text" id="tpl-name" placeholder="e.g. Reopen stale conversation" />
+                </div>
+                <div class="form-group">
+                  <label>Meta Template Name <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+                  <input type="text" id="tpl-meta-name" placeholder="e.g. reopen_conversation" />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Category</label>
+                  <select id="tpl-category">
+                    <option value="UTILITY">Utility</option>
+                    <option value="MARKETING">Marketing</option>
+                    <option value="AUTHENTICATION">Authentication</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Language</label>
+                  <select id="tpl-language">
+                    <option value="en">English</option>
+                    <option value="ur">Roman Urdu</option>
+                    <option value="en_US">English (US)</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Meta Status</label>
+                  <select id="tpl-status">
+                    <option value="draft">Draft</option>
+                    <option value="submitted">Submitted</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="paused">Paused</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Body</label>
+                <textarea id="tpl-body" rows="5" placeholder="The template text. Use {{1}}, {{2}} for variables, the same way Meta does."></textarea>
+              </div>
+              <div class="form-group">
+                <label>Notes <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+                <textarea id="tpl-notes" rows="3" placeholder="Why it was rejected, what to change, when it was submitted."></textarea>
+              </div>
+              <div id="tpl-msg" class="msg"></div>
+              <button class="btn btn-primary" onclick="submitTemplate()">Save Template</button>
+              <button class="btn btn-secondary" onclick="resetTemplateForm()">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Follow-up Sequences -->
+          <div class="bm-panel" id="bm-panel-follow-up-sequences">
+            <div class="info-box">
+              A follow-up says: when a lead has sat in a given status for this many hours without moving, send them this message. Saving here is real and persists to the database. <strong>Nothing is sent yet</strong> - no scheduled job reads these rules. Turning them into actual sends is a separate step, and the nudge scheduling questions from July need settling first.
+            </div>
+
+            <div class="card">
+              <h4 style="margin-bottom:10px">Test a lead</h4>
+              <p style="color:#64748b;font-size:0.82rem;margin-bottom:12px">Pick a status and how long a lead has been sitting in it, to see which follow-ups would fire. This only checks your rules, it does not message anyone.</p>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Lead status</label>
+                  <select id="fus-test-status" onchange="runFollowUpTest()">
+                    <option value="new">New</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="qualified">Qualified</option>
+                    <option value="proposal_sent">Proposal Sent</option>
+                    <option value="pending_approval">Pending Approval</option>
+                    <option value="converted">Converted</option>
+                    <option value="lost">Lost</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Hours since last movement</label>
+                  <input type="number" id="fus-test-hours" min="0" value="48" oninput="runFollowUpTest()" />
+                </div>
+              </div>
+              <div id="fus-test-result" style="font-size:0.86rem"></div>
+            </div>
+
+            <div class="card">
+              <table>
+                <thead><tr>
+                  <th>Name</th><th>When</th><th>Message</th><th>Active</th><th></th>
+                </tr></thead>
+                <tbody id="fus-tbody">
+                  <tr><td colspan="5" class="empty-state">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="card">
+              <h4 id="fus-form-title" style="margin-bottom:14px">Create Follow-up</h4>
+              <input type="hidden" id="fus-id" />
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Name</label>
+                  <input type="text" id="fus-name" placeholder="e.g. Nudge new leads after a day" />
+                </div>
+                <div class="form-group">
+                  <label>Lead Status</label>
+                  <select id="fus-status">
+                    <option value="new">New</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="qualified">Qualified</option>
+                    <option value="proposal_sent">Proposal Sent</option>
+                    <option value="pending_approval">Pending Approval</option>
+                    <option value="converted">Converted</option>
+                    <option value="lost">Lost</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Send After (hours)</label>
+                  <input type="number" id="fus-delay" min="1" value="24" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Message</label>
+                <textarea id="fus-message" rows="5" placeholder="What to send the lead when this triggers."></textarea>
+              </div>
+              <div id="fus-msg" class="msg"></div>
+              <button class="btn btn-primary" onclick="submitFollowUp()">Save Follow-up</button>
+              <button class="btn btn-secondary" onclick="resetFollowUpForm()">Cancel</button>
+            </div>
+          </div>
+
+          <div class="bm-panel" id="bm-panel-click-ads"></div>
+          <div class="bm-panel" id="bm-panel-quick-actions"></div>
+          <div class="bm-panel" id="bm-panel-outbound-actions"></div>
+          <div class="bm-panel" id="bm-panel-webhook-workflows"></div>
         </div>
-        <div class="form-group">
-          <label>Meta Template Name <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
-          <input type="text" id="tpl-meta-name" placeholder="e.g. reopen_conversation" />
+
+        <!-- ══════════ DATA COLLECTION ══════════ -->
+        <div class="bm-section" id="bm-section-data-collection">
+          <div class="subtabs">
+            <button class="subtab-btn active" onclick="bmSub('data-collection','user-input-flows',this)">User Input Flows</button>
+            <button class="subtab-btn"        onclick="bmSub('data-collection','whatsapp-flows',this)">WhatsApp Flows</button>
+            <button class="subtab-btn"        onclick="bmSub('data-collection','appointment-booking',this)">Appointment Booking</button>
+          </div>
+          <div class="bm-panel active" id="bm-panel-user-input-flows"></div>
+          <div class="bm-panel" id="bm-panel-whatsapp-flows"></div>
+          <div class="bm-panel" id="bm-panel-appointment-booking"></div>
         </div>
+
+        <!-- ══════════ AI ══════════ -->
+        <div class="bm-section" id="bm-section-ai">
+          <div class="subtabs">
+            <button class="subtab-btn active" onclick="bmSub('ai','ai-configuration',this)">AI Configuration</button>
+            <button class="subtab-btn"        onclick="bmSub('ai','ai-agents',this)">Agents</button>
+            <button class="subtab-btn"        onclick="bmSub('ai','ai-knowledge-base',this)">AI Knowledge Base</button>
+          </div>
+
+          <!-- AI Configuration -->
+          <div class="bm-panel active" id="bm-panel-ai-configuration">
+            <div class="card">
+              <h4 style="margin-bottom:4px">AI Configuration</h4>
+              <p style="color:#64748b;font-size:0.82rem;margin-bottom:14px">Enable agents and set the provider for the selected bot.</p>
+
+              <div class="bm-gate">
+                <div style="flex:1;min-width:220px">
+                  <div style="font-weight:600;font-size:0.88rem">AI Agent</div>
+                  <div style="color:#64748b;font-size:0.8rem">Turn on AI agents to start answering with your training data.</div>
+                </div>
+                <label class="toggle-switch" title="Saves your intent, does not go live on its own">
+                  <input type="checkbox" id="ai-agent-toggle" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="info-box" style="margin-top:14px">
+                <strong>This toggle records intent, it does not put the bot live.</strong> Whether a real customer ever gets an AI reply is decided by <code>AI_REPLIES_ENABLED</code> inside the deployed <code>whatsapp-webhook</code> function, which is a code constant, not a database value. Flipping it on means editing that function and deploying it, and per the standing rule that happens only on Muhammad's laptop with him present. The live status below is read from what this CRM knows, not guessed.
+              </div>
+
+              <div style="margin-top:14px">
+                <div style="font-size:0.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Live reply gates (deployed webhook)</div>
+                <table>
+                  <thead><tr><th>Gate</th><th>What it controls</th><th>State</th></tr></thead>
+                  <tbody id="bm-gate-tbody"></tbody>
+                </table>
+              </div>
+
+              <div class="form-actions" style="margin-top:14px">
+                <button class="btn btn-primary btn-inline" onclick="saveAiAgentToggle()">Save Settings</button>
+                <span class="success-msg" id="ai-agent-msg"></span>
+              </div>
+            </div>
+
+            <div class="card">
+              <h4 style="margin-bottom:10px">AI Provider</h4>
+              <p style="color:#64748b;font-size:0.82rem;margin-bottom:12px">The key the webhook will use for <code>tryAIReply()</code> once <code>AI_REPLIES_ENABLED</code> is flipped on. Saved to this CRM's own <code>settings</code> table only - never sent anywhere else from this screen.</p>
+              <label>OpenAI API Key</label>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input type="password" id="openai-api-key" placeholder="sk-… (leave blank until Muhammad provides it)" style="flex:1" />
+                <button type="button" class="btn btn-secondary btn-sm" id="openai-key-toggle" onclick="toggleOpenAiKeyVisibility()" style="white-space:nowrap">Show</button>
+              </div>
+              <label style="margin-top:12px">Model</label>
+              <select id="openai-model">
+                <option value="gpt-4o-mini">gpt-4o-mini (current default - what the webhook calls today)</option>
+                <option value="gpt-4.1">gpt-4.1</option>
+                <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+                <option value="gpt-4.1-nano">gpt-4.1-nano</option>
+                <option value="gpt-5">gpt-5</option>
+                <option value="gpt-5-mini">gpt-5-mini</option>
+                <option value="gpt-5-nano">gpt-5-nano</option>
+              </select>
+              <div class="form-actions" style="margin-top:12px">
+                <button class="btn btn-primary btn-inline" onclick="saveOpenAiSettings()">Save Key</button>
+                <span class="success-msg" id="openai-msg"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Agents -->
+          <div class="bm-panel" id="bm-panel-ai-agents">
+            <div class="info-box">
+              An agent is one named personality: its own system prompt, its own knowledge, its own on/off state. WhatChimp allows only one agent on the current AI setup, and this mirrors that. Agents save to the database, and like everything else in this section they do not answer a real customer until the webhook gate is flipped and deployed.
+            </div>
+
+            <div class="card">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+                <div>
+                  <h4 style="margin:0 0 4px">AI Agents</h4>
+                  <p style="color:#64748b;font-size:0.82rem;margin:0">Create agents with their own system prompt and knowledge. Enable and route them from AI Configuration.</p>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="resetAgentForm();document.getElementById('bm-agent-form').scrollIntoView({behavior:'smooth',block:'center'})">+ Create Agent</button>
+              </div>
+              <table>
+                <thead><tr>
+                  <th>Agent</th><th>Knowledge</th><th>Status</th><th></th>
+                </tr></thead>
+                <tbody id="bm-agents-tbody">
+                  <tr><td colspan="4" class="empty-state">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="card" id="bm-agent-form">
+              <h4 id="bm-agent-form-title" style="margin-bottom:14px">Create Agent</h4>
+              <input type="hidden" id="bm-agent-id" />
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Agent Name</label>
+                  <input type="text" id="bm-agent-name" placeholder="e.g. Team Badar Support Agent" />
+                </div>
+                <div class="form-group">
+                  <label>Knowledge Campaign</label>
+                  <select id="bm-agent-kb"></select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>System Prompt</label>
+                <textarea id="bm-agent-prompt" rows="6" placeholder="Who this agent is, its tone, language rules, what it must never promise, when to hand off to a human."></textarea>
+              </div>
+              <div id="bm-agent-msg" class="msg"></div>
+              <button class="btn btn-primary" onclick="submitAgent()">Save Agent</button>
+              <button class="btn btn-secondary" onclick="resetAgentForm()">Cancel</button>
+            </div>
+          </div>
+
+          <!-- AI Knowledge Base (was: Train AI) -->
+          <div class="bm-panel" id="bm-panel-ai-knowledge-base">
+            <div class="info-box">
+              This stores AI training material: a system prompt plus knowledge notes, per bot number. Saving here is real and persists to the database. The WhatsApp webhook can read the active campaign and call a real AI model with it, but this is gated off by <code>AI_REPLIES_ENABLED = false</code> - it needs the OpenAI API key in AI Configuration and a WhatChimp double-reply check before it can ever answer a real customer. Preview below shows exactly what the AI would be told.
+            </div>
+
+            <div class="card">
+              <h4 style="margin-bottom:10px">Preview what the bot would be told</h4>
+              <p style="color:#64748b;font-size:0.82rem;margin-bottom:12px">Assembles a campaign into the exact instructions an AI would receive. This builds the text only, it makes no AI call and sends nothing.</p>
+              <div class="form-row">
+                <div class="form-group" style="flex:2">
+                  <label>Campaign</label>
+                  <select id="akb-preview-select" onchange="runAiKbPreview()"></select>
+                </div>
+              </div>
+              <div id="akb-preview-result"></div>
+            </div>
+
+            <div class="card">
+              <table>
+                <thead><tr>
+                  <th>Campaign</th><th>Bot Number</th><th>Prompt</th><th>Active</th><th></th>
+                </tr></thead>
+                <tbody id="ai-kb-tbody">
+                  <tr><td colspan="5" class="empty-state">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="card">
+              <h4 id="ai-kb-form-title" style="margin-bottom:14px">Create Training Campaign</h4>
+              <input type="hidden" id="akb-id" />
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Campaign Name</label>
+                  <input type="text" id="akb-name" placeholder="e.g. Team Badar Support Bot Training" />
+                </div>
+                <div class="form-group">
+                  <label>Bot Number</label>
+                  <input type="text" id="akb-number" placeholder="e.g. +923715773903" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label>System Prompt</label>
+                <textarea id="akb-prompt" rows="7" placeholder="Who the assistant is, its tone, language rules, what it must never promise, when to hand off to a human."></textarea>
+              </div>
+              <div class="form-group">
+                <label>Knowledge Notes <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+                <textarea id="akb-notes" rows="5" placeholder="Facts the assistant should know: links, referral codes, deposit amounts, course details."></textarea>
+              </div>
+              <div id="akb-msg" class="msg"></div>
+              <button class="btn btn-primary" onclick="submitAiKb()">Save Campaign</button>
+              <button class="btn btn-secondary" onclick="resetAiKbForm()">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══════════ ENGAGEMENT ══════════ -->
+        <div class="bm-section" id="bm-section-engagement">
+          <div class="subtabs">
+            <button class="subtab-btn active" onclick="bmSub('engagement','chat-entry',this)">Chat Entry</button>
+          </div>
+          <div class="bm-panel active" id="bm-panel-chat-entry"></div>
+        </div>
+
+        <!-- ══════════ COMMERCE ══════════ -->
+        <div class="bm-section" id="bm-section-commerce">
+          <div class="subtabs">
+            <button class="subtab-btn active" onclick="bmSub('commerce','store-automation',this)">Store Automation</button>
+            <button class="subtab-btn"        onclick="bmSub('commerce','product-catalog',this)">Product Catalog</button>
+          </div>
+          <div class="bm-panel active" id="bm-panel-store-automation"></div>
+          <div class="bm-panel" id="bm-panel-product-catalog"></div>
+        </div>
+
+        <!-- ══════════ INTEGRATIONS ══════════ -->
+        <div class="bm-section" id="bm-section-integrations">
+          <div class="subtabs">
+            <button class="subtab-btn active" onclick="bmSub('integrations','http-api',this)">HTTP API</button>
+            <button class="subtab-btn"        onclick="bmSub('integrations','google-sheets',this)">Google Sheets</button>
+            <button class="subtab-btn"        onclick="bmSub('integrations','autoresponder',this)">Autoresponder</button>
+            <button class="subtab-btn"        onclick="bmSub('integrations','int-email',this)">Email</button>
+            <button class="subtab-btn"        onclick="bmSub('integrations','int-sms',this)">SMS</button>
+          </div>
+          <div class="bm-panel active" id="bm-panel-http-api"></div>
+          <div class="bm-panel" id="bm-panel-google-sheets"></div>
+          <div class="bm-panel" id="bm-panel-autoresponder"></div>
+          <div class="bm-panel" id="bm-panel-int-email"></div>
+          <div class="bm-panel" id="bm-panel-int-sms"></div>
+        </div>
+
+        <!-- ══════════ SETTINGS ══════════ -->
+        <div class="bm-section" id="bm-section-settings">
+          <div class="subtabs">
+            <button class="subtab-btn active" onclick="bmSub('settings','set-general',this)">General</button>
+            <button class="subtab-btn"        onclick="bmSub('settings','set-webhook',this)">Webhook</button>
+            <button class="subtab-btn"        onclick="bmSub('settings','set-business-hour',this)">Business Hour</button>
+            <button class="subtab-btn"        onclick="bmSub('settings','set-shared-inbox',this)">Shared Inbox</button>
+          </div>
+          <div class="bm-panel active" id="bm-panel-set-general"></div>
+          <div class="bm-panel" id="bm-panel-set-webhook"></div>
+          <div class="bm-panel" id="bm-panel-set-business-hour"></div>
+          <div class="bm-panel" id="bm-panel-set-shared-inbox"></div>
+        </div>
+
       </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Category</label>
-          <select id="tpl-category">
-            <option value="UTILITY">Utility</option>
-            <option value="MARKETING">Marketing</option>
-            <option value="AUTHENTICATION">Authentication</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Language</label>
-          <select id="tpl-language">
-            <option value="en">English</option>
-            <option value="ur">Roman Urdu</option>
-            <option value="en_US">English (US)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Meta Status</label>
-          <select id="tpl-status">
-            <option value="draft">Draft</option>
-            <option value="submitted">Submitted</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="paused">Paused</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Body</label>
-        <textarea id="tpl-body" rows="5" placeholder="The template text. Use {{1}}, {{2}} for variables, the same way Meta does."></textarea>
-      </div>
-      <div class="form-group">
-        <label>Notes <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
-        <textarea id="tpl-notes" rows="3" placeholder="Why it was rejected, what to change, when it was submitted."></textarea>
-      </div>
-      <div id="tpl-msg" class="msg"></div>
-      <button class="btn btn-primary" onclick="submitTemplate()">Save Template</button>
-      <button class="btn btn-secondary" onclick="resetTemplateForm()">Cancel</button>
     </div>
   </div>
 
@@ -3000,9 +3291,20 @@ function toggleSidebar(forceOpen) {
   overlays.forEach(o => o.classList.toggle('open', open));
 }
 
+// Create Flow, Train AI, Follow-ups and Message Templates are no longer
+// top-level tabs - they live inside Bot Manager now. Anything still asking for
+// them by their old name (dashboard quick-tiles, old bookmarks) lands on the
+// right section of Bot Manager instead of hitting a missing element.
+const BM_MOVED_TABS = {
+  'create-flow': 'automation', 'templates': 'automation', 'follow-ups': 'automation',
+  'train-ai': 'ai'
+};
+
 function adminTab(name, el) {
   // Close sidebar on mobile when navigating
   if (window.innerWidth <= 768) toggleSidebar(false);
+  const movedTo = BM_MOVED_TABS[name];
+  if (movedTo) { adminTab('bot-manager'); bmPrimary(movedTo); return; }
   document.querySelectorAll('#admin-dashboard .tab-content')
     .forEach(e => e.classList.remove('active'));
   document.querySelectorAll('#admin-tabs .nav-item')
@@ -3023,7 +3325,7 @@ function adminTab(name, el) {
     'comm-log': 'Communication Log',
     'signal-broadcast': 'Broadcast Signal', subscribers: 'Subscribers', 'ai-signals': 'AI Signals',
     guide: 'Guide', 'user-manager': 'User Manager', 'user-permission': 'User Permission',
-    'create-flow': 'Create Flow', 'train-ai': 'Bot Manager', 'follow-ups': 'Follow-ups', templates: 'Message Templates', appointments: 'Appointments'
+    'bot-manager': 'Bot Manager', appointments: 'Appointments'
   };
   const titleEl = document.getElementById('current-tab-title');
   if (titleEl) titleEl.textContent = titles[name] || name;
@@ -3036,10 +3338,7 @@ function adminTab(name, el) {
   if (name === 'meta')             loadMetaSettings();
   if (name === 'meta-ads')         initMetaAnalytics();
   if (name === 'automation')       { loadAutomationRules(); populateArAgentDropdown(); }
-  if (name === 'train-ai')         { loadAiKb(); loadOpenAiSettings(); }
-  if (name === 'create-flow')      loadKeywordReplies();
-  if (name === 'follow-ups')       loadFollowUps();
-  if (name === 'templates')        loadTemplates();
+  if (name === 'bot-manager')      initBotManager();
   if (name === 'appointments')     loadAppointments();
   if (name === 'reports')          loadReports();
   if (name === 'comm-log')         loadCommLog();
@@ -3047,6 +3346,340 @@ function adminTab(name, el) {
   if (name === 'signal-broadcast') initBroadcastTab();
   if (name === 'subscribers')      loadSubscribers();
   if (name === 'ai-signals')       initAISignalsTab();
+}
+
+// ── BOT MANAGER ────────────────────────────────────────────────
+// Mirrors WhatChimp's own Bot Manager hierarchy: a bot list on the left,
+// then Automation / Data Collection / AI / Engagement / Commerce /
+// Integrations / Settings, each with its own sub-tabs. Panels backed by a
+// real feature in this CRM hold the real thing; the rest render an honest
+// "not built yet" reference card rather than an empty screen.
+let bmSelectedBot = null;
+let bmChannelFilter = 'all';
+let cachedAgents = [];
+
+const _DEMO_AGENTS = [
+  { id:'ag1', agent_name:'Team Badar Support Agent', kb_id:'akb1', system_prompt:'You are the Team Badar assistant. Keep replies short and never promise returns.', is_active:false },
+];
+
+// What WhatChimp does in each slot we have not built here yet, and what it
+// would actually take. Keeping this as data rather than markup so the copy
+// stays in one place and every placeholder reads the same way.
+const BM_PLACEHOLDERS = {
+  'click-ads':           ['Click Ads', 'Routes someone who taps a Click-to-WhatsApp ad into a specific bot reply, so ad traffic gets a different opening message than an organic message.', 'Needs the ad id to arrive on the inbound webhook payload and a rules table mapping ad id to reply. The Meta Ads tab already pulls campaign data, so the ad ids are reachable.'],
+  'quick-actions':       ['Quick Actions', 'Buttons an agent can press mid-conversation to fire a canned action, for example tagging a lead or sending a set reply.', 'Needs an actions table plus buttons in the Omnichannel Inbox composer. The Inbox is live customer traffic, so this one gets built carefully and tested in demo first.'],
+  'outbound-actions':    ['Outbound Actions', 'Fires an outbound call to another system when something happens in a conversation.', 'Overlaps with Automation rules that already exist in this CRM. Worth deciding whether this becomes part of the Automation tab rather than a second system doing the same job.'],
+  'webhook-workflows':   ['Webhook Workflows', 'Chains a webhook trigger into a sequence of steps.', 'This CRM already receives webhooks in the whatsapp-webhook function. A workflow builder on top of it is a much larger phase, same category as a visual flow builder.'],
+  'user-input-flows':    ['User Input Flows', 'A scripted question-and-answer sequence that collects fields from a customer, one question at a time.', 'The deployed webhook already walks leads through a scripted capture flow in code. Making that editable from this screen means moving the script into a table first, which changes live bot behaviour and needs Muhammad present.'],
+  'whatsapp-flows':      ['WhatsApp Flows', 'Meta\'s own native form product, rendered inside WhatsApp rather than as chat messages.', 'Needs Flows to be created and approved in WhatsApp Manager first, then referenced by id. Nothing can be built here until that approval exists.'],
+  'appointment-booking': ['Appointment Booking', 'Lets the bot book a slot directly into the calendar during a conversation.', 'This CRM already has a real Appointments tab with its own table. This slot would connect the bot to it. The Appointments tab in the sidebar is the working version today.'],
+  'chat-entry':          ['Chat Entry', 'Generates a chat widget link and embed code so a website visitor can start a WhatsApp conversation.', 'Needs a public embed snippet and a landing route. The Sites tab already hosts this CRM\'s public pages, so that is where it would live.'],
+  'store-automation':    ['Store Automation', 'WooCommerce and Shopify order automations: abandoned cart, order confirmation, shipping updates.', 'Badar\'s business is trading education, not e-commerce. Listed for completeness against WhatChimp, not currently a real need.'],
+  'product-catalog':     ['Product Catalog', 'A product catalog and catalog orders inside WhatsApp.', 'Same as Store Automation: no e-commerce catalog in this business today.'],
+  'http-api':            ['HTTP API', 'Outbound HTTP calls that flows and automations can trigger.', 'Needs an APIs table plus a caller in the webhook. Straightforward to build once there is a real use for it.'],
+  'google-sheets':       ['Google Sheets', 'Pushes captured lead data into a spreadsheet, or reads live data from one at reply time.', 'Needs a Google service account. Worth weighing against the fact that this CRM is itself the database Sheets would be duplicating.'],
+  'autoresponder':       ['Autoresponder', 'Sends an automatic acknowledgement outside business hours or when no agent picks up.', 'Depends on Business Hour settings below, which are also not built. Both are real gaps worth closing together.'],
+  'int-email':           ['Email', 'Email delivery for notifications and sequences.', 'Needs an email provider such as Resend or SES and a sender domain. Nothing in this CRM sends email today.'],
+  'int-sms':             ['SMS', 'SMS fallback when WhatsApp delivery fails.', 'Needs an SMS provider and per-message billing. Not currently budgeted.'],
+  'set-general':         ['General', 'Chat-with-human email, no-match reply, get-started message, and whether the bot replies while an agent is on the mobile app.', 'The no-match and get-started behaviour lives in the deployed webhook as code today. Making it editable here means moving that copy into the settings table, which changes what real customers receive.'],
+  'set-webhook':         ['Webhook', 'The inbound webhook URL and verify token for this number.', 'This CRM already has these, in the Meta Integration tab, which is the working version. This slot exists to mirror WhatChimp\'s layout.'],
+  'set-business-hour':   ['Business Hour', 'Opening hours per day, used to decide when the autoresponder speaks instead of an agent.', 'Needs an hours table plus a timezone. Pairs with Autoresponder above.'],
+  'set-shared-inbox':    ['Shared Inbox', 'Which agents can see which conversations.', 'This CRM already enforces this through RLS and the agent role. User Permission and User Manager are the working versions today.'],
+};
+
+function renderBmPlaceholders() {
+  Object.entries(BM_PLACEHOLDERS).forEach(([id, [title, what, needs]]) => {
+    const el = document.getElementById('bm-panel-' + id);
+    if (!el || el.dataset.filled) return;
+    el.dataset.filled = '1';
+    el.innerHTML = `
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+          <h4 style="margin:0">${esc(title)}</h4>
+          <span class="bm-status-pill off">Not built yet</span>
+        </div>
+        <p style="color:#64748b;font-size:0.85rem;margin-bottom:14px">${esc(what)}</p>
+        <div style="font-size:0.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">What it would take</div>
+        <p style="color:#64748b;font-size:0.85rem;margin:0">${esc(needs)}</p>
+      </div>`;
+  });
+}
+
+function bmPrimary(name) {
+  document.querySelectorAll('#admin-tab-bot-manager .bm-section')
+    .forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('#bm-primary-tabs .bm-ptab')
+    .forEach(el => el.classList.remove('active'));
+  const sec = document.getElementById('bm-section-' + name);
+  if (sec) sec.classList.add('active');
+  const btn = document.querySelector(`#bm-primary-tabs .bm-ptab[data-bm="${name}"]`);
+  if (btn) btn.classList.add('active');
+  if (name === 'ai') { loadAiKb(); loadOpenAiSettings(); loadAiAgentToggle(); loadAgents(); renderGateTable(); }
+  if (name === 'automation') { loadKeywordReplies(); loadTemplates(); loadFollowUps(); }
+}
+
+function bmSub(section, panel, btn) {
+  const sec = document.getElementById('bm-section-' + section);
+  if (!sec) return;
+  sec.querySelectorAll(':scope > .bm-panel').forEach(el => el.classList.remove('active'));
+  sec.querySelectorAll(':scope > .subtabs .subtab-btn').forEach(el => el.classList.remove('active'));
+  const p = document.getElementById('bm-panel-' + panel);
+  if (p) p.classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+function bmChannel(ch, btn) {
+  bmChannelFilter = ch;
+  document.querySelectorAll('#admin-tab-bot-manager .bm-chip').forEach(el => el.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderBotList();
+}
+
+// The bot list is derived from the training campaigns' own bot numbers, so it
+// reflects real data rather than a second hand-maintained list of numbers.
+function bmBots() {
+  const seen = new Map();
+  (cachedAiKb || []).forEach(k => {
+    const num = (k.bot_number || '').trim();
+    if (!num) return;
+    if (!seen.has(num)) seen.set(num, { number: num, campaigns: 0 });
+    seen.get(num).campaigns++;
+  });
+  return [...seen.values()];
+}
+
+function renderBotList() {
+  const list = document.getElementById('bm-bot-list');
+  if (!list) return;
+  const all = bmBots();
+  const q = (document.getElementById('bm-bot-search')?.value || '').trim().toLowerCase();
+  const shown = all.filter(b => !q || b.number.toLowerCase().includes(q));
+
+  const cAll = document.getElementById('bm-count-all');
+  const cWa  = document.getElementById('bm-count-whatsapp');
+  if (cAll) cAll.textContent = all.length;
+  if (cWa)  cWa.textContent  = all.length;
+
+  // Every number this CRM knows about is a WhatsApp number today, so the
+  // Facebook and Instagram chips correctly show nothing.
+  const visible = (bmChannelFilter === 'all' || bmChannelFilter === 'whatsapp') ? shown : [];
+
+  if (!visible.length) {
+    list.innerHTML = `<div class="empty-state" style="padding:14px;font-size:0.82rem">${
+      all.length ? 'No bot matches this filter.'
+                 : 'No bot numbers yet. A number appears here once a training campaign in AI Knowledge Base is saved against it.'
+    }</div>`;
+    return;
+  }
+  if (!bmSelectedBot || !visible.some(b => b.number === bmSelectedBot)) {
+    bmSelectedBot = visible[0].number;
+  }
+  list.innerHTML = visible.map(b => `
+    <button class="bm-bot-item ${b.number === bmSelectedBot ? 'active' : ''}" onclick="selectBot('${esc(b.number)}')">
+      <span class="bm-bot-avatar">💬</span>
+      <span>
+        <span class="bm-bot-name">${esc(b.number)}</span><br>
+        <span class="bm-bot-num">${b.campaigns} training campaign${b.campaigns === 1 ? '' : 's'}</span>
+      </span>
+    </button>`).join('');
+  paintSelectedBot();
+}
+
+function selectBot(number) {
+  bmSelectedBot = number;
+  renderBotList();
+}
+
+function paintSelectedBot() {
+  const name = document.getElementById('bm-sel-name');
+  const num  = document.getElementById('bm-sel-num');
+  const pill = document.getElementById('bm-sel-status');
+  if (!name) return;
+  const active = (cachedAiKb || []).some(k => (k.bot_number || '').trim() === bmSelectedBot && k.is_active);
+  name.textContent = bmSelectedBot || 'No bot selected';
+  num.textContent  = active ? 'Has an active training campaign' : 'No active training campaign';
+  pill.textContent = active ? 'Active' : 'Inactive';
+  pill.className   = 'bm-status-pill' + (active ? '' : ' off');
+}
+
+// Reads as the truth about the deployed function, not a guess. These are code
+// constants in whatsapp-webhook/index.ts, not database values, which is
+// exactly why they are shown read-only here.
+function renderGateTable() {
+  const tbody = document.getElementById('bm-gate-tbody');
+  if (!tbody) return;
+  const gates = [
+    ['AI_REPLIES_ENABLED',      'Whether the AI can answer a customer at all', false],
+    ['KEYWORD_REPLIES_ENABLED', 'Whether keyword rules can answer a customer', false],
+    ['BOT_REPLIES_ENABLED',     'Whether the scripted bot can answer a customer', false],
+  ];
+  tbody.innerHTML = gates.map(([g, what, on]) => `
+    <tr>
+      <td style="white-space:nowrap"><code>${g}</code></td>
+      <td><span style="color:#64748b;font-size:0.82rem">${what}</span></td>
+      <td><span class="bm-status-pill ${on ? '' : 'off'}">${on ? 'ON' : 'OFF'}</span></td>
+    </tr>`).join('');
+}
+
+async function loadAiAgentToggle() {
+  const el = document.getElementById('ai-agent-toggle');
+  if (!el) return;
+  if (demoMode) { el.checked = false; return; }
+  const { data } = await sb.from('settings').select('value').eq('key', 'ai_agent_enabled').maybeSingle();
+  el.checked = (data?.value || '') === 'true';
+}
+
+async function saveAiAgentToggle() {
+  const el  = document.getElementById('ai-agent-toggle');
+  const msg = document.getElementById('ai-agent-msg');
+  if (!el) return;
+  if (demoMode) {
+    msg.textContent = 'Saved. (demo - not written to a real database)';
+    setTimeout(() => msg.textContent = '', 4000);
+    return;
+  }
+  const { error } = await sb.from('settings').upsert({
+    key: 'ai_agent_enabled', value: el.checked ? 'true' : 'false',
+    updated_by: currentUser.id, updated_at: new Date().toISOString()
+  }, { onConflict: 'key' });
+  msg.textContent = error
+    ? 'Could not save: ' + error.message
+    : 'Saved. The deployed webhook gate is still what decides if a customer sees a reply.';
+  setTimeout(() => msg.textContent = '', 6000);
+}
+
+// ── AI Agents ──
+async function loadAgents() {
+  if (demoMode) { cachedAgents = _DEMO_AGENTS.slice(); renderAgentsList(); refreshAgentKbOptions(); return; }
+  const { data, error } = await sb.from('ai_agents').select('*').order('created_at', { ascending: false });
+  if (error) {
+    // Same silent-fallthrough shape used elsewhere: if the migration has not
+    // been applied yet, say so plainly instead of surfacing a raw Postgres error.
+    const tbody = document.getElementById('bm-agents-tbody');
+    if (tbody) {
+      const missing = /does not exist|schema cache/i.test(error.message || '');
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-state">${
+        missing
+          ? 'The ai_agents table does not exist yet. Apply supabase/migrations/20260806000000_ai_agents.sql, then reload.'
+          : 'Could not load agents: ' + esc(error.message)
+      }</td></tr>`;
+    }
+    return;
+  }
+  cachedAgents = data || [];
+  renderAgentsList();
+  refreshAgentKbOptions();
+}
+
+function renderAgentsList() {
+  const tbody = document.getElementById('bm-agents-tbody');
+  if (!tbody) return;
+  if (!cachedAgents.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No AI agents yet. Create an agent, then enable it in AI Configuration.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = cachedAgents.map(a => {
+    const kb = (cachedAiKb || []).find(k => k.id === a.kb_id);
+    return `
+    <tr>
+      <td style="white-space:nowrap"><strong style="color:#0f172a">${esc(a.agent_name)}</strong></td>
+      <td style="white-space:nowrap"><span style="color:#64748b;font-size:0.82rem">${esc(kb ? kb.campaign_name : 'None')}</span></td>
+      <td>
+        <label class="toggle-switch" title="${a.is_active ? 'Click to pause' : 'Click to activate'}">
+          <input type="checkbox" ${a.is_active ? 'checked' : ''} onchange="toggleAgentActive('${a.id}',${a.is_active})" />
+          <span class="toggle-slider"></span>
+        </label>
+      </td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-secondary btn-sm" onclick="editAgentLoad('${a.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteAgent('${a.id}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function refreshAgentKbOptions() {
+  const sel = document.getElementById('bm-agent-kb');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">None</option>' +
+    (cachedAiKb || []).map(k => `<option value="${k.id}">${esc(k.campaign_name)}</option>`).join('');
+  if (cur) sel.value = cur;
+}
+
+function resetAgentForm() {
+  ['bm-agent-id','bm-agent-name','bm-agent-prompt'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const kb = document.getElementById('bm-agent-kb');
+  if (kb) kb.value = '';
+  const t = document.getElementById('bm-agent-form-title');
+  if (t) t.textContent = 'Create Agent';
+  const m = document.getElementById('bm-agent-msg');
+  if (m) m.textContent = '';
+}
+
+function editAgentLoad(id) {
+  const a = cachedAgents.find(x => x.id === id);
+  if (!a) return;
+  document.getElementById('bm-agent-id').value     = a.id;
+  document.getElementById('bm-agent-name').value   = a.agent_name || '';
+  document.getElementById('bm-agent-kb').value     = a.kb_id || '';
+  document.getElementById('bm-agent-prompt').value = a.system_prompt || '';
+  document.getElementById('bm-agent-form-title').textContent = 'Edit Agent';
+  document.getElementById('bm-agent-form').scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+async function submitAgent() {
+  const msg    = document.getElementById('bm-agent-msg');
+  const id     = document.getElementById('bm-agent-id').value;
+  const name   = document.getElementById('bm-agent-name').value.trim();
+  const kbId   = document.getElementById('bm-agent-kb').value || null;
+  const prompt = document.getElementById('bm-agent-prompt').value.trim();
+  if (!name)   { msg.textContent = 'Agent name is required.'; return; }
+  if (!prompt) { msg.textContent = 'System prompt is required.'; return; }
+  // WhatChimp allows one agent on the current AI setup; mirror that rather
+  // than letting a second one be created and quietly never used.
+  if (!id && cachedAgents.length >= 1) {
+    msg.textContent = 'Only one AI agent can be created with the current AI setup. Edit the existing agent instead.';
+    return;
+  }
+  if (demoMode) {
+    msg.textContent = 'Agent saved. (demo - not written to a real database)';
+    setTimeout(() => msg.textContent = '', 4000);
+    return;
+  }
+  const payload = { agent_name: name, kb_id: kbId, system_prompt: prompt };
+  const { error } = id
+    ? await sb.from('ai_agents').update(payload).eq('id', id)
+    : await sb.from('ai_agents').insert({ ...payload, created_by: currentUser.id });
+  if (error) { msg.textContent = 'Could not save: ' + error.message; return; }
+  msg.textContent = 'Saved.';
+  resetAgentForm();
+  loadAgents();
+}
+
+async function toggleAgentActive(id, current) {
+  if (demoMode) { loadAgents(); return; }
+  const { error } = await sb.from('ai_agents').update({ is_active: !current }).eq('id', id);
+  if (error) { alert('Could not update: ' + error.message); return; }
+  loadAgents();
+}
+
+async function deleteAgent(id) {
+  if (!confirm('Delete this agent?')) return;
+  if (demoMode) { alert('Delete works in live mode only.'); return; }
+  const { error } = await sb.from('ai_agents').delete().eq('id', id);
+  if (error) { alert('Could not delete: ' + error.message); return; }
+  loadAgents();
+}
+
+async function initBotManager(section) {
+  renderBmPlaceholders();
+  await loadAiKb();
+  renderBotList();
+  bmPrimary(section || 'automation');
 }
 
 async function loadProfiles() {
