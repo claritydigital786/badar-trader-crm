@@ -48,6 +48,21 @@ What we are building, in the roadmap's own build order (each type adds one capab
 
 ---
 
+## 2026-08-06 (later) - Conversations blank-line bubble fix + send-wa-message speed fixes
+
+**DONE, verified, committed and pushed (`62b8407`, merged into `main` at `3d787d2`).**
+
+- **Message bubbles no longer render as tall, mostly-empty boxes for messages with leading blank lines.** Muhammad flagged a live-production screenshot ("Goodness, just look at the boxes and the alignment"): a real customer message like `"\n\n\n\n\nok"` rendered as a tall bubble with the text pinned to the bottom. Confirmed via demo-mode reproduction this was NOT a CSS bug - `.msg-bubble`'s `white-space:pre-wrap` was correctly preserving whitespace the customer actually sent. Added a display-only helper `displayMsgText(text)` (right after `truncate()` in `index.html`) that collapses runs of 2+ newlines to one and strips leading/trailing blank lines, applied at all 4 places a message body renders inside `.msg-bubble`: the demo-mode static render, the live-mode render, `sendConvMessage`'s optimistic append, and `startConvRealtime`'s realtime INSERT handler. Verified display-only: `data-fwd`/`data-wamid`/`data-preview` attributes (forward, reply-to) still carry the raw original text untouched - checked directly via DOM inspection after the fix.
+- **`send-wa-message` edge function: two independent writes (`communications` insert, `leads` update) now run via `Promise.all` instead of sequentially.** Found while investigating Hanzala's repeated real complaint that sending a message takes 7-8 seconds. Removes one avoidable round-trip per send. Also fixed a pre-existing, unrelated `deno check` failure (`Uint8Array` → `Uint8Array<ArrayBuffer>` typing on `base64ToBytes`/`uploadMediaToMeta`/`storeOutboundCopy`). Deployed via `supabase functions deploy send-wa-message`, verified byte-identical against local source via `supabase functions download` + `diff`. **Honest caveat: this does not fully explain a 7-8 second delay.** The likely dominant causes - the external WhatsApp Graph API call itself, and Supabase Edge Function cold starts - are outside what a code-level fix here can address. Told to Muhammad as an open item, not a closed one.
+
+**Still open from the same conversation, not yet done:**
+- Hostinger backup automation (Muhammad's 2026-07-21 request, resurfaced today): deploy a static copy of `index.html` to Badar's own Hostinger hosting on a temporary/free domain (explicitly NOT `crm.badartrader.com` - the live domain was pre-filled by Hostinger's flow and was caught and redirected before any action), then build a script that backs up Supabase data 4x/day. `backup-automation/` dir created, empty. Hostinger website setup itself was still in progress when this thread was paused for the rendering-bug fix above.
+- WhatChimp: new agent "Faisal Shah" (President) added but sees an empty Omnichannel Inbox conversation list - unresolved. Per standing rule, guided via screenshots only; did not and will not operate WhatChimp directly, including when asked directly ("Can you do that for me?" - declined). Last recommendation given: draft and send a consolidated support message to WhatChimp; no confirmation yet whether Muhammad sent it or got a reply.
+- Two more laptops (Ayesha's, one for "Izza") being onboarded into the git/Claude rotation. Ayesha's `git clone` succeeded. Izza's laptop stuck on Xcode Command Line Tools install (git-scm.com install prompt appeared; `xcode-select --install` run but same error persisted); `softwareupdate --list` suggested as next diagnostic step, not confirmed resolved.
+- Business question relayed from Ehsan/Badar (not a coding task): running two simultaneous Meta Ads campaigns on one ad account, one tied to WhatsApp number 3903 and one to 6541, to expand into India/UAE. Answered informationally only (Meta Ads Manager supports multiple simultaneous campaigns per ad account with per-campaign destination number and geo-targeting; WhatsApp messaging tiers/quality ratings are tracked per phone number, not per account) - no action taken, this is Badar's own Meta account.
+
+---
+
 ## 2026-08-06 - CRM track session (blueprint + day-dividers), separate from the "continue 2" work above
 
 Done and pushed to `main` this session (Muhammad's laptop):
