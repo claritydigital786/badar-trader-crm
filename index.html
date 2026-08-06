@@ -4358,10 +4358,15 @@ function copySelectedQuickLink(scope) {
   const btn = document.getElementById(scope + 'quick-links-copy-btn');
   const link = QUICK_LINKS[Number(sel?.value)];
   if (!link || !btn) return;
+  const original = btn.textContent;
   navigator.clipboard.writeText(link.value).then(() => {
-    const original = btn.textContent;
     btn.textContent = '✓ Copied';
     setTimeout(() => { btn.textContent = original; }, 1200);
+  }).catch(() => {
+    // A denied clipboard permission left this button silently doing nothing
+    // forever - no error, no fallback, indistinguishable from broken.
+    btn.textContent = 'Copy failed - select manually';
+    setTimeout(() => { btn.textContent = original; }, 2000);
   });
 }
 
