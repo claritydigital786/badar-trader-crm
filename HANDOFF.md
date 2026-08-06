@@ -103,7 +103,25 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
-**CLAIMED (2026-08-06, Junaid on the AYESHA laptop) - customer-facing Forward: re-send a message's content into another conversation.** Touching the Conversations bubble actions, a target picker, CSS and JS in `index.html`. **Muhammad: I am in the Conversations section until this claim is removed.** Frontend only, reusing the existing `send-wa-message` path - no backend change, no migration, no deploy. Building the feature only; no real message is sent from this session.
+**DONE (2026-08-06, Junaid on the AYESHA laptop) - customer-facing Forward, and a live bug it exposed. Claim released.**
+
+**The bug matters more than the feature: the quote-reply button has been broken in production, for every message, since it shipped.** Building Forward I hit a syntax error, traced it, and found the existing reply button had the identical defect. Both used `${JSON.stringify(text)}` inside a double-quoted `onclick="..."`. `JSON.stringify` wraps its output in double quotes, which closes the HTML attribute early - the browser parsed `onclick="setReplyTarget('wamid.ABC==', ` and stopped, leaving invalid JavaScript that throws on click and does nothing. Verified by generating the exact live-path markup and reading back the parsed attribute, not by reasoning about it.
+
+**Why nobody caught it:** the reply button only renders when a message has a `wa_message_id`, and demo messages have none - so the button exists *only* in live mode, and every verification pass on this feature has been in demo mode. A genuine blind spot in how this project tests, not carelessness by whoever wrote it.
+
+All three sites now pass values through `data-` attributes escaped with `esc()` (which encodes `"` as `&quot;`) and read them via `this.dataset.*`, so no user text ever lands inside the handler source. Checked with hostile input - `He said "yes" & <script>alert(1)</script>` - which round-trips exactly and injects no element.
+
+**A structural scan is now part of the check, and it earned its place immediately:** after fixing the two buttons I grepped for `JSON.stringify` inside any inline handler and found a **third** instance - my own forward-target picker. My tests had missed it because I called `confirmForward()` directly rather than clicking the target. Fixed, then re-tested with a real click on a target whose name contains a double quote. The file now has zero such patterns, and a runtime scan compiling every `onclick`/`oninput`/`onchange`/`onkeydown` in the rendered app reports zero broken handlers.
+
+**The feature itself.** A `↪` button on every bubble opens a picker listing other conversations with name/phone search; choosing one raises a confirm dialog naming the recipient and quoting the text, and only then sends. Two steps on purpose: this reaches a real customer and a misdirected forward cannot be unsent. The current conversation is excluded from the list, since forwarding a message back into its own chat is almost always a misclick. Targets come from the conversation list already loaded, so there is no extra query.
+
+**Worth telling Muhammad plainly:** the Cloud API has no forward operation and no "Forwarded" label a business can set, so this is a fresh outbound message containing the same text. The recipient sees an ordinary message from the business, not a marked forward. His own to-do note already anticipated this.
+
+**Known limitation, deliberately not faked:** the picker does not show whether each target's 24-hour window is open. The conversation list only carries the most recent message per lead, so for any conversation whose last message was outbound the last *inbound* time is unknown - a per-target indicator would be right sometimes and wrong sometimes, which is worse than absent. Forwarding into a closed window fails at the API and the real WhatsApp error is surfaced in the toast.
+
+**Verified in demo mode:** picker opens from a real bubble click; search filters by name and by phone; the no-match message; current conversation excluded; **cancel sends nothing and leaves the picker open**; confirm names the recipient and warns it is a real message; the message lands in the target with the right text and direction; overlay closes and state clears; Escape closes; backdrop click closes but a click inside the panel does not; empty text is refused; opening twice never stacks two overlays; both themes. Zero console errors, brace/paren/tag balance clean, zero em dashes.
+
+**UNVERIFIED:** no forward has been sent for real. The live path reuses `sendWaViaFunction`, which is the same path agent replies already use, but attachments aside it has not been exercised end to end from here.
 
 **DONE (2026-08-06, Junaid on the AYESHA laptop) - search within a conversation. Claim released.** Was meant to be two parity gaps; the other one turned out to be already built, see the collision note below.
 

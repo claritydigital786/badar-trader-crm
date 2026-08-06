@@ -868,6 +868,39 @@
     .msg-tick.failed    { color:#f15c6d; letter-spacing:0; font-weight:700; }
     /* Day divider between messages from different calendar days, like WhatsApp's
        centred "Today / Yesterday / date" pill. */
+    /* Forward. Sits beside the reply button on the bubble's outer corner. */
+    .msg-fwd-btn { position:absolute; top:-10px; width:22px; height:22px; border-radius:50%;
+      border:1px solid #cbd5e1; background:#fff; color:#475569; font-size:0.7rem;
+      cursor:pointer; line-height:1; padding:0; }
+    .msg-fwd-btn:hover { background:#f1f5f9; }
+    [data-theme="dark"] .msg-fwd-btn { background:#202c33; border-color:#2a3942; color:#8696a0; }
+    [data-theme="dark"] .msg-fwd-btn:hover { background:#2a3942; }
+
+    /* Forward target picker. Fixed overlay so it sits above the whole app,
+       matching how .sidebar-overlay already works. */
+    .fwd-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:60; display:flex; align-items:center; justify-content:center; padding:16px; }
+    .fwd-panel { background:#fff; border-radius:12px; width:100%; max-width:420px; max-height:80vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 12px 40px rgba(0,0,0,.3); }
+    .fwd-head { padding:14px 16px; border-bottom:1px solid #e2e8f0; }
+    .fwd-head h4 { margin:0 0 6px; font-size:0.95rem; color:#0f172a; }
+    .fwd-preview { font-size:0.78rem; color:#64748b; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px; max-height:64px; overflow:auto; white-space:pre-wrap; word-break:break-word; }
+    .fwd-search { padding:10px 16px; border-bottom:1px solid #e2e8f0; }
+    .fwd-search input { width:100%; border:1px solid #cbd5e1; border-radius:8px; padding:8px 12px; font-size:0.85rem; outline:none; }
+    .fwd-list { overflow-y:auto; flex:1; min-height:80px; }
+    .fwd-item { display:flex; align-items:center; gap:10px; padding:10px 16px; cursor:pointer; border-bottom:1px solid #f1f5f9; }
+    .fwd-item:hover { background:#f8fafc; }
+    .fwd-item .nm { font-weight:600; font-size:0.85rem; color:#0f172a; }
+    .fwd-item .ph { font-size:0.74rem; color:#94a3b8; }
+    .fwd-foot { padding:10px 16px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:8px; }
+    .fwd-empty { padding:22px 16px; text-align:center; color:#94a3b8; font-size:0.82rem; }
+    [data-theme="dark"] .fwd-panel { background:#111b2e; }
+    [data-theme="dark"] .fwd-head, [data-theme="dark"] .fwd-search,
+    [data-theme="dark"] .fwd-foot { border-color:#243350; }
+    [data-theme="dark"] .fwd-head h4, [data-theme="dark"] .fwd-item .nm { color:#f1f5f9; }
+    [data-theme="dark"] .fwd-preview { background:#0f172a; border-color:#243350; color:#94a3b8; }
+    [data-theme="dark"] .fwd-search input { background:#0f172a; border-color:#243350; color:#f1f5f9; }
+    [data-theme="dark"] .fwd-item { border-bottom-color:#1b2740; }
+    [data-theme="dark"] .fwd-item:hover { background:#16223a; }
+
     /* In-conversation search. Matching bubbles are tinted and the rest are
        dimmed, rather than the text being rewritten with <mark> tags - the
        bubbles already contain a reply button, an attachment block, the time
@@ -7692,7 +7725,7 @@ async function openConversation(convId, scope = '') {
           lastDay = m.dayLabel || lastDay;
           return `${sep}
           <div class="msg-wrapper${m.from === 'agent' ? ' outgoing' : ''}">
-            <div class="msg-bubble ${m.from === 'agent' ? 'outgoing' : 'incoming'}">${esc(m.text)}<span class="msg-time">${m.time}${deliveryTickHtml(m.from === 'agent' ? 'outbound' : 'inbound', m.deliveryStatus)}</span></div>
+            <div class="msg-bubble ${m.from === 'agent' ? 'outgoing' : 'incoming'}" style="position:relative"><button type="button" class="msg-fwd-btn" title="Forward this message to another conversation" data-fwd="${esc(m.text || '')}" onclick="openForwardPicker(this.dataset.fwd)" style="${m.from === 'agent' ? 'left' : 'right'}:-10px">↪</button>${esc(m.text)}<span class="msg-time">${m.time}${deliveryTickHtml(m.from === 'agent' ? 'outbound' : 'inbound', m.deliveryStatus)}</span></div>
           </div>`; }).join(''); })()}
       </div>
       <div id="conv-attach-chip" style="display:none"></div>
@@ -7796,7 +7829,7 @@ async function openConversation(convId, scope = '') {
                 <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}" style="position:relative">
                   ${esc(m.body)}
                   ${m.attachment_path ? `<div class="msg-attachment" id="conv-att-${convId}-${i}" data-path="${esc(m.attachment_path)}" style="margin-top:8px;cursor:pointer;color:inherit">🖼 Loading image…</div>` : ''}
-                  ${m.wa_message_id ? `<button type="button" title="Reply to this message" onclick="setReplyTarget('${esc(m.wa_message_id)}', ${JSON.stringify(truncate(m.body || '', 60))})" style="position:absolute;top:-10px;${m.direction === 'outbound' ? 'left' : 'right'}:-10px;width:22px;height:22px;border-radius:50%;border:1px solid #cbd5e1;background:#fff;color:#475569;font-size:0.7rem;cursor:pointer;line-height:1">↩</button>` : ''}<span class="msg-time">${fmtConvTime(m.created_at)}${deliveryTickHtml(m.direction, m.delivery_status)}</span>
+                  ${m.wa_message_id ? `<button type="button" title="Reply to this message" data-wamid="${esc(m.wa_message_id)}" data-preview="${esc(truncate(m.body || '', 60))}" onclick="setReplyTarget(this.dataset.wamid, this.dataset.preview)" style="position:absolute;top:-10px;${m.direction === 'outbound' ? 'left' : 'right'}:-10px;width:22px;height:22px;border-radius:50%;border:1px solid #cbd5e1;background:#fff;color:#475569;font-size:0.7rem;cursor:pointer;line-height:1">↩</button>` : ''}<button type="button" class="msg-fwd-btn" title="Forward this message to another conversation" data-fwd="${esc(m.body || '')}" onclick="openForwardPicker(this.dataset.fwd)" style="${m.direction === 'outbound' ? 'left' : 'right'}:14px">↪</button><span class="msg-time">${fmtConvTime(m.created_at)}${deliveryTickHtml(m.direction, m.delivery_status)}</span>
                 </div>
               </div>`; }).join(''); })()
           : '<div style="text-align:center;color:#64748b;font-size:0.85rem;padding:32px">No messages yet.</div>'}
@@ -7946,6 +7979,144 @@ function autoGrowConvInput(el) {
   const panel = el.closest('.conv-chat-panel');
   const dynamicMax = panel ? Math.max(160, Math.floor(panel.clientHeight * 0.45)) : 320;
   el.style.height = Math.min(Math.max(el.scrollHeight, 64), Math.min(dynamicMax, 320)) + 'px';
+}
+
+// ── Forward a message to another conversation ─────────────────
+// Re-sends a message's text into a different lead's chat.
+//
+// Worth being clear about what this is NOT: the Cloud API has no forward
+// operation and no "Forwarded" label a business can set, so this is a fresh
+// outbound message containing the same text. The recipient sees an ordinary
+// message from the business, not a marked forward. Muhammad was told this.
+//
+// This reaches a real customer, so it is deliberately two steps: pick the
+// target, then confirm a dialog naming them. A misdirected forward cannot be
+// unsent.
+let _forwardText = null;
+
+function openForwardPicker(text) {
+  const body = String(text || '').trim();
+  if (!body) { showToast('That message has no text to forward.', 'err'); return; }
+  _forwardText = body;
+
+  closeForwardPicker(); // never stack two overlays
+
+  const overlay = document.createElement('div');
+  overlay.className = 'fwd-overlay';
+  overlay.id = 'fwd-overlay';
+  // Clicking the backdrop cancels; clicking inside the panel must not.
+  overlay.onclick = (e) => { if (e.target === overlay) closeForwardPicker(); };
+  overlay.innerHTML = `
+    <div class="fwd-panel" role="dialog" aria-label="Forward message">
+      <div class="fwd-head">
+        <h4>Forward to…</h4>
+        <div class="fwd-preview">${esc(truncate(body, 240))}</div>
+      </div>
+      <div class="fwd-search">
+        <input type="text" id="fwd-search-input" placeholder="Search name or phone…" oninput="renderForwardTargets(this.value)" />
+      </div>
+      <div class="fwd-list" id="fwd-list"></div>
+      <div class="fwd-foot">
+        <button class="btn btn-secondary btn-sm" onclick="closeForwardPicker()">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  renderForwardTargets('');
+  document.getElementById('fwd-search-input')?.focus();
+  document.addEventListener('keydown', forwardEscHandler);
+}
+
+function forwardEscHandler(e) {
+  if (e.key === 'Escape') closeForwardPicker();
+}
+
+function closeForwardPicker() {
+  document.getElementById('fwd-overlay')?.remove();
+  document.removeEventListener('keydown', forwardEscHandler);
+}
+
+// Targets come from whatever the conversation list already loaded, so this
+// makes no extra query.
+function forwardTargetList() {
+  if (demoMode) {
+    return _DEMO_CONVERSATIONS.map(c => ({ id: c.id, name: c.name, phone: c.phone }));
+  }
+  return (_lastConvs || []).map(c => ({
+    id: c.lead_id,
+    name: c.leads?.full_name || 'Unknown',
+    phone: c.leads?.phone || '',
+  }));
+}
+
+function renderForwardTargets(query) {
+  const listEl = document.getElementById('fwd-list');
+  if (!listEl) return;
+  const q = String(query || '').trim().toLowerCase();
+
+  const targets = forwardTargetList()
+    // Forwarding a message back into the conversation it came from is almost
+    // always a misclick, so the current chat is not offered.
+    .filter(t => t.id !== _activeConvId)
+    .filter(t => !q || t.name.toLowerCase().includes(q) || (t.phone || '').toLowerCase().includes(q));
+
+  if (!targets.length) {
+    listEl.innerHTML = `<div class="fwd-empty">${q ? 'No conversation matches that.' : 'No other conversations to forward to.'}</div>`;
+    return;
+  }
+
+  listEl.innerHTML = targets.map(t => `
+    <div class="fwd-item" data-id="${esc(t.id)}" data-name="${esc(t.name)}" onclick="confirmForward(this.dataset.id, this.dataset.name)">
+      <div class="conv-avatar" style="background:${avatarColor(t.id)};width:34px;height:34px;font-size:0.72rem">${esc(t.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase())}</div>
+      <div>
+        <div class="nm">${esc(t.name)}</div>
+        <div class="ph">${esc(t.phone || '')}</div>
+      </div>
+    </div>`).join('');
+}
+
+function confirmForward(targetId, targetName) {
+  if (!_forwardText) return;
+  // Names the recipient explicitly - the whole risk here is sending to the
+  // wrong person, and "are you sure?" alone would not catch that.
+  const ok = confirm(`Forward this message to ${targetName}?\n\n"${truncate(_forwardText, 200)}"\n\nThis sends a real WhatsApp message.`);
+  if (!ok) return;
+  closeForwardPicker();
+  doForwardMessage(targetId, targetName);
+}
+
+async function doForwardMessage(targetId, targetName) {
+  const text = _forwardText;
+  _forwardText = null;
+  if (!text) return;
+
+  if (demoMode) {
+    const conv = _DEMO_CONVERSATIONS.find(c => c.id === targetId);
+    if (conv) {
+      const timeStr = new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+      conv.messages.push({ from:'agent', text, time:timeStr, dayLabel:'Today' });
+      conv.lastMsg = text; conv.lastTime = timeStr;
+    }
+    showToast(`Forwarded to ${targetName}. (demo - nothing was sent)`);
+    renderConversations('');
+    return;
+  }
+
+  try {
+    const viaFunction = await sendWaViaFunction(targetId, text, null);
+    if (viaFunction === 'unavailable') {
+      const sent = await sendWaViaBrowser(targetId, text, null);
+      if (!sent) return; // legacy path already explained why
+    } else if (viaFunction.warning) {
+      showToast(viaFunction.warning, 'err');
+    }
+    showToast(`Forwarded to ${targetName} ✓`);
+    renderConversations('');
+  } catch (err) {
+    // Most likely cause is the target's 24-hour window being closed, which
+    // WhatsApp rejects outright. Surfacing the real API message is more
+    // useful than a generic failure.
+    showToast(err.message || 'Forward failed', 'err');
+  }
 }
 
 // ── Search within a conversation ──────────────────────────────
