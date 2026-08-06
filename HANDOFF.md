@@ -78,6 +78,8 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**CLAIMED (2026-08-06, Junaid on the AYESHA laptop) - delivery ticks frontend (B3/B4), the half the backend has been waiting on.** Touching the Conversations message rendering, CSS and realtime handler in `index.html`. **Muhammad: I am in the Conversations section until this claim is removed.**
+
 **DONE, NOT DEPLOYED (2026-08-06, Junaid on the AYESHA laptop) - agents can attach a file to a WhatsApp reply.** Second of the two big parity gaps. Claim released.
 
 A 📎 button and file picker in the Conversations input bar, a chip showing the picked file with name, size and a remove button, and `send-wa-message` extended to actually send it. JPG, PNG and PDF, 5MB cap. Caption optional, exactly like WhatsApp: an attachment with no caption is a valid message and gets a readable body (`[image sent]`, `[document sent: invoice.pdf]`) so the conversation and Comm Log never show a blank row.
