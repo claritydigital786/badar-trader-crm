@@ -49,6 +49,8 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**CLAIMED (2026-08-06, Junaid on the AYESHA laptop) - sending attachments from Conversations.** Touching the Conversations input bar and `sendConvMessage`/`sendWaViaFunction` in `index.html`, and `supabase/functions/send-wa-message/index.ts`. **Muhammad: I am in the Conversations section of `index.html` until this claim is removed.** Nothing deployed by this work - `send-wa-message` is the live agent send path, so the deploy stays on Muhammad's laptop with him present.
+
 **DONE, NOT DEPLOYED (2026-08-06, Junaid on the AYESHA laptop) - inbound non-image media is no longer silently dropped.** The bug the parity audit turned up, fixed in `whatsapp-webhook` only. `index.html` untouched.
 
 Before: anything that was not text, an image, or an interactive button/list reply hit `extractUserInput()` returning null, logged "Skipping unsupported message of type" and `continue`d. **No `communications` row was written**, so a voice note, PDF, video, sticker, location or contact card left no trace at all - the agent could not tell that a customer had sent anything.
