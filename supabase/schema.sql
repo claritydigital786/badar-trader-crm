@@ -13,6 +13,12 @@ CREATE TABLE IF NOT EXISTS public.profiles (
                            CHECK (role IN ('admin', 'agent')),
   is_active    BOOLEAN     NOT NULL DEFAULT true,
   is_suspended BOOLEAN     NOT NULL DEFAULT false,
+  -- Agent WhatsApp number, digits only, country code first (e.g. 923001234567).
+  -- Read by getAgentRotation() in the whatsapp-webhook function to tell staff
+  -- messages from customer messages, route escalation pings, and round-robin
+  -- lead assignment. An agent with no number here is skipped by all three.
+  -- Added by migration 20260806010000_profiles_phone.
+  phone        TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

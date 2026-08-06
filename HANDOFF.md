@@ -49,6 +49,14 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**DONE (2026-08-06, AYESHA laptop) - closed the schema drift left behind by the `profiles.phone` work below.** Went looking for the next actionable to-do, pulled first (standing rule), and found the `20260806010000_profiles_phone` migration that the entry below says was "applied" does not exist in `supabase/migrations/`, and `schema.sql` still defined `profiles` with no `phone` column at all. The live database has the column; the repo did not describe it.
+
+Why it matters rather than being cosmetic: both `getAgentRotation()` in the webhook (`select("id, full_name, phone")`) and the Set/Edit Number action in `index.html` (`update({ phone })`) depend on that column. Rebuild the database from `schema.sql` and the webhook's read fails, `getAgentRotation` logs and silently returns `AGENT_ROTATION_FALLBACK` - the exact hardcoded two-agent list that work existed to remove. Silent, and it looks like working software. This is the same drift that caused Phase 15 on 21 July, which is why `schema.sql` is supposed to stay a complete picture of the intended database.
+
+Written now: `supabase/migrations/20260806010000_profiles_phone.sql` (idempotent `ADD COLUMN IF NOT EXISTS`, plus the two seed numbers matched on the same ids as `AGENT_ROTATION_FALLBACK`, guarded so a re-run can never overwrite a number since corrected in the UI), and `profiles.phone` added to `schema.sql` section 1 with a comment on what reads it.
+
+**UNVERIFIED, and the reason matters:** this migration was reconstructed from what the entry below describes, **not** diffed against the live column - there are no database credentials and no Supabase CLI on this laptop. If the live column carries a length limit, default or constraint, the committed file is what needs correcting, not the database. Worth one check from a machine that can read the live schema.
+
 **DONE (2026-08-06) - agent phone numbers moved out of hardcoded webhook code into the database. Webhook now v70.** Muhammad reprioritised this ahead of D1/C2 after asking why WhatChimp wants agent phone numbers; answering that question surfaced this as a real gap.
 
 The problem: `AGENT_ROTATION` was a code constant holding only Ehsan Wazir and Muhammad Hanzala. The webhook uses those numbers for three things - recognising an inbound message as staff rather than a customer, sending escalation pings, and round-robin assignment. Any other agent messaging the business number would have been created as a **lead**, could never receive an escalation ping, and was skipped by round-robin. `profiles` had no phone column at all.
