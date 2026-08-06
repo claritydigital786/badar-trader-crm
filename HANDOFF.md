@@ -49,7 +49,19 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
-**CLAIMED (2026-08-06, Muhammad's laptop) - Conversations inbox: contact panel (catalog D1) and the 24-hour window timer (catalog C2).** Touching the Conversations markup, CSS and JS inside `index.html` only. **Junaid: do not edit the Conversations section of `index.html` until this claim is removed.** Anything outside Conversations is free. Deliberately not in this slice: delivery ticks (B3/B4), which need a `communications` schema change plus a webhook deploy, and are waiting on Muhammad picking a deploy window.
+**DONE (2026-08-06) - agent phone numbers moved out of hardcoded webhook code into the database. Webhook now v70.** Muhammad reprioritised this ahead of D1/C2 after asking why WhatChimp wants agent phone numbers; answering that question surfaced this as a real gap.
+
+The problem: `AGENT_ROTATION` was a code constant holding only Ehsan Wazir and Muhammad Hanzala. The webhook uses those numbers for three things - recognising an inbound message as staff rather than a customer, sending escalation pings, and round-robin assignment. Any other agent messaging the business number would have been created as a **lead**, could never receive an escalation ping, and was skipped by round-robin. `profiles` had no phone column at all.
+
+Changes: new `profiles.phone` column (migration `20260806010000_profiles_phone`, applied) seeded with the two numbers that were hardcoded, so behaviour carried over unchanged; `getAgentRotation()` in the webhook reads active, non-suspended agents who have a phone, ordered by `created_at` for a stable rotation index, cached per function instance; the old hardcoded list is kept **only** as a fallback, because if the database read ever fails, degrading to two working agents beats the alternative of treating staff as new leads. A WhatsApp column plus a Set/Edit Number action was added to My Team and User Manager, with `normaliseAgentPhone()` accepting `+92...`, `0300...`, `0092...` or bare forms and showing the normalised result for confirmation before saving.
+
+**One deliberate behaviour change worth knowing:** the old array order was [Ehsan, Hanzala]; the database order by `created_at` is [Hanzala, Ehsan]. With 120 leads the round-robin index is currently 1, so the next batch shifts from Hanzala to Ehsan. One-time, self-levelling, both agents active - flagged rather than hidden.
+
+Verified: `deno check` shows the same 7 pre-existing errors as before the change, so it added none; `normaliseAgentPhone` unit-checked against 10 input formats in the browser, which caught a real bug of my own (`0092...` was dropping the country code) that was fixed before deploy; the demo-mode save path confirmed to normalise correctly and never touch the database; both team tables render 7 headers and 7 cells in both themes with no horizontal overflow; zero console errors. After deploy: version 70 ACTIVE, `verify_jwt` still false, deployed source byte-identical to the repo, all three reply gates still false, and GET/GET-bad-token/POST all answered correctly (403/403/200) against version 70 in the edge logs.
+
+**UNVERIFIED:** no real agent message or real escalation has run through v70 yet - that needs live traffic. If an agent's message ever gets created as a lead, or an escalation ping goes to the wrong person, `getAgentRotation` is the first place to look.
+
+**Still to do:** Bilal and Faisal have no `profiles` row yet, and Syed Hamza's row exists but is suspended with no number. Until each has a row and a number set, they remain invisible to all three mechanisms.
 
 **DONE (2026-08-06) - `whatsapp-webhook` deployed to v69, closing the local-vs-deployed gap the 2026-08-05 entry flagged.** Run from Muhammad's laptop with Muhammad present, which is the condition the standing rule requires. This deploy flips no flags and enables no sends: `BOT_REPLIES_ENABLED`, `KEYWORD_REPLIES_ENABLED` and `AI_REPLIES_ENABLED` are all still false in the deployed code, verified by reading the source back down after the deploy, not by trusting the CLI's success message.
 

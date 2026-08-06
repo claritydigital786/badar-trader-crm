@@ -235,7 +235,7 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
 
         const sb = makeSupabase();
 
-        const agent = AGENT_ROTATION.find((a) => normalisePhone(a.phone) === senderPhone);
+        const agent = (await getAgentRotation(sb)).find((a) => normalisePhone(a.phone) === senderPhone);
 
         if (message.type === "image") {
           if (agent) {
@@ -318,17 +318,67 @@ function extractUserInput(message: any): UserInput | null {
   return null;
 }
 
-const AGENT_ROTATION = [
+type RotationAgent = { id: string; name: string; phone: string };
+
+// Agent numbers live in profiles.phone now, not here. This list is only what
+// the function used to hardcode, kept purely as a fallback: if the database
+// read fails, degrading to the old two-agent behaviour is far better than the
+// alternative failure mode, which is failing to recognise a staff member and
+// creating them as a new customer lead.
+const AGENT_ROTATION_FALLBACK: RotationAgent[] = [
   { id: "9bfb2f92-658b-4868-90b9-dd041515d111", name: "Ehsan Wazir", phone: "923342224925" },
   { id: "2bc20292-76bb-467b-a2a1-7bfa0cad4421", name: "Muhammad Hanzala", phone: "923235163874" },
 ];
 const ROTATION_BATCH_SIZE = 10;
 
-async function assignAgentRoundRobin(sb: SupabaseClient): Promise<typeof AGENT_ROTATION[number]> {
+// Cached for the life of this function instance, which is short, so a batch of
+// messages does not re-query per message while never going stale for long.
+let _rotationCache: RotationAgent[] | null = null;
+
+// Ordered by created_at so the round-robin index is stable across invocations.
+// Only agents who are active, not suspended, and actually have a number can be
+// in rotation - assigning a lead to someone unreachable is worse than skipping
+// them.
+async function getAgentRotation(sb: SupabaseClient): Promise<RotationAgent[]> {
+  if (_rotationCache) return _rotationCache;
+
+  const { data, error } = await sb
+    .from("profiles")
+    .select("id, full_name, phone")
+    .eq("role", "agent")
+    .eq("is_active", true)
+    .eq("is_suspended", false)
+    .not("phone", "is", null)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("getAgentRotation: database read failed, using fallback list -", error.message);
+    return AGENT_ROTATION_FALLBACK;
+  }
+
+  const rows: RotationAgent[] = (data ?? [])
+    .map((p: any) => ({
+      id: p.id,
+      name: (p.full_name || "").trim() || "Agent",
+      phone: String(p.phone || "").trim(),
+    }))
+    .filter((a) => a.phone.length > 0);
+
+  if (!rows.length) {
+    console.error("getAgentRotation: no active agent has a phone set, using fallback list");
+    return AGENT_ROTATION_FALLBACK;
+  }
+
+  _rotationCache = rows;
+  return rows;
+}
+
+async function assignAgentRoundRobin(sb: SupabaseClient): Promise<RotationAgent> {
+  const rotation = await getAgentRotation(sb);
   const { count } = await sb.from("leads").select("id", { count: "exact", head: true });
   const totalLeads = count ?? 1;
-  const agentIndex = Math.floor((totalLeads - 1) / ROTATION_BATCH_SIZE) % AGENT_ROTATION.length;
-  return AGENT_ROTATION[agentIndex];
+  const agentIndex = Math.floor((totalLeads - 1) / ROTATION_BATCH_SIZE) % rotation.length;
+  return rotation[agentIndex];
 }
 
 async function upsertLead(
@@ -490,7 +540,7 @@ async function handleImageMessage(
   await logOutbound(sb, lead.id, combineSendLog(ackResult));
 
   if (lead.assigned_agent_id) {
-    const assignedAgent = AGENT_ROTATION.find((a) => a.id === lead.assigned_agent_id);
+    const assignedAgent = (await getAgentRotation(sb)).find((a) => a.id === lead.assigned_agent_id);
     if (assignedAgent) {
       const pingResult = await sendText(assignedAgent.phone, "A deposit screenshot just came in from a lead in the CRM. Please review.");
       await insertCommunication(
@@ -1112,7 +1162,7 @@ async function escalate(
   // A lead escalating with nobody assigned would otherwise sit invisible -
   // exactly what happened to Izza (10+ days, no agent, no ping, nobody knew).
   let assignedAgentId: string | null = lead.assigned_agent_id ?? null;
-  let assignedAgent = AGENT_ROTATION.find((a) => a.id === assignedAgentId) ?? null;
+  let assignedAgent = (await getAgentRotation(sb)).find((a) => a.id === assignedAgentId) ?? null;
   if (!assignedAgentId) {
     assignedAgent = await assignAgentRoundRobin(sb);
     assignedAgentId = assignedAgent.id;
