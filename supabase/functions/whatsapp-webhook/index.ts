@@ -255,7 +255,19 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
 
         const input = extractUserInput(message);
         if (!input) {
-          console.log(`Skipping unsupported message of type: ${message.type}`);
+          // This used to log and continue, which meant a voice note, PDF,
+          // video, sticker, location or contact card produced NO row at all -
+          // the agent never saw that anything had arrived. Record a readable
+          // placeholder instead, so the conversation stays honest.
+          //
+          // The bot flow is deliberately not run for these: there is no text
+          // to interpret, and guessing would be worse than staying quiet.
+          // Nothing is sent to the customer here either.
+          if (agent) {
+            console.log(`Unsupported type "${message.type}" from agent ${agent.name} - ignoring (agents aren't processed as leads).`);
+            continue;
+          }
+          await recordUnsupportedMessage(sb, message, senderPhone, contactName, timestamp);
           continue;
         }
 
@@ -559,6 +571,80 @@ async function insertCommunication(
   if (error) {
     console.error("Error inserting communication:", error.message);
   }
+}
+
+// Turns an inbound message we cannot interpret into one short readable line an
+// agent can understand at a glance. Square brackets match the convention the
+// image handler and the delivery-failure notes already use, so these read as
+// system descriptions rather than as something the customer typed.
+function describeUnsupportedMessage(message: any): string {
+  const type = String(message?.type ?? "unknown");
+
+  // Captions are real content the customer wrote, so they are worth keeping.
+  // Capped so one pathological caption cannot dominate the inbox preview.
+  const rawCaption = String(message?.[type]?.caption ?? "").trim();
+  const caption = rawCaption.length > 500 ? rawCaption.slice(0, 500) + "…" : rawCaption;
+  const withCaption = (label: string) => (caption ? `${label} ${caption}` : label);
+
+  switch (type) {
+    case "audio":
+      return message.audio?.voice ? "[voice note]" : "[audio file]";
+    case "video":
+      return withCaption("[video]");
+    case "document": {
+      const name = String(message.document?.filename ?? "").trim();
+      return withCaption(name ? `[document: ${name}]` : "[document]");
+    }
+    case "sticker":
+      return "[sticker]";
+    case "location": {
+      const loc = message.location ?? {};
+      const place = String(loc.name ?? loc.address ?? "").trim();
+      if (place) return `[location: ${place}]`;
+      if (loc.latitude != null && loc.longitude != null) {
+        return `[location: ${loc.latitude}, ${loc.longitude}]`;
+      }
+      return "[location]";
+    }
+    case "contacts": {
+      const names = (message.contacts ?? [])
+        .map((c: any) => String(c?.name?.formatted_name ?? "").trim())
+        .filter(Boolean);
+      return names.length ? `[contact card: ${names.join(", ")}]` : "[contact card]";
+    }
+    case "button":
+      // Quick-reply button on a template. extractUserInput only understands
+      // the newer "interactive" reply shapes, not this older one.
+      return `[button reply: ${String(message.button?.text ?? "").trim() || "no label"}]`;
+    default:
+      return `[unsupported message type: ${type}]`;
+  }
+}
+
+// Records an inbound message the bot cannot act on, so the agent at least sees
+// that something arrived. Media is NOT downloaded or stored - that is a larger
+// follow-on needing per-type storage handling; this only makes the arrival
+// visible. Nothing is sent to the customer from here.
+async function recordUnsupportedMessage(
+  sb: SupabaseClient,
+  message: any,
+  senderPhone: string,
+  contactName: string,
+  timestamp: string,
+): Promise<void> {
+  // upsertLead also flips is_unread, so the conversation surfaces in the
+  // inbox's Unread filter the same way a normal inbound message would.
+  const { lead } = await upsertLead(sb, senderPhone, contactName, timestamp);
+  if (!lead) {
+    console.error(
+      `recordUnsupportedMessage: could not upsert lead for ${senderPhone} - a "${message?.type}" message is being lost.`,
+    );
+    return;
+  }
+
+  const body = describeUnsupportedMessage(message);
+  console.log(`Recorded unsupported inbound from ${senderPhone}: ${body}`);
+  await insertCommunication(sb, lead.id, "inbound", body, timestamp, undefined, message?.id);
 }
 
 async function handleImageMessage(
