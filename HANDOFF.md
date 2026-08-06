@@ -78,7 +78,19 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
-**CLAIMED (2026-08-06, Junaid on the AYESHA laptop) - delivery ticks frontend (B3/B4), the half the backend has been waiting on.** Touching the Conversations message rendering, CSS and realtime handler in `index.html`. **Muhammad: I am in the Conversations section until this claim is removed.**
+**DONE (2026-08-06, Junaid on the AYESHA laptop) - delivery ticks frontend (B3/B4). Claim released.** B3/B4 is now complete end to end in code: the column, the webhook writer, and the UI.
+
+Ticks use WhatsApp's own states and colours: grey `✓` sent, grey `✓✓` delivered, blue `✓✓` (#53bdeb) read, red `!` failed. Outbound only, since WhatsApp never ticks a message the customer sent.
+
+**A null status renders NOTHING, and that is the important decision here.** The obvious choice is a pending clock, but the migration is not applied and the webhook is not deployed, so today every outbound row is permanently null - a clock would show every message in the CRM as forever unsent, which is far worse than the no-ticks state we have now. Rendering nothing degrades cleanly in both directions: nothing before that work lands, real ticks after, with no code change in between. The cost is that a message genuinely awaiting its first callback shows nothing for a second or two.
+
+**A production hazard was found and defused while doing this.** The message query named its columns explicitly. Adding `delivery_status` to that list would make PostgREST fail the entire query until migration 20260806020000 is applied - and since Vercel deploys from `main` automatically, merging that would have **broken Conversations for every agent on live campaign traffic**, immediately, with no deploy step to catch it. Changed to `select('*')`, which makes the query indifferent to whether the column exists yet. Worth remembering as a general rule for this repo: naming a not-yet-migrated column in a frontend query is a live outage, not a staging problem.
+
+**Ticks also update live, which needed more than rendering.** A tick arrives as an UPDATE to an existing row, not an INSERT, and `startConvRealtime` only ever subscribed to INSERTs - so ticks would have appeared only when a conversation was reopened, which defeats the point of a tick. Added an UPDATE subscription plus `applyDeliveryTickUpdate()`, which finds the bubble by `data-wamid` rather than by position, since the list re-renders and positions are not stable.
+
+**Verified in demo mode:** the renderer against 9 cases (all four states, null, undefined, an unknown future status, and inbound rows for two different statuses - inbound correctly never ticks); real rendering in a demo conversation with computed colours confirmed as `rgb(83,189,235)` for read and `rgb(134,150,160)` for sent; both themes; and the live-update handler against 10 cases - each state advancing in turn, an inbound row ignored, an update for a different conversation ignored, a row with no wamid ignored, a null status clearing the tick, and never more than one tick element on a bubble. Demo conversations carry read/delivered/sent statuses so all states are visible without a database. Zero console errors, tag and brace balance clean, zero em dashes.
+
+**UNVERIFIED:** no real tick has ever rendered. That needs the migration applied and `whatsapp-webhook` deployed, both on Muhammad's laptop. Until then this ships as a safe no-op: `select('*')` cannot fail, and a null status draws nothing.
 
 **DONE, NOT DEPLOYED (2026-08-06, Junaid on the AYESHA laptop) - agents can attach a file to a WhatsApp reply.** Second of the two big parity gaps. Claim released.
 

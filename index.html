@@ -857,6 +857,15 @@
     /* 7.5px radius and the 1.5px shadow are WhatsApp's own bubble values. */
     .msg-bubble { max-width:min(55%, 380px); padding:6px 7px 8px 9px; border-radius:7.5px; font-size:0.8885rem; line-height:1.34; word-break:break-word; white-space:pre-wrap; box-shadow:0 1px .5px rgba(11,20,26,.13); position:relative; }
     .conv-msg-textarea { width:100%; resize:none; overflow-y:auto; min-height:64px; max-height:320px; padding:9px 12px; border-radius:8px; border:1px solid transparent; background:#fff; color:#111b21; font-family:inherit; font-size:0.9375rem; line-height:1.4; outline:none; }
+    /* Delivery ticks (B3/B4). Outbound only - WhatsApp never shows a tick on
+       a message the customer sent. Sizes and colours are WhatsApp's own: grey
+       for sent/delivered, #53bdeb blue for read, red for a failure. */
+    .msg-tick { display:inline; margin-left:3px; font-size:0.72rem; letter-spacing:-2px; vertical-align:baseline; }
+    .msg-tick.pending   { color:#8696a0; letter-spacing:0; }
+    .msg-tick.sent      { color:#8696a0; }
+    .msg-tick.delivered { color:#8696a0; }
+    .msg-tick.read      { color:#53bdeb; }
+    .msg-tick.failed    { color:#f15c6d; letter-spacing:0; font-weight:700; }
     .msg-bubble.incoming { background:#fff; color:#111b21; border-top-left-radius:0; }
     .msg-bubble.outgoing { background:#d9fdd3; color:#111b21; border-top-right-radius:0; }
     /* The little pointer WhatsApp puts on the first bubble of each side. */
@@ -7225,7 +7234,9 @@ const _DEMO_CONVERSATIONS = [
     lastMsg:"I'm interested in both. What's the minimum deposit?", lastTime:'10:30 AM',
     messages:[
       { from:'lead',  text:'Assalam o Alaikum, I saw your ad about gold trading.', time:'10:15 AM' },
-      { from:'agent', text:'Walaikum Assalam! Gold (XAU/USD) is one of our most popular instruments. Are you looking at short-term trades or long-term investment?', time:'10:18 AM' },
+      // deliveryStatus drives the ticks in demo mode, standing in for the
+      // real communications.delivery_status column.
+      { from:'agent', text:'Walaikum Assalam! Gold (XAU/USD) is one of our most popular instruments. Are you looking at short-term trades or long-term investment?', time:'10:18 AM', deliveryStatus:'read' },
       { from:'lead',  text:"I'm interested in both. What's the minimum deposit?", time:'10:30 AM' },
     ]
   },
@@ -7234,7 +7245,7 @@ const _DEMO_CONVERSATIONS = [
     lastMsg:'Can we schedule a call tomorrow?', lastTime:'9:45 AM',
     messages:[
       { from:'lead',  text:'Hi, my friend referred me to you. I want to invest in crypto.', time:'Yesterday 3:00 PM' },
-      { from:'agent', text:"Welcome Ayesha! We offer BTC, ETH, and several altcoin pairs. I'd love to walk you through our platform.", time:'Yesterday 3:05 PM' },
+      { from:'agent', text:"Welcome Ayesha! We offer BTC, ETH, and several altcoin pairs. I'd love to walk you through our platform.", time:'Yesterday 3:05 PM', deliveryStatus:'delivered' },
       { from:'lead',  text:'That sounds great. Can we schedule a call tomorrow?', time:'9:45 AM' },
     ]
   },
@@ -7242,9 +7253,10 @@ const _DEMO_CONVERSATIONS = [
     source:'manual', email:'bilal@example.com', inboundHoursAgo:72,
     lastMsg:'Thank you for all your help!', lastTime:'Jun 1',
     messages:[
-      { from:'agent', text:'Hi Bilal! Your account is set up with $25,000 balance. Welcome to Badar Trader!', time:'Jun 1 10:00 AM' },
+      { from:'agent', text:'Hi Bilal! Your account is set up with $25,000 balance. Welcome to Badar Trader!', time:'Jun 1 10:00 AM', deliveryStatus:'read' },
       { from:'lead',  text:"Excellent! The onboarding process was very smooth.", time:'Jun 1 10:15 AM' },
-      { from:'agent', text:"We're thrilled to have you! Ahmed will reach out shortly with your personalised trading plan.", time:'Jun 1 10:20 AM' },
+      // One of each state so all four are visible somewhere in demo mode.
+      { from:'agent', text:"We're thrilled to have you! Ahmed will reach out shortly with your personalised trading plan.", time:'Jun 1 10:20 AM', deliveryStatus:'sent' },
       { from:'lead',  text:'Thank you for all your help!', time:'Jun 1 10:25 AM' },
     ]
   },
@@ -7607,7 +7619,7 @@ async function openConversation(convId, scope = '') {
       <div class="conv-messages" id="conv-msgs-${convId}">
         ${conv.messages.map(m => `
           <div class="msg-wrapper${m.from === 'agent' ? ' outgoing' : ''}">
-            <div class="msg-bubble ${m.from === 'agent' ? 'outgoing' : 'incoming'}">${esc(m.text)}<span class="msg-time">${m.time}</span></div>
+            <div class="msg-bubble ${m.from === 'agent' ? 'outgoing' : 'incoming'}">${esc(m.text)}<span class="msg-time">${m.time}${deliveryTickHtml(m.from === 'agent' ? 'outbound' : 'inbound', m.deliveryStatus)}</span></div>
           </div>`).join('')}
       </div>
       <div id="conv-attach-chip" style="display:none"></div>
@@ -7642,7 +7654,15 @@ async function openConversation(convId, scope = '') {
   try {
     const [leadRes, msgsRes] = await Promise.all([
       sb.from('leads').select('full_name, phone, email, source, status, is_unread, manual_tier, assigned_agent_id, created_at').eq('id', convId).maybeSingle(),
-      sb.from('communications').select('body, direction, created_at, attachment_path, wa_message_id')
+      // select('*') rather than naming columns on purpose. This needs
+      // delivery_status for the ticks, but that column only exists once
+      // migration 20260806020000 has been applied, and naming a column that
+      // does not exist makes PostgREST fail the whole query - which would
+      // break Conversations for every agent the moment this file reaches
+      // production, since Vercel deploys from main automatically. With '*'
+      // the column is simply absent until the migration runs, and the ticks
+      // render nothing rather than the page breaking.
+      sb.from('communications').select('*')
         .eq('lead_id', convId).eq('type', 'whatsapp').order('created_at', { ascending: true })
     ]);
     if (leadRes.error) throw leadRes.error;
@@ -7685,11 +7705,11 @@ async function openConversation(convId, scope = '') {
       <div class="conv-messages" id="conv-msgs-${convId}">
         ${messages.length
           ? messages.map((m, i) => `
-              <div class="msg-wrapper${m.direction === 'outbound' ? ' outgoing' : ''}">
+              <div class="msg-wrapper${m.direction === 'outbound' ? ' outgoing' : ''}"${m.wa_message_id ? ` data-wamid="${esc(m.wa_message_id)}"` : ''}>
                 <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}" style="position:relative">
                   ${esc(m.body)}
                   ${m.attachment_path ? `<div class="msg-attachment" id="conv-att-${convId}-${i}" data-path="${esc(m.attachment_path)}" style="margin-top:8px;cursor:pointer;color:inherit">🖼 Loading image…</div>` : ''}
-                  ${m.wa_message_id ? `<button type="button" title="Reply to this message" onclick="setReplyTarget('${esc(m.wa_message_id)}', ${JSON.stringify(truncate(m.body || '', 60))})" style="position:absolute;top:-10px;${m.direction === 'outbound' ? 'left' : 'right'}:-10px;width:22px;height:22px;border-radius:50%;border:1px solid #cbd5e1;background:#fff;color:#475569;font-size:0.7rem;cursor:pointer;line-height:1">↩</button>` : ''}<span class="msg-time">${fmtConvTime(m.created_at)}</span>
+                  ${m.wa_message_id ? `<button type="button" title="Reply to this message" onclick="setReplyTarget('${esc(m.wa_message_id)}', ${JSON.stringify(truncate(m.body || '', 60))})" style="position:absolute;top:-10px;${m.direction === 'outbound' ? 'left' : 'right'}:-10px;width:22px;height:22px;border-radius:50%;border:1px solid #cbd5e1;background:#fff;color:#475569;font-size:0.7rem;cursor:pointer;line-height:1">↩</button>` : ''}<span class="msg-time">${fmtConvTime(m.created_at)}${deliveryTickHtml(m.direction, m.delivery_status)}</span>
                 </div>
               </div>`).join('')
           : '<div style="text-align:center;color:#64748b;font-size:0.85rem;padding:32px">No messages yet.</div>'}
@@ -7839,6 +7859,33 @@ function autoGrowConvInput(el) {
   const panel = el.closest('.conv-chat-panel');
   const dynamicMax = panel ? Math.max(160, Math.floor(panel.clientHeight * 0.45)) : 320;
   el.style.height = Math.min(Math.max(el.scrollHeight, 64), Math.min(dynamicMax, 320)) + 'px';
+}
+
+// ── Delivery ticks (B3/B4) ────────────────────────────────────
+// Renders WhatsApp's own tick states for an outbound message. Fed by
+// communications.delivery_status, which the webhook writes from Meta's status
+// callbacks.
+//
+// A null status renders NOTHING, deliberately. The obvious alternative is a
+// pending clock, but until migration 20260806020000 is applied and the webhook
+// is deployed, every outbound message is permanently null - a clock would show
+// every message in the CRM as forever unsent, which is worse than the current
+// state of no ticks at all. Rendering nothing degrades cleanly: no ticks
+// before that work lands, real ticks after. The cost is that a message
+// genuinely waiting on its first callback shows nothing for a second or two,
+// which is a fair trade.
+const CONV_TICK_MARKS = {
+  sent:      { glyph: '✓',  label: 'Sent' },
+  delivered: { glyph: '✓✓', label: 'Delivered' },
+  read:      { glyph: '✓✓', label: 'Read' },
+  failed:    { glyph: '!',  label: 'Failed to deliver' },
+};
+
+function deliveryTickHtml(direction, status) {
+  if (direction !== 'outbound') return '';        // never on a customer's message
+  const mark = CONV_TICK_MARKS[status];
+  if (!mark) return '';                            // null, or a status we don't know
+  return `<span class="msg-tick ${status}" title="${mark.label}">${mark.glyph}</span>`;
 }
 
 // ── Conversation attachments ──────────────────────────────────
@@ -8129,13 +8176,45 @@ function startConvRealtime(scope = '') {
         if (msgArea) {
           const div = document.createElement('div');
           div.className = 'msg-wrapper' + (payload.new.direction === 'outbound' ? ' outgoing' : '');
-          div.innerHTML = `<div class="msg-bubble ${payload.new.direction === 'outbound' ? 'outgoing' : 'incoming'}">${esc(payload.new.body)}<span class="msg-time">${fmtConvTime(payload.new.created_at)}</span></div>`;
+          // Tagged with the wamid so the UPDATE handler below can find this
+          // bubble again when its delivery status changes.
+          if (payload.new.wa_message_id) div.dataset.wamid = payload.new.wa_message_id;
+          div.innerHTML = `<div class="msg-bubble ${payload.new.direction === 'outbound' ? 'outgoing' : 'incoming'}">${esc(payload.new.body)}<span class="msg-time">${fmtConvTime(payload.new.created_at)}${deliveryTickHtml(payload.new.direction, payload.new.delivery_status)}</span></div>`;
           msgArea.appendChild(div);
           msgArea.scrollTop = msgArea.scrollHeight;
         }
       }
     })
+    // Delivery ticks arrive as UPDATEs, not INSERTs: the webhook writes the
+    // status onto the row that already exists. Without this the tick would
+    // only ever appear when the conversation was reopened, which defeats the
+    // point - the whole value of a tick is watching it advance.
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'communications',
+      filter: 'type=eq.whatsapp'
+    }, payload => {
+      applyDeliveryTickUpdate(payload.new);
+    })
     .subscribe();
+}
+
+// Swaps the tick on an already-rendered bubble when its delivery status
+// changes. Finds the bubble by wamid rather than by position, because the
+// list re-renders and positions are not stable.
+function applyDeliveryTickUpdate(row) {
+  if (!row || row.direction !== 'outbound') return;
+  if (!_activeConvId || _activeConvId !== row.lead_id) return;   // not the open conversation
+  if (!row.wa_message_id) return;                                 // nothing to match on
+
+  const msgArea = document.getElementById('conv-msgs-' + _activeConvId);
+  const wrapper = msgArea?.querySelector(`[data-wamid="${CSS.escape(row.wa_message_id)}"]`);
+  const timeEl  = wrapper?.querySelector('.msg-time');
+  if (!timeEl) return;
+
+  const existing = timeEl.querySelector('.msg-tick');
+  const html = deliveryTickHtml(row.direction, row.delivery_status);
+  if (existing) existing.remove();
+  if (html) timeEl.insertAdjacentHTML('beforeend', html);
 }
 
 function stopConvRealtime() {
