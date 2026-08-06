@@ -49,6 +49,16 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**CLAIMED (2026-08-06, Muhammad's laptop) - Conversations D1 (contact panel) and C2 (24-hour window timer), resumed after the agent-rotation fix.** Touching the Conversations markup, CSS and JS in `index.html`. **Junaid: do not edit the Conversations section until this claim is removed.**
+
+**INVESTIGATED, NOT STARTED (2026-08-06) - importing WhatChimp's existing data into this CRM.** Muhammad wants WhatChimp's existing contacts, conversations and dashboard numbers pulled into Supabase so real data exists here to test against, while the live WhatChimp campaign keeps running untouched. He drew the line explicitly: reading and exporting from WhatChimp is fine, altering anything there is not.
+
+**The safety finding that shapes the design.** `leads` has an enabled AFTER INSERT trigger, `automation_lead_created`, which calls `fire_automation_event('lead_created', ...)` and fires a pg_net HTTP call to the `fire-automation` edge function on *every single insert*. Bulk-inserting a WhatChimp export of roughly a thousand contacts would fire roughly a thousand of those calls. Nothing would send today, because there are two independent brakes - the only `lead_created` rule ("Meta Lead Ads - welcome message") is `is_active = false`, and `fire-automation` has `AUTOMATION_ENABLED = false` - but relying on both holding during a bulk insert is exactly the kind of assumption that produced the 2026-08-03 incident, where `send-follow-ups` matched `trigger_status = 'new'` and targeted 39 real leads instead of one.
+
+So any import must: disable `automation_lead_created` for the duration of the load and re-enable it after, land rows with a distinct `source` value (for example `whatchimp_import`) so they can always be told apart from live campaign leads and excluded from future automation, and be dry-run into a staging table first with a diff shown to Muhammad before anything touches `leads`. Also relevant: `follow_up_sequences` is currently empty, so there is no status-based sender to trip today, but that could change the moment someone adds a rule - which is another reason imported rows should not simply land as `status = 'new'` alongside real campaign leads.
+
+Blocked on Muhammad: what WhatChimp can actually export, and the scope and dedup decisions. No Claude session is to log into WhatChimp to find out - the export is Muhammad's own action, and the file comes to Claude afterwards.
+
 **DONE (2026-08-06) - agent phone numbers moved out of hardcoded webhook code into the database. Webhook now v70.** Muhammad reprioritised this ahead of D1/C2 after asking why WhatChimp wants agent phone numbers; answering that question surfaced this as a real gap.
 
 The problem: `AGENT_ROTATION` was a code constant holding only Ehsan Wazir and Muhammad Hanzala. The webhook uses those numbers for three things - recognising an inbound message as staff rather than a customer, sending escalation pings, and round-robin assignment. Any other agent messaging the business number would have been created as a **lead**, could never receive an escalation ping, and was skipped by round-robin. `profiles` had no phone column at all.
