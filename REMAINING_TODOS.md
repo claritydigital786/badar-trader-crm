@@ -15,7 +15,7 @@ Two things live here, kept apart on purpose:
 
 _Add items here._
 
-- [ ] Deploy `whatsapp-webhook` so the Train AI model picker actually takes effect. Verified 2026-08-06: the live function is v68 and differs from the repo by only that one change, and it enables no sends (all reply gates false). Command: `supabase functions deploy whatsapp-webhook --no-verify-jwt`. Muhammad declined to run it on 2026-08-05, so it is parked until he says go.
+- [x] ~~Deploy `whatsapp-webhook` so the Train AI model picker takes effect.~~ DONE 2026-08-06 from Muhammad's laptop with him present. Live function is now **v69**, byte-identical to the repo, `verify_jwt` still false, all reply gates still false. `settings.openai_model` is `gpt-5-mini`, so the picker is now genuinely wired - but `tryAIReply()` still never runs while `AI_REPLIES_ENABLED = false`.
 - [ ] Apply `supabase/migrations/20260806000000_ai_agents.sql` so the Bot Manager Agents tab has a real table. Until then that tab says so plainly instead of erroring.
 - [ ] Create the four pending Supabase Auth users (Hanzla, Ehsan Wazir, Syed Bilal Ahmed Hashmi, Syed Hamza) - human-only step, needs a real password set.
 - [ ] Confirm the `AYESHA` git author on commits `45f747d`, `295eeca`, `928a01b` - a third machine is pushing and the `user.name` convention in `CLAUDE.md` does not cover it.
@@ -66,3 +66,4 @@ _Add items here._
 - "Continue." - picked up the one open item in HANDOFF (the undeployed webhook model-picker change). Verified it independently: `deno check` shows the same 7 pre-existing errors before and after the change (so it added none), and the live deployed function v68 differs from local by exactly that change and nothing else. Asked whether to deploy; Muhammad declined for now, so the live webhook was left untouched.
 - "Create a separate section entitled Bot Manager" mirroring WhatChimp's own burger-menu item (4th or 5th in that list), move the chatbot section into it, and leave the icon on the main dashboard. Screenshots from Junaid (originally from WhatChimp/Badar) to follow in the next message.
 - "I want our conversations dashboard to look inch by inch the same as WhatsApp" plus a reminder never to come back unverified. Built the WhatsApp Web skin for both themes and verified it in demo mode; held the push because deploying changes what agents see mid-conversation.
+- "You can do the WhatsApp webhook change thing from my laptop. Start." - deployed it (v69) with him present, plus asked for a plainer explanation of the three cross-laptop warnings.
