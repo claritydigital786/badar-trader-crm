@@ -4,10 +4,39 @@ _Last updated: 2026-07-14 (mid-session, cut short by usage limit - written fast,
 claims before trusting them further). For a fresh Claude Code session with zero memory of
 prior conversations._
 
-**Two parallel tracks are active as of 2026-07-29 - say the right phrase to resume the right one:**
+**Three parallel tracks are active (two since 2026-07-29, the AI Agent build added 2026-08-06) - say the right phrase to resume the right one:**
 - **"continue the Supabase CRM coding"** → resume the badar-trader-crm codebase (index.html, Supabase edge functions, schema, deploys).
 - **"continue the WhatChimp bot build"** → resume the WhatChimp Flow Builder rebuild + the related Meta Ads Manager work (see the last section of this file).
-A bare "continue" defaults to whichever section is most recent at the bottom of this file - ask Muhammad to clarify if it's not obvious which track he means.
+- **"continue 2"** → resume the AI Agent Roadmap build (the four types of AI agents). See the dedicated "continue 2" block immediately below.
+A bare "continue" defaults to whichever section is most recent at the bottom of this file - ask Muhammad to clarify if it's not obvious which track he means. "continue 2" is unambiguous and always means the AI Agent track.
+
+---
+
+**"continue 2" - the AI Agent Roadmap build. New rotating track, set up 2026-08-06. Any of the rotating Claude accounts can resume this by reading this block; update it in place as slices land, same as every other entry in this file.**
+
+Muhammad handed over `AI-Agent-Roadmap.docx` (a phased guide to building four types of AI agents) and said "get it kickstarted", then asked that it be set up as its own rotating track so that a plain **"continue 2"** on any account picks up exactly this work. A full readable copy is committed at `docs/ai-agent-roadmap.md` so it travels across laptops - the original .docx only exists in Muhammad's `~/Downloads` and does not travel.
+
+What we are building, in the roadmap's own build order (each type adds one capability on top of the last):
+1. **Type 1 - Conversational assistant** - system prompt + multi-turn message history.
+2. **Type 2 - Knowledge/RAG agent** - embeddings + vector search over our own docs, answers that cite sources.
+3. **Type 3 - Tool-using action agent** - function/tool calling + a reason-act loop + hard guardrails + human approval on anything risky.
+4. **Type 4 - Multi-agent system** - an orchestrator delegating to specialised worker agents.
+
+**Progress checklist (all PENDING - nothing built yet as of 2026-08-06):**
+- [ ] Phase 0 - foundations, workspace, first API call
+- [ ] Type 1 - conversational assistant
+- [ ] Type 2 - RAG agent
+- [ ] Type 3 - tool-using action agent
+- [ ] Type 4 - multi-agent system
+
+**Three decisions must be settled at the start of the first real "continue 2" before any Type 1 code is written. Muhammad was asked these on 2026-08-06 and chose to defer, so they are OPEN, not decided - do not assume an answer:**
+1. **Placement** - a standalone learning project (recommended, fully sandboxed) vs a subfolder inside this repo vs wiring into the CRM's real features (not recommended as a start; collides with the live-traffic rule below).
+2. **Language/stack** - Python (the roadmap's default, richest AI ecosystem) vs TypeScript/Node (matches the CRM's world, easier to fold in later).
+3. **Model provider** - Anthropic Claude vs the OpenAI key already configured for the CRM vs a stub/echo model to scaffold the structure first.
+
+**Hard safety rule for this track, non-negotiable, inherited from this repo's standing rules:** these agents are a learning/build exercise and stay fully sandboxed. They do NOT touch the live CRM, the live WhatsApp number, Meta Ads, WhatChimp, or any real customer or lead data. Building UI and logic is fine; operating on live traffic is not. This bites hardest at Type 3, the action agent: any tool that could send a message, spend money, or make an irreversible change gets a human-approval gate before it runs - both the roadmap's own guardrails guidance and this repo's rules demand it.
+
+---
 
 **Two-person parallel work, effective 2026-08-02 - Muhammad and his younger brother, on separate laptops, sharing one Google/GitHub login, building ONE application together (this CRM), not split into separate systems:**
 - Since both machines share one GitHub identity, commits are told apart by the **local git `user.name`** set on each laptop, not by separate accounts - this laptop (Muhammad's) is set to `Muhammad`; run `git config user.name "Brother"` (his real name) on his laptop once he's set up.
