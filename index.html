@@ -866,6 +866,12 @@
     .msg-tick.delivered { color:#8696a0; }
     .msg-tick.read      { color:#53bdeb; }
     .msg-tick.failed    { color:#f15c6d; letter-spacing:0; font-weight:700; }
+    /* Day divider between messages from different calendar days, like WhatsApp's
+       centred "Today / Yesterday / date" pill. */
+    .msg-day-sep { align-self:center; margin:14px 0 8px; background:#e2f0f7; color:#54656f;
+      font-size:0.7rem; font-weight:600; padding:4px 12px; border-radius:8px;
+      box-shadow:0 1px .5px rgba(11,20,26,.13); text-transform:uppercase; letter-spacing:.3px; }
+    [data-theme="dark"] .msg-day-sep { background:#182229; color:#8696a0; box-shadow:none; }
     .msg-bubble.incoming { background:#fff; color:#111b21; border-top-left-radius:0; }
     .msg-bubble.outgoing { background:#d9fdd3; color:#111b21; border-top-right-radius:0; }
     /* The little pointer WhatsApp puts on the first bubble of each side. */
@@ -7233,31 +7239,32 @@ const _DEMO_CONVERSATIONS = [
     source:'meta', email:'omar@example.com', inboundHoursAgo:0.5,
     lastMsg:"I'm interested in both. What's the minimum deposit?", lastTime:'10:30 AM',
     messages:[
-      { from:'lead',  text:'Assalam o Alaikum, I saw your ad about gold trading.', time:'10:15 AM' },
+      { from:'lead',  text:'Assalam o Alaikum, I saw your ad about gold trading.', time:'10:15 AM', dayLabel:'Today' },
       // deliveryStatus drives the ticks in demo mode, standing in for the
-      // real communications.delivery_status column.
-      { from:'agent', text:'Walaikum Assalam! Gold (XAU/USD) is one of our most popular instruments. Are you looking at short-term trades or long-term investment?', time:'10:18 AM', deliveryStatus:'read' },
-      { from:'lead',  text:"I'm interested in both. What's the minimum deposit?", time:'10:30 AM' },
+      // real communications.delivery_status column; dayLabel stands in for the
+      // day-divider that convDayLabel() computes from created_at in live mode.
+      { from:'agent', text:'Walaikum Assalam! Gold (XAU/USD) is one of our most popular instruments. Are you looking at short-term trades or long-term investment?', time:'10:18 AM', deliveryStatus:'read', dayLabel:'Today' },
+      { from:'lead',  text:"I'm interested in both. What's the minimum deposit?", time:'10:30 AM', dayLabel:'Today' },
     ]
   },
   { id:'conv2', leadId:'dl2', name:'Ayesha Malik', phone:'+92 300 9876543', status:'contacted',
     source:'referral', email:'ayesha@example.com', inboundHoursAgo:23.2,
     lastMsg:'Can we schedule a call tomorrow?', lastTime:'9:45 AM',
     messages:[
-      { from:'lead',  text:'Hi, my friend referred me to you. I want to invest in crypto.', time:'Yesterday 3:00 PM' },
-      { from:'agent', text:"Welcome Ayesha! We offer BTC, ETH, and several altcoin pairs. I'd love to walk you through our platform.", time:'Yesterday 3:05 PM', deliveryStatus:'delivered' },
-      { from:'lead',  text:'That sounds great. Can we schedule a call tomorrow?', time:'9:45 AM' },
+      { from:'lead',  text:'Hi, my friend referred me to you. I want to invest in crypto.', time:'3:00 PM', dayLabel:'Yesterday' },
+      { from:'agent', text:"Welcome Ayesha! We offer BTC, ETH, and several altcoin pairs. I'd love to walk you through our platform.", time:'3:05 PM', deliveryStatus:'delivered', dayLabel:'Yesterday' },
+      { from:'lead',  text:'That sounds great. Can we schedule a call tomorrow?', time:'9:45 AM', dayLabel:'Today' },
     ]
   },
   { id:'conv3', leadId:'dl5', name:'Bilal Khan', phone:'+92 345 7890123', status:'converted',
     source:'manual', email:'bilal@example.com', inboundHoursAgo:72,
     lastMsg:'Thank you for all your help!', lastTime:'Jun 1',
     messages:[
-      { from:'agent', text:'Hi Bilal! Your account is set up with $25,000 balance. Welcome to Badar Trader!', time:'Jun 1 10:00 AM', deliveryStatus:'read' },
-      { from:'lead',  text:"Excellent! The onboarding process was very smooth.", time:'Jun 1 10:15 AM' },
+      { from:'agent', text:'Hi Bilal! Your account is set up with $25,000 balance. Welcome to Badar Trader!', time:'10:00 AM', deliveryStatus:'read', dayLabel:'1 June 2026' },
+      { from:'lead',  text:"Excellent! The onboarding process was very smooth.", time:'10:15 AM', dayLabel:'1 June 2026' },
       // One of each state so all four are visible somewhere in demo mode.
-      { from:'agent', text:"We're thrilled to have you! Ahmed will reach out shortly with your personalised trading plan.", time:'Jun 1 10:20 AM', deliveryStatus:'sent' },
-      { from:'lead',  text:'Thank you for all your help!', time:'Jun 1 10:25 AM' },
+      { from:'agent', text:"We're thrilled to have you! Ahmed will reach out shortly with your personalised trading plan.", time:'10:20 AM', deliveryStatus:'sent', dayLabel:'1 June 2026' },
+      { from:'lead',  text:'Thank you for all your help!', time:'10:25 AM', dayLabel:'1 June 2026' },
     ]
   },
 ];
@@ -7617,10 +7624,13 @@ async function openConversation(convId, scope = '') {
         <button type="button" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:#475569;font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
       </div>
       <div class="conv-messages" id="conv-msgs-${convId}">
-        ${conv.messages.map(m => `
+        ${(() => { let lastDay = ''; return conv.messages.map(m => {
+          const sep = (m.dayLabel && m.dayLabel !== lastDay) ? `<div class="msg-day-sep">${esc(m.dayLabel)}</div>` : '';
+          lastDay = m.dayLabel || lastDay;
+          return `${sep}
           <div class="msg-wrapper${m.from === 'agent' ? ' outgoing' : ''}">
             <div class="msg-bubble ${m.from === 'agent' ? 'outgoing' : 'incoming'}">${esc(m.text)}<span class="msg-time">${m.time}${deliveryTickHtml(m.from === 'agent' ? 'outbound' : 'inbound', m.deliveryStatus)}</span></div>
-          </div>`).join('')}
+          </div>`; }).join(''); })()}
       </div>
       <div id="conv-attach-chip" style="display:none"></div>
       <div class="conv-input-bar">
@@ -7704,14 +7714,18 @@ async function openConversation(convId, scope = '') {
       </div>
       <div class="conv-messages" id="conv-msgs-${convId}">
         ${messages.length
-          ? messages.map((m, i) => `
+          ? (() => { let lastDay = ''; return messages.map((m, i) => {
+              const day = convDayLabel(m.created_at);
+              const sep = (day && day !== lastDay) ? `<div class="msg-day-sep">${esc(day)}</div>` : '';
+              lastDay = day || lastDay;
+              return `${sep}
               <div class="msg-wrapper${m.direction === 'outbound' ? ' outgoing' : ''}"${m.wa_message_id ? ` data-wamid="${esc(m.wa_message_id)}"` : ''}>
                 <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}" style="position:relative">
                   ${esc(m.body)}
                   ${m.attachment_path ? `<div class="msg-attachment" id="conv-att-${convId}-${i}" data-path="${esc(m.attachment_path)}" style="margin-top:8px;cursor:pointer;color:inherit">🖼 Loading image…</div>` : ''}
                   ${m.wa_message_id ? `<button type="button" title="Reply to this message" onclick="setReplyTarget('${esc(m.wa_message_id)}', ${JSON.stringify(truncate(m.body || '', 60))})" style="position:absolute;top:-10px;${m.direction === 'outbound' ? 'left' : 'right'}:-10px;width:22px;height:22px;border-radius:50%;border:1px solid #cbd5e1;background:#fff;color:#475569;font-size:0.7rem;cursor:pointer;line-height:1">↩</button>` : ''}<span class="msg-time">${fmtConvTime(m.created_at)}${deliveryTickHtml(m.direction, m.delivery_status)}</span>
                 </div>
-              </div>`).join('')
+              </div>`; }).join(''); })()
           : '<div style="text-align:center;color:#64748b;font-size:0.85rem;padding:32px">No messages yet.</div>'}
       </div>
       ${windowWarning}
@@ -7886,6 +7900,19 @@ function deliveryTickHtml(direction, status) {
   const mark = CONV_TICK_MARKS[status];
   if (!mark) return '';                            // null, or a status we don't know
   return `<span class="msg-tick ${status}" title="${mark.label}">${mark.glyph}</span>`;
+}
+
+// "Today" / "Yesterday" / "5 June 2026" for a day-divider pill, so a long
+// thread reads like a real chat instead of one undated run of bubbles.
+function convDayLabel(iso) {
+  if (!iso) return '';
+  const d = new Date(iso); const now = new Date();
+  const startOf = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((startOf(now) - startOf(d)) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  if (diff > 1 && diff < 7) return d.toLocaleDateString('en-US', { weekday:'long' });
+  return d.toLocaleDateString('en-US', { day:'numeric', month:'long', year:'numeric' });
 }
 
 // ── Conversation attachments ──────────────────────────────────
