@@ -11,8 +11,10 @@ This is a learning and build exercise and stays **fully sandboxed**. It does
 NOT touch the live CRM, the live WhatsApp number, Meta Ads, WhatChimp, or any
 real customer or lead data. Nothing here is imported by `index.html` or by any
 Supabase function. It runs only from your own terminal. The Type 3 action agent
-(later) gets a human-approval gate before any tool that could send, spend, or
-make an irreversible change.
+gets a human-approval gate before any tool that could send, spend, or make an
+irreversible change - its one "dangerous" tool (`send_notification`) is itself
+fake, appending to a local log file rather than reaching any real system, so
+even an approved call touches nothing outside this sandbox.
 
 ## Build order
 
@@ -20,7 +22,7 @@ Each type adds one capability on top of the last:
 
 1. **Type 1 - Conversational assistant** (system prompt + multi-turn memory). BUILT. See `type1_assistant/`.
 2. **Type 2 - Knowledge / RAG agent** (retrieval over your own docs, with citations). BUILT. See `type2_rag/`.
-3. **Type 3 - Tool-using action agent.** Not started.
+3. **Type 3 - Tool-using action agent** (reason-act loop, tools, a human-approval gate before anything risky, a step cap). BUILT. See `type3_agent/`.
 4. **Type 4 - Multi-agent system.** Not started.
 
 ## Setup
@@ -53,6 +55,7 @@ ai-agents/
   shared/          provider-agnostic model client, embeddings, config (used by every type)
   type1_assistant/ the Type 1 conversational assistant + CLI
   type2_rag/       the Type 2 RAG agent, sample docs + CLI
+  type3_agent/     the Type 3 tool-using action agent, tools, guardrails + CLI
   tests/           plain-stdlib self-tests (no pytest needed)
 ```
 
@@ -61,4 +64,5 @@ ai-agents/
 ```bash
 python3 tests/test_type1.py
 python3 tests/test_type2.py
+python3 tests/test_type3.py
 ```
