@@ -17,7 +17,13 @@ _Add items here._
 
 - [x] ~~Deploy `whatsapp-webhook` so the Train AI model picker takes effect.~~ DONE 2026-08-06 from Muhammad's laptop with him present. Live function is now **v69**, byte-identical to the repo, `verify_jwt` still false, all reply gates still false. `settings.openai_model` is `gpt-5-mini`, so the picker is now genuinely wired - but `tryAIReply()` still never runs while `AI_REPLIES_ENABLED = false`.
 - [x] ~~Apply `supabase/migrations/20260806000000_ai_agents.sql`.~~ DONE 2026-08-06 from Muhammad's laptop. Applied as a single migration rather than `supabase db push`, because that command reconciles the whole migrations folder against the remote history and many files here are named `applied_via_sql_editor` (applied by hand, possibly not recorded), so a push could have replayed old migrations against the live DB. Verified after: 8 columns, RLS on, 1 admin-only policy, updated_at trigger, 2 indexes, 2 foreign keys. Security advisors show no new warnings from this table.
-- [ ] Create the four pending Supabase Auth users (Hanzla, Ehsan Wazir, Syed Bilal Ahmed Hashmi, Syed Hamza) - human-only step, needs a real password set.
+- [ ] Create the **five** pending Supabase Auth users - human-only step, needs a real password set, so no Claude session does this:
+  - Hanzla - `cjhanzla@gmail.com`
+  - Ehsan Wazir - `ehsanwazir8@gmail.com`
+  - Syed Bilal Ahmed Hashmi - `syedbilalahmadhashmi786@gmail.com`
+  - Syed Hamza - `hsyed9050@gmail.com`, phone `+92 320 1946494`
+  - Syed Faisal Shah - `syedfaisalbasit@gmail.com`, phone `+92 300 273 1461` (added 2026-08-06 from a screenshot Muhammad shared; this is the same Faisal Shah who could not see Omnichannel conversations in WhatChimp on 2026-08-05)
+- [ ] **Agent phone numbers are hardcoded in the webhook and the list is incomplete - real bug, found 2026-08-06.** `AGENT_ROTATION` in `supabase/functions/whatsapp-webhook/index.ts:321` contains only Ehsan Wazir (`923342224925`) and Muhammad Hanzala (`923235163874`). The webhook uses those numbers to (a) recognise an inbound message as coming from an agent rather than a customer, (b) send escalation pings to the assigned agent, and (c) round-robin lead assignment. Consequences today: if Bilal, Syed Hamza or Faisal ever message the business number they get created as **leads**, escalation notifications can only ever reach Ehsan or Hanzala, and round-robin only ever splits between those two. `profiles` has no phone column at all, so there is nowhere to put the real numbers. Fix is a `profiles.phone` column plus reading the rotation from the database instead of a code constant - that is a webhook change, so it needs a deploy window.
 - [ ] Confirm the `AYESHA` git author on commits `45f747d`, `295eeca`, `928a01b` - a third machine is pushing and the `user.name` convention in `CLAUDE.md` does not cover it.
 
 ---
@@ -67,3 +73,4 @@ _Add items here._
 - "Create a separate section entitled Bot Manager" mirroring WhatChimp's own burger-menu item (4th or 5th in that list), move the chatbot section into it, and leave the icon on the main dashboard. Screenshots from Junaid (originally from WhatChimp/Badar) to follow in the next message.
 - "I want our conversations dashboard to look inch by inch the same as WhatsApp" plus a reminder never to come back unverified. Built the WhatsApp Web skin for both themes and verified it in demo mode; held the push because deploying changes what agents see mid-conversation.
 - "You can do the WhatsApp webhook change thing from my laptop. Start." - deployed it (v69) with him present, plus asked for a plainer explanation of the three cross-laptop warnings.
+- Screenshot of Syed Faisal Shah's details, plus: "WhatChimp always requires the mobile number of the agent. Why does it do so, and what is the mechanism behind it?" - answered from the webhook code, which turned up the hardcoded AGENT_ROTATION gap above.
