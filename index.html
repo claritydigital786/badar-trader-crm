@@ -5680,6 +5680,19 @@ function truncate(s, n) {
   return s.length > n ? s.slice(0, n) + '…' : s;
 }
 
+// Display-only whitespace cleanup for message bubbles. Found 2026-08-06: a
+// real customer message with several blank lines before the actual text
+// (e.g. "\n\n\n\n\nok") rendered as a tall, mostly-empty bubble with the text
+// pinned to the bottom - not a bug, .msg-bubble correctly preserves
+// whitespace (white-space:pre-wrap), it's just what the customer actually
+// sent. This never touches what's stored, sent, forwarded, or quoted in a
+// reply - only what's shown inside the bubble itself, so agents aren't
+// staring at empty space for a two-word reply. Collapses any run of 2+
+// newlines down to one, and drops leading/trailing blank lines entirely.
+function displayMsgText(text) {
+  return String(text ?? '').replace(/\n{2,}/g, '\n').replace(/^\n+|\n+$/g, '');
+}
+
 // ── AUTOMATION RULES (admin only) ──────────────────────────────
 let cachedAutomationRules = [];
 let cachedAiKb           = [];
@@ -7740,7 +7753,7 @@ async function openConversation(convId, scope = '') {
           lastDay = m.dayLabel || lastDay;
           return `${sep}
           <div class="msg-wrapper${m.from === 'agent' ? ' outgoing' : ''}">
-            <div class="msg-bubble ${m.from === 'agent' ? 'outgoing' : 'incoming'}" style="position:relative"><button type="button" class="msg-fwd-btn" title="Forward this message to another conversation" data-fwd="${esc(m.text || '')}" onclick="openForwardPicker(this.dataset.fwd)" style="${m.from === 'agent' ? 'left' : 'right'}:-10px">↪</button>${esc(m.text)}<span class="msg-time">${m.time}${deliveryTickHtml(m.from === 'agent' ? 'outbound' : 'inbound', m.deliveryStatus)}</span></div>
+            <div class="msg-bubble ${m.from === 'agent' ? 'outgoing' : 'incoming'}" style="position:relative"><button type="button" class="msg-fwd-btn" title="Forward this message to another conversation" data-fwd="${esc(m.text || '')}" onclick="openForwardPicker(this.dataset.fwd)" style="${m.from === 'agent' ? 'left' : 'right'}:-10px">↪</button>${esc(displayMsgText(m.text))}<span class="msg-time">${m.time}${deliveryTickHtml(m.from === 'agent' ? 'outbound' : 'inbound', m.deliveryStatus)}</span></div>
           </div>`; }).join(''); })()}
       </div>
       <div id="conv-attach-chip" style="display:none"></div>
@@ -7842,7 +7855,7 @@ async function openConversation(convId, scope = '') {
               return `${sep}
               <div class="msg-wrapper${m.direction === 'outbound' ? ' outgoing' : ''}"${m.wa_message_id ? ` data-wamid="${esc(m.wa_message_id)}"` : ''}>
                 <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}" style="position:relative">
-                  ${esc(m.body)}
+                  ${esc(displayMsgText(m.body))}
                   ${m.attachment_path ? `<div class="msg-attachment" id="conv-att-${convId}-${i}" data-path="${esc(m.attachment_path)}" style="margin-top:8px;cursor:pointer;color:inherit">🖼 Loading image…</div>` : ''}
                   ${m.wa_message_id ? `<button type="button" title="Reply to this message" data-wamid="${esc(m.wa_message_id)}" data-preview="${esc(truncate(m.body || '', 60))}" onclick="setReplyTarget(this.dataset.wamid, this.dataset.preview)" style="position:absolute;top:-10px;${m.direction === 'outbound' ? 'left' : 'right'}:-10px;width:22px;height:22px;border-radius:50%;border:1px solid #cbd5e1;background:#fff;color:#475569;font-size:0.7rem;cursor:pointer;line-height:1">↩</button>` : ''}<button type="button" class="msg-fwd-btn" title="Forward this message to another conversation" data-fwd="${esc(m.body || '')}" onclick="openForwardPicker(this.dataset.fwd)" style="${m.direction === 'outbound' ? 'left' : 'right'}:14px">↪</button><span class="msg-time">${fmtConvTime(m.created_at)}${deliveryTickHtml(m.direction, m.delivery_status)}</span>
                 </div>
@@ -8469,7 +8482,7 @@ async function sendConvMessage(convId, scope = '') {
     if (msgArea) {
       const div = document.createElement('div');
       div.className = 'msg-wrapper outgoing';
-      div.innerHTML = `<div class="msg-bubble outgoing">${esc(shown)}<span class="msg-time">${timeStr}</span></div>`;
+      div.innerHTML = `<div class="msg-bubble outgoing">${esc(displayMsgText(shown))}<span class="msg-time">${timeStr}</span></div>`;
       msgArea.appendChild(div);
       msgArea.scrollTop = msgArea.scrollHeight;
     }
@@ -8658,7 +8671,7 @@ function startConvRealtime(scope = '') {
           // Tagged with the wamid so the UPDATE handler below can find this
           // bubble again when its delivery status changes.
           if (payload.new.wa_message_id) div.dataset.wamid = payload.new.wa_message_id;
-          div.innerHTML = `<div class="msg-bubble ${payload.new.direction === 'outbound' ? 'outgoing' : 'incoming'}">${esc(payload.new.body)}<span class="msg-time">${fmtConvTime(payload.new.created_at)}${deliveryTickHtml(payload.new.direction, payload.new.delivery_status)}</span></div>`;
+          div.innerHTML = `<div class="msg-bubble ${payload.new.direction === 'outbound' ? 'outgoing' : 'incoming'}">${esc(displayMsgText(payload.new.body))}<span class="msg-time">${fmtConvTime(payload.new.created_at)}${deliveryTickHtml(payload.new.direction, payload.new.delivery_status)}</span></div>`;
           msgArea.appendChild(div);
           msgArea.scrollTop = msgArea.scrollHeight;
         }

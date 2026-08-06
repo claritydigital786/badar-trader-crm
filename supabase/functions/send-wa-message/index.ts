@@ -76,7 +76,7 @@ function validateAttachment(a: Attachment): string | null {
   return null;
 }
 
-function base64ToBytes(b64: string): Uint8Array {
+function base64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
   const binary = atob(b64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
@@ -88,7 +88,7 @@ function base64ToBytes(b64: string): Uint8Array {
 async function uploadMediaToMeta(
   phoneId: string,
   token: string,
-  bytes: Uint8Array,
+  bytes: Uint8Array<ArrayBuffer>,
   mimeType: string,
   filename: string,
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
@@ -127,7 +127,7 @@ async function uploadMediaToMeta(
 async function storeOutboundCopy(
   sb: ReturnType<typeof makeServiceClient>,
   leadId: string,
-  bytes: Uint8Array,
+  bytes: Uint8Array<ArrayBuffer>,
   attachment: Attachment,
 ): Promise<string | null> {
   try {
@@ -334,29 +334,38 @@ Deno.serve(async (req: Request): Promise<Response> => {
         : `[document sent${attachment.filename ? `: ${attachment.filename}` : ""}]`)
     : "");
 
-  const { error: insertError } = await sb.from("communications").insert({
-    lead_id: leadId,
-    type: "whatsapp",
-    direction: "outbound",
-    body: outboundBody,
-    logged_by: user.id,
-    wa_message_id: sentWaMessageId ?? null,
-    attachment_path: storedPath,
-  });
-
-  // An agent manually messaging a lead means a human has taken over this
-  // conversation - the bot must not keep processing the lead's replies as
-  // answers to its own stage machine. Uses the same needs_human flag the
-  // webhook's runBotStep already checks, with a reason matching the
-  // "requested human agent" pattern so it's a PERMANENT handoff (never
-  // auto-resumes after the usual gap), not a temporary one. Missed
-  // originally: a lead was lost 21 July 2026 evening when an agent
-  // (Hanzala) tried to step into an early-stage bot conversation and the
-  // bot kept consuming the lead's replies as if answering its own flow.
-  await sb.from("leads").update({
-    needs_human: true,
-    handoff_reason: "requested human agent, an agent manually took over this conversation",
-  }).eq("id", leadId);
+  // These two writes are independent (different tables, neither reads the
+  // other's result) but used to run one after another - a real, avoidable
+  // round-trip added to every single send. Found 2026-08-06 while
+  // investigating a repeated agent complaint (Hanzla) that sends feel slow.
+  // This alone won't explain several seconds of delay - most of that is the
+  // WhatsApp Graph API call above and possible Edge Function cold starts,
+  // neither of which this function controls - but it removes one genuine,
+  // fixable slice of the total.
+  const [{ error: insertError }] = await Promise.all([
+    sb.from("communications").insert({
+      lead_id: leadId,
+      type: "whatsapp",
+      direction: "outbound",
+      body: outboundBody,
+      logged_by: user.id,
+      wa_message_id: sentWaMessageId ?? null,
+      attachment_path: storedPath,
+    }),
+    // An agent manually messaging a lead means a human has taken over this
+    // conversation - the bot must not keep processing the lead's replies as
+    // answers to its own stage machine. Uses the same needs_human flag the
+    // webhook's runBotStep already checks, with a reason matching the
+    // "requested human agent" pattern so it's a PERMANENT handoff (never
+    // auto-resumes after the usual gap), not a temporary one. Missed
+    // originally: a lead was lost 21 July 2026 evening when an agent
+    // (Hanzala) tried to step into an early-stage bot conversation and the
+    // bot kept consuming the lead's replies as if answering its own flow.
+    sb.from("leads").update({
+      needs_human: true,
+      handoff_reason: "requested human agent, an agent manually took over this conversation",
+    }).eq("id", leadId),
+  ]);
 
   if (insertError) {
     // Message DID go out - surface the logging failure rather than pretending
