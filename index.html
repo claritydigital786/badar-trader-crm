@@ -7367,9 +7367,13 @@ async function renderConversations(scope = '') {
     return;
   }
 
-  // Live mode - load from Supabase. RLS scopes this automatically: admins see
-  // every lead's communications, agents only see communications for leads
-  // assigned to them (see "communications: agent select own" policy).
+  // Live mode - load from Supabase. Stale comment fixed 2026-08-05: this used
+  // to say agents only see their own leads' communications, citing a policy
+  // ("communications: agent select own") that was replaced back on 2026-07-21
+  // by Phase 15's "communications: staff select all" - any active staff
+  // member (agent or admin) sees every conversation, matching the pooled
+  // (not siloed) model documented in the User Permission tab. RLS via
+  // is_active_staff() enforces this; a suspended user gets nothing.
   listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:0.85rem">Loading…</div>';
   try {
     const { data: comms, error } = await sb
@@ -7418,15 +7422,36 @@ async function renderConversations(scope = '') {
 
 function filterConversations(scope = '') {
   const q = (document.getElementById(scope + 'conv-search-input')?.value || '').toLowerCase();
-  document.querySelectorAll(`#${scope}conv-list .conv-item`).forEach(el => {
+  const listEl = document.getElementById(scope + 'conv-list');
+  let visibleCount = 0;
+  listEl?.querySelectorAll('.conv-item').forEach(el => {
     const matchesText = el.textContent.toLowerCase().includes(q);
     const matchesTier = _activeConvFilter === 'all'
       ? true
       : _activeConvFilter === 'unread'
         ? el.dataset.unread === 'true'
         : el.dataset.tier === _activeConvFilter;
-    el.style.display = (matchesText && matchesTier) ? '' : 'none';
+    const show = matchesText && matchesTier;
+    el.style.display = show ? '' : 'none';
+    if (show) visibleCount++;
   });
+  // Bug found 2026-08-05: a filter/search matching zero conversations just
+  // left a blank area with no explanation - indistinguishable from the
+  // feature being broken. Every other list in the app (leads, CSV import,
+  // etc.) already shows a real empty-state message; this didn't.
+  if (!listEl) return;
+  let emptyEl = listEl.querySelector('.conv-empty-state');
+  if (visibleCount === 0) {
+    if (!emptyEl) {
+      emptyEl = document.createElement('div');
+      emptyEl.className = 'conv-empty-state';
+      emptyEl.style.cssText = 'padding:24px;text-align:center;color:#94a3b8;font-size:0.85rem';
+      listEl.appendChild(emptyEl);
+    }
+    emptyEl.textContent = q ? 'No conversations match your search.' : 'No conversations match this filter.';
+  } else if (emptyEl) {
+    emptyEl.remove();
+  }
 }
 
 // ── 24-hour customer service window (catalog C2) ───────────────
