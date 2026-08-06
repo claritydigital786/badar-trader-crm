@@ -103,7 +103,19 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
-**CLAIMED (2026-08-06, Junaid on the AYESHA laptop) - two dependency-free parity gaps: day separators and in-conversation search.** Touching the Conversations rendering, CSS and JS in `index.html`. **Muhammad: I am in the Conversations section until this claim is removed.** No new libraries, no CDN scripts, no backend change, no deploy.
+**DONE (2026-08-06, Junaid on the AYESHA laptop) - search within a conversation. Claim released.** Was meant to be two parity gaps; the other one turned out to be already built, see the collision note below.
+
+A 🔍 button in the chat header opens a search bar over the thread. Typing highlights every matching bubble, dims the rest, and shows a `3/7` counter; the up/down buttons and Enter/Shift+Enter step through matches and scroll each into view, wrapping in both directions. Escape or ✕ closes and clears. Entirely client-side: it searches the bubbles already rendered, makes no query and touches no data.
+
+**Two implementation choices worth knowing.** Matching highlights the whole bubble rather than wrapping hits in `<mark>` tags: the bubbles carry a reply button, an attachment block, the timestamp and the delivery tick, and rewriting their innerHTML to wrap matched text would risk breaking all of that for a cosmetic gain. And the timestamp and tick are stripped before matching, because otherwise searching `10` would hit almost every message through its clock rather than its text.
+
+**COLLISION, and the process lesson is the useful part.** Day separators were the other half of this task, and I built them before discovering a parallel session had already shipped them in `37937d6` about an hour earlier. Worse, my version defined a second `convDayLabel()` with the same name as theirs, which JavaScript resolves silently by letting the later definition win - no error, no warning, just one of two implementations quietly in charge. Reverted mine entirely; `git diff` confirmed the file came back byte-identical before I moved on, and there is exactly one `convDayLabel` in the file now.
+
+I had pulled and checked Active Work Claims immediately before starting, and it was empty - their work was already committed, so there was nothing left to claim. **The claims list only prevents collisions on work in progress; it says nothing about work already finished.** The check that would have caught this is reading recent commits touching the file, not just the claims section. Worth doing both before starting anything in `index.html`, since it is one enormous file that everyone edits.
+
+**Verified in demo mode:** 14 search cases - bar toggling, a single match, multiple matches with the counter, stepping forwards and backwards including wrap-around, a query matching nothing, an empty query clearing state, and closing clearing everything. Specifically confirmed that searching `10:00` returns zero matches, which proves the timestamp stripping works rather than assuming it. Also confirmed switching conversation resets the match list (it holds DOM references into a thread that no longer exists), and that day dividers, delivery ticks and the attach button all still work afterwards. Both themes checked; zero console errors; brace, paren and tag balance clean; zero em dashes.
+
+Nothing here needs a deploy or a migration: it is frontend only and ships as soon as it reaches `main`.
 
 **DONE (2026-08-06, Junaid on the AYESHA laptop) - delivery ticks frontend (B3/B4). Claim released.** B3/B4 is now complete end to end in code: the column, the webhook writer, and the UI.
 

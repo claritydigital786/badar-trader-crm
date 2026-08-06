@@ -868,6 +868,25 @@
     .msg-tick.failed    { color:#f15c6d; letter-spacing:0; font-weight:700; }
     /* Day divider between messages from different calendar days, like WhatsApp's
        centred "Today / Yesterday / date" pill. */
+    /* In-conversation search. Matching bubbles are tinted and the rest are
+       dimmed, rather than the text being rewritten with <mark> tags - the
+       bubbles already contain a reply button, an attachment block, the time
+       and the delivery tick, and rewriting their innerHTML to wrap matches
+       would risk breaking all of that for a cosmetic gain. */
+    .conv-msg-search { display:flex; gap:6px; align-items:center; padding:7px 12px; background:#f0f2f5; border-bottom:1px solid #d1d7db; }
+    .conv-msg-search input { flex:1; min-width:0; border:1px solid transparent; border-radius:8px; padding:6px 12px; font-size:0.85rem; outline:none; background:#fff; color:#111b21; }
+    .conv-msg-search input:focus { border-color:#00a884; }
+    .conv-msg-search span { font-size:0.76rem; color:#667781; white-space:nowrap; min-width:38px; text-align:center; }
+    .conv-msg-search button { background:none; border:none; cursor:pointer; color:#54656f; font-size:0.95rem; padding:2px 6px; border-radius:5px; }
+    .conv-msg-search button:hover { background:#e2e8f0; }
+    .msg-wrapper.search-dim   { opacity:.35; }
+    .msg-wrapper.search-hit .msg-bubble { outline:2px solid #ffd279; }
+    .msg-wrapper.search-active .msg-bubble { outline:2px solid #f0a30a; box-shadow:0 0 0 4px rgba(240,163,10,.18); }
+    [data-theme="dark"] .conv-msg-search { background:#202c33; border-bottom-color:#222d34; }
+    [data-theme="dark"] .conv-msg-search input { background:#2a3942; color:#e9edef; }
+    [data-theme="dark"] .conv-msg-search span,
+    [data-theme="dark"] .conv-msg-search button { color:#8696a0; }
+    [data-theme="dark"] .conv-msg-search button:hover { background:#2a3942; }
     .msg-day-sep { align-self:center; margin:14px 0 8px; background:#e2f0f7; color:#54656f;
       font-size:0.7rem; font-weight:600; padding:4px 12px; border-radius:8px;
       box-shadow:0 1px .5px rgba(11,20,26,.13); text-transform:uppercase; letter-spacing:.3px; }
@@ -7629,6 +7648,10 @@ async function openConversation(convId, scope = '') {
   _activeConvId = convId;
   _replyTarget = null; // switching leads should never carry a reply target over
   _convAttachment = null; // nor a file picked for a different conversation
+  // Search matches are DOM references into the thread being replaced, so they
+  // would be stale the moment this renders.
+  _convSearchMatches = [];
+  _convSearchIndex = 0;
 
   if (demoMode) {
     const conv = _DEMO_CONVERSATIONS.find(c => c.id === convId);
@@ -7650,8 +7673,18 @@ async function openConversation(convId, scope = '') {
         </div>
         <span class="conv-window-pill${demoWindow.tone === 'ok' ? '' : ' ' + demoWindow.tone}" id="${scope}conv-window-pill"
           title="How long WhatsApp will still accept a free-form reply on this conversation">${esc(demoWindow.label)}</span>
+        <button type="button" class="conv-header-btn" title="Search in this conversation" onclick="toggleConvMsgSearch()">🔍</button>
         <button type="button" class="conv-header-btn" title="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
         <button type="button" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:#475569;font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
+      </div>
+      <div class="conv-msg-search" id="conv-msg-search" style="display:none">
+        <input type="text" id="conv-msg-search-input" placeholder="Search in this conversation…"
+          oninput="runConvMsgSearch()"
+          onkeydown="if(event.key==='Escape'){closeConvMsgSearch();} if(event.key==='Enter'){event.preventDefault(); convSearchStep(event.shiftKey?-1:1);}" />
+        <span id="conv-msg-search-count">0/0</span>
+        <button type="button" title="Previous match" onclick="convSearchStep(-1)">&uarr;</button>
+        <button type="button" title="Next match" onclick="convSearchStep(1)">&darr;</button>
+        <button type="button" title="Close search" onclick="closeConvMsgSearch()">&times;</button>
       </div>
       <div class="conv-messages" id="conv-msgs-${convId}">
         ${(() => { let lastDay = ''; return conv.messages.map(m => {
@@ -7733,6 +7766,7 @@ async function openConversation(convId, scope = '') {
         </div>
         <span class="conv-window-pill${waWindow.tone === 'ok' ? '' : ' ' + waWindow.tone}" id="${scope}conv-window-pill"
           title="How long WhatsApp will still accept a free-form reply on this conversation">${esc(waWindow.label)}</span>
+        <button type="button" class="conv-header-btn" title="Search in this conversation" onclick="toggleConvMsgSearch()">🔍</button>
         <button type="button" class="conv-header-btn" title="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
         <select title="Set this lead's tier yourself - you know the real situation" onchange="setLeadTier('${convId}', this.value, '${scope}')" style="border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;font-size:0.78rem;color:#475569;background:#fff">
           <option value="new" ${currentTier==='new'?'selected':''}>🆕 New</option>
@@ -7741,6 +7775,15 @@ async function openConversation(convId, scope = '') {
           <option value="closed" ${currentTier==='closed'?'selected':''}>✅ Converted</option>
         </select>
         <button type="button" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:#475569;font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
+      </div>
+      <div class="conv-msg-search" id="conv-msg-search" style="display:none">
+        <input type="text" id="conv-msg-search-input" placeholder="Search in this conversation…"
+          oninput="runConvMsgSearch()"
+          onkeydown="if(event.key==='Escape'){closeConvMsgSearch();} if(event.key==='Enter'){event.preventDefault(); convSearchStep(event.shiftKey?-1:1);}" />
+        <span id="conv-msg-search-count">0/0</span>
+        <button type="button" title="Previous match" onclick="convSearchStep(-1)">&uarr;</button>
+        <button type="button" title="Next match" onclick="convSearchStep(1)">&darr;</button>
+        <button type="button" title="Close search" onclick="closeConvMsgSearch()">&times;</button>
       </div>
       <div class="conv-messages" id="conv-msgs-${convId}">
         ${messages.length
@@ -7903,6 +7946,102 @@ function autoGrowConvInput(el) {
   const panel = el.closest('.conv-chat-panel');
   const dynamicMax = panel ? Math.max(160, Math.floor(panel.clientHeight * 0.45)) : 320;
   el.style.height = Math.min(Math.max(el.scrollHeight, 64), Math.min(dynamicMax, 320)) + 'px';
+}
+
+// ── Search within a conversation ──────────────────────────────
+// Finds text in the open thread, highlights every hit, dims the rest, and
+// steps through matches. Entirely client-side: it searches the bubbles
+// already rendered, makes no query, and touches no data.
+//
+// Matching is done against the bubble's rendered text rather than by
+// rewriting innerHTML with <mark> tags. The bubbles carry a reply button, an
+// attachment block, the timestamp and the delivery tick, and rewriting them
+// to wrap matches would risk breaking all of that for a cosmetic gain.
+let _convSearchMatches = [];
+let _convSearchIndex   = 0;
+
+function toggleConvMsgSearch() {
+  const bar = document.getElementById('conv-msg-search');
+  if (!bar) return;
+  if (bar.style.display === 'none' || !bar.style.display) {
+    bar.style.display = 'flex';
+    const input = document.getElementById('conv-msg-search-input');
+    if (input) { input.value = ''; input.focus(); }
+    runConvMsgSearch();
+  } else {
+    closeConvMsgSearch();
+  }
+}
+
+function closeConvMsgSearch() {
+  const bar = document.getElementById('conv-msg-search');
+  if (bar) bar.style.display = 'none';
+  const input = document.getElementById('conv-msg-search-input');
+  if (input) input.value = '';
+  clearConvSearchHighlights();
+  _convSearchMatches = [];
+  _convSearchIndex = 0;
+}
+
+function clearConvSearchHighlights() {
+  document.querySelectorAll('.msg-wrapper').forEach(w => {
+    w.classList.remove('search-hit', 'search-dim', 'search-active');
+  });
+}
+
+// The timestamp and tick live inside the bubble, so searching raw innerText
+// would let "10" match every message via its clock. Strip the time span's
+// text before comparing.
+function convBubbleSearchText(wrapper) {
+  const bubble = wrapper.querySelector('.msg-bubble');
+  if (!bubble) return '';
+  const clone = bubble.cloneNode(true);
+  clone.querySelectorAll('.msg-time, button').forEach(el => el.remove());
+  return (clone.textContent || '').toLowerCase();
+}
+
+function runConvMsgSearch() {
+  const input = document.getElementById('conv-msg-search-input');
+  const countEl = document.getElementById('conv-msg-search-count');
+  const query = (input?.value || '').trim().toLowerCase();
+
+  clearConvSearchHighlights();
+  _convSearchMatches = [];
+  _convSearchIndex = 0;
+
+  const wrappers = [...document.querySelectorAll('.conv-messages .msg-wrapper')];
+  if (!query) {
+    if (countEl) countEl.textContent = '0/0';
+    return;
+  }
+
+  wrappers.forEach(w => {
+    if (convBubbleSearchText(w).includes(query)) {
+      w.classList.add('search-hit');
+      _convSearchMatches.push(w);
+    } else {
+      w.classList.add('search-dim');
+    }
+  });
+
+  if (countEl) countEl.textContent = `${_convSearchMatches.length ? 1 : 0}/${_convSearchMatches.length}`;
+  if (_convSearchMatches.length) focusConvSearchMatch(0);
+}
+
+function focusConvSearchMatch(i) {
+  if (!_convSearchMatches.length) return;
+  _convSearchMatches.forEach(w => w.classList.remove('search-active'));
+  _convSearchIndex = (i + _convSearchMatches.length) % _convSearchMatches.length; // wraps both ways
+  const target = _convSearchMatches[_convSearchIndex];
+  target.classList.add('search-active');
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const countEl = document.getElementById('conv-msg-search-count');
+  if (countEl) countEl.textContent = `${_convSearchIndex + 1}/${_convSearchMatches.length}`;
+}
+
+function convSearchStep(delta) {
+  if (!_convSearchMatches.length) return;
+  focusConvSearchMatch(_convSearchIndex + delta);
 }
 
 // ── Delivery ticks (B3/B4) ────────────────────────────────────
