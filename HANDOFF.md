@@ -44,6 +44,23 @@ What we are building, in the roadmap's own build order (each type adds one capab
 
 ---
 
+## 2026-08-06 - CRM track session (blueprint + day-dividers), separate from the "continue 2" work above
+
+Done and pushed to `main` this session (Muhammad's laptop):
+- **`PROJECT_BLUEPRINT.md` built and pushed** - the living, evidence-based project blueprint Muhammad asked for (20 sections, every claim cited to code or read-only Supabase CLI metadata, no em dashes). This IS the "live CRM blueprint / progress board" to-do; keep it updated as work lands rather than starting a new one. Key verified facts inside: all seven send flags OFF in deployed code (`BOT_REPLIES_ENABLED`, `KEYWORD_REPLIES_ENABLED`, `AI_REPLIES_ENABLED`, `NEW_LEAD_NOTIFICATIONS_ENABLED`, `FOLLOW_UPS_ENABLED`, `SIGNAL_BROADCAST_ENABLED`, `AUTOMATION_ENABLED`); all 9 edge functions ACTIVE (webhook v70); `nudge-agents` has NO code kill switch (held back only by not being scheduled); schema drift (three tables/columns written by code but never defined in the repo); unsigned webhooks; per-row HTTP trigger on `leads` INSERT = bulk-import risk. Live migration-applied / cron / Meta-token states are marked UNVERIFIED (no safe DB SQL path from a session).
+- **Day-divider pills in Conversations built, verified, pushed** (commit `37937d6`): WhatsApp-style "Today / Yesterday / date" separators. Live path uses `convDayLabel(created_at)`; demo path uses a `dayLabel` field. Verified in demo (screenshot showed Yesterday/Today pills with ticks intact) and the helper unit-checked against real timestamps. Sits cleanly on top of Junaid's already-merged delivery-tick frontend (`4892a29`). Purely additive/cosmetic; does not touch the `delivery_status` query.
+- **Dropped my redundant tick stash.** I had built delivery ticks locally this session; Junaid's `4892a29` landed the equivalent independently (the collision the blueprint predicted). My stash was confirmed redundant and dropped (recoverable via reflog ~90 days). The only unique piece in it, day-dividers, was re-added cleanly above.
+
+Logged as new to-dos, NOT built (see REMAINING_TODOS.md):
+- **Forward a message to another subscriber (customer-facing).** Real Cloud API re-send; rides `send-wa-message` + the target's 24h window; live send = Muhammad's-laptop-only; sequence AFTER the in-flight attachments work to avoid an `index.html` collision.
+- **Forward a message internally to a teammate ("a MUST").** Open design question first: where does the recipient see it (lead activity log / dropped into another thread / a real notification)? Needs Muhammad's pick before building.
+
+Nudge-agents: confirmed still deployed (v5) with the cron defs still in `schema.sql`; Muhammad reaffirmed the idea is dropped. Full removal (unschedule live cron + delete cron block + optionally delete the function) offered, not done.
+
+Session ended here at Muhammad's request (usage limit; moving to another Claude account). Nothing left half-edited: working tree clean except untracked `deno.lock`.
+
+---
+
 **Two-person parallel work, effective 2026-08-02 - Muhammad and his younger brother, on separate laptops, sharing one Google/GitHub login, building ONE application together (this CRM), not split into separate systems:**
 - Since both machines share one GitHub identity, commits are told apart by the **local git `user.name`** set on each laptop, not by separate accounts - this laptop (Muhammad's) is set to `Muhammad`; run `git config user.name "Brother"` (his real name) on his laptop once he's set up.
 - **Active Work Claims** (below) is the collision-prevention mechanism - before starting something, add a line here; remove it once committed and pushed. Whoever's Claude session starts a task should `git pull origin main` first (already the standing rule) and check this list.
