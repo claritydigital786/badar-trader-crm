@@ -33,6 +33,137 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// ── Attachments ───────────────────────────────────────────────
+// The file rides inside the JSON request as base64 rather than being uploaded
+// to storage by the browser first. That avoids needing a new storage RLS
+// policy letting agents write to the bucket, which would need a migration
+// applied to the live database. The tradeoff is the size cap below, since the
+// whole file has to fit in one request body. If bigger files are ever needed,
+// the upgrade is: browser uploads straight to storage, sends only the path,
+// and this function reads it with the service role.
+type Attachment = { dataBase64: string; mimeType: string; filename: string };
+
+// Base64 inflates by about a third, so 5MB of file is roughly 6.7MB on the
+// wire. Also matches WhatsApp's own 5MB image ceiling, so an image that fits
+// here will not be rejected by Meta for size.
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
+// WhatsApp only accepts these for type "image". Everything else has to go as a
+// document, which is fine - it still arrives, just without an inline preview.
+const WA_IMAGE_MIME_TYPES = ["image/jpeg", "image/png"];
+
+function attachmentKind(mimeType: string): "image" | "document" {
+  return WA_IMAGE_MIME_TYPES.includes(mimeType) ? "image" : "document";
+}
+
+// Rough decoded size without allocating the bytes: 4 base64 chars per 3 bytes,
+// minus padding. Used to reject early, before decoding a large payload.
+function base64ByteLength(b64: string): number {
+  const len = b64.length;
+  if (!len) return 0;
+  const padding = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
+  return Math.floor((len * 3) / 4) - padding;
+}
+
+function validateAttachment(a: Attachment): string | null {
+  if (!a.dataBase64) return "Attachment has no file data";
+  if (!a.mimeType) return "Attachment has no file type";
+  const size = base64ByteLength(a.dataBase64);
+  if (size <= 0) return "Attachment appears to be empty";
+  if (size > MAX_ATTACHMENT_BYTES) {
+    return `Attachment is too large (${(size / 1024 / 1024).toFixed(1)}MB). The limit is 5MB.`;
+  }
+  return null;
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+// Meta will not accept media inline in a message: it has to be uploaded
+// first, and the message then references the returned id.
+async function uploadMediaToMeta(
+  phoneId: string,
+  token: string,
+  bytes: Uint8Array,
+  mimeType: string,
+  filename: string,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  try {
+    const form = new FormData();
+    form.append("messaging_product", "whatsapp");
+    form.append("type", mimeType);
+    form.append("file", new Blob([bytes], { type: mimeType }), filename || "attachment");
+
+    // No Content-Type header on purpose - fetch sets it, including the
+    // multipart boundary, which cannot be written by hand correctly.
+    const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneId}/media`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}` },
+      body: form,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return { ok: false, error: err?.error?.message || `Attachment upload failed (HTTP ${res.status})` };
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!data?.id) return { ok: false, error: "Attachment upload returned no media id" };
+    return { ok: true, id: String(data.id) };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Our own copy, so the sent file can be shown in the conversation later.
+// Reuses the deposit-screenshots bucket the inbound path already uses, under
+// an outbound/ prefix - the bucket name is a misnomer now, but a second
+// bucket would need a migration applied to the live database, and the
+// conversation renderer already resolves signed URLs from this one.
+// Returns null rather than throwing: this must never fail a send.
+async function storeOutboundCopy(
+  sb: ReturnType<typeof makeServiceClient>,
+  leadId: string,
+  bytes: Uint8Array,
+  attachment: Attachment,
+): Promise<string | null> {
+  try {
+    const dotted = attachment.filename.includes(".") ? attachment.filename.split(".").pop() : "";
+    const ext = (dotted || attachment.mimeType.split("/")[1] || "bin").toLowerCase();
+    const path = `outbound/${leadId}/${Date.now()}.${ext}`;
+    const { error } = await sb.storage
+      .from("deposit-screenshots")
+      .upload(path, bytes, { contentType: attachment.mimeType });
+    if (error) {
+      console.error("storeOutboundCopy failed, message was still sent:", error.message);
+      return null;
+    }
+    return path;
+  } catch (err) {
+    console.error("storeOutboundCopy threw, message was still sent:", err);
+    return null;
+  }
+}
+
+// Persist a send failure the same way the frontend does, so it stays
+// diagnosable after the fact (see sendConvMessage in index.html).
+async function logSendFailure(
+  sb: ReturnType<typeof makeServiceClient>,
+  leadId: string,
+  userId: string,
+  message: string,
+): Promise<void> {
+  await sb.from("communication_logs").insert({
+    lead_id: leadId,
+    type: "whatsapp",
+    message: `[SEND FAILED] ${message}`,
+    created_by: userId,
+  }).then(() => {}, () => {});
+}
+
 function json(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -86,16 +217,30 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let leadId = "";
   let text = "";
   let replyToWaMessageId = "";
+  let attachment: Attachment | null = null;
   try {
     const body = await req.json();
     leadId = String(body?.lead_id ?? "").trim();
     text = String(body?.text ?? "").trim();
     replyToWaMessageId = String(body?.reply_to_wa_message_id ?? "").trim();
+    if (body?.attachment) {
+      attachment = {
+        dataBase64: String(body.attachment.data_base64 ?? ""),
+        mimeType:   String(body.attachment.mime_type ?? "").split(";")[0].trim().toLowerCase(),
+        filename:   String(body.attachment.filename ?? "").trim(),
+      };
+    }
   } catch {
     return json({ ok: false, error: "Invalid request body" });
   }
-  if (!leadId || !text) {
-    return json({ ok: false, error: "lead_id and text are required" });
+  // Text alone is fine, an attachment alone is fine (the caption is optional,
+  // exactly like WhatsApp), but an empty request is not.
+  if (!leadId || (!text && !attachment)) {
+    return json({ ok: false, error: "lead_id and either text or an attachment are required" });
+  }
+  if (attachment) {
+    const problem = validateAttachment(attachment);
+    if (problem) return json({ ok: false, error: problem });
   }
 
   const sb = makeServiceClient();
@@ -128,14 +273,44 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error: "Lead has no phone number on record" });
   }
 
+  // An attachment has to reach Meta before the message can be sent: media is
+  // referenced by id, never inlined into the message payload.
+  let storedPath: string | null = null;
+  let mediaPayload: Record<string, unknown> | null = null;
+  if (attachment) {
+    const bytes = base64ToBytes(attachment.dataBase64);
+    const uploaded = await uploadMediaToMeta(phoneId, token, bytes, attachment.mimeType, attachment.filename);
+    if (!uploaded.ok) {
+      await logSendFailure(sb, leadId, user.id, uploaded.error);
+      return json({ ok: false, error: uploaded.error });
+    }
+
+    const kind = attachmentKind(attachment.mimeType);
+    mediaPayload = {
+      type: kind,
+      [kind]: {
+        id: uploaded.id,
+        // WhatsApp calls it a caption on both, and shows it under the file.
+        ...(text ? { caption: text } : {}),
+        // Documents keep their filename so the customer sees "receipt.pdf"
+        // rather than an opaque id. Images have no filename field.
+        ...(kind === "document" && attachment.filename ? { filename: attachment.filename } : {}),
+      },
+    };
+
+    // Keep our own copy so the conversation can show it afterwards. Best
+    // effort on purpose: if storing fails, the customer has still received
+    // the file, and telling the agent the send failed would be a lie.
+    storedPath = await storeOutboundCopy(sb, leadId, bytes, attachment);
+  }
+
   const waResp = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneId}/messages`, {
     method: "POST",
     headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       messaging_product: "whatsapp",
       to: phoneDigits,
-      type: "text",
-      text: { body: text },
+      ...(mediaPayload ?? { type: "text", text: { body: text } }),
       ...(replyToWaMessageId ? { context: { message_id: replyToWaMessageId } } : {}),
     }),
   });
@@ -143,27 +318,30 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!waResp.ok) {
     const errData = await waResp.json().catch(() => ({}));
     const message = errData?.error?.message || `WhatsApp API error ${waResp.status}`;
-    // Persist the failure the same way the frontend does, so it stays
-    // diagnosable after the fact (see sendConvMessage in index.html).
-    await sb.from("communication_logs").insert({
-      lead_id: leadId,
-      type: "whatsapp",
-      message: `[SEND FAILED] ${message}`,
-      created_by: user.id,
-    }).then(() => {}, () => {});
+    await logSendFailure(sb, leadId, user.id, message);
     return json({ ok: false, error: message });
   }
 
   const waData = await waResp.json().catch(() => ({}));
   const sentWaMessageId: string | undefined = waData?.messages?.[0]?.id;
 
+  // An attachment sent with no caption still needs a readable body, or the
+  // conversation and the Comm Log show an empty row. Same bracket convention
+  // the inbound handler uses.
+  const outboundBody = text || (attachment
+    ? (attachmentKind(attachment.mimeType) === "image"
+        ? "[image sent]"
+        : `[document sent${attachment.filename ? `: ${attachment.filename}` : ""}]`)
+    : "");
+
   const { error: insertError } = await sb.from("communications").insert({
     lead_id: leadId,
     type: "whatsapp",
     direction: "outbound",
-    body: text,
+    body: outboundBody,
     logged_by: user.id,
     wa_message_id: sentWaMessageId ?? null,
+    attachment_path: storedPath,
   });
 
   // An agent manually messaging a lead means a human has taken over this

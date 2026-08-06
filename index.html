@@ -889,8 +889,18 @@
       margin:6px 0 -3px 8px; line-height:1; white-space:nowrap;
     }
     .conv-input-bar { padding:10px 16px; border-top:1px solid #d1d7db; display:flex; gap:10px; align-items:flex-end; background:#f0f2f5; }
-    .conv-input-bar input { flex:1; border:1px solid transparent; border-radius:8px; padding:9px 14px; font-size:0.9375rem; outline:none; color:#111b21; background:#fff; }
-    .conv-input-bar input:focus { border-color:#00a884; }
+    /* :not([type=file]) so the hidden attachment picker never picks up the
+       visible text-input styling, which would give it a flex slot in the bar. */
+    .conv-input-bar input:not([type="file"]) { flex:1; border:1px solid transparent; border-radius:8px; padding:9px 14px; font-size:0.9375rem; outline:none; color:#111b21; background:#fff; }
+    .conv-input-bar input:not([type="file"]):focus { border-color:#00a884; }
+    .conv-attach-btn { flex:0 0 auto; background:none; border:none; cursor:pointer; font-size:1.15rem; line-height:1; padding:8px 4px; opacity:.65; }
+    .conv-attach-btn:hover { opacity:1; }
+    #conv-attach-chip { display:flex; align-items:center; gap:8px; padding:8px 16px; background:#f0f2f5; border-top:1px solid #d1d7db; font-size:0.8rem; color:#3b4a54; }
+    #conv-attach-chip .name { font-weight:600; word-break:break-all; }
+    #conv-attach-chip .size { color:#667781; }
+    #conv-attach-chip button { margin-left:auto; background:none; border:none; cursor:pointer; color:#667781; font-size:0.95rem; }
+    [data-theme="dark"] #conv-attach-chip { background:#202c33; border-top-color:#222d34; color:#d1d7db; }
+    [data-theme="dark"] #conv-attach-chip .size { color:#8696a0; }
     .conv-empty-chat { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#667781; background:#f0f2f5; }
 
     /* ── Contact panel (catalog D1) ──
@@ -7569,6 +7579,7 @@ async function openConversation(convId, scope = '') {
   stopWaWindowTicker();
   _activeConvId = convId;
   _replyTarget = null; // switching leads should never carry a reply target over
+  _convAttachment = null; // nor a file picked for a different conversation
 
   if (demoMode) {
     const conv = _DEMO_CONVERSATIONS.find(c => c.id === convId);
@@ -7599,7 +7610,10 @@ async function openConversation(convId, scope = '') {
             <div class="msg-bubble ${m.from === 'agent' ? 'outgoing' : 'incoming'}">${esc(m.text)}<span class="msg-time">${m.time}</span></div>
           </div>`).join('')}
       </div>
+      <div id="conv-attach-chip" style="display:none"></div>
       <div class="conv-input-bar">
+        <input type="file" id="conv-attach-input" hidden onchange="onConvAttachPicked(this)" accept="image/jpeg,image/png,application/pdf" />
+        <button type="button" class="conv-attach-btn" title="Attach a file" onclick="document.getElementById('conv-attach-input').click()">📎</button>
         <textarea class="conv-msg-textarea" id="conv-msg-input" placeholder="Type a message… (Shift+Enter for a new line)" rows="1"
           oninput="autoGrowConvInput(this)"
           onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendConvMessage('${convId}','${scope}'); }"></textarea>
@@ -7685,7 +7699,10 @@ async function openConversation(convId, scope = '') {
         <span>Replying to: <em id="conv-reply-preview-text"></em></span>
         <button type="button" onclick="clearReplyTarget()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:0.9rem">✕</button>
       </div>
+      <div id="conv-attach-chip" style="display:none"></div>
       <div class="conv-input-bar">
+        <input type="file" id="conv-attach-input" hidden onchange="onConvAttachPicked(this)" accept="image/jpeg,image/png,application/pdf" />
+        <button type="button" class="conv-attach-btn" title="Attach a file" onclick="document.getElementById('conv-attach-input').click()">📎</button>
         <textarea class="conv-msg-textarea" id="conv-msg-input" placeholder="Type a WhatsApp message… (Shift+Enter for a new line)" rows="1"
           oninput="autoGrowConvInput(this)"
           onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendConvMessage('${convId}','${scope}'); }"></textarea>
@@ -7824,24 +7841,114 @@ function autoGrowConvInput(el) {
   el.style.height = Math.min(Math.max(el.scrollHeight, 64), Math.min(dynamicMax, 320)) + 'px';
 }
 
+// ── Conversation attachments ──────────────────────────────────
+// The picked file is held here until Send, then sent inside the request to
+// send-wa-message as base64. It is NOT uploaded to storage from the browser:
+// that would need a storage RLS policy letting agents write to the bucket,
+// which means a migration against the live database. The cost of this choice
+// is the size cap below, since the file has to fit in one request body.
+let _convAttachment = null; // { file, name, size, type }
+
+// 5MB matches both WhatsApp's own image ceiling and what comfortably fits in
+// a request once base64 has inflated it by about a third.
+const CONV_ATTACH_MAX_BYTES = 5 * 1024 * 1024;
+// Kept deliberately narrow for the first version: the two image types
+// WhatsApp renders inline, plus PDF, which is what a deposit receipt actually
+// arrives as. Anything else would still send as a document, but it is not
+// offered until someone asks for it.
+const CONV_ATTACH_ALLOWED = ['image/jpeg', 'image/png', 'application/pdf'];
+
+function humanFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+  return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+// Returns an error string, or null when the file is acceptable.
+function validateConvAttachment(file) {
+  if (!file) return 'No file selected.';
+  if (!CONV_ATTACH_ALLOWED.includes(file.type)) {
+    return 'Only JPG, PNG and PDF files can be sent.';
+  }
+  if (file.size <= 0) return 'That file is empty.';
+  if (file.size > CONV_ATTACH_MAX_BYTES) {
+    // Rounded UP on purpose: a file one byte over 5MB formats as "5.0 MB" with
+    // normal rounding, which reads as a bug next to a stated 5 MB limit.
+    const mb = Math.ceil((file.size / 1024 / 1024) * 10) / 10;
+    return `That file is ${mb.toFixed(1)} MB. The limit is 5 MB.`;
+  }
+  return null;
+}
+
+function onConvAttachPicked(inputEl) {
+  const file = inputEl?.files?.[0];
+  const problem = validateConvAttachment(file);
+  if (problem) {
+    showToast(problem, 'err');
+    if (inputEl) inputEl.value = '';   // let the same file be re-picked later
+    return;
+  }
+  _convAttachment = { file, name: file.name, size: file.size, type: file.type };
+  renderConvAttachChip();
+}
+
+function renderConvAttachChip() {
+  const chip = document.getElementById('conv-attach-chip');
+  if (!chip) return;
+  if (!_convAttachment) { chip.style.display = 'none'; chip.innerHTML = ''; return; }
+  const icon = _convAttachment.type === 'application/pdf' ? '📄' : '🖼';
+  chip.innerHTML = `<span>${icon}</span>
+    <span class="name">${esc(_convAttachment.name)}</span>
+    <span class="size">${humanFileSize(_convAttachment.size)}</span>
+    <button type="button" title="Remove attachment" onclick="clearConvAttachment()">✕</button>`;
+  chip.style.display = 'flex';
+}
+
+function clearConvAttachment() {
+  _convAttachment = null;
+  const picker = document.getElementById('conv-attach-input');
+  if (picker) picker.value = '';
+  renderConvAttachChip();
+}
+
+// FileReader gives "data:<mime>;base64,<payload>" - the function only wants
+// the payload, and carries the mime type as its own field.
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = () => reject(new Error('Could not read that file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
 async function sendConvMessage(convId, scope = '') {
   const input = document.getElementById('conv-msg-input');
   const text = (input?.value || '').trim();
-  if (!text) return;
+  // A caption-less attachment is a valid message, same as in WhatsApp.
+  if (!text && !_convAttachment) return;
 
   if (demoMode) {
     const timeStr = new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+    // Mirrors the body the edge function writes for a caption-less send, so
+    // demo mode shows what the real conversation will actually contain.
+    const shown = _convAttachment
+      ? (text || (_convAttachment.type === 'application/pdf'
+          ? `[document sent: ${_convAttachment.name}]`
+          : '[image sent]'))
+      : text;
     const conv = _DEMO_CONVERSATIONS.find(c => c.id === convId);
-    if (conv) { conv.messages.push({ from:'agent', text, time:timeStr }); conv.lastMsg = text; conv.lastTime = timeStr; }
+    if (conv) { conv.messages.push({ from:'agent', text: shown, time:timeStr }); conv.lastMsg = shown; conv.lastTime = timeStr; }
     const msgArea = document.getElementById('conv-msgs-' + convId);
     if (msgArea) {
       const div = document.createElement('div');
       div.className = 'msg-wrapper outgoing';
-      div.innerHTML = `<div class="msg-bubble outgoing">${esc(text)}<span class="msg-time">${timeStr}</span></div>`;
+      div.innerHTML = `<div class="msg-bubble outgoing">${esc(shown)}<span class="msg-time">${timeStr}</span></div>`;
       msgArea.appendChild(div);
       msgArea.scrollTop = msgArea.scrollHeight;
     }
     if (input) { input.value = ''; input.style.height = 'auto'; }
+    clearConvAttachment();
     renderConversations(scope);
     return;
   }
@@ -7857,8 +7964,25 @@ async function sendConvMessage(convId, scope = '') {
   const replyToWaMessageId = _replyTarget?.waMessageId || null;
 
   try {
-    const viaFunction = await sendWaViaFunction(convId, text, replyToWaMessageId);
+    // Read the file before anything is sent, so a read failure cannot leave a
+    // half-sent message behind.
+    let attachmentPayload = null;
+    if (_convAttachment) {
+      attachmentPayload = {
+        data_base64: await readFileAsBase64(_convAttachment.file),
+        mime_type:   _convAttachment.type,
+        filename:    _convAttachment.name,
+      };
+    }
+
+    const viaFunction = await sendWaViaFunction(convId, text, replyToWaMessageId, attachmentPayload);
     if (viaFunction === 'unavailable') {
+      // The legacy in-browser path can only send text. Silently dropping the
+      // file here would tell the agent the attachment went when it did not.
+      if (attachmentPayload) {
+        showToast('Attachments need the send-wa-message function deployed. Nothing was sent.', 'err');
+        return;
+      }
       const sent = await sendWaViaBrowser(convId, text, replyToWaMessageId);
       if (!sent) return; // credentials toast already shown by the legacy path
     } else if (viaFunction.warning) {
@@ -7867,6 +7991,7 @@ async function sendConvMessage(convId, scope = '') {
     clearReplyTarget();
 
     if (input) { input.value = ''; input.style.height = 'auto'; }
+    clearConvAttachment();
     showToast('Message sent ✓');
     // No full reload here on purpose. startConvRealtime() is already
     // subscribed by the time this conversation could be open (it starts
@@ -7898,11 +8023,16 @@ async function sendConvMessage(convId, scope = '') {
 // if the Edge Function can't be reached (not deployed yet, or the functions
 // endpoint is down → caller uses the legacy path), and throws on real
 // failures with the server's error message.
-async function sendWaViaFunction(convId, text, replyToWaMessageId) {
+async function sendWaViaFunction(convId, text, replyToWaMessageId, attachment = null) {
   let data, error;
   try {
     ({ data, error } = await sb.functions.invoke('send-wa-message', {
-      body: { lead_id: convId, text, reply_to_wa_message_id: replyToWaMessageId || undefined }
+      body: {
+        lead_id: convId,
+        text,
+        reply_to_wa_message_id: replyToWaMessageId || undefined,
+        attachment: attachment || undefined,
+      }
     }));
   } catch (_) {
     return 'unavailable';
