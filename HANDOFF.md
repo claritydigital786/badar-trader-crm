@@ -103,6 +103,8 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**CLAIMED (2026-08-06, Junaid on the AYESHA laptop) - two dependency-free parity gaps: day separators and in-conversation search.** Touching the Conversations rendering, CSS and JS in `index.html`. **Muhammad: I am in the Conversations section until this claim is removed.** No new libraries, no CDN scripts, no backend change, no deploy.
+
 **DONE (2026-08-06, Junaid on the AYESHA laptop) - delivery ticks frontend (B3/B4). Claim released.** B3/B4 is now complete end to end in code: the column, the webhook writer, and the UI.
 
 Ticks use WhatsApp's own states and colours: grey `✓` sent, grey `✓✓` delivered, blue `✓✓` (#53bdeb) read, red `!` failed. Outbound only, since WhatsApp never ticks a message the customer sent.
