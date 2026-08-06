@@ -7504,7 +7504,7 @@ function renderContactPanel(scope, convId, info) {
     <div class="conv-contact-section">
       ${row('Status', statusBadge(info.status || 'new'))}
       ${row('Source', esc(info.source || 'Not recorded'))}
-      ${row('Assigned agent', esc(info.agentName || 'Unassigned'))}
+      ${row('Assigned agent', buildAssignAgentControl(scope, convId, info.agentId, info.agentName))}
     </div>
     <div class="conv-contact-section">
       ${row('Email', esc(info.email || 'Not recorded'))}
@@ -7514,6 +7514,48 @@ function renderContactPanel(scope, convId, info) {
     <div class="conv-contact-section" style="border-bottom:none">
       <button class="btn btn-primary btn-sm" style="width:100%" onclick="openLeadFromConversation('${convId}','${scope}')">Open full lead record</button>
     </div>`;
+}
+
+// ── Assign a conversation from the inbox (catalog E1) ──────────
+// Reassigning is an admin action everywhere else in this CRM (agents get
+// their own status and notes, never ownership), so the inbox follows the
+// same rule rather than inventing a looser one: agents see who owns the
+// conversation, admins can change it.
+function buildAssignAgentControl(scope, leadId, agentId, agentName) {
+  const isAdmin = scope === '';
+  if (!isAdmin) return esc(agentName || 'Unassigned');
+  const agents = (cachedProfiles || []).filter(p => p.role === 'agent' && !p.is_suspended);
+  return `
+    <select id="${scope}conv-assign-select" onchange="assignConversationAgent('${leadId}', this.value, '${scope}')"
+      style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;font-size:0.84rem">
+      <option value="">Unassigned</option>
+      ${agents.map(a => `<option value="${a.id}" ${a.id === agentId ? 'selected' : ''}>${esc(a.full_name || a.email)}</option>`).join('')}
+    </select>`;
+}
+
+async function assignConversationAgent(leadId, agentId, scope = '') {
+  const agent = (cachedProfiles || []).find(p => p.id === agentId);
+  const who   = agent ? (agent.full_name || agent.email) : 'Unassigned';
+
+  if (demoMode) {
+    showToast(`Conversation assigned to ${who}. (demo - not written to a real database)`);
+    return;
+  }
+  const { error } = await sb.from('leads')
+    .update({ assigned_agent_id: agentId || null }).eq('id', leadId);
+  if (error) { showToast('Could not reassign: ' + error.message, 'err'); return; }
+
+  // Leave a trace in the lead's own activity log, so a reassignment mid
+  // conversation is explainable afterwards rather than a silent change.
+  await sb.from('lead_activity').insert({
+    lead_id: leadId, actor_id: currentUser.id, channel: 'note',
+    summary: `Conversation reassigned to ${who} from the inbox.`,
+  });
+
+  const cached = (cachedLeads || []).find(l => l.id === leadId);
+  if (cached) cached.assigned_agent_id = agentId || null;
+  showToast(`Conversation assigned to ${who}.`);
+  renderConversations(scope);
 }
 
 // Jumps to the lead's own detail panel without losing where they came from.
@@ -7567,7 +7609,9 @@ async function openConversation(convId, scope = '') {
     if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
     renderContactPanel(scope, convId, {
       name: conv.name, phone: conv.phone, status: conv.status, source: conv.source,
-      email: conv.email, agentName: 'Demo Agent', createdAt: null, window: demoWindow,
+      email: conv.email, agentName: 'Demo Agent',
+      agentId: ((cachedProfiles || []).find(p => p.role === 'agent') || {}).id || null,
+      createdAt: null, window: demoWindow,
     });
     applyWaWindowGate(demoWindow, scope);
     startWaWindowTicker(demoInboundIso, scope);
@@ -7661,6 +7705,7 @@ async function openConversation(convId, scope = '') {
       name: lead?.full_name, phone: lead?.phone, status: lead?.status,
       source: lead?.source, email: lead?.email,
       agentName: ownAgent ? (ownAgent.full_name || ownAgent.email) : 'Unassigned',
+      agentId: lead?.assigned_agent_id || null,
       createdAt: lead?.created_at, window: waWindow,
     });
     applyWaWindowGate(waWindow, scope);
