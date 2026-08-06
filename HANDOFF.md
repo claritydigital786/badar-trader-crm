@@ -103,6 +103,8 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**CLAIMED (2026-08-06, Junaid on the AYESHA laptop) - customer-facing Forward: re-send a message's content into another conversation.** Touching the Conversations bubble actions, a target picker, CSS and JS in `index.html`. **Muhammad: I am in the Conversations section until this claim is removed.** Frontend only, reusing the existing `send-wa-message` path - no backend change, no migration, no deploy. Building the feature only; no real message is sent from this session.
+
 **DONE (2026-08-06, Junaid on the AYESHA laptop) - search within a conversation. Claim released.** Was meant to be two parity gaps; the other one turned out to be already built, see the collision note below.
 
 A 🔍 button in the chat header opens a search bar over the thread. Typing highlights every matching bubble, dims the rest, and shows a `3/7` counter; the up/down buttons and Enter/Shift+Enter step through matches and scroll each into view, wrapping in both directions. Escape or ✕ closes and clears. Entirely client-side: it searches the bubbles already rendered, makes no query and touches no data.
