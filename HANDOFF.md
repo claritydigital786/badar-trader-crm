@@ -49,6 +49,8 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**CLAIMED (2026-08-06, Junaid on the AYESHA laptop) - WhatsApp feature-parity audit of the Conversations dashboard.** Muhammad's question: "Have you added all of the features which we could see on WhatsApp?" Read-only inspection of the Conversations markup and JS in `index.html` plus the send/receive paths in `whatsapp-webhook` and `send-wa-message`, producing an honest present/missing list. **Not editing anything yet** - if a fix follows, it gets its own claim first. No live conversation or lead data is touched.
+
 **STATE OF JUNAID'S DELIVERY-TICKS WORK (B3/B4), checked 2026-08-06 from Muhammad's laptop - HALF-LANDED, read this before touching either half.**
 
 Junaid built the backend (`6a16f2e`): the webhook now persists WhatsApp's status callbacks into a new `communications.delivery_status`, advancing only forwards (sent -> delivered -> read) with `failed` sticky, because Meta neither guarantees callback order nor sends each callback once. The reasoning in his migration and code is sound and I have no correction to make to it.
