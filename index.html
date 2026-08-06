@@ -3750,7 +3750,7 @@ function renderBotList() {
     bmSelectedBot = visible[0].number;
   }
   list.innerHTML = visible.map(b => `
-    <button class="bm-bot-item ${b.number === bmSelectedBot ? 'active' : ''}" onclick="selectBot('${esc(b.number)}')">
+    <button class="bm-bot-item ${b.number === bmSelectedBot ? 'active' : ''}" data-number="${esc(b.number)}" onclick="selectBot(this.dataset.number)">
       <span class="bm-bot-avatar">💬</span>
       <span>
         <span class="bm-bot-name">${esc(b.number)}</span><br>
@@ -4005,7 +4005,7 @@ function renderAgentsTable(tbodyId) {
             : '<span style="color:#22c55e;font-size:0.8rem;font-weight:600">✓ Active</span>')
         : '<span style="color:#555;font-size:0.8rem">(you)</span>'}</td>
       <td style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn btn-secondary btn-sm" onclick="renameProfile('${p.id}','${esc(p.full_name || '')}')">Rename</button>
+        <button class="btn btn-secondary btn-sm" data-id="${esc(p.id)}" data-name="${esc(p.full_name || '')}" onclick="renameProfile(this.dataset.id, this.dataset.name)">Rename</button>
         <button class="btn btn-secondary btn-sm" onclick="setProfilePhone('${p.id}','${esc(p.phone || '')}')">${p.phone ? 'Edit Number' : 'Set Number'}</button>
         ${p.id !== currentUser.id
         ? `<button class="btn btn-secondary btn-sm"
@@ -4590,7 +4590,7 @@ async function openDetail(leadId, ctx) {
             <span>${esc(lead.phone||'-')}</span>
             ${lead.phone ? `
               <a href="tel:${esc(lead.phone)}" class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem;text-decoration:none" title="Call">📞</a>
-              <button class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem" title="Copy" onclick="navigator.clipboard.writeText('${esc(lead.phone)}').then(()=>{this.textContent='✓';setTimeout(()=>this.textContent='📋',1200)})">📋</button>
+              <button class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem" title="Copy" data-copy="${esc(lead.phone)}" onclick="navigator.clipboard.writeText(this.dataset.copy).then(()=>{this.textContent='✓';setTimeout(()=>this.textContent='📋',1200)})">📋</button>
               <a href="https://wa.me/${(lead.phone||'').replace(/[^0-9]/g,'')}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem;text-decoration:none;background:#25d366;color:#fff;border-color:#25d366" title="WhatsApp">WA</a>
             ` : ''}
           </span>
@@ -4600,7 +4600,7 @@ async function openDetail(leadId, ctx) {
             <span>${esc(lead.email||'-')}</span>
             ${lead.email ? `
               <a href="mailto:${esc(lead.email)}" class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem;text-decoration:none" title="Email">✉️</a>
-              <button class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem" title="Copy email" onclick="navigator.clipboard.writeText('${esc(lead.email)}').then(()=>{this.textContent='✓';setTimeout(()=>this.textContent='📋',1200)})">📋</button>
+              <button class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem" title="Copy email" data-copy="${esc(lead.email)}" onclick="navigator.clipboard.writeText(this.dataset.copy).then(()=>{this.textContent='✓';setTimeout(()=>this.textContent='📋',1200)})">📋</button>
             ` : ''}
           </span>
         </div>
