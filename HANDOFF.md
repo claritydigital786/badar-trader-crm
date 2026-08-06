@@ -103,6 +103,8 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**CLAIMED (2026-08-06, Junaid on the AYESHA laptop) - internal forward: send a customer message to a teammate inside the CRM.** Muhammad's option (a), picked by Junaid: an entry in the lead's activity log, nothing customer-facing. Touching the Conversations forward picker, CSS and JS in `index.html`, writing to the existing `lead_activity` table. **Muhammad: I am in the Conversations section until this claim is removed.** No schema change, no backend change, no deploy, and nothing is ever sent to a customer.
+
 **DONE (2026-08-06, Junaid on the AYESHA laptop) - customer-facing Forward, and a live bug it exposed. Claim released.**
 
 **The bug matters more than the feature: the quote-reply button has been broken in production, for every message, since it shipped.** Building Forward I hit a syntax error, traced it, and found the existing reply button had the identical defect. Both used `${JSON.stringify(text)}` inside a double-quoted `onclick="..."`. `JSON.stringify` wraps its output in double quotes, which closes the HTML attribute early - the browser parsed `onclick="setReplyTarget('wamid.ABC==', ` and stopped, leaving invalid JavaScript that throws on click and does nothing. Verified by generating the exact live-path markup and reading back the parsed attribute, not by reasoning about it.
