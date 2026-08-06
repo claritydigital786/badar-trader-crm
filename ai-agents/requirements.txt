@@ -1,0 +1,4 @@
+# Only needed for the real model providers. The stub provider uses stdlib only.
+# Install with: pip install -r requirements.txt
+anthropic>=0.39.0
+openai>=1.40.0

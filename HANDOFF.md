@@ -22,17 +22,21 @@ What we are building, in the roadmap's own build order (each type adds one capab
 3. **Type 3 - Tool-using action agent** - function/tool calling + a reason-act loop + hard guardrails + human approval on anything risky.
 4. **Type 4 - Multi-agent system** - an orchestrator delegating to specialised worker agents.
 
-**Progress checklist (all PENDING - nothing built yet as of 2026-08-06):**
-- [ ] Phase 0 - foundations, workspace, first API call
-- [ ] Type 1 - conversational assistant
+**Progress checklist:**
+- [x] Phase 0 - foundations, workspace, first API call (DONE 2026-08-06, `ai-agents/` scaffold)
+- [x] Type 1 - conversational assistant (DONE 2026-08-06, verified with stub provider, 4 self-tests pass)
 - [ ] Type 2 - RAG agent
 - [ ] Type 3 - tool-using action agent
 - [ ] Type 4 - multi-agent system
 
-**Three decisions must be settled at the start of the first real "continue 2" before any Type 1 code is written. Muhammad was asked these on 2026-08-06 and chose to defer, so they are OPEN, not decided - do not assume an answer:**
-1. **Placement** - a standalone learning project (recommended, fully sandboxed) vs a subfolder inside this repo vs wiring into the CRM's real features (not recommended as a start; collides with the live-traffic rule below).
-2. **Language/stack** - Python (the roadmap's default, richest AI ecosystem) vs TypeScript/Node (matches the CRM's world, easier to fold in later).
-3. **Model provider** - Anthropic Claude vs the OpenAI key already configured for the CRM vs a stub/echo model to scaffold the structure first.
+**The three decisions - SETTLED 2026-08-06 on the first real "continue 2" (Muhammad said "continue 2" without re-answering, so I took the sensible defaults, stated them, and built a runnable Type 1 to react to rather than re-asking a dismissed question):**
+1. **Placement -> a sandboxed `ai-agents/` subfolder INSIDE this repo.** This is the only placement that satisfies the rotation requirement: every laptop/account already pulls this repo, so "continue 2" resumes everywhere. It is inert learning code - imported by nothing in `index.html` or any Supabase function, touches no live data. (Updated from the earlier "standalone recommended" once the cross-laptop rotation need was factored in.)
+2. **Language/stack -> Python.** Roadmap default; needed for Type 2's embeddings/vector work. CRM stays JS/TS; this learning track is separate.
+3. **Model provider -> provider-agnostic, default stub.** `shared/llm.py` has a `StubClient` (runs offline, zero setup, no key) plus `ClaudeClient` and `OpenAIClient` adapters that activate the moment a key is in `.env`. Claude never handles a real key - Muhammad pastes his own into `.env` (gitignored) and sets `AGENT_PROVIDER`. If Muhammad wants a different placement/stack in hindsight, Type 1 is small and cheap to move; say so before Type 2 builds on it.
+
+**What was built (2026-08-06, Muhammad's laptop):** `ai-agents/` with `shared/config.py` (dependency-free .env loader + settings) and `shared/llm.py` (the provider seam every later type reuses); `type1_assistant/` (a `ConversationalAssistant` with system prompt, full multi-turn history, and `_trim()` context-window handling, plus a streaming CLI); `tests/test_type1.py` (4 stdlib self-tests, no pytest). Verified: all 4 self-tests pass; a scripted multi-turn CLI run showed real memory (turn 2 held 3 messages), `reset` clearing it, the system prompt always applied, and streaming working; every module byte-compiles clean including the claude/openai adapters. **Unverified deliberately:** the real Claude/OpenAI paths were not run - no keys on this laptop and Claude must never handle Muhammad's keys - only syntax-checked. First real-provider run is Muhammad dropping a key into `.env`.
+
+**Next on "continue 2": Type 2 (RAG).** It reuses `shared/llm.py` unchanged and adds document retrieval (embeddings + a vector store) before the model answers. Decide the embedding/vector approach at that point (a local option like Chroma or Postgres/pgvector keeps it sandboxed and free).
 
 **Hard safety rule for this track, non-negotiable, inherited from this repo's standing rules:** these agents are a learning/build exercise and stay fully sandboxed. They do NOT touch the live CRM, the live WhatsApp number, Meta Ads, WhatChimp, or any real customer or lead data. Building UI and logic is fine; operating on live traffic is not. This bites hardest at Type 3, the action agent: any tool that could send a message, spend money, or make an irreversible change gets a human-approval gate before it runs - both the roadmap's own guardrails guidance and this repo's rules demand it.
 
