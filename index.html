@@ -883,6 +883,21 @@
     .fwd-head { padding:14px 16px; border-bottom:1px solid #e2e8f0; }
     .fwd-head h4 { margin:0 0 6px; font-size:0.95rem; color:#0f172a; }
     .fwd-preview { font-size:0.78rem; color:#64748b; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px; max-height:64px; overflow:auto; white-space:pre-wrap; word-break:break-word; }
+    .fwd-modes { display:flex; gap:6px; margin-top:10px; }
+    .fwd-mode { flex:1; padding:6px 8px; font-size:0.78rem; border:1px solid #cbd5e1; background:#fff;
+      color:#475569; border-radius:8px; cursor:pointer; }
+    .fwd-mode.active { background:#0f172a; color:#fff; border-color:#0f172a; }
+    /* The two modes look nearly identical but one messages a real customer,
+       so the consequence is spelled out under the toggle, not just in the
+       confirm dialog. */
+    .fwd-mode-hint { margin-top:7px; font-size:0.72rem; color:#b45309; }
+    .fwd-mode-hint.internal { color:#047857; }
+    #fwd-note-wrap input { width:100%; border:1px solid #cbd5e1; border-radius:8px; padding:8px 12px; font-size:0.82rem; outline:none; }
+    [data-theme="dark"] .fwd-mode { background:#0f172a; border-color:#243350; color:#94a3b8; }
+    [data-theme="dark"] .fwd-mode.active { background:#d4a843; color:#0b1220; border-color:#d4a843; }
+    [data-theme="dark"] .fwd-mode-hint { color:#fbbf24; }
+    [data-theme="dark"] .fwd-mode-hint.internal { color:#34d399; }
+    [data-theme="dark"] #fwd-note-wrap input { background:#0f172a; border-color:#243350; color:#f1f5f9; }
     .fwd-search { padding:10px 16px; border-bottom:1px solid #e2e8f0; }
     .fwd-search input { width:100%; border:1px solid #cbd5e1; border-radius:8px; padding:8px 12px; font-size:0.85rem; outline:none; }
     .fwd-list { overflow-y:auto; flex:1; min-height:80px; }
@@ -7993,6 +8008,31 @@ function autoGrowConvInput(el) {
 // target, then confirm a dialog naming them. A misdirected forward cannot be
 // unsent.
 let _forwardText = null;
+// 'customer' re-sends over WhatsApp; 'team' writes an internal activity entry
+// and never contacts anyone outside the CRM.
+let _forwardMode = 'customer';
+
+function setForwardMode(mode) {
+  _forwardMode = mode === 'team' ? 'team' : 'customer';
+  const isTeam = _forwardMode === 'team';
+  document.getElementById('fwd-mode-customer')?.classList.toggle('active', !isTeam);
+  document.getElementById('fwd-mode-team')?.classList.toggle('active', isTeam);
+  const hint = document.getElementById('fwd-mode-hint');
+  if (hint) {
+    hint.textContent = isTeam
+      ? 'Internal only. Nothing is sent to any customer.'
+      : 'Sends a real WhatsApp message to that customer.';
+    hint.classList.toggle('internal', isTeam);
+  }
+  const noteWrap = document.getElementById('fwd-note-wrap');
+  if (noteWrap) noteWrap.style.display = isTeam ? 'block' : 'none';
+  const search = document.getElementById('fwd-search-input');
+  if (search) {
+    search.value = '';
+    search.placeholder = isTeam ? 'Search teammate…' : 'Search name or phone…';
+  }
+  renderForwardTargets('');
+}
 
 function openForwardPicker(text) {
   const body = String(text || '').trim();
@@ -8009,11 +8049,19 @@ function openForwardPicker(text) {
   overlay.innerHTML = `
     <div class="fwd-panel" role="dialog" aria-label="Forward message">
       <div class="fwd-head">
-        <h4>Forward to…</h4>
+        <h4>Forward…</h4>
         <div class="fwd-preview">${esc(truncate(body, 240))}</div>
+        <div class="fwd-modes">
+          <button type="button" class="fwd-mode active" id="fwd-mode-customer" onclick="setForwardMode('customer')">To a conversation</button>
+          <button type="button" class="fwd-mode" id="fwd-mode-team" onclick="setForwardMode('team')">To a teammate</button>
+        </div>
+        <div class="fwd-mode-hint" id="fwd-mode-hint">Sends a real WhatsApp message to that customer.</div>
       </div>
       <div class="fwd-search">
         <input type="text" id="fwd-search-input" placeholder="Search name or phone…" oninput="renderForwardTargets(this.value)" />
+      </div>
+      <div id="fwd-note-wrap" style="display:none;padding:0 16px 10px">
+        <input type="text" id="fwd-note-input" placeholder="Add a note for your teammate (optional)" />
       </div>
       <div class="fwd-list" id="fwd-list"></div>
       <div class="fwd-foot">
@@ -8021,6 +8069,7 @@ function openForwardPicker(text) {
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  _forwardMode = 'customer';
   renderForwardTargets('');
   document.getElementById('fwd-search-input')?.focus();
   document.addEventListener('keydown', forwardEscHandler);
@@ -8038,6 +8087,15 @@ function closeForwardPicker() {
 // Targets come from whatever the conversation list already loaded, so this
 // makes no extra query.
 function forwardTargetList() {
+  if (_forwardMode === 'team') {
+    // Teammates, not leads. Suspended accounts are excluded - forwarding to
+    // someone who cannot sign in would silently go nowhere. Self is excluded
+    // in renderForwardTargets, alongside the current-conversation rule.
+    const profiles = demoMode ? _DEMO_PROFILES : cachedProfiles;
+    return (profiles || [])
+      .filter(p => !p.is_suspended)
+      .map(p => ({ id: p.id, name: p.full_name || p.email || 'Unknown', phone: p.email || '' }));
+  }
   if (demoMode) {
     return _DEMO_CONVERSATIONS.map(c => ({ id: c.id, name: c.name, phone: c.phone }));
   }
@@ -8053,14 +8111,19 @@ function renderForwardTargets(query) {
   if (!listEl) return;
   const q = String(query || '').trim().toLowerCase();
 
+  const selfId = demoMode ? (_DEMO_PROFILE?.id) : currentUser?.id;
   const targets = forwardTargetList()
-    // Forwarding a message back into the conversation it came from is almost
-    // always a misclick, so the current chat is not offered.
-    .filter(t => t.id !== _activeConvId)
+    // Customer mode: forwarding a message back into the conversation it came
+    // from is almost always a misclick. Team mode: forwarding to yourself is
+    // pointless, and the current conversation id is a lead id, not a person.
+    .filter(t => _forwardMode === 'team' ? t.id !== selfId : t.id !== _activeConvId)
     .filter(t => !q || t.name.toLowerCase().includes(q) || (t.phone || '').toLowerCase().includes(q));
 
   if (!targets.length) {
-    listEl.innerHTML = `<div class="fwd-empty">${q ? 'No conversation matches that.' : 'No other conversations to forward to.'}</div>`;
+    const empty = _forwardMode === 'team'
+      ? (q ? 'No teammate matches that.' : 'No other teammates found.')
+      : (q ? 'No conversation matches that.' : 'No other conversations to forward to.');
+    listEl.innerHTML = `<div class="fwd-empty">${empty}</div>`;
     return;
   }
 
@@ -8076,12 +8139,61 @@ function renderForwardTargets(query) {
 
 function confirmForward(targetId, targetName) {
   if (!_forwardText) return;
+
+  if (_forwardMode === 'team') {
+    const note = (document.getElementById('fwd-note-input')?.value || '').trim();
+    // Says plainly that no customer is contacted - the two modes look almost
+    // identical at this point and the consequences are completely different.
+    const ok = confirm(`Send this to ${targetName} inside the CRM?\n\n"${truncate(_forwardText, 200)}"\n\nInternal only - no customer receives anything.`);
+    if (!ok) return;
+    closeForwardPicker();
+    doInternalForward(targetId, targetName, note);
+    return;
+  }
+
   // Names the recipient explicitly - the whole risk here is sending to the
   // wrong person, and "are you sure?" alone would not catch that.
   const ok = confirm(`Forward this message to ${targetName}?\n\n"${truncate(_forwardText, 200)}"\n\nThis sends a real WhatsApp message.`);
   if (!ok) return;
   closeForwardPicker();
   doForwardMessage(targetId, targetName);
+}
+
+// Writes an internal note onto the lead whose conversation this message is in,
+// using the existing lead_activity table (channel 'note'). Contacts nobody.
+//
+// lead_activity has no "recipient" column, so the teammate's name goes in the
+// summary text. That is honest but it does mean this is NOT a notification:
+// they see it when they open that lead's Activity, not before. There is no
+// per-user unread flag in this schema to hang a real alert on - leads.is_unread
+// is a single global boolean meaning "the customer sent something new", so
+// setting it here would both claim a customer message that never happened and
+// surface the lead to the whole team. Making this actively notify someone is
+// Muhammad's option (c), which needs a notifications mechanism built first.
+async function doInternalForward(teammateId, teammateName, note) {
+  const text = _forwardText;
+  _forwardText = null;
+  if (!text) return;
+
+  const leadId = _activeConvId;
+  if (!leadId) { showToast('No conversation open.', 'err'); return; }
+
+  const summary = `Forwarded to ${teammateName}: "${truncate(text, 300)}"`
+    + (note ? `\nNote: ${note}` : '');
+
+  if (demoMode) {
+    showToast(`Sent to ${teammateName}. (demo - nothing written)`);
+    return;
+  }
+
+  const { error } = await sb.from('lead_activity').insert({
+    lead_id:  leadId,
+    actor_id: currentUser.id,
+    channel:  'note',
+    summary,
+  });
+  if (error) { showToast(error.message, 'err'); return; }
+  showToast(`Sent to ${teammateName} ✓ (internal)`);
 }
 
 async function doForwardMessage(targetId, targetName) {
