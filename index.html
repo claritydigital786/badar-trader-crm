@@ -812,6 +812,15 @@
     .conv-time { color:#667781; font-size:0.75rem; margin-bottom:4px; }
     .conv-chat-panel { flex:1; display:flex; flex-direction:column; min-width:0; }
     .conv-chat-header { padding:10px 16px; border-bottom:1px solid #d1d7db; display:flex; align-items:center; gap:12px; background:#f0f2f5; min-height:59px; }
+    /* The header now carries a countdown pill and an info button as well as
+       the tier select and copy-link button, so the name block has to be the
+       thing that gives way rather than the controls getting clipped. */
+    .conv-chat-header-info { flex:1; min-width:0; }
+    .conv-chat-header-info h3,
+    .conv-chat-header-info p { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .conv-chat-header > button,
+    .conv-chat-header > select,
+    .conv-chat-header > .conv-window-pill { flex-shrink:0; }
     .conv-chat-header-info h3 { color:#111b21; font-size:1rem; font-weight:500; margin:0 0 1px; }
     .conv-chat-header-info p { color:#667781; font-size:0.8125rem; margin:0; display:flex; align-items:center; gap:8px; }
     /* WhatsApp's wallpaper: the beige base plus a faint doodle. The real
@@ -884,6 +893,60 @@
     .conv-input-bar input:focus { border-color:#00a884; }
     .conv-empty-chat { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#667781; background:#f0f2f5; }
 
+    /* ── Contact panel (catalog D1) ──
+       WhatsApp's own contact-info pane: a third column that opens from the
+       chat header, so an agent can see who they are talking to without
+       leaving the conversation. */
+    .conv-contact-panel {
+      width: 300px; flex-shrink: 0; border-left: 1px solid #d1d7db;
+      background: #fff; overflow-y: auto; display: none;
+    }
+    .conversations-shell.contact-open .conv-contact-panel { display: block; }
+    .conv-contact-head { padding: 22px 18px; text-align: center; border-bottom: 1px solid #e9edef; }
+    .conv-contact-head .conv-avatar { width: 92px; height: 92px; font-size: 1.9rem; margin: 0 auto 12px; }
+    .conv-contact-name { font-size: 1.05rem; color: #111b21; }
+    .conv-contact-sub  { font-size: 0.85rem; color: #667781; margin-top: 2px; }
+    .conv-contact-section { padding: 14px 18px; border-bottom: 1px solid #e9edef; }
+    .conv-contact-label {
+      font-size: 0.72rem; font-weight: 700; color: #8696a0;
+      text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px;
+    }
+    .conv-contact-value { font-size: 0.88rem; color: #111b21; word-break: break-word; }
+    .conv-contact-row + .conv-contact-row { margin-top: 12px; }
+    .conv-header-btn {
+      border: none; background: transparent; border-radius: 50%;
+      width: 34px; height: 34px; cursor: pointer; color: #54656f; font-size: 0.95rem; flex-shrink: 0;
+    }
+    .conv-header-btn:hover { background: #e9edef; }
+
+    /* ── 24-hour window pill (catalog C2) ── */
+    .conv-window-pill {
+      font-size: 0.72rem; font-weight: 600; border-radius: 20px;
+      padding: 3px 10px; white-space: nowrap; flex-shrink: 0;
+      background: #d9fdd3; color: #04785a;
+    }
+    .conv-window-pill.warn   { background: #fef3c7; color: #92400e; }
+    .conv-window-pill.closed { background: #fee2e2; color: #991b1b; }
+
+    [data-theme="dark"] .conv-contact-panel   { background: #111b21; border-left-color: #222d34; }
+    [data-theme="dark"] .conv-contact-head,
+    [data-theme="dark"] .conv-contact-section { border-bottom-color: #222d34; }
+    [data-theme="dark"] .conv-contact-name,
+    [data-theme="dark"] .conv-contact-value   { color: #e9edef; }
+    [data-theme="dark"] .conv-contact-sub     { color: #8696a0; }
+    [data-theme="dark"] .conv-header-btn        { color: #aebac1; }
+    [data-theme="dark"] .conv-header-btn:hover  { background: #202c33; }
+    [data-theme="dark"] .conv-window-pill        { background: #103529; color: #00a884; }
+    [data-theme="dark"] .conv-window-pill.warn   { background: #3f2d0a; color: #fbbf24; }
+    [data-theme="dark"] .conv-window-pill.closed { background: #4a1717; color: #f87171; }
+
+    @media (max-width: 1100px) {
+      /* Not enough room for three columns - the contact panel takes over the
+         chat area rather than squeezing both into something unusable. */
+      .conv-contact-panel { width: 100%; border-left: none; }
+      .conversations-shell.contact-open .conv-chat-panel { display: none; }
+    }
+
     /* ── Conversations: WhatsApp dark ──
        WhatsApp's own dark palette, not this CRM's navy/gold, so the inbox
        reads as WhatsApp in both themes. */
@@ -942,6 +1005,10 @@
       .conv-list-panel { width: 100%; min-width: 0; max-width: none; }
       .conv-chat-panel { display: none; }
       .conversations-shell.list-collapsed .conv-chat-panel { display: flex; }
+      /* Must come after the list-collapsed rule above, which has the same
+         specificity - on a phone the contact panel replaces the chat rather
+         than stacking underneath it. */
+      .conversations-shell.contact-open .conv-chat-panel { display: none; }
       #dash-pipeline-grid { grid-template-columns: 1fr !important; }
     }
 
@@ -1379,6 +1446,7 @@
           <div style="font-size:0.8rem;color:#94a3b8">Click on a lead to view their messages</div>
         </div>
       </div>
+      <div class="conv-contact-panel" id="conv-contact-panel"></div>
     </div>
   </div>
 
@@ -3024,6 +3092,7 @@
           <div style="font-size:0.8rem;color:#94a3b8">Click on a lead to view their messages</div>
         </div>
       </div>
+      <div class="conv-contact-panel" id="agent-conv-contact-panel"></div>
     </div>
   </div>
 
@@ -7142,6 +7211,7 @@ function goToMetaTab() {
 // ── CONVERSATIONS ─────────────────────────────────────────────
 const _DEMO_CONVERSATIONS = [
   { id:'conv1', leadId:'dl1', name:'Omar Farooq', phone:'+92 321 4567890', status:'new',
+    source:'meta', email:'omar@example.com', inboundHoursAgo:0.5,
     lastMsg:"I'm interested in both. What's the minimum deposit?", lastTime:'10:30 AM',
     messages:[
       { from:'lead',  text:'Assalam o Alaikum, I saw your ad about gold trading.', time:'10:15 AM' },
@@ -7150,6 +7220,7 @@ const _DEMO_CONVERSATIONS = [
     ]
   },
   { id:'conv2', leadId:'dl2', name:'Ayesha Malik', phone:'+92 300 9876543', status:'contacted',
+    source:'referral', email:'ayesha@example.com', inboundHoursAgo:23.2,
     lastMsg:'Can we schedule a call tomorrow?', lastTime:'9:45 AM',
     messages:[
       { from:'lead',  text:'Hi, my friend referred me to you. I want to invest in crypto.', time:'Yesterday 3:00 PM' },
@@ -7158,6 +7229,7 @@ const _DEMO_CONVERSATIONS = [
     ]
   },
   { id:'conv3', leadId:'dl5', name:'Bilal Khan', phone:'+92 345 7890123', status:'converted',
+    source:'manual', email:'bilal@example.com', inboundHoursAgo:72,
     lastMsg:'Thank you for all your help!', lastTime:'Jun 1',
     messages:[
       { from:'agent', text:'Hi Bilal! Your account is set up with $25,000 balance. Welcome to Badar Trader!', time:'Jun 1 10:00 AM' },
@@ -7328,7 +7400,131 @@ function filterConversations(scope = '') {
   });
 }
 
+// ── 24-hour customer service window (catalog C2) ───────────────
+// WhatsApp only allows a free-form reply within 24 hours of the customer's
+// last inbound message. Past that, Meta rejects the send outright. The old
+// code warned only after the window had already shut; agents had no way to
+// see it closing. This computes the state so it can be shown live and the
+// composer can be stopped before a doomed send is attempted.
+const WA_WINDOW_MS = 24 * 3600000;
+let _waWindowTimer = null;
+
+function waWindowState(lastInboundIso) {
+  if (!lastInboundIso) {
+    return { open: false, msLeft: 0, tone: 'closed', label: 'No inbound message', everInbound: false };
+  }
+  const msLeft = WA_WINDOW_MS - (Date.now() - new Date(lastInboundIso).getTime());
+  if (msLeft <= 0) return { open: false, msLeft: 0, tone: 'closed', label: 'Window closed', everInbound: true };
+  const hours = Math.floor(msLeft / 3600000);
+  const mins  = Math.floor((msLeft % 3600000) / 60000);
+  const secs  = Math.floor((msLeft % 60000) / 1000);
+  const pad = (n) => String(n).padStart(2, '0');
+  return {
+    open: true,
+    msLeft,
+    // Under two hours is when an agent genuinely needs to hurry.
+    tone: msLeft <= 2 * 3600000 ? 'warn' : 'ok',
+    // WhatChimp shows this as a live h:mm:ss countdown, so match that rather
+    // than a coarser "about a day left" that hides the last hour ticking away.
+    label: `${hours}:${pad(mins)}:${pad(secs)} left`,
+    everInbound: true,
+  };
+}
+
+// Re-renders the pill and re-gates the composer on a timer, so a window that
+// closes while the agent is mid-thought stops them rather than letting them
+// type into a send that Meta will refuse.
+function startWaWindowTicker(lastInboundIso, scope) {
+  stopWaWindowTicker();
+  if (!lastInboundIso) return;
+  const tick = () => {
+    const pill = document.getElementById(scope + 'conv-window-pill');
+    if (!pill) { stopWaWindowTicker(); return; }
+    const st = waWindowState(lastInboundIso);
+    pill.textContent = st.label;
+    pill.className = 'conv-window-pill' + (st.tone === 'ok' ? '' : ' ' + st.tone);
+    const panelPill = document.getElementById(scope + 'conv-contact-window');
+    if (panelPill) {
+      panelPill.textContent = st.label;
+      panelPill.className = 'conv-window-pill' + (st.tone === 'ok' ? '' : ' ' + st.tone);
+    }
+    applyWaWindowGate(st, scope);
+  };
+  tick();
+  _waWindowTimer = setInterval(tick, 1000);
+}
+
+function stopWaWindowTicker() {
+  if (_waWindowTimer) { clearInterval(_waWindowTimer); _waWindowTimer = null; }
+}
+
+function applyWaWindowGate(state, scope) {
+  const input = document.getElementById('conv-msg-input');
+  const btn   = document.getElementById('conv-send-btn');
+  if (!input || !btn) return;
+  if (state.open) {
+    if (input.dataset.waBlocked === '1') {
+      input.disabled = false; btn.disabled = false;
+      input.placeholder = 'Type a WhatsApp message… (Shift+Enter for a new line)';
+      delete input.dataset.waBlocked;
+    }
+    return;
+  }
+  input.disabled = true;
+  btn.disabled = true;
+  input.dataset.waBlocked = '1';
+  input.placeholder = state.everInbound
+    ? 'The 24 hour window has closed - WhatsApp will reject a free-form reply. Use an approved template, or wait for them to message first.'
+    : 'This lead has never messaged in, so there is no open window. Only an approved template can reach them.';
+}
+
+// ── Contact panel (catalog D1) ─────────────────────────────────
+function toggleContactPanel(scope = '') {
+  const shell = document.getElementById(scope + 'conv-shell')
+    || document.querySelector((scope ? '#agent-dashboard' : '#admin-dashboard') + ' .conversations-shell');
+  if (shell) shell.classList.toggle('contact-open');
+}
+
+function renderContactPanel(scope, convId, info) {
+  const el = document.getElementById(scope + 'conv-contact-panel');
+  if (!el) return;
+  const initials = (info.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const row = (label, value) => `
+    <div class="conv-contact-row">
+      <div class="conv-contact-label">${esc(label)}</div>
+      <div class="conv-contact-value">${value}</div>
+    </div>`;
+  el.innerHTML = `
+    <div class="conv-contact-head">
+      <div class="conv-avatar" style="background:${avatarColor(convId)}">${initials}</div>
+      <div class="conv-contact-name">${esc(info.name || 'Unknown')}</div>
+      <div class="conv-contact-sub">${esc(info.phone || '')}</div>
+      <button type="button" class="btn btn-secondary btn-sm" style="margin-top:12px" onclick="toggleContactPanel('${scope}')">Close</button>
+    </div>
+    <div class="conv-contact-section">
+      ${row('Status', statusBadge(info.status || 'new'))}
+      ${row('Source', esc(info.source || 'Not recorded'))}
+      ${row('Assigned agent', esc(info.agentName || 'Unassigned'))}
+    </div>
+    <div class="conv-contact-section">
+      ${row('Email', esc(info.email || 'Not recorded'))}
+      ${row('Lead created', info.createdAt ? esc(fmtDate(info.createdAt)) : 'Unknown')}
+      ${row('Reply window', `<span class="conv-window-pill${info.window.tone === 'ok' ? '' : ' ' + info.window.tone}" id="${scope}conv-contact-window">${esc(info.window.label)}</span>`)}
+    </div>
+    <div class="conv-contact-section" style="border-bottom:none">
+      <button class="btn btn-primary btn-sm" style="width:100%" onclick="openLeadFromConversation('${convId}','${scope}')">Open full lead record</button>
+    </div>`;
+}
+
+// Jumps to the lead's own detail panel without losing where they came from.
+function openLeadFromConversation(leadId, scope = '') {
+  if (scope === 'agent-') { agentTab('my-leads', document.querySelector('#agent-tabs .nav-item[data-tab="my-leads"]')); }
+  else { adminTab('leads'); }
+  setTimeout(() => openDetail(leadId, scope === 'agent-' ? 'agent' : 'admin'), 350);
+}
+
 async function openConversation(convId, scope = '') {
+  stopWaWindowTicker();
   _activeConvId = convId;
   _replyTarget = null; // switching leads should never carry a reply target over
 
@@ -7339,6 +7535,10 @@ async function openConversation(convId, scope = '') {
     const chatPanel = document.getElementById(scope + 'conv-chat-panel');
     if (!chatPanel) return;
     const initials = conv.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+    const demoInboundIso = conv.inboundHoursAgo != null
+      ? new Date(Date.now() - conv.inboundHoursAgo * 3600000).toISOString()
+      : null;
+    const demoWindow = waWindowState(demoInboundIso);
     chatPanel.innerHTML = `
       <div class="conv-chat-header">
         <div class="conv-avatar" style="background:${avatarColor(conv.id)}">${initials}</div>
@@ -7346,7 +7546,10 @@ async function openConversation(convId, scope = '') {
           <h3>${esc(conv.name)}</h3>
           <p>${esc(conv.phone)}&nbsp;&nbsp;${statusBadge(conv.status)}</p>
         </div>
-        <button type="button" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="margin-left:auto;border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:#475569;font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
+        <span class="conv-window-pill${demoWindow.tone === 'ok' ? '' : ' ' + demoWindow.tone}" id="${scope}conv-window-pill"
+          title="How long WhatsApp will still accept a free-form reply on this conversation">${esc(demoWindow.label)}</span>
+        <button type="button" class="conv-header-btn" title="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
+        <button type="button" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:#475569;font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
       </div>
       <div class="conv-messages" id="conv-msgs-${convId}">
         ${conv.messages.map(m => `
@@ -7362,6 +7565,12 @@ async function openConversation(convId, scope = '') {
       </div>`;
     const msgArea = document.getElementById('conv-msgs-' + convId);
     if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
+    renderContactPanel(scope, convId, {
+      name: conv.name, phone: conv.phone, status: conv.status, source: conv.source,
+      email: conv.email, agentName: 'Demo Agent', createdAt: null, window: demoWindow,
+    });
+    applyWaWindowGate(demoWindow, scope);
+    startWaWindowTicker(demoInboundIso, scope);
     collapseConvListOnMobile(scope);
     return;
   }
@@ -7374,7 +7583,7 @@ async function openConversation(convId, scope = '') {
 
   try {
     const [leadRes, msgsRes] = await Promise.all([
-      sb.from('leads').select('full_name, phone, status, is_unread, manual_tier').eq('id', convId).maybeSingle(),
+      sb.from('leads').select('full_name, phone, email, source, status, is_unread, manual_tier, assigned_agent_id, created_at').eq('id', convId).maybeSingle(),
       sb.from('communications').select('body, direction, created_at, attachment_path, wa_message_id')
         .eq('lead_id', convId).eq('type', 'whatsapp').order('created_at', { ascending: true })
     ]);
@@ -7388,8 +7597,9 @@ async function openConversation(convId, scope = '') {
     // which is what was silently confusing agents (the failure gave no clue
     // why). Warn up front instead of letting them hit it blind.
     const lastInbound = [...messages].reverse().find(m => m.direction === 'inbound');
-    const hoursSinceInbound = lastInbound ? (Date.now() - new Date(lastInbound.created_at)) / 3600000 : Infinity;
-    const outsideWindow = hoursSinceInbound >= 24;
+    const lastInboundIso = lastInbound ? lastInbound.created_at : null;
+    const waWindow = waWindowState(lastInboundIso);
+    const outsideWindow = !waWindow.open;
     const windowWarning = outsideWindow ? `
       <div style="background:#fef3c7;color:#92400e;font-size:0.78rem;padding:8px 14px;border-top:1px solid #fde68a">
         ⚠ It's been over 24 hours since ${esc(lead?.full_name || 'this lead')} last messaged - WhatsApp will likely reject a free-form reply until they message again first. Send them a template message instead, or wait for them to reply.
@@ -7403,7 +7613,10 @@ async function openConversation(convId, scope = '') {
           <h3>${esc(lead?.full_name || 'Unknown')}</h3>
           <p>${esc(lead?.phone || '')} ${statusBadge(lead?.status || 'new')}</p>
         </div>
-        <select title="Set this lead's tier yourself - you know the real situation" onchange="setLeadTier('${convId}', this.value, '${scope}')" style="margin-left:auto;border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;font-size:0.78rem;color:#475569;background:#fff">
+        <span class="conv-window-pill${waWindow.tone === 'ok' ? '' : ' ' + waWindow.tone}" id="${scope}conv-window-pill"
+          title="How long WhatsApp will still accept a free-form reply on this conversation">${esc(waWindow.label)}</span>
+        <button type="button" class="conv-header-btn" title="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
+        <select title="Set this lead's tier yourself - you know the real situation" onchange="setLeadTier('${convId}', this.value, '${scope}')" style="border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;font-size:0.78rem;color:#475569;background:#fff">
           <option value="new" ${currentTier==='new'?'selected':''}>🆕 New</option>
           <option value="warm" ${currentTier==='warm'?'selected':''}>🌤 Warm</option>
           <option value="hot" ${currentTier==='hot'?'selected':''}>🔥 Hot</option>
@@ -7442,6 +7655,16 @@ async function openConversation(convId, scope = '') {
     loadConvAttachmentThumbs(convId, messages).then(() => {
       if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
     });
+    // Contact panel (D1) + live 24h window gating (C2).
+    const ownAgent = (cachedProfiles || []).find(pr => pr.id === lead?.assigned_agent_id);
+    renderContactPanel(scope, convId, {
+      name: lead?.full_name, phone: lead?.phone, status: lead?.status,
+      source: lead?.source, email: lead?.email,
+      agentName: ownAgent ? (ownAgent.full_name || ownAgent.email) : 'Unassigned',
+      createdAt: lead?.created_at, window: waWindow,
+    });
+    applyWaWindowGate(waWindow, scope);
+    startWaWindowTicker(lastInboundIso, scope);
     if (lead?.is_unread) {
       await sb.from('leads').update({ is_unread: false }).eq('id', convId);
       renderConversations(scope);
