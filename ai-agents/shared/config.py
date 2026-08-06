@@ -32,6 +32,9 @@ class Settings:
     claude_model: str
     openai_model: str
     max_context_tokens: int
+    # RAG (Type 2)
+    embed_provider: str
+    openai_embed_model: str
 
 
 def load_settings() -> Settings:
@@ -44,4 +47,11 @@ def load_settings() -> Settings:
         claude_model=os.environ.get("CLAUDE_MODEL", "claude-sonnet-5").strip(),
         openai_model=os.environ.get("OPENAI_MODEL", "gpt-5-mini").strip(),
         max_context_tokens=int(os.environ.get("MAX_CONTEXT_TOKENS", "4000")),
+        # Embeddings default to the offline stub so RAG runs with zero setup and
+        # never makes a surprise paid API call. Set EMBED_PROVIDER=openai to use
+        # real embeddings.
+        embed_provider=os.environ.get("EMBED_PROVIDER", "stub").strip().lower(),
+        openai_embed_model=os.environ.get(
+            "OPENAI_EMBED_MODEL", "text-embedding-3-small"
+        ).strip(),
     )
