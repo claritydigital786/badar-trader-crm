@@ -91,7 +91,9 @@ They are staged in the working tree (`index.html`) for your review first.
 - `convDayLabel()` + `renderConvMessages()` insert a centred "Today / Yesterday /
   full date" pill whenever the calendar day changes in a thread. Live-mode only
   (real timestamps); the demo threads use fixed time strings so they do not show it.
-  Verified by code read, not by a live screenshot.
+  Verified in the browser by running `renderConvMessages()` against live-shaped
+  test data spanning two days: it produced two dividers labelled "Yesterday" and
+  "Today" with the correct ticks on the outbound messages.
 
 ### Rollout ordering (important - do NOT push the frontend first)
 The tick rendering reads `communications.delivery_status`. That column is not on the
