@@ -49,6 +49,19 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**FOR JUNAID (assigned 2026-08-06 by Muhammad) - four items, none of which touch the Conversations section of `index.html`, which Muhammad's laptop has claimed.**
+
+**1. Create the two missing Supabase Auth accounts. Junaid does this himself, not his Claude** - it requires setting a real password, which stays a human-only action. Supabase Dashboard -> Authentication -> Users -> Add User, leave User Metadata as `{}` for the default Agent role:
+   - Syed Bilal Ahmad Hashmi - `syedbilalahmadhashmi786@gmail.com`
+   - Syed Faisal Shah - `syedfaisalbasit@gmail.com`
+   Then in the CRM, My Team -> Set Number, enter `923325822756` for Bilal and `923002731461` for Faisal. Until both steps are done, neither is recognised by the webhook, can receive escalation pings, or can be assigned leads.
+
+**2. Verify today's deployed work on production, which no session has been able to do.** Everything shipped today was verified in demo mode only, because this laptop has no CRM login. Junaid does. At crm.badartrader.com: walk the new Bot Manager section (all seven primary tabs and their sub-tabs), then open the Omnichannel Inbox and check the WhatsApp restyle against a **real** conversation in both light and dark. Pay particular attention to bubble width on a long bot message - Muhammad has had to correct that twice before. **View only. Do not send, reply, assign, or change anything in a real conversation.** Report anything that looks wrong rather than fixing it live.
+
+**3. Export whatever WhatChimp offers, so the import work can start.** Junaid runs WhatChimp day to day, so this is his own tool and his own hands - his Claude must not log in. Muhammad wants WhatChimp's existing data pulled into this CRM while the live campaign keeps running untouched. Needed: a screenshot of whatever export screens exist so we know what is actually available, then the exports themselves (subscribers/contacts, conversation history if it can be exported, and the dashboard counters). Reading and exporting is fine; changing anything in WhatChimp is not.
+
+**4. Coding task, safe to give to his Claude - fix the `converted_at` reporting hole.** Found 2026-08-06 while explaining the lead status pipeline. `converted_at` is only ever stamped by `approveConversion()` (`index.html:5093`). But `saveLeadDetail()` (`index.html:5042`, `.update({ status, assigned_agent_id })`) and `agentSaveStatus()` (`index.html:5159`, `.update({ status })`) both let a lead be set straight to Converted from the dropdown without stamping it. Any future revenue or time-to-convert report would silently miss those leads. Nothing is broken today because no lead has reached Converted yet, so this is a good moment to fix it. Both functions should stamp `converted_at` when the status is moving *to* `converted` and it is not already set, and should leave it alone otherwise. Test in demo mode, check the console, and do not touch the Conversations section.
+
 **DONE, NOT DEPLOYED (2026-08-06, Junaid on the AYESHA laptop) - delivery ticks (catalog B3/B4), BACKEND HALF ONLY.** `index.html` was not touched at all, verified with `git status` before committing - Muhammad's D1/C2 claim below names Junaid directly, and the tick rendering lives in exactly that markup.
 
 **The job turned out to be much smaller than the earlier note assumed, because half of it already existed.** The webhook has always received Meta's status callbacks (`change.value.statuses`) and looped over them - it just logged them and acted only on `failed`, throwing the rest away. And the correlation key was already there: `communications.wa_message_id` has been populated on inbound (`message.id`) and outbound (`waData.messages[0].id` in `send-wa-message`) since Phase 13. So `send-wa-message` needed **no change at all** - the claim above over-scoped it. Only the state itself was missing.
