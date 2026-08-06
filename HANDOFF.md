@@ -49,6 +49,8 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**CLAIMED (2026-08-06, Muhammad's laptop) - Conversations inbox: contact panel (catalog D1) and the 24-hour window timer (catalog C2).** Touching the Conversations markup, CSS and JS inside `index.html` only. **Junaid: do not edit the Conversations section of `index.html` until this claim is removed.** Anything outside Conversations is free. Deliberately not in this slice: delivery ticks (B3/B4), which need a `communications` schema change plus a webhook deploy, and are waiting on Muhammad picking a deploy window.
+
 **DONE (2026-08-06) - `whatsapp-webhook` deployed to v69, closing the local-vs-deployed gap the 2026-08-05 entry flagged.** Run from Muhammad's laptop with Muhammad present, which is the condition the standing rule requires. This deploy flips no flags and enables no sends: `BOT_REPLIES_ENABLED`, `KEYWORD_REPLIES_ENABLED` and `AI_REPLIES_ENABLED` are all still false in the deployed code, verified by reading the source back down after the deploy, not by trusting the CLI's success message.
 
 Checked before deploying: the live function was still v68 and still differed from the repo by exactly the `getOpenAIModel()` addition and the `model:` line, nothing else, so no live-only edit was at risk of being reverted. **One thing worth remembering for any future edge-function deploy: the live function has `verify_jwt: false`, and deploying without `--no-verify-jwt` would have turned JWT verification back on and broken Meta's inbound webhook calls entirely** - which is the live campaign's lead capture. The correct command is `supabase functions deploy whatsapp-webhook --no-verify-jwt --project-ref vfskqzgphrunjxquqpks`.
