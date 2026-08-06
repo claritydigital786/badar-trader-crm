@@ -105,6 +105,22 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**DONE (2026-08-06, Junaid on the AYESHA laptop) - broken-handler sweep. One more live bug found and fixed.**
+
+**The Rename button in My Team / User Manager has been broken for any name containing an apostrophe.** `esc()` escapes `<`, `>`, `&` and `"` but **not** `'`, and the name was interpolated into a single-quoted argument: `renameProfile('${p.id}','${esc(p.full_name)}')`. A staff member called Sara O'Brien produced `renameProfile('u2','Sara O'Brien')`, which is a syntax error, so the button silently did nothing. Proved it by building the exact markup and compiling the parsed attribute, then re-proved the fix by clicking a real button and capturing the arguments `renameProfile` actually received.
+
+This one is worth noting because Rename exists specifically to fix names that imported wrong - so the people most likely to need it are exactly the ones whose names are unusual.
+
+**Same class, fixed defensively rather than left as "probably fine":** `selectBot(...)` in Bot Manager, and the copy-to-clipboard buttons for a lead's phone and email in the detail panel. An email may legally contain an apostrophe. All four now pass values through `esc()`d `data-` attributes read via `this.dataset.*`, matching the reply/forward fix from earlier today.
+
+**How the sweep was done, since "I looked" is not evidence.** Static scan for two patterns: `JSON.stringify` inside an inline handler (zero left), and any single-quoted interpolation inside a handler attribute. The latter returned 21 distinct expressions; all but four were UUIDs, loop indices, `scope`/`ctx` constants or generated storage paths (`leadId/timestamp.ext`), none of which can contain a quote. A second scan looked for interpolation in any attribute without `esc()`, which returned only enums and computed values (role, status, channel, colours, widths).
+
+Then the runtime half, which is what actually covers the live-only gap: **every demo dataset was poisoned with `O'Brien "Q" \x`** - profiles, leads, conversations, message bodies, subscribers - and all 24 admin tabs were walked, compiling every `onclick`/`oninput`/`onchange`/`onkeydown`/`onsubmit` in the rendered DOM. Then the parts that only render on interaction: the lead detail panel, all five of its sub-tabs, an open conversation, and the forward picker in both modes. **Zero broken handlers anywhere.**
+
+**Still not covered, and worth being honest about:** this exercises the code paths demo mode can reach with hostile data, which is a big improvement on before, but screens whose markup only ever builds from live query results are still only covered by the static scan. The static scan is exhaustive over the file, so a new instance would have to be introduced in future code rather than hiding today.
+
+**The general lesson for this repo, now demonstrated twice in one day:** `esc()` is safe for attribute *values* but not for values interpolated into JavaScript inside an attribute. Pass data through `data-` attributes and read `this.dataset.*` instead. Both live bugs found today came from ignoring that, and both were invisible in demo mode.
+
 **DONE (2026-08-06, Junaid on the AYESHA laptop) - internal forward to a teammate. Claim released.** Muhammad's option (a), picked by Junaid.
 
 Rather than a third button on the bubble, the existing Forward picker gained a two-way toggle: **To a conversation** (the customer-facing forward) and **To a teammate** (internal). Team mode swaps the target list to active staff, adds an optional note field, and writes a `lead_activity` row (`channel: 'note'`) against the lead whose conversation the message is in. Nothing is sent to anyone outside the CRM.
