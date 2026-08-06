@@ -196,6 +196,13 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
 
         console.log(`WhatsApp status update for ${recipientPhone}: ${statusType}${errorInfo ? ` (${errorInfo})` : ""}`);
 
+        // Record the state against the message it belongs to (catalog B3/B4).
+        // status.id is Meta's wamid, the same value communications.wa_message_id
+        // has stored on both directions since Phase 13.
+        if (status.id) {
+          await recordDeliveryStatus(makeSupabase(), String(status.id), statusType);
+        }
+
         if (statusType === "failed" && recipientPhone) {
           const sb = makeSupabase();
           const { data: lead } = await sb.from("leads").select("id").eq("phone", recipientPhone).maybeSingle();
@@ -478,6 +485,56 @@ async function upsertLead(
   }
 
   return { lead: newLead, wasCreated: true };
+}
+
+// Delivery ticks (catalog B3/B4). Meta reports sent -> delivered -> read for
+// every outbound message, but does NOT guarantee the callbacks arrive in that
+// order, and it re-sends them. So this only ever moves a message forward:
+// a late "delivered" can never undo a "read" already recorded.
+const DELIVERY_RANK: Record<string, number> = { sent: 1, delivered: 2, read: 3 };
+
+async function recordDeliveryStatus(
+  sb: SupabaseClient,
+  waMessageId: string,
+  statusType: string,
+): Promise<void> {
+  // "failed" is not part of the ladder and always wins - a message that failed
+  // did not arrive, and that matters more than how far it had got. It is also
+  // sticky: because "failed" is absent from DELIVERY_RANK it never appears in
+  // the lower-ranked list below, so no later callback can overwrite it.
+  if (statusType === "failed") {
+    const { error } = await sb
+      .from("communications")
+      .update({ delivery_status: "failed" })
+      .eq("wa_message_id", waMessageId);
+    if (error) console.error("recordDeliveryStatus (failed):", error.message);
+    return;
+  }
+
+  const rank = DELIVERY_RANK[statusType];
+  if (!rank) {
+    // Meta has added status values before ("deleted"). Ignore rather than
+    // store, so an unrecognised value can never clobber a real "read".
+    console.log(`recordDeliveryStatus: ignoring unknown status "${statusType}"`);
+    return;
+  }
+
+  const lowerRanked = Object.keys(DELIVERY_RANK).filter((s) => DELIVERY_RANK[s] < rank);
+
+  let query = sb
+    .from("communications")
+    .update({ delivery_status: statusType })
+    .eq("wa_message_id", waMessageId);
+
+  // Only overwrite a row that has no status yet, or one sitting at a lower
+  // rung. Done as part of the UPDATE's WHERE rather than read-then-write, so
+  // two callbacks racing cannot both decide they are the newer one.
+  query = lowerRanked.length
+    ? query.or(`delivery_status.is.null,delivery_status.in.(${lowerRanked.join(",")})`)
+    : query.is("delivery_status", null);
+
+  const { error } = await query;
+  if (error) console.error(`recordDeliveryStatus (${statusType}):`, error.message);
 }
 
 async function insertCommunication(

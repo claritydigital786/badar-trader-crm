@@ -1450,3 +1450,77 @@ CREATE POLICY "signal_broadcasts: admin full access" ON public.signal_broadcasts
 
 -- ── DONE (Phase 25) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM - Phase 26 Schema (Bot Manager AI Agents)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 48. ai_agents (applied 2026-08-06) ──────────────────────
+-- Backs the Bot Manager -> AI -> Agents tab. Mirrors WhatChimp's Agents
+-- screen: a named agent with its own system prompt, optionally pointed at a
+-- training campaign in ai_knowledge_base.
+--
+-- BACKFILLED into this file 2026-08-06 by Junaid. The table was applied to
+-- the live database from migration 20260806000000_ai_agents.sql, but was
+-- never added here, so this file stopped describing the real database.
+--
+-- Changes no bot behaviour on its own: whether a real customer ever gets an
+-- AI reply is still decided by AI_REPLIES_ENABLED inside the deployed
+-- whatsapp-webhook function, which is a code constant and is false.
+CREATE TABLE IF NOT EXISTS public.ai_agents (
+  id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  agent_name    TEXT        NOT NULL,
+  kb_id         UUID        REFERENCES public.ai_knowledge_base(id) ON DELETE SET NULL,
+  system_prompt TEXT        NOT NULL,
+  is_active     BOOLEAN     NOT NULL DEFAULT false,
+  created_by    UUID        REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+DROP TRIGGER IF EXISTS ai_agents_updated_at ON public.ai_agents;
+CREATE TRIGGER ai_agents_updated_at
+  BEFORE UPDATE ON public.ai_agents
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+ALTER TABLE public.ai_agents ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "ai_agents: admin full access" ON public.ai_agents;
+CREATE POLICY "ai_agents: admin full access" ON public.ai_agents
+  FOR ALL USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+CREATE INDEX IF NOT EXISTS ai_agents_active_idx ON public.ai_agents (is_active);
+
+-- ── DONE (Phase 26) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM - Phase 27 Schema (delivery ticks B3/B4)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 49. communications.delivery_status (Junaid, 2026-08-06) ──
+-- WhatsApp reports sent/delivered/read/failed for outbound messages through
+-- change.value.statuses on the same webhook that carries inbound messages.
+-- The correlation key (communications.wa_message_id) has existed since
+-- Phase 13; this stores the state itself, which was previously logged and
+-- discarded.
+--
+-- No CHECK constraint on purpose - see the migration file
+-- (20260806020000_communications_delivery_status.sql) for why. The webhook
+-- advances this forward only, so a late "delivered" cannot undo a "read".
+ALTER TABLE public.communications ADD COLUMN IF NOT EXISTS delivery_status TEXT;
+
+COMMENT ON COLUMN public.communications.delivery_status IS
+  'WhatsApp delivery state for an outbound message: sent, delivered, read or failed. NULL means no status callback has arrived yet. Advanced only forwards - see the rank guard in whatsapp-webhook, since Meta does not guarantee callback order.';
+
+CREATE INDEX IF NOT EXISTS communications_wa_message_id_idx
+  ON public.communications (wa_message_id)
+  WHERE wa_message_id IS NOT NULL;
+
+-- ── DONE (Phase 27) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
