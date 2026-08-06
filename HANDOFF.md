@@ -49,6 +49,28 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**STATE OF JUNAID'S DELIVERY-TICKS WORK (B3/B4), checked 2026-08-06 from Muhammad's laptop - HALF-LANDED, read this before touching either half.**
+
+Junaid built the backend (`6a16f2e`): the webhook now persists WhatsApp's status callbacks into a new `communications.delivery_status`, advancing only forwards (sent -> delivered -> read) with `failed` sticky, because Meta neither guarantees callback order nor sends each callback once. The reasoning in his migration and code is sound and I have no correction to make to it.
+
+Where it actually stands:
+- **Database: DONE.** `communications.delivery_status` and the partial `communications_wa_message_id_idx` were applied to the live project from Muhammad's laptop at the end of this session, and verified present.
+- **Webhook: NOT DEPLOYED.** The deployed function is still **v70**, which does not contain `recordDeliveryStatus`. Junaid's laptop has no Supabase CLI, so he could not deploy it.
+- **UI: NOT BUILT.** Nothing renders a tick yet. `renderContactPanel` and the message bubbles in `openConversation` are where it would go.
+
+**The ordering matters and it is now safe in one direction only.** The column was applied first deliberately: with the column present and the old v70 webhook deployed, nothing changes at all. Deploying the webhook *before* the column would have meant every status callback erroring in the logs while looking like working software. That ordering hazard is now removed - a future deploy of the current repo source is safe.
+
+To finish B3/B4, from Muhammad's laptop with him present, in a quiet hour (2am-7am PKT is roughly six times quieter than 1pm or 7pm on 30 days of real lead data): `supabase functions deploy whatsapp-webhook --no-verify-jwt --project-ref vfskqzgphrunjxquqpks`, then read the deployed source back down and diff it, then build the tick rendering. **Remember `--no-verify-jwt`** - the live function has `verify_jwt: false` and deploying without that flag re-enables JWT checks and breaks Meta's inbound webhook, which is live lead capture.
+
+**Junaid also caught a real gap in my own work (`e1428a3`), and he was right.** I applied `profiles.phone` to the live database through the Supabase MCP tool, which records the migration remotely but does **not** write the file into the repo - so the migration file was missing and `schema.sql` still defined `profiles` without a phone column. Anyone rebuilding from `schema.sql` would have produced a database that `getAgentRotation()` and the Set/Edit Number button both depend on and that did not exist. He committed the missing file and fixed `schema.sql`. **Lesson for any future session: applying a migration through the MCP tool is only half the job - the file has to be committed too.** I did the same thing again this session with `20260806020000_communications_delivery_status`, except that file already existed in the repo because Junaid wrote it first.
+
+**QUEUE FOR JUNAID - Muhammad's instruction 2026-08-06 was explicitly "I do not want him to sit idle", so keep this list stocked.** In priority order, none of these collide with the Conversations work:
+1. **Production verification, still not done and still the biggest gap.** Everything shipped today was verified in demo mode on localhost only; this laptop has no CRM login and Junaid does. At crm.badartrader.com: the Bot Manager section, and the Conversations inbox against a **real** conversation in both themes - contact panel, the live 24-hour countdown, the assign-agent dropdown, and bubble width on a long bot message. **View only. Do not send, reply, assign or change anything in a real conversation.** Report, do not fix live.
+2. **Create the two missing accounts** - Syed Bilal Ahmad Hashmi (`syedbilalahmadhashmi786@gmail.com`, `923325822756`) and Syed Faisal Shah (`syedfaisalbasit@gmail.com`, `923002731461`). Junaid's own hands, not his Claude - it needs a real password. Then set each number with the Set Number button in My Team.
+3. **The WhatChimp export**, which blocks the whole import job Muhammad has asked for. He runs WhatChimp day to day, so it is his tool and his hands; his Claude must not log in. Needed: a screenshot of the export screens so the importer can be designed against what actually exists, then the files.
+4. **Catalog D4, Labels** - free-form labels on a conversation, mirroring WhatChimp's Chat Actions panel. **Muhammad agreed this as the next Conversations feature**, so coordinate with whoever holds the Conversations claim before starting; the contact panel built today is where it belongs.
+5. **The `converted_at` fix**, if not already done - `saveLeadDetail()` and `agentSaveStatus()` both let a lead be set to Converted without stamping `converted_at`, which only `approveConversion()` does.
+
 **FOR JUNAID (assigned 2026-08-06 by Muhammad) - four items, none of which touch the Conversations section of `index.html`, which Muhammad's laptop has claimed.**
 
 **1. Create the two missing Supabase Auth accounts. Junaid does this himself, not his Claude** - it requires setting a real password, which stays a human-only action. Supabase Dashboard -> Authentication -> Users -> Add User, leave User Metadata as `{}` for the default Agent role:
@@ -88,7 +110,31 @@ Why it matters rather than being cosmetic: both `getAgentRotation()` in the webh
 Written now: `supabase/migrations/20260806010000_profiles_phone.sql` (idempotent `ADD COLUMN IF NOT EXISTS`, plus the two seed numbers matched on the same ids as `AGENT_ROTATION_FALLBACK`, guarded so a re-run can never overwrite a number since corrected in the UI), and `profiles.phone` added to `schema.sql` section 1 with a comment on what reads it.
 
 **UNVERIFIED, and the reason matters:** this migration was reconstructed from what the entry below describes, **not** diffed against the live column - there are no database credentials and no Supabase CLI on this laptop. If the live column carries a length limit, default or constraint, the committed file is what needs correcting, not the database. Worth one check from a machine that can read the live schema.
-**CLAIMED (2026-08-06, Muhammad's laptop) - Conversations D1 (contact panel) and C2 (24-hour window timer), resumed after the agent-rotation fix.** Touching the Conversations markup, CSS and JS in `index.html`. **Junaid: do not edit the Conversations section until this claim is removed.**
+**DONE (2026-08-06) - Conversations: contact panel (D1), live 24-hour window timer (C2), and assign-from-inbox (E1).** All three verified in demo mode at localhost:8744 and pushed to `main`, so all three are live on crm.badartrader.com.
+
+- **D1** - a third column beside the chat, opened from an info button in the header, the way WhatsApp's contact pane works. Name, phone, status, source, assigned agent, email, lead created date, reply window, and a button through to the full lead record. Under 1100px it replaces the chat rather than squeezing three columns in; under 768px the same, via a rule that has to sit *after* the `list-collapsed` rule because they have identical specificity.
+- **C2** - the 24-hour window is now visible while still open, not only after it shuts. Live `h:mm:ss` countdown in both the header and the contact panel, ticking every second to match how WhatChimp displays it, amber under two hours, red when closed. **When the window is closed the composer is disabled outright** with an explanation, so an agent cannot type out a reply Meta is going to reject. The pre-existing after-the-fact warning banner was kept.
+- **E1** - an Assigned Agent dropdown in the contact panel, mirroring WhatChimp's Chat Actions panel. Agents see the owner as plain text, only admins get the dropdown, matching the permission rule used everywhere else in this CRM. Reassignment also writes a `lead_activity` note so a mid-conversation owner change is explainable later.
+
+Fixed along the way: the chat header was clipping its Copy Link button once the pill and info button were added.
+
+**NEXT TASK, agreed with Muhammad: catalog D4, Labels.** He first wrote "E1 and E4" and then corrected it to **D4** - free-form labels on a conversation, the way WhatChimp's Chat Actions panel has a Labels section. Not started. E4 (auto-assignment rules) was **not** requested.
+
+**Where the Conversations work stands against WhatChimp's own right-hand panel**, from the screenshots Muhammad shared:
+
+| WhatChimp Chat Actions | This CRM |
+|---|---|
+| Messaging Window countdown | **Built** (C2), and ours also disables the composer, which WhatChimp does not |
+| Customer Snapshot | **Partly** - email, status, source, assigned agent, created date. Missing: Last Seen, Bot Name |
+| Assigned Agent dropdown | **Built** (E1) |
+| Labels | **Not built** - D4, agreed as next |
+| Quick Actions: Pause Bot, Pause AI, Scheduled, Google Meet | Not built |
+| Top strip: Customer Since, Last Seen, Language, Country, Timezone | Not built |
+| Composer: attach, emoji, canned responses, voice note, translate | Not built - catalog C4, C5, C6 |
+
+**The verification gap that matters most right now.** Everything shipped today was verified in **demo mode on localhost only**. This laptop has no CRM login, so nothing has been checked against real data on crm.badartrader.com. Junaid was asked to do exactly that (item 2 of his task list) and had not reported back by the end of this session. Until he does, treat today's Conversations and Bot Manager work as **deployed but not production-verified**. Particular thing to look at: bubble width on a long bot message, which Muhammad has had to correct twice before.
+
+**Roster disagreement, unresolved and worth settling before any WhatChimp import.** WhatChimp's own User Manager lists four team members - Syed Faisal Shah, Syed Bilal Ahmed Hashmi, Hanzla, Ehsan Wazir - all active. This CRM has Hanzla and Ehsan active, Syed Hamza suspended, and no rows at all for Bilal or Faisal. Muhammad's decision on Hamza (2026-08-06): **leave him suspended, he will unsuspend once the CRM is complete.** His number is already set, so it is a one-click action in My Team whenever he wants it.
 
 **INVESTIGATED, NOT STARTED (2026-08-06) - importing WhatChimp's existing data into this CRM.** Muhammad wants WhatChimp's existing contacts, conversations and dashboard numbers pulled into Supabase so real data exists here to test against, while the live WhatChimp campaign keeps running untouched. He drew the line explicitly: reading and exporting from WhatChimp is fine, altering anything there is not.
 
