@@ -16,7 +16,7 @@ Two things live here, kept apart on purpose:
 _Add items here._
 
 - [x] ~~Deploy `whatsapp-webhook` so the Train AI model picker takes effect.~~ DONE 2026-08-06 from Muhammad's laptop with him present. Live function is now **v69**, byte-identical to the repo, `verify_jwt` still false, all reply gates still false. `settings.openai_model` is `gpt-5-mini`, so the picker is now genuinely wired - but `tryAIReply()` still never runs while `AI_REPLIES_ENABLED = false`.
-- [ ] Apply `supabase/migrations/20260806000000_ai_agents.sql` so the Bot Manager Agents tab has a real table. Until then that tab says so plainly instead of erroring.
+- [x] ~~Apply `supabase/migrations/20260806000000_ai_agents.sql`.~~ DONE 2026-08-06 from Muhammad's laptop. Applied as a single migration rather than `supabase db push`, because that command reconciles the whole migrations folder against the remote history and many files here are named `applied_via_sql_editor` (applied by hand, possibly not recorded), so a push could have replayed old migrations against the live DB. Verified after: 8 columns, RLS on, 1 admin-only policy, updated_at trigger, 2 indexes, 2 foreign keys. Security advisors show no new warnings from this table.
 - [ ] Create the four pending Supabase Auth users (Hanzla, Ehsan Wazir, Syed Bilal Ahmed Hashmi, Syed Hamza) - human-only step, needs a real password set.
 - [ ] Confirm the `AYESHA` git author on commits `45f747d`, `295eeca`, `928a01b` - a third machine is pushing and the `user.name` convention in `CLAUDE.md` does not cover it.
 
