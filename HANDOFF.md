@@ -48,6 +48,22 @@ What we are building, in the roadmap's own build order (each type adds one capab
 
 ---
 
+## 2026-08-07 - FOR JUNAID: Box 3 restructure (bot flow), go-ahead given
+
+**Muhammad gave the final yes today** for the Box 3 restructure that's been sitting PROPOSED in `docs/BOT_FLOW_MAP.md` since 2026-07-21 (line 78 there). He asked to have Junaid picked up on it since he's been free since yesterday. **Claim this here before starting, same as any other index.html/webhook work - this one does NOT touch index.html at all, only `supabase/functions/whatsapp-webhook/index.ts` and `docs/BOT_FLOW_MAP.md`, so no collision with the Conversations QA work in progress today on Muhammad's laptop.**
+
+**What to build:** insert a new stage between the main menu and broker choice that asks whether the customer already has a live Exness/XM account, so an existing account holder skips the experience/traded-before questions and goes straight to the deposit/screenshot step. Full copy (English) is already drafted in `docs/BOT_FLOW_MAP.md` lines 78-117 - BOX 3 (the new question), BOX 3A (first-time trader, same broker-choice-then-experience flow as today), BOX 3B (existing trader, broker choice then straight to deposit confirm). Still needs a Roman Urdu mirror for all new text, same as every other box in that doc.
+
+**Where in the code, concretely:**
+- `whatsapp-webhook/index.ts:988-993` - the `start_trading` branch inside `case "awaiting_menu"` currently jumps straight to `awaiting_broker`. This needs to jump to a new stage (e.g. `awaiting_trader_status`) instead, which asks the new/existing question.
+- New stage handler, modeled on the existing `case "awaiting_broker":` block at `index.ts:1016-1028`: on "first time" -> advance to `awaiting_broker` exactly as today (BOX 3A, unchanged downstream: broker -> experience -> traded-before -> deposit confirm). On "already have an account" -> advance to a second new stage (e.g. `awaiting_broker_existing`) that, once broker is picked, calls `advanceStage(sb, lead, "awaiting_deposit_confirm", { broker_choice: broker, trader_experience: "experienced" })` directly - skipping `awaiting_experience` and `awaiting_traded_before` entirely, per BOX 3B.
+- `MIDFLOW_RESTART_STAGES` array at `index.ts:942-945` needs the new stage name(s) added, or a lead stuck mid-restructure for 24h won't get the restart-at-greeting rule that every other mid-flow stage already has (see the comment right above that array explaining why this list matters - a real bug from 21 July shipped because a stage was missing from it).
+- Needs a new button-matcher function alongside the existing `matchBroker`/`matchExperience`/`matchTradedBefore` helpers, matching "already have an account" vs "first time" (plus typed equivalents, following the existing pattern of also accepting typed input, not just button taps).
+
+**Safety boundary, same as every other webhook change in this repo:** build, `deno check`, and verify against the AYESHA laptop's TypeScript tooling (or a stub/dry-run if there's no real way to exercise the webhook offline - check what verification path prior webhook changes in this file used, e.g. the delivery-tick and non-image-media fixes above). **Do NOT deploy.** This is the live bot webhook real customers hit - deploy is Muhammad's-laptop-only, with him present, standing rule. Once built and verified, update `docs/BOT_FLOW_MAP.md` to drop "(PROPOSED restructure, needs your confirm)" from the BOX 3 heading and flip the "Box 3/3A/3B restructure above is PROPOSED" line near the bottom of that doc (~line 363) to DONE, then log it here and in REMAINING_TODOS.md same as every other completed item, and leave a claim note here for the deploy step so whoever's on Muhammad's laptop next picks it up.
+
+---
+
 ## 2026-08-06 (later) - Conversations blank-line bubble fix + send-wa-message speed fixes
 
 **DONE, verified, committed and pushed (`62b8407`, merged into `main` at `3d787d2`).**
