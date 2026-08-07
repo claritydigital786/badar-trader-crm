@@ -1,10 +1,10 @@
 # Start here, every session
 
-This is the Badar Trader CRM project. Muhammad and his brother Junaid both work on it, from separate laptops, sharing one Google/GitHub login.
+This is the Badar Trader CRM project. Three people work on it from separate laptops, sharing one Google/GitHub login: Muhammad, his brother Junaid, and (joined 2026-08-07) Izza. Three-way, not split into fixed lanes - anyone can pick up any open task via the Active Work Claims process below.
 
 **Before doing anything else, read `HANDOFF.md` in this repo.** It is the single source of truth for what's been built, what's in progress, what's still open, and who's working on what right now (see its "Active Work Claims" section). Personal memory files do not travel between machines - `HANDOFF.md` and git history are what actually carry state across laptops and accounts.
 
-If the user says "continue" with no other context: read `HANDOFF.md`, check "Active Work Claims" for anything already claimed by the other person, and pick up from the most recent entry. Ask the user to clarify only if it's genuinely ambiguous which piece of work they mean.
+If the user says "continue" with no other context: read `HANDOFF.md`, check "Active Work Claims" for anything already claimed by one of the other two people, and pick up from the most recent entry. Ask the user to clarify only if it's genuinely ambiguous which piece of work they mean.
 
 Standing rules that apply everywhere in this repo, not just in one session:
 - No em dashes, anywhere, ever - user-facing text, code, comments, docs. Use a plain hyphen or restructure the sentence.
