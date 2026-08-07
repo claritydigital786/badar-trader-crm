@@ -167,6 +167,8 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**CLAIMED (2026-08-07, Junaid on the AYESHA laptop) - store inbound media, not just a placeholder.** The 06-08 fix made a voice note / PDF / video visible as `[voice note]` but the file itself is still never downloaded, so an agent cannot open it. Touching `recordUnsupportedMessage` in `whatsapp-webhook` (reuse `downloadAndStoreMedia`) and the attachment rendering in Conversations. **Muhammad / Izza: I am in the Conversations section and in whatsapp-webhook until this claim is removed.** Needs a deploy afterwards, which stays Muhammad's.
+
 **DONE, NOT DEPLOYED (2026-08-07, Junaid on the AYESHA laptop) - send an approved template from the inbox. C2 is now complete. Claim released.** The countdown pill has shown agents the 24-hour window closing since D1/C2 landed, but offered no way out of it. This is the way out: a template is the only thing WhatsApp accepts after that window.
 
 A 📋 button in the input bar opens a picker of sendable templates; choosing one opens a compose step showing the body with an input per `{{n}}` placeholder, `{{1}}` pre-filled with the lead's first name, and a live preview; then a confirm dialog naming the contact and quoting the finished text. `send-wa-message` gained a `template` branch that builds Meta's `type: "template"` payload.
