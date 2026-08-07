@@ -50,7 +50,9 @@ What we are building, in the roadmap's own build order (each type adds one capab
 
 ## 2026-08-07 - Izza's first check, delivery-ticks B3/B4 status confirmed
 
-Izza's first real look at the codebase (screenshot-guided from Muhammad's laptop while her push access was still being set up) - checked the state of the delivery-ticks item that's been sitting open in REMAINING_TODOS.md: **live migration column - already applied (from Muhammad's laptop, 2026-08-06); on-screen tick rendering - committed and verified; the webhook write that actually records each status callback - written and committed, but the deployed `whatsapp-webhook` is still v70 and does not contain it.** Correctly concluded the only remaining piece is one deploy, and correctly declined to attempt it herself - her laptop has neither `supabase` nor `deno` installed, and this is the live bot webhook real customers hit, which per standing rule is Muhammad's-laptop-only, with him present. Not yet done as of this entry - see REMAINING_TODOS.md's existing delivery-ticks line for the exact deploy command and ordering.
+Izza's first real look at the codebase (screenshot-guided from Muhammad's laptop while her push access was still being set up) - checked the state of the delivery-ticks item that's been sitting open in REMAINING_TODOS.md: **live migration column - already applied (from Muhammad's laptop, 2026-08-06); on-screen tick rendering - committed and verified; the webhook write that actually records each status callback - written and committed, but the deployed `whatsapp-webhook` is still v70 and does not contain it.** Correctly concluded the only remaining piece is one deploy, and correctly declined to attempt it herself - her laptop has neither `supabase` nor `deno` installed, and this is the live bot webhook real customers hit, which per standing rule is Muhammad's-laptop-only, with him present.
+
+**That deploy is now DONE (2026-08-07, same day, Muhammad's laptop, him present)** - see REMAINING_TODOS.md's delivery-ticks line for the full detail. `whatsapp-webhook` is now v73, verified byte-identical to committed source. Delivery ticks are live end to end.
 
 ---
 
