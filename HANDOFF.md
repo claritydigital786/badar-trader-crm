@@ -48,6 +48,19 @@ What we are building, in the roadmap's own build order (each type adds one capab
 
 ---
 
+## 2026-08-07 - Conversations QA pass concluded (Tasks #35-38 from the prior session)
+
+Muhammad said "conclude whatever is remaining, and then move forward" - this closes out the four in-progress/pending Conversations QA tasks left from an earlier session, all verified in demo mode on Muhammad's laptop:
+
+- **Admin view** - filters (New/Warm/Hot/Unread/Closed/All), search + empty state, opening a conversation, sending a message, the assign-agent dropdown, the forward picker in both "to a conversation" and "to a teammate" modes (verified customer mode still sends, team mode writes zero customer-send calls), delivery ticks, day dividers, 24h countdown pill. All working correctly, zero console errors.
+- **Agent view + permission boundaries** - confirmed agents see the same pooled conversation list as admin (matches the Phase 15 "staff select all" RLS model, not a bug), and confirmed the assign-agent reassignment dropdown correctly does NOT render for an agent - the one boundary that should differ, does.
+- **Static demoMode-gap sweep** - checked every async function touching `sb.from`/`sb.storage`/`sb.functions` in the Conversations code (`renderConversations`, `assignConversationAgent`, `openConversation`, `loadConvAttachmentThumbs`, `setLeadTier`, `handleConvDeepLink`, `doInternalForward`, `doForwardMessage`, `sendConvMessage`, `sendWaViaFunction`, `sendWaViaBrowser`). All correctly gated - the functions with no `demoMode` branch (`loadConvAttachmentThumbs`, `sendWaViaBrowser`) are only ever reached from inside an already-live-only code path, confirmed by reading the call sites, not assumed. **Zero new gaps found** - the fixes from 2026-08-04/06 sessions hold up.
+- **Mobile + dark/light theme pass - found and fixed one real bug** (commit `f3147a7`): at 375px, the chat header's flexible name/phone block was losing the flex-shrink fight against the avatar, 24h-window pill, (live mode) tier select and 3 action buttons, collapsing to 0 width - an agent replying from their phone couldn't see who they were texting, and the Copy Link button was clipped off-screen. Fixed by wrapping the header on mobile only: name + search/info icons stay on row one, the pill/tier-select/Copy Link move to their own row below. Verified admin + agent scope, light + dark theme, and confirmed desktop (>768px) is pixel-identical to before (`flex-wrap: nowrap` there, unchanged).
+
+**Separately, same conversation:** Muhammad flagged Junaid free since yesterday and asked for a HANDOFF assignment - see the Box 3 restructure entry directly below, given the final go-ahead today.
+
+---
+
 ## 2026-08-07 - FOR JUNAID: Box 3 restructure (bot flow), go-ahead given
 
 **Muhammad gave the final yes today** for the Box 3 restructure that's been sitting PROPOSED in `docs/BOT_FLOW_MAP.md` since 2026-07-21 (line 78 there). He asked to have Junaid picked up on it since he's been free since yesterday. **Claim this here before starting, same as any other index.html/webhook work - this one does NOT touch index.html at all, only `supabase/functions/whatsapp-webhook/index.ts` and `docs/BOT_FLOW_MAP.md`, so no collision with the Conversations QA work in progress today on Muhammad's laptop.**
