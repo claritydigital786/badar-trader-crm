@@ -1524,3 +1524,52 @@ CREATE INDEX IF NOT EXISTS communications_wa_message_id_idx
 
 -- ── DONE (Phase 27) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM - Phase 28 Schema (in-app notifications)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 50. notifications (Junaid, 2026-08-07) ──────────────────
+-- One row per thing a specific person should look at. Built because the
+-- internal forward had nowhere to deliver to: it wrote a note onto the lead
+-- and the teammate only saw it if they happened to open that lead. No
+-- per-user unread existed anywhere - leads.is_unread is a single global
+-- boolean meaning "the customer sent something new".
+--
+-- Kept generic on purpose so escalations, mentions and assignments can reuse
+-- it rather than each inventing a delivery mechanism.
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  recipient_id  UUID        NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  actor_id      UUID        REFERENCES public.profiles(id) ON DELETE SET NULL,
+  kind          TEXT        NOT NULL DEFAULT 'forward'
+                              CHECK (kind IN ('forward','mention','assignment','escalation','system')),
+  title         TEXT        NOT NULL,
+  body          TEXT,
+  lead_id       UUID        REFERENCES public.leads(id) ON DELETE SET NULL,
+  is_read       BOOLEAN     NOT NULL DEFAULT false,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "notifications: read own" ON public.notifications;
+CREATE POLICY "notifications: read own" ON public.notifications
+  FOR SELECT USING (recipient_id = auth.uid());
+
+DROP POLICY IF EXISTS "notifications: update own" ON public.notifications;
+CREATE POLICY "notifications: update own" ON public.notifications
+  FOR UPDATE USING (recipient_id = auth.uid())
+  WITH CHECK (recipient_id = auth.uid());
+
+DROP POLICY IF EXISTS "notifications: staff insert" ON public.notifications;
+CREATE POLICY "notifications: staff insert" ON public.notifications
+  FOR INSERT WITH CHECK (public.is_active_staff() AND actor_id = auth.uid());
+
+CREATE INDEX IF NOT EXISTS notifications_recipient_unread_idx
+  ON public.notifications (recipient_id, is_read, created_at DESC);
+
+-- ── DONE (Phase 28) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════
