@@ -48,6 +48,26 @@ What we are building, in the roadmap's own build order (each type adds one capab
 
 ---
 
+## 2026-08-07 (late) - Account switch handoff (weekly limit approaching on this account)
+
+Muhammad is moving to another rotation account since this one's weekly usage limit is close. Full state as of right now, so the next session picks up cold with nothing lost:
+
+**Three live deploys tonight, all from Muhammad's laptop with him present, all verified byte-identical to committed source - but NONE tested against a real message yet, see the blocker below:**
+1. `send-wa-message` - the bot-takeover-flag silent-failure fix (see the live-only-code-audit entry above) plus the attachment-sending code, both now live. Template-sending (Junaid's newest feature) is deliberately one commit behind - can't send anything until Meta approves a template, so no urgency in catching it up.
+2. `whatsapp-webhook` v73 - delivery-tick recording, now live end to end (migration + on-screen rendering + this write).
+3. `whatsapp-webhook` v74 - inbound media storage (voice notes/PDFs/video actually downloaded and playable, not just labelled), with a 20MB size guard reviewed line by line before deploying, not just skimmed.
+
+**The one thing that actually blocked tonight, unresolved when this session ended:** trying to real-device-test the above led to discovering nobody currently knows for certain which phone number's inbound traffic reaches OUR webhook vs WhatChimp's. Muhammad sent a test message to 3903, then said that number is live on WhatChimp right now. 6541 was the fallback candidate, but our own docs already said it was never attached, blocked on a WhatChimp double-subscription issue - Muhammad then said that got resolved a day or two ago but wasn't fully certain of the date. **A screenshot of Meta Business Suite confirmed both numbers exist and are "Connected" to the same WABA, but that page doesn't show webhook routing.** The actual answer lives in Meta's **App** Dashboard (developers.facebook.com, not business.facebook.com) → WhatsApp → **Configuration** → Webhook section - not checked yet. See REMAINING_TODOS.md's new unresolved item for full detail. **Until this is checked, treat tonight's three deploys as syntactically verified but functionally unproven** - don't tell Muhammad they're "confirmed working," only that they're live and byte-identical to what was reviewed.
+
+**People, current state:**
+- **Izza**: fully onboarded (git, Claude Code, push access all working). Has Box 3 restructure assigned to her (reassigned from Junaid - see that entry further down), hasn't started yet as of this handoff.
+- **Junaid**: highly active tonight on his own initiative - shipped the demoMode-branch sweep, the live-only code audit (catching my own regression), send-template-from-inbox, mark-conversation-unread, and in-app notifications (migration for that last one still needs applying, see REMAINING_TODOS). Never touched Box 3 despite it being assigned to him first.
+- **Backup script** (`backup-automation/`): built, tested against a mock server, done. Waiting on Muhammad to upload it to Hostinger and set up the cron job - his step, not blocked on anything from this side.
+
+**Standing rule that mattered a lot tonight, worth restating for whoever picks this up:** Claude sessions cannot open Meta's or WhatChimp's dashboards even to just look - confirmed multiple times tonight when this session had to ask Muhammad for a screenshot rather than checking live routing itself. This will come up again for the unresolved webhook-routing question above.
+
+---
+
 ## 2026-08-07 - Izza's first check, delivery-ticks B3/B4 status confirmed
 
 Izza's first real look at the codebase (screenshot-guided from Muhammad's laptop while her push access was still being set up) - checked the state of the delivery-ticks item that's been sitting open in REMAINING_TODOS.md: **live migration column - already applied (from Muhammad's laptop, 2026-08-06); on-screen tick rendering - committed and verified; the webhook write that actually records each status callback - written and committed, but the deployed `whatsapp-webhook` is still v70 and does not contain it.** Correctly concluded the only remaining piece is one deploy, and correctly declined to attempt it herself - her laptop has neither `supabase` nor `deno` installed, and this is the live bot webhook real customers hit, which per standing rule is Muhammad's-laptop-only, with him present.
