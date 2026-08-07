@@ -7540,10 +7540,10 @@ async function renderConversations(scope = '') {
       // Demo rows only carry a simple status, so map that to the closest tier for preview purposes.
       const tier = c.status === 'converted' ? 'closed' : c.status === 'contacted' ? 'warm' : 'new';
       return `
-        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="false" onclick="openConversation('${c.id}','${scope}')">
+        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${!!c.unread}" onclick="openConversation('${c.id}','${scope}')">
           <div class="conv-avatar" style="background:${avatarColor(c.id)}">${initials}</div>
           <div class="conv-info">
-            <div class="conv-name">${esc(c.name)}</div>
+            <div class="conv-name">${esc(c.name)}${c.unread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
             <div class="conv-phone" style="font-size:0.72rem;color:#94a3b8">${esc(c.phone || '')}</div>
             <div class="conv-preview">${esc(c.lastMsg)}</div>
           </div>
@@ -7822,6 +7822,10 @@ async function openConversation(convId, scope = '') {
   if (demoMode) {
     const conv = _DEMO_CONVERSATIONS.find(c => c.id === convId);
     if (!conv) return;
+    // Opening clears unread, matching what the live branch below does against
+    // leads.is_unread. Without this a conversation marked unread in demo would
+    // stay unread forever, which is not how it behaves in production.
+    conv.unread = false;
     renderConversations(scope);
     const chatPanel = document.getElementById(scope + 'conv-chat-panel');
     if (!chatPanel) return;
@@ -7840,6 +7844,7 @@ async function openConversation(convId, scope = '') {
         <span class="conv-window-pill${demoWindow.tone === 'ok' ? '' : ' ' + demoWindow.tone}" id="${scope}conv-window-pill"
           title="How long WhatsApp will still accept a free-form reply on this conversation">${esc(demoWindow.label)}</span>
         <button type="button" class="conv-header-btn" title="Search in this conversation" onclick="toggleConvMsgSearch()">🔍</button>
+        <button type="button" class="conv-header-btn" title="Mark as unread and go back to the list" onclick="markConversationUnread('${convId}','${scope}')">📩</button>
         <button type="button" class="conv-header-btn" title="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
         <button type="button" class="conv-copy-link-btn" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:#475569;font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
       </div>
@@ -7934,6 +7939,7 @@ async function openConversation(convId, scope = '') {
         <span class="conv-window-pill${waWindow.tone === 'ok' ? '' : ' ' + waWindow.tone}" id="${scope}conv-window-pill"
           title="How long WhatsApp will still accept a free-form reply on this conversation">${esc(waWindow.label)}</span>
         <button type="button" class="conv-header-btn" title="Search in this conversation" onclick="toggleConvMsgSearch()">🔍</button>
+        <button type="button" class="conv-header-btn" title="Mark as unread and go back to the list" onclick="markConversationUnread('${convId}','${scope}')">📩</button>
         <button type="button" class="conv-header-btn" title="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
         <select class="conv-tier-select" title="Set this lead's tier yourself - you know the real situation" onchange="setLeadTier('${convId}', this.value, '${scope}')" style="border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;font-size:0.78rem;color:#475569;background:#fff">
           <option value="new" ${currentTier==='new'?'selected':''}>🆕 New</option>
@@ -8068,6 +8074,42 @@ async function loadConvAttachmentThumbs(convId, messages) {
   }));
 }
 
+// Mark a conversation unread and go back to the list, the way WhatsApp does.
+// Agents triage by working down the unread list, and once a conversation is
+// opened it is cleared automatically - so without this there is no way to put
+// something back on the pile after glancing at it.
+//
+// Deliberately deselects afterwards: openConversation() clears is_unread on
+// open, so leaving it open would mean the next reopen silently undoes this.
+async function markConversationUnread(convId, scope = '') {
+  if (demoMode) {
+    const conv = _DEMO_CONVERSATIONS.find(c => c.id === convId);
+    if (conv) conv.unread = true;
+  } else {
+    const { error } = await sb.from('leads').update({ is_unread: true }).eq('id', convId);
+    if (error) { showToast(`Could not mark unread: ${error.message}`, 'err'); return; }
+  }
+
+  _activeConvId = null;
+  stopWaWindowTicker();
+  const chatPanel = document.getElementById(scope + 'conv-chat-panel');
+  if (chatPanel) {
+    // Same markup as the panel's initial state, so deselecting looks identical
+    // to never having selected anything.
+    chatPanel.innerHTML = `
+        <div class="conv-empty-chat">
+          <div style="font-size:2.5rem;margin-bottom:12px">💬</div>
+          <div style="font-weight:600;color:#64748b;margin-bottom:6px">Select a conversation</div>
+          <div style="font-size:0.8rem;color:#94a3b8">Click on a lead to view their messages</div>
+        </div>`;
+  }
+  // On mobile the list is collapsed while a chat is open, so it has to come
+  // back or the agent is left staring at an empty panel with no way to it.
+  expandConvListOnMobile(scope);
+  renderConversations(scope);
+  showToast('Marked as unread');
+}
+
 async function setLeadTier(leadId, tier, scope) {
   if (demoMode) {
     const conv = _DEMO_CONVERSATIONS.find(c => c.id === leadId);
@@ -8129,6 +8171,15 @@ function collapseConvListOnMobile(scope) {
   if (window.innerWidth > 768) return;
   const shell = document.getElementById(scope === 'agent-' ? 'agent-conv-shell' : 'conv-shell');
   if (shell && !shell.classList.contains('list-collapsed')) toggleConvListPanel(scope);
+}
+
+// The inverse. Needed when a conversation is deselected on mobile: the list is
+// collapsed while a chat is open, so without this the agent is left on an
+// empty panel with no way back to the list.
+function expandConvListOnMobile(scope) {
+  if (window.innerWidth > 768) return;
+  const shell = document.getElementById(scope === 'agent-' ? 'agent-conv-shell' : 'conv-shell');
+  if (shell && shell.classList.contains('list-collapsed')) toggleConvListPanel(scope);
 }
 
 function setReplyTarget(waMessageId, preview) {

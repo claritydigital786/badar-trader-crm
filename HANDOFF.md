@@ -167,7 +167,21 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
-**CLAIMED (2026-08-07, Junaid on the AYESHA laptop) - mark a conversation unread from the inbox.** Picked specifically because it needs **no migration and no deploy** - `leads.is_unread` already exists, so it is usable the moment it is pushed, unlike the four things now queued behind Muhammad. Touching the Conversations chat header and list in `index.html`. **Muhammad / Izza: I am in the Conversations section until this claim is removed.**
+**DONE and USABLE NOW (2026-08-07, Junaid on the AYESHA laptop) - mark a conversation unread from the inbox. Claim released.** Chosen deliberately over the remaining parity gaps because it needs **no migration and no deploy**: `leads.is_unread` already exists, so this is the only thing built today that works the moment it reaches production, rather than joining the four items queued behind Muhammad.
+
+Agents triage by working down the unread list, and opening a conversation clears it automatically - so there was no way to put something back on the pile after glancing at it. A 📩 button in the chat header now marks it unread and returns to the list.
+
+**It deselects on purpose.** `openConversation()` clears `is_unread` on open, so leaving the conversation open would mean the next reopen silently undid the action. Deselecting also required writing `expandConvListOnMobile()` - the mirror of the existing collapse helper - because on mobile the list is hidden while a chat is open, and without it the agent would be left on an empty panel with no way back to the list. Verified at 375px.
+
+**Two pre-existing demo/live mismatches fixed on the way, both of the kind that has bitten this project repeatedly:**
+1. **The demo conversation list hardcoded `data-unread="false"`**, so the Unread filter tab matched nothing and **had never actually been exercised in demo** - the filter existed but was untestable. Demo rows now carry a real unread flag and render the same blue dot the live path does.
+2. **The demo branch of `openConversation` never cleared unread**, only the live branch did. Found by testing rather than reading: a conversation marked unread in demo stayed unread forever, which is not how production behaves. Now cleared in both.
+
+**Verified in demo mode:** the button marks unread, deselects, restores the chat panel to the same empty-state markup it starts with, and flags the list row with a blue dot; the Unread filter now matches exactly that row and All returns to three; reopening clears it in both the data and the list row; on mobile the collapsed list is restored and is genuinely visible. Screenshot confirms it at 375px. Network log clean - no Supabase traffic from demo. Balances and em dashes clean.
+
+**One thing I got wrong and caught:** I first called `expandConvListOnMobile()` and used a `.conv-empty` class, neither of which existed - the helper had to be written, and the empty state now reuses the panel's real `conv-empty-chat` markup so deselecting looks identical to never having selected anything.
+
+**UNVERIFIED:** the live path (`leads.is_unread` update) has not been exercised - it needs a live session. It is a single-column update of a column the webhook already writes, using the same pattern as the clear-on-open beside it.
 
 **DONE, MIGRATION NOT APPLIED (2026-08-07, Junaid on the AYESHA laptop) - in-app notifications. The internal forward now actually reaches someone. Claim released.** Muhammad called the internal forward "a MUST", but as built on 06-08 it was passive - it wrote a note onto the lead and the teammate only saw it if they happened to open that lead, which is not what forwarding means. The blocker was that nothing in the schema could deliver to a person: `leads.is_unread` is one global boolean meaning "the customer sent something new", so reusing it would both assert a customer message that never happened and light up for the whole team.
 
