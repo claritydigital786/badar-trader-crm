@@ -642,9 +642,27 @@ async function recordUnsupportedMessage(
     return;
   }
 
-  const body = describeUnsupportedMessage(message);
+  // Fetch the file itself where there is one, so the agent can actually open
+  // it rather than only seeing that it arrived. Failure is NOT fatal: the row
+  // is written either way, with the reason appended, because a visible
+  // "[voice note] (file could not be stored: ...)" is far better than the
+  // message vanishing - which is the bug this whole path exists to fix.
+  const mediaId = mediaIdOf(message);
+  let storedPath: string | undefined;
+  let storeNote = "";
+  if (mediaId) {
+    const stored = await downloadAndStoreMedia(sb, mediaId, lead.id);
+    if (stored.ok) {
+      storedPath = stored.path;
+    } else {
+      storeNote = ` (file could not be stored: ${stored.error})`;
+      console.error(`recordUnsupportedMessage: media ${mediaId} not stored - ${stored.error}`);
+    }
+  }
+
+  const body = describeUnsupportedMessage(message) + storeNote;
   console.log(`Recorded unsupported inbound from ${senderPhone}: ${body}`);
-  await insertCommunication(sb, lead.id, "inbound", body, timestamp, undefined, message?.id);
+  await insertCommunication(sb, lead.id, "inbound", body, timestamp, storedPath, message?.id);
 }
 
 async function handleImageMessage(
@@ -697,6 +715,21 @@ async function handleImageMessage(
   }
 }
 
+// WhatsApp permits documents up to 100MB. This function buffers the whole
+// file in memory twice (download, then upload), so anything near that would
+// risk the function itself. 20MB comfortably covers receipts, voice notes and
+// short clips, which is what actually arrives here.
+const MAX_STORED_MEDIA_BYTES = 20 * 1024 * 1024;
+
+// Every media-bearing inbound type keeps its id under a key named after the
+// type. Location and contacts carry no file at all.
+function mediaIdOf(message: any): string | null {
+  const type = String(message?.type ?? "");
+  if (!["audio", "video", "document", "sticker", "image"].includes(type)) return null;
+  const id = message?.[type]?.id;
+  return id ? String(id) : null;
+}
+
 async function downloadAndStoreMedia(
   sb: SupabaseClient,
   mediaId: string,
@@ -713,6 +746,20 @@ async function downloadAndStoreMedia(
     const meta = await metaRes.json();
     const mediaUrl: string = meta.url;
     const mimeType: string = (meta.mime_type ?? "image/jpeg").split(";")[0];
+
+    // Size guard. This used to handle only images, which WhatsApp caps at 5MB,
+    // so there was nothing to guard. It now also handles documents and video,
+    // which WhatsApp allows up to 100MB - the whole file is held in memory
+    // here and again on upload, so a large one could take the function down
+    // for every other inbound message, not just this one. Meta reports the
+    // size in the lookup above, so it can be refused before downloading.
+    const fileSize = Number(meta.file_size ?? 0);
+    if (fileSize > MAX_STORED_MEDIA_BYTES) {
+      return {
+        ok: false,
+        error: `file is ${(fileSize / 1024 / 1024).toFixed(1)}MB, over the ${MAX_STORED_MEDIA_BYTES / 1024 / 1024}MB storage limit`,
+      };
+    }
 
     const fileRes = await fetch(mediaUrl, { headers: { "Authorization": `Bearer ${token}` } });
     if (!fileRes.ok) return { ok: false, error: `media download failed: HTTP ${fileRes.status}` };

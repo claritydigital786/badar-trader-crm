@@ -167,6 +167,20 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**DONE, NOT DEPLOYED (2026-08-07, Junaid on the AYESHA laptop) - inbound media is now stored and playable, not just named. Claim released.** Completes the 06-08 fix: that one stopped voice notes, PDFs and video vanishing silently, but only recorded a `[voice note]` label - the file itself was never fetched, so the agent still could not open it. For a business that asks customers for deposit receipts, seeing that a PDF arrived without being able to read it is most of the problem still unsolved.
+
+`recordUnsupportedMessage` now pulls the media id (`mediaIdOf`, which knows that every media type keeps its id under a key named after the type, and that location and contacts carry none) and reuses the existing `downloadAndStoreMedia`. The frontend renders by kind instead of assuming an image.
+
+**A guard that had to be added, not just reused.** `downloadAndStoreMedia` was written for images, which WhatsApp caps at 5MB, so it never needed a size check. It now also handles documents and video, which WhatsApp allows up to **100MB** - and the function buffers the whole file in memory twice, download then upload. One large document could take the webhook down for **every other inbound message**, not just that one. Meta reports `file_size` in the lookup call that already happens, so oversized files are refused before any download, at a 20MB ceiling that comfortably covers receipts, voice notes and short clips.
+
+**Storage failure is deliberately not fatal.** If the download or upload fails the row is still written, with the reason appended: `[voice note] (file could not be stored: over the 20MB storage limit)`. A visible message with an explanation beats the message disappearing, which is the exact bug this path exists to fix.
+
+**The renderer assumed every attachment was a screenshot.** It always emitted an `<img>`, so a stored PDF would have rendered as a broken image icon. It now picks by file extension: images inline as before, **audio as a playable `<audio>` element** (a voice note the agent must download first is barely better than not having it), video as `<video>`, and anything else as a named download link. The loading placeholder said "Loading image" and now says "Loading attachment".
+
+**Verified in demo mode:** extension mapping across 16 real extensions plus uppercase, mixed case, a path with dots in the folder name, no extension, empty, null and undefined - 27 checks, all passing. `mediaIdOf` checked for audio, document, video and sticker ids, and correctly returning null for location, contacts, a missing id, an unknown type and a null message. The failure-note format. Regression: conversations still render, sending still works, and the attach and template buttons are both still present. Balances and em dashes clean.
+
+**UNVERIFIED, and the gap is real:** the download, the size guard and the audio/video/file rendering have never run against a real file. All three need live WhatsApp media plus live storage, neither of which exists here - the mapping and id-extraction logic is unit-tested, the actual fetch-and-store round trip is not. **Not type-checked** (no Deno on this machine). Needs a `whatsapp-webhook` deploy, which is Muhammad's. First real test: send a voice note and a PDF from a phone and confirm both appear and open in the inbox.
+
 **DONE, NOT DEPLOYED (2026-08-07, Junaid on the AYESHA laptop) - send an approved template from the inbox. C2 is now complete. Claim released.** The countdown pill has shown agents the 24-hour window closing since D1/C2 landed, but offered no way out of it. This is the way out: a template is the only thing WhatsApp accepts after that window.
 
 A 📋 button in the input bar opens a picker of sendable templates; choosing one opens a compose step showing the body with an input per `{{n}}` placeholder, `{{1}}` pre-filled with the lead's first name, and a live preview; then a confirm dialog naming the contact and quoting the finished text. `send-wa-message` gained a `template` branch that builds Meta's `type: "template"` payload.
