@@ -151,7 +151,23 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
-**CLAIMED (2026-08-07, Junaid on the AYESHA laptop) - live-only code audit.** Following the two live bugs found on 06-08 that were both invisible in demo mode. Read-only analysis of `index.html` first: enumerate code that can only execute against live data, then look for concrete defects in it. **Muhammad / Izza: analysis touches nothing. Any fix gets called out before I make it, and I will stay out of Conversations unless I re-claim it.**
+**DONE (2026-08-07, Junaid on the AYESHA laptop) - live-only code audit. Claim released.** Follow-on from the two bugs found on 06-08 that were both invisible in demo mode. The question this asked: what code can *only* run against live data, and therefore has never been exercised by any verification pass this project has done?
+
+**Scale of the blind spot, measured rather than guessed: 69 functions contain database code sitting after a `demoMode` early return.** Every one of them is unreachable in demo mode. `openConversation` alone has ~196 live-only lines. That is the surface no amount of demo testing can cover.
+
+**The finding worth acting on: the bot-takeover flag fails silently on both send paths.** When an agent messages a lead, the code sets `needs_human` so the webhook stops treating the customer's replies as answers to its own bot flow. The comment above it documents exactly why: a lead was lost on 21 July 2026 when an agent stepped into a bot conversation and the bot kept consuming the replies. **That write's result was thrown away on both paths** - in `send-wa-message` it sat inside a `Promise.all` where only the *other* promise's error was destructured, and in the browser fallback it was a bare `await`. So the mechanism protecting against a known lead-losing bug had no failure detection at all. The message goes out, the agent sees success, and the bot may still be live in that conversation with nobody aware.
+
+Both now capture that error and tell the agent plainly that the handover did not happen and to set Needs Human by hand. It stays a **warning, not a failure**, because the message genuinely was delivered - reporting failure would invite a retry and double-message the customer, which is the trade-off the existing `insertError` branch already reasons about.
+
+**Checked and deliberately not changed, with reasons:**
+- **The delete-lead cleanup loop** discards errors across five child tables (`communications`, `communication_logs`, `lead_activity`, `transactions`, `kyc_documents`). Looks alarming, but every one of those has `ON DELETE CASCADE` on `lead_id`, and the `leads` delete that follows *is* error-checked - so the manual loop is belt-and-braces and a silent failure there is cleaned up by the cascade anyway. Left alone.
+- **Eight `const { data } = await sb...` reads that never capture `error`** - all are settings lookups that fall back to a default when data is missing, so an error and an empty result take the same path. Benign.
+- **Initials/avatar rendering** on live names: the live conversation list guards with `|| 'Unknown'`, and `initAgent` falls back to the email. A name of pure whitespace would render blank initials, which is cosmetic, not a crash. Not worth churn.
+- **Joined-relation access** (`x.leads.y` without optional chaining): one static hit, which turned out to be a false positive in markup, not code.
+
+**Verified:** script still parses, both send functions still defined, demo send path unaffected (regression), brace/paren/backtick balance clean in both files, zero em dashes. **The `Promise.all` destructure arity was double-checked** since adding a second destructured element to an existing array pattern is exactly the kind of edit that silently shifts positions.
+
+**UNVERIFIED, and unavoidably so:** neither fix can be exercised here. Both only fire when a database write fails against live data, which needs a live session and a real failure. The `send-wa-message` change also rides the already-pending deploy on Muhammad's laptop and is **not type-checked** (no Deno on this machine).
 
 **DONE (2026-08-06, Junaid on the AYESHA laptop) - sweep for database calls with no `demoMode` branch. Claim released.** The mirror of the handler sweep: that one found bugs invisible in demo mode, this one finds bugs that only appear *in* it. Conversations deliberately untouched, since the other session is working there.
 

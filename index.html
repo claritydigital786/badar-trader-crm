@@ -8698,10 +8698,18 @@ async function sendWaViaBrowser(convId, text, replyToWaMessageId) {
   // Same takeover flag send-wa-message sets on the primary path - an agent
   // manually messaging a lead here means a human has taken over, the bot
   // must stop treating the lead's replies as answers to its own flow.
-  await sb.from('leads').update({
+  // Result was previously discarded, making a failure here silent - see the
+  // matching fix in send-wa-message. If this write fails the bot keeps
+  // treating the lead's replies as answers to its own flow, which is how a
+  // lead was lost on 21 July. Tell the agent so they can set Needs Human by
+  // hand; the message itself did go out, so this is a warning, not a failure.
+  const { error: takeoverError } = await sb.from('leads').update({
     needs_human: true,
     handoff_reason: 'requested human agent, an agent manually took over this conversation',
   }).eq('id', convId);
+  if (takeoverError) {
+    showToast('Sent, but the bot was not handed over - it may still reply to this lead. Set Needs Human manually.', 'err');
+  }
   return true;
 }
 

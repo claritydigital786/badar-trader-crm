@@ -342,7 +342,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // WhatsApp Graph API call above and possible Edge Function cold starts,
   // neither of which this function controls - but it removes one genuine,
   // fixable slice of the total.
-  const [{ error: insertError }] = await Promise.all([
+  const [{ error: insertError }, { error: takeoverError }] = await Promise.all([
     sb.from("communications").insert({
       lead_id: leadId,
       type: "whatsapp",
@@ -371,6 +371,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Message DID go out - surface the logging failure rather than pretending
     // the send failed (a retry would double-message the lead).
     return json({ ok: true, warning: `Sent, but failed to log in CRM: ${insertError.message}` });
+  }
+
+  // The takeover write was previously fired and its result thrown away, so a
+  // failure here was completely silent. That matters more than the logging
+  // failure above: without needs_human the bot carries on consuming the
+  // lead's replies as answers to its own flow, which is exactly how a lead
+  // was lost on 21 July. The agent needs to know the bot may still be live in
+  // this conversation, so they can set Needs Human by hand.
+  if (takeoverError) {
+    return json({
+      ok: true,
+      warning: `Sent, but could not hand this conversation over to you - the bot may still reply to this lead. Set Needs Human manually. (${takeoverError.message})`,
+    });
   }
 
   return json({ ok: true });
