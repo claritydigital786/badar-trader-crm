@@ -33,7 +33,8 @@ live; **TO BUILD** = safe code work, no live send; **BLOCKED (human/3rd-party)**
 | In-conversation search, day-divider pills | Shipped, demo-verified |
 | WhatsApp inbound ingestion + lead creation | Deployed webhook v73 |
 | Delivery ticks (B3/B4) | LIVE end to end - `whatsapp-webhook` deployed to v73 2026-08-07 (Muhammad's laptop, `--no-verify-jwt`). Column + on-screen ticks + status-callback writer all live. Rendering verified firsthand (read=blue, delivered/sent=grey, failed=red, null=no tick) |
-| Inbound non-image media placeholder | LIVE - shipped in the same v73 deploy; a voice note / PDF / video etc. now logs a readable placeholder instead of being silently dropped |
+| Inbound non-image media placeholder | LIVE - shipped in the v73 deploy; a voice note / PDF / video now logs a readable placeholder instead of being silently dropped. (Downloading + playing the file is a newer change awaiting its own deploy - row B) |
+| Mark a conversation unread from the inbox | LIVE - no migration, no deploy needed (`leads.is_unread` already exists); 📩 button in the chat header |
 | `send-wa-message` bot-takeover-flag fix | DEPLOYED 2026-08-07 (Muhammad's laptop), byte-identical to source |
 | Reports (stat cards, agent perf, source, monthly trend, financial summary) | Live via RPCs. QA-passed 2026-08-07 |
 | Subscribers, Appointments, Meta Ads read-only analytics | Live |
@@ -44,6 +45,8 @@ live; **TO BUILD** = safe code work, no live send; **BLOCKED (human/3rd-party)**
 | --- | --- | --- |
 | Agent attachment sending (JPG/PNG/PDF) | `send-wa-message` was redeployed 2026-08-07 byte-identical to source, which already contained this - so it is very likely LIVE, but **no real attachment send has been confirmed**. Needs one real JPG+PDF test to move to section A | Muhammad's laptop - confirm/test |
 | Send an approved template from the inbox | Frontend + `template` branch in `send-wa-message` built (landed AFTER the last deploy, so not deployed). Also blocked on Meta approving a template (row D) | Deploy `send-wa-message` + Meta approval |
+| Inbound media download + playback (open a voice note / PDF / video, not just see it named) | Built (webhook fetches + stores the file, 20MB guard; frontend renders audio/video/file). Landed after v73, so not deployed | Muhammad's laptop - `whatsapp-webhook` deploy |
+| In-app notifications (bell + `notifications` table; the internal teammate-forward now actually alerts the recipient) | Built and demo-verified; migration `20260807000000_notifications.sql` NOT applied, so the bell is empty in live until then | Muhammad - apply migration |
 | Supabase backup script (4x/day to Hostinger) | Built and verified against a local mock; read-only on Supabase. Needs deploying to Badar's Hostinger + the cron set up | Human (Hostinger setup) |
 
 **B3/B4 (Muhammad asked directly) - now DONE.** These are the WhatsApp delivery
@@ -85,9 +88,10 @@ placeholders. AI Signals compute for real but delivery is manual.
 **Open questions for Muhammad (not blocking):** (1) the live Reports "Total Revenue /
 Approved deposits" card sums every lead's `account_balance` while the Financial
 Summary's "Total Deposits" comes from an RPC - these can disagree in live (flagged
-2026-08-07). (2) Whether the internal teammate-forward should actively notify (needs
-a notifications mechanism first). (3) Confirm whether agent attachment sending is
-already live from the 2026-08-07 redeploy (row B).
+2026-08-07). (2) Confirm whether agent attachment sending is already live from the
+2026-08-07 `send-wa-message` redeploy (row B). (The earlier open question about the
+teammate-forward notifying someone is resolved - in-app notifications are now built,
+row B, pending the migration.)
 
 ---
 

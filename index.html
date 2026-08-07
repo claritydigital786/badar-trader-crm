@@ -868,6 +868,34 @@
     .msg-tick.failed    { color:#f15c6d; letter-spacing:0; font-weight:700; }
     /* Day divider between messages from different calendar days, like WhatsApp's
        centred "Today / Yesterday / date" pill. */
+    /* Notification bell. Anchored so the panel hangs under it. */
+    .notif-wrap { position:relative; display:inline-block; }
+    .notif-btn { background:none; border:none; cursor:pointer; font-size:1.05rem; line-height:1; padding:6px; position:relative; opacity:.75; }
+    .notif-btn:hover { opacity:1; }
+    .notif-badge { position:absolute; top:-2px; right:-4px; background:#ef4444; color:#fff;
+      font-size:10px; font-weight:700; border-radius:10px; padding:1px 5px; line-height:1.4; }
+    .notif-panel { position:absolute; right:0; top:34px; width:320px; max-height:60vh; overflow-y:auto;
+      background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 10px 30px rgba(15,23,42,.15); z-index:40; }
+    .notif-head { padding:10px 14px; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; }
+    .notif-head strong { font-size:0.85rem; color:#0f172a; }
+    .notif-head button { background:none; border:none; cursor:pointer; font-size:0.74rem; color:#3b82f6; }
+    .notif-item { padding:10px 14px; border-bottom:1px solid #f1f5f9; cursor:pointer; }
+    .notif-item:hover { background:#f8fafc; }
+    .notif-item.unread { background:#eff6ff; }
+    .notif-item.unread:hover { background:#dbeafe; }
+    .notif-item .t { font-size:0.82rem; font-weight:600; color:#0f172a; }
+    .notif-item .b { font-size:0.76rem; color:#475569; margin-top:2px; word-break:break-word; }
+    .notif-item .w { font-size:0.7rem; color:#94a3b8; margin-top:3px; }
+    .notif-empty { padding:22px 14px; text-align:center; color:#94a3b8; font-size:0.8rem; }
+    [data-theme="dark"] .notif-panel { background:#111b2e; border-color:#243350; }
+    [data-theme="dark"] .notif-head { border-bottom-color:#243350; }
+    [data-theme="dark"] .notif-head strong, [data-theme="dark"] .notif-item .t { color:#f1f5f9; }
+    [data-theme="dark"] .notif-item { border-bottom-color:#1b2740; }
+    [data-theme="dark"] .notif-item:hover { background:#16223a; }
+    [data-theme="dark"] .notif-item.unread { background:#16223a; }
+    [data-theme="dark"] .notif-item.unread:hover { background:#1b2b45; }
+    [data-theme="dark"] .notif-item .b { color:#94a3b8; }
+
     /* Forward. Sits beside the reply button on the bubble's outer corner. */
     .msg-fwd-btn { position:absolute; top:-10px; width:22px; height:22px; border-radius:50%;
       border:1px solid #cbd5e1; background:#fff; color:#475569; font-size:0.7rem;
@@ -1256,6 +1284,10 @@
       </div>
       <div class="header-actions">
         <span id="user-greeting" style="color:#64748b;font-size:13px;"></span>
+        <div class="notif-wrap">
+          <button type="button" class="notif-btn" id="notif-btn" title="Notifications" onclick="toggleNotifPanel('')">🔔<span class="notif-badge" id="notif-badge" style="display:none">0</span></button>
+          <div class="notif-panel" id="notif-panel" style="display:none"></div>
+        </div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-secondary btn-sm header-btn-pair" onclick="exportLeadsCSV()">📥 Export CSV</button>
           <button class="btn btn-primary btn-inline btn-sm header-btn-pair" onclick="adminTab('add-lead')">+ Add Lead</button>
@@ -3098,7 +3130,12 @@
         <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Menu">&#9776;</button>
         <h2 id="agent-current-tab-title" class="page-title">Dashboard</h2>
       </div>
-      <div class="header-actions"></div>
+      <div class="header-actions">
+        <div class="notif-wrap">
+          <button type="button" class="notif-btn" id="agent-notif-btn" title="Notifications" onclick="toggleNotifPanel('agent-')">🔔<span class="notif-badge" id="agent-notif-badge" style="display:none">0</span></button>
+          <div class="notif-panel" id="agent-notif-panel" style="display:none"></div>
+        </div>
+      </div>
     </div>
     <div class="content-body">
 
@@ -3439,6 +3476,11 @@ function enterDemoMode() {
   populateAgentDropdowns();
   renderDashboardStats();
   renderAgentsTable();
+  // enterDemoMode builds the admin shell by hand rather than going through
+  // initAdmin(), so anything added to initAdmin has to be added here too or it
+  // is simply absent from every demo. That mismatch is what hid the My Leads
+  // and agent-action bugs found on 2026-08-04.
+  loadNotifications();
 }
 
 // ── Boot ──────────────────────────────────────────────────────
@@ -3572,6 +3614,7 @@ async function initAdmin() {
   await loadProfiles();
   await loadAdminLeads();
   renderDashboardStats();
+  loadNotifications();
 }
 
 function toggleSidebar(forceOpen) {
@@ -4439,6 +4482,7 @@ async function initAgent() {
   if (initialsEl) initialsEl.textContent = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   await loadAgentLeads();
   loadUpcomingFollowups('agent-');
+  loadNotifications();
 }
 
 const AGENT_TAB_TITLES = { dashboard: 'Dashboard', 'my-leads': 'My Leads', conversations: 'Omnichannel Inbox', 'comm-log': 'Communication Log', 'log-activity': 'Log Activity', guide: 'Guide' };
@@ -7496,10 +7540,10 @@ async function renderConversations(scope = '') {
       // Demo rows only carry a simple status, so map that to the closest tier for preview purposes.
       const tier = c.status === 'converted' ? 'closed' : c.status === 'contacted' ? 'warm' : 'new';
       return `
-        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="false" onclick="openConversation('${c.id}','${scope}')">
+        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${!!c.unread}" onclick="openConversation('${c.id}','${scope}')">
           <div class="conv-avatar" style="background:${avatarColor(c.id)}">${initials}</div>
           <div class="conv-info">
-            <div class="conv-name">${esc(c.name)}</div>
+            <div class="conv-name">${esc(c.name)}${c.unread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
             <div class="conv-phone" style="font-size:0.72rem;color:#94a3b8">${esc(c.phone || '')}</div>
             <div class="conv-preview">${esc(c.lastMsg)}</div>
           </div>
@@ -7778,6 +7822,10 @@ async function openConversation(convId, scope = '') {
   if (demoMode) {
     const conv = _DEMO_CONVERSATIONS.find(c => c.id === convId);
     if (!conv) return;
+    // Opening clears unread, matching what the live branch below does against
+    // leads.is_unread. Without this a conversation marked unread in demo would
+    // stay unread forever, which is not how it behaves in production.
+    conv.unread = false;
     renderConversations(scope);
     const chatPanel = document.getElementById(scope + 'conv-chat-panel');
     if (!chatPanel) return;
@@ -7796,6 +7844,7 @@ async function openConversation(convId, scope = '') {
         <span class="conv-window-pill${demoWindow.tone === 'ok' ? '' : ' ' + demoWindow.tone}" id="${scope}conv-window-pill"
           title="How long WhatsApp will still accept a free-form reply on this conversation">${esc(demoWindow.label)}</span>
         <button type="button" class="conv-header-btn" title="Search in this conversation" onclick="toggleConvMsgSearch()">🔍</button>
+        <button type="button" class="conv-header-btn" title="Mark as unread and go back to the list" onclick="markConversationUnread('${convId}','${scope}')">📩</button>
         <button type="button" class="conv-header-btn" title="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
         <button type="button" class="conv-copy-link-btn" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:#475569;font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
       </div>
@@ -7890,6 +7939,7 @@ async function openConversation(convId, scope = '') {
         <span class="conv-window-pill${waWindow.tone === 'ok' ? '' : ' ' + waWindow.tone}" id="${scope}conv-window-pill"
           title="How long WhatsApp will still accept a free-form reply on this conversation">${esc(waWindow.label)}</span>
         <button type="button" class="conv-header-btn" title="Search in this conversation" onclick="toggleConvMsgSearch()">🔍</button>
+        <button type="button" class="conv-header-btn" title="Mark as unread and go back to the list" onclick="markConversationUnread('${convId}','${scope}')">📩</button>
         <button type="button" class="conv-header-btn" title="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
         <select class="conv-tier-select" title="Set this lead's tier yourself - you know the real situation" onchange="setLeadTier('${convId}', this.value, '${scope}')" style="border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;font-size:0.78rem;color:#475569;background:#fff">
           <option value="new" ${currentTier==='new'?'selected':''}>🆕 New</option>
@@ -7918,7 +7968,7 @@ async function openConversation(convId, scope = '') {
               <div class="msg-wrapper${m.direction === 'outbound' ? ' outgoing' : ''}"${m.wa_message_id ? ` data-wamid="${esc(m.wa_message_id)}"` : ''}>
                 <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}" style="position:relative">
                   ${esc(displayMsgText(m.body))}
-                  ${m.attachment_path ? `<div class="msg-attachment" id="conv-att-${convId}-${i}" data-path="${esc(m.attachment_path)}" style="margin-top:8px;cursor:pointer;color:inherit">🖼 Loading image…</div>` : ''}
+                  ${m.attachment_path ? `<div class="msg-attachment" id="conv-att-${convId}-${i}" data-path="${esc(m.attachment_path)}" style="margin-top:8px;cursor:pointer;color:inherit">📎 Loading attachment…</div>` : ''}
                   ${m.wa_message_id ? `<button type="button" title="Reply to this message" data-wamid="${esc(m.wa_message_id)}" data-preview="${esc(truncate(m.body || '', 60))}" onclick="setReplyTarget(this.dataset.wamid, this.dataset.preview)" style="position:absolute;top:-10px;${m.direction === 'outbound' ? 'left' : 'right'}:-10px;width:22px;height:22px;border-radius:50%;border:1px solid #cbd5e1;background:#fff;color:#475569;font-size:0.7rem;cursor:pointer;line-height:1">↩</button>` : ''}<button type="button" class="msg-fwd-btn" title="Forward this message to another conversation" data-fwd="${esc(m.body || '')}" onclick="openForwardPicker(this.dataset.fwd)" style="${m.direction === 'outbound' ? 'left' : 'right'}:14px">↪</button><span class="msg-time">${fmtConvTime(m.created_at)}${deliveryTickHtml(m.direction, m.delivery_status)}</span>
                 </div>
               </div>`; }).join(''); })()
@@ -7972,16 +8022,92 @@ async function openConversation(convId, scope = '') {
 // (deposit-screenshots bucket) but that bucket is private, so each message
 // bubble gets a real inline thumbnail via a short-lived signed URL instead
 // of embedding the (inaccessible) raw path.
+// Inbound attachments used to be screenshots only, so this always rendered an
+// <img>. Now that voice notes, documents and video are stored too, a PDF
+// rendered through an <img> tag is just a broken image icon. The stored path
+// ends in an extension derived from the mime type, which is enough to pick the
+// right element.
+const CONV_ATT_KIND = {
+  image: ['jpg','jpeg','png','webp','gif'],
+  audio: ['mp3','ogg','oga','opus','amr','m4a','aac','mpeg','wav'],
+  video: ['mp4','3gp','3gpp','webm','quicktime','mov'],
+};
+
+function attachmentKindFromPath(path) {
+  const ext = String(path || '').split('.').pop().toLowerCase();
+  for (const [kind, exts] of Object.entries(CONV_ATT_KIND)) {
+    if (exts.includes(ext)) return kind;
+  }
+  return 'file';
+}
+
 async function loadConvAttachmentThumbs(convId, messages) {
   await Promise.all(messages.map(async (m, i) => {
     if (!m.attachment_path) return;
     const el = document.getElementById(`conv-att-${convId}-${i}`);
     if (!el) return;
     const { data, error } = await sb.storage.from('deposit-screenshots').createSignedUrl(m.attachment_path, 300);
-    if (error || !data) { el.textContent = '🖼 Screenshot (failed to load - tap to retry)'; el.onclick = () => loadConvAttachmentThumbs(convId, [m].map((mm,ii)=>mm)); return; }
-    el.innerHTML = `<img src="${esc(data.signedUrl)}" alt="Screenshot" style="max-width:220px;max-height:220px;border-radius:8px;display:block" />`;
-    el.onclick = () => window.open(data.signedUrl, '_blank');
+    if (error || !data) {
+      el.textContent = '📎 Attachment (failed to load - tap to retry)';
+      el.onclick = () => loadConvAttachmentThumbs(convId, [m]);
+      return;
+    }
+    const url = data.signedUrl;
+    const kind = attachmentKindFromPath(m.attachment_path);
+    const name = String(m.attachment_path).split('/').pop();
+
+    if (kind === 'image') {
+      el.innerHTML = `<img src="${esc(url)}" alt="Attachment" style="max-width:220px;max-height:220px;border-radius:8px;display:block" />`;
+      el.onclick = () => window.open(url, '_blank');
+    } else if (kind === 'audio') {
+      // Playable inline - a voice note the agent has to download first is
+      // barely better than not having it.
+      el.innerHTML = `<audio controls preload="none" src="${esc(url)}" style="max-width:240px;display:block"></audio>`;
+      el.onclick = null;
+    } else if (kind === 'video') {
+      el.innerHTML = `<video controls preload="metadata" src="${esc(url)}" style="max-width:240px;border-radius:8px;display:block"></video>`;
+      el.onclick = null;
+    } else {
+      el.innerHTML = `<span style="text-decoration:underline">📄 ${esc(name)}</span>`;
+      el.onclick = () => window.open(url, '_blank');
+    }
   }));
+}
+
+// Mark a conversation unread and go back to the list, the way WhatsApp does.
+// Agents triage by working down the unread list, and once a conversation is
+// opened it is cleared automatically - so without this there is no way to put
+// something back on the pile after glancing at it.
+//
+// Deliberately deselects afterwards: openConversation() clears is_unread on
+// open, so leaving it open would mean the next reopen silently undoes this.
+async function markConversationUnread(convId, scope = '') {
+  if (demoMode) {
+    const conv = _DEMO_CONVERSATIONS.find(c => c.id === convId);
+    if (conv) conv.unread = true;
+  } else {
+    const { error } = await sb.from('leads').update({ is_unread: true }).eq('id', convId);
+    if (error) { showToast(`Could not mark unread: ${error.message}`, 'err'); return; }
+  }
+
+  _activeConvId = null;
+  stopWaWindowTicker();
+  const chatPanel = document.getElementById(scope + 'conv-chat-panel');
+  if (chatPanel) {
+    // Same markup as the panel's initial state, so deselecting looks identical
+    // to never having selected anything.
+    chatPanel.innerHTML = `
+        <div class="conv-empty-chat">
+          <div style="font-size:2.5rem;margin-bottom:12px">💬</div>
+          <div style="font-weight:600;color:#64748b;margin-bottom:6px">Select a conversation</div>
+          <div style="font-size:0.8rem;color:#94a3b8">Click on a lead to view their messages</div>
+        </div>`;
+  }
+  // On mobile the list is collapsed while a chat is open, so it has to come
+  // back or the agent is left staring at an empty panel with no way to it.
+  expandConvListOnMobile(scope);
+  renderConversations(scope);
+  showToast('Marked as unread');
 }
 
 async function setLeadTier(leadId, tier, scope) {
@@ -8047,6 +8173,15 @@ function collapseConvListOnMobile(scope) {
   if (shell && !shell.classList.contains('list-collapsed')) toggleConvListPanel(scope);
 }
 
+// The inverse. Needed when a conversation is deselected on mobile: the list is
+// collapsed while a chat is open, so without this the agent is left on an
+// empty panel with no way back to the list.
+function expandConvListOnMobile(scope) {
+  if (window.innerWidth > 768) return;
+  const shell = document.getElementById(scope === 'agent-' ? 'agent-conv-shell' : 'conv-shell');
+  if (shell && shell.classList.contains('list-collapsed')) toggleConvListPanel(scope);
+}
+
 function setReplyTarget(waMessageId, preview) {
   _replyTarget = { waMessageId, preview };
   const strip = document.getElementById('conv-reply-preview');
@@ -8070,6 +8205,146 @@ function autoGrowConvInput(el) {
   const panel = el.closest('.conv-chat-panel');
   const dynamicMax = panel ? Math.max(160, Math.floor(panel.clientHeight * 0.45)) : 320;
   el.style.height = Math.min(Math.max(el.scrollHeight, 64), Math.min(dynamicMax, 320)) + 'px';
+}
+
+// ── In-app notifications ──────────────────────────────────────
+// Built so the internal forward has somewhere to deliver to. Before this it
+// wrote a note onto the lead and the teammate only saw it if they happened to
+// open that lead, which is not what "forward it to someone" means.
+//
+// Degrades quietly on purpose: if migration 20260807000000 has not been
+// applied the table does not exist, every query errors, and the bell simply
+// shows nothing rather than throwing an error at an agent who cannot fix it.
+let _notifications = [];
+
+const _DEMO_NOTIFICATIONS = [
+  { id:'n1', kind:'forward', title:'Ahmed Ali sent you a message',
+    body:'"I\'m interested in both. What\'s the minimum deposit?"\nNote: can you take this one?',
+    lead_id:'conv1', is_read:false, created_at:new Date(Date.now() - 6*60000).toISOString() },
+  { id:'n2', kind:'forward', title:'Sara Khan sent you a message',
+    body:'"Can we schedule a call tomorrow?"', lead_id:'conv2', is_read:true,
+    created_at:new Date(Date.now() - 3*3600000).toISOString() },
+];
+
+function notifScope() { return currentProfile?.role === 'agent' ? 'agent-' : ''; }
+
+async function loadNotifications() {
+  if (demoMode) { _notifications = _DEMO_NOTIFICATIONS.slice(); renderNotifBadge(); return; }
+  if (!currentUser?.id) return;
+  const { data, error } = await sb.from('notifications')
+    .select('*').eq('recipient_id', currentUser.id)
+    .order('created_at', { ascending: false }).limit(30);
+  if (error) {
+    // PGRST205 = table missing, i.e. the migration has not been run. Not an
+    // agent's problem, so it stays in the console rather than on screen.
+    console.error('loadNotifications:', error.message);
+    _notifications = [];
+  } else {
+    _notifications = data || [];
+  }
+  renderNotifBadge();
+}
+
+function unreadNotifCount() { return _notifications.filter(n => !n.is_read).length; }
+
+function renderNotifBadge() {
+  const n = unreadNotifCount();
+  ['', 'agent-'].forEach(scope => {
+    const badge = document.getElementById(scope + 'notif-badge');
+    if (!badge) return;
+    badge.textContent = n > 9 ? '9+' : String(n);
+    badge.style.display = n ? 'inline-block' : 'none';
+  });
+}
+
+function toggleNotifPanel(scope) {
+  const panel = document.getElementById(scope + 'notif-panel');
+  if (!panel) return;
+  const opening = panel.style.display === 'none';
+  // Only one panel open at a time, and clicking the bell again closes it.
+  ['', 'agent-'].forEach(s => {
+    const p = document.getElementById(s + 'notif-panel');
+    if (p) p.style.display = 'none';
+  });
+  if (!opening) { document.removeEventListener('click', notifOutsideClick); return; }
+  panel.style.display = 'block';
+  renderNotifPanel(scope);
+  // Deferred so the click that opened it does not immediately close it.
+  setTimeout(() => document.addEventListener('click', notifOutsideClick), 0);
+}
+
+function notifOutsideClick(e) {
+  if (e.target.closest('.notif-wrap')) return;
+  ['', 'agent-'].forEach(s => {
+    const p = document.getElementById(s + 'notif-panel');
+    if (p) p.style.display = 'none';
+  });
+  document.removeEventListener('click', notifOutsideClick);
+}
+
+function notifAgo(iso) {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function renderNotifPanel(scope) {
+  const panel = document.getElementById(scope + 'notif-panel');
+  if (!panel) return;
+  const unread = unreadNotifCount();
+  const head = `<div class="notif-head"><strong>Notifications</strong>
+    ${unread ? `<button type="button" onclick="markAllNotifsRead('${scope}')">Mark all read</button>` : ''}</div>`;
+
+  if (!_notifications.length) {
+    panel.innerHTML = head + `<div class="notif-empty">Nothing yet. When a teammate forwards you a message it appears here.</div>`;
+    return;
+  }
+
+  panel.innerHTML = head + _notifications.map(n => `
+    <div class="notif-item${n.is_read ? '' : ' unread'}" data-id="${esc(n.id)}" data-lead="${esc(n.lead_id || '')}"
+         onclick="openNotification(this.dataset.id, this.dataset.lead, '${scope}')">
+      <div class="t">${esc(n.title)}</div>
+      ${n.body ? `<div class="b">${esc(truncate(n.body, 140))}</div>` : ''}
+      <div class="w">${esc(notifAgo(n.created_at))}</div>
+    </div>`).join('');
+}
+
+async function markNotifRead(id) {
+  const n = _notifications.find(x => String(x.id) === String(id));
+  if (!n || n.is_read) return;
+  n.is_read = true;
+  renderNotifBadge();
+  if (demoMode) return;
+  const { error } = await sb.from('notifications').update({ is_read: true }).eq('id', id);
+  if (error) console.error('markNotifRead:', error.message);
+}
+
+async function markAllNotifsRead(scope) {
+  const unreadIds = _notifications.filter(n => !n.is_read).map(n => n.id);
+  _notifications.forEach(n => { n.is_read = true; });
+  renderNotifBadge();
+  renderNotifPanel(scope);
+  if (demoMode || !unreadIds.length) return;
+  const { error } = await sb.from('notifications').update({ is_read: true }).in('id', unreadIds);
+  if (error) console.error('markAllNotifsRead:', error.message);
+}
+
+function openNotification(id, leadId, scope) {
+  markNotifRead(id);
+  ['', 'agent-'].forEach(s => {
+    const p = document.getElementById(s + 'notif-panel');
+    if (p) p.style.display = 'none';
+  });
+  // The point of the notification is the conversation it refers to, so jump
+  // straight there rather than only marking it seen.
+  if (leadId) {
+    const tab = scope === 'agent-' ? agentTab : adminTab;
+    tab('conversations');
+    setTimeout(() => openConversation(leadId, scope), 150);
+  }
 }
 
 // ── Send an approved template (the missing half of C2) ────────
@@ -8463,6 +8738,26 @@ async function doInternalForward(teammateId, teammateName, note) {
     summary,
   });
   if (error) { showToast(error.message, 'err'); return; }
+
+  // The activity note is the durable record on the lead; this is what actually
+  // reaches the person. Before notifications existed, the teammate only saw a
+  // forward if they happened to open that lead - which is not what forwarding
+  // means. Failure here is reported but does not undo the note above: a
+  // recorded forward nobody was alerted to still beats losing it entirely.
+  const senderName = currentProfile?.full_name || currentUser?.email || 'A teammate';
+  const { error: notifError } = await sb.from('notifications').insert({
+    recipient_id: teammateId,
+    actor_id:     currentUser.id,
+    kind:         'forward',
+    title:        `${senderName} sent you a message`,
+    body:         `"${truncate(text, 200)}"` + (note ? `\nNote: ${note}` : ''),
+    lead_id:      leadId,
+  });
+  if (notifError) {
+    console.error('doInternalForward notification:', notifError.message);
+    showToast(`Saved to the lead, but ${teammateName} was not alerted - tell them directly.`, 'err');
+    return;
+  }
   showToast(`Sent to ${teammateName} ✓ (internal)`);
 }
 
