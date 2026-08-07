@@ -175,7 +175,9 @@ Both now capture that error and tell the agent plainly that the handover did not
 
 **Verified:** script still parses, both send functions still defined, demo send path unaffected (regression), brace/paren/backtick balance clean in both files, zero em dashes. **The `Promise.all` destructure arity was double-checked** since adding a second destructured element to an existing array pattern is exactly the kind of edit that silently shifts positions.
 
-**UNVERIFIED, and unavoidably so:** neither fix can be exercised here. Both only fire when a database write fails against live data, which needs a live session and a real failure. The `send-wa-message` change also rides the already-pending deploy on Muhammad's laptop and is **not type-checked** (no Deno on this machine).
+**UNVERIFIED, and unavoidably so:** neither fix can be exercised here. Both only fire when a database write fails against live data, which needs a live session and a real failure.
+
+**DEPLOYED (2026-08-07, Muhammad's laptop, him present).** `deno check` passed clean. Before deploying, downloaded the currently-live function and diffed it against this fix - confirmed the live version really was still the old, buggy one (no `takeoverError` check at all), so this was a real gap, not a stale worry. Deployed, then downloaded again and diffed against the committed source: zero difference, byte-identical. The `index.html` half of this fix (`sendWaViaBrowser`) needed no deploy - it shipped the moment it was pushed, being frontend code.
 
 **DONE (2026-08-06, Junaid on the AYESHA laptop) - sweep for database calls with no `demoMode` branch. Claim released.** The mirror of the handler sweep: that one found bugs invisible in demo mode, this one finds bugs that only appear *in* it. Conversations deliberately untouched, since the other session is working there.
 
