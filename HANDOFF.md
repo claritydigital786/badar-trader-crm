@@ -159,6 +159,8 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**CLAIMED (2026-08-07, Junaid on the AYESHA laptop) - send an approved template from the inbox (the missing half of C2).** Touching the Conversations input bar / picker in `index.html` and adding template support to `supabase/functions/send-wa-message/index.ts`. **Muhammad / Izza: I am in the Conversations section and in send-wa-message until this claim is removed.** Nothing deployed by this work, and it can send nothing until Meta actually approves a template.
+
 **DONE (2026-08-07, Junaid on the AYESHA laptop) - live-only code audit. Claim released.** Follow-on from the two bugs found on 06-08 that were both invisible in demo mode. The question this asked: what code can *only* run against live data, and therefore has never been exercised by any verification pass this project has done?
 
 **Scale of the blind spot, measured rather than guessed: 69 functions contain database code sitting after a `demoMode` early return.** Every one of them is unreachable in demo mode. `openConversation` alone has ~196 live-only lines. That is the surface no amount of demo testing can cover.
