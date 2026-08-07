@@ -5,6 +5,91 @@ deployed, committed, sent, or mutated. Every claim is grounded in repository cod
 committed schema, or safe read-only Supabase CLI metadata. Anything that could not
 be proven from those sources is marked UNVERIFIED with the reason._
 
+_Progress Board below refreshed 2026-08-07 (Izza), on top of the day's newer work
+(template-from-inbox, backup script, the deployed bot-takeover fix). The board is
+the at-a-glance layer; sections 1-20 are the evidence behind it. When they disagree,
+trust the board's date and re-check the code._
+
+---
+
+## Progress Board - live status (updated 2026-08-07)
+
+The one-screen answer to "what is done and what is left", grouped by what each item
+is actually waiting on - so nothing sits here looking unfinished when it is really
+waiting on a single deploy or a Meta approval. Legend: **LIVE** = working on real
+data now; **READY, WAITING** = built and verified in code, one named action from
+live; **TO BUILD** = safe code work, no live send; **BLOCKED (human/3rd-party)**;
+**OFF BY DESIGN**.
+
+### A. LIVE - working on real data now
+
+| Area | Notes |
+| --- | --- |
+| Lead pipeline (All/My Leads, Add Lead, CSV import) | Full CRUD, RLS-scoped |
+| Lead detail (profile, ledger, KYC, activity, comms) | Live |
+| Omnichannel Inbox / Conversations | Real threads, 24h window timer, contact panel, agent assignment, realtime, agent replies via `send-wa-message`. QA-passed 2026-08-07 |
+| 24-hour window countdown pill (C2) | Live; shows agents the window closing |
+| Forward a message - to a conversation, and to a teammate | Both shipped (frontend). Teammate forward is a passive `lead_activity` note |
+| In-conversation search, day-divider pills | Shipped, demo-verified |
+| WhatsApp inbound ingestion + lead creation | Deployed webhook v70 |
+| `send-wa-message` bot-takeover-flag fix | DEPLOYED 2026-08-07 (Muhammad's laptop), byte-identical to source |
+| Reports (stat cards, agent perf, source, monthly trend, financial summary) | Live via RPCs. QA-passed 2026-08-07 |
+| Subscribers, Appointments, Meta Ads read-only analytics | Live |
+
+### B. READY, WAITING - built and verified, one action from live
+
+| Item | What is left | Whose action |
+| --- | --- | --- |
+| **Delivery ticks (B3/B4)** | **Deploy `whatsapp-webhook`** (one command, section 16). Live column applied; frontend rendering committed and verified firsthand 2026-08-07 (read=blue, delivered/sent=grey, failed=red, null=no tick); webhook writer committed but deployed function is still v70 without it | Muhammad's laptop, `--no-verify-jwt` |
+| Inbound non-image media placeholder | Ships in that same `whatsapp-webhook` deploy | Muhammad's laptop |
+| Agent attachment sending (JPG/PNG/PDF) | `send-wa-message` was redeployed 2026-08-07 byte-identical to source, which already contained this - so it is very likely LIVE, but **no real attachment send has been confirmed**. Needs one real JPG+PDF test to move to section A | Muhammad's laptop - confirm/test |
+| Send an approved template from the inbox | Frontend + `template` branch in `send-wa-message` built (landed AFTER the last deploy, so not deployed). Also blocked on Meta approving a template (row D) | Deploy `send-wa-message` + Meta approval |
+| Supabase backup script (4x/day to Hostinger) | Built and verified against a local mock; read-only on Supabase. Needs deploying to Badar's Hostinger + the cron set up | Human (Hostinger setup) |
+
+**B3/B4 in plain terms (Muhammad asked directly):** these are the WhatsApp delivery
+ticks on messages you send (one grey ✓ = sent, two grey ✓✓ = delivered, two blue =
+read, red ! = failed). The DB column is live, the on-screen ticks are built and were
+confirmed rendering, and the webhook that records each tick is written. The one
+thing left is deploying the webhook, which by hard rule only happens on your laptop
+with you present (a wrong deploy breaks live lead capture). Exact command in section
+16. Not stuck - parked on the single action only you can safely take.
+
+### C. TO BUILD - safe code work, no live send, can start anytime
+
+| Item | Notes |
+| --- | --- |
+| Payroll persistence | Client-side calculator over an empty transaction set in live mode; needs a real source + persistence |
+| Close schema drift | `communication_logs` and several `leads` deposit/conversion columns are written by code but missing from `schema.sql` |
+| Webhook request-signature verification | Both public webhooks accept unsigned requests |
+| `converted_at` stamping hole | `saveLeadDetail` / `agentSaveStatus` can set a lead Converted without stamping `converted_at` |
+
+### D. BLOCKED - human or third-party, no Claude session does these
+
+| Item | Blocked on |
+| --- | --- |
+| Get a WhatsApp template approved by Meta | Meta review. Unblocks template-from-inbox, Follow-ups, and Broadcast Signal |
+| Create two Supabase Auth users (Bilal, Faisal) | A human sets a real password |
+| Attach WhatsApp number 6541 for end-to-end testing | WhatChimp double-subscription settled + Muhammad's laptop |
+| Meta Lead Ads intake | Meta token needs `leads_retrieval` scope |
+| Any bot/keyword/AI reply going live | Muhammad's decision + WhatChimp automation confirmed OFF + flag flip on his laptop |
+| Syed Hamza | Stays suspended until Muhammad decides (post-CRM) |
+
+### E. OFF BY DESIGN - built and deliberately switched off
+
+All seven send flags are `false` in deployed code: `BOT_REPLIES_ENABLED`,
+`KEYWORD_REPLIES_ENABLED`, `AI_REPLIES_ENABLED`, `NEW_LEAD_NOTIFICATIONS_ENABLED`,
+`FOLLOW_UPS_ENABLED`, `SIGNAL_BROADCAST_ENABLED`, `AUTOMATION_ENABLED`. `nudge-agents`
+has no code kill switch and is held back only by not being scheduled. Bot Manager
+reference cards and the Notifications / Sites / User Permission pages are intentional
+placeholders. AI Signals compute for real but delivery is manual.
+
+**Open questions for Muhammad (not blocking):** (1) the live Reports "Total Revenue /
+Approved deposits" card sums every lead's `account_balance` while the Financial
+Summary's "Total Deposits" comes from an RPC - these can disagree in live (flagged
+2026-08-07). (2) Whether the internal teammate-forward should actively notify (needs
+a notifications mechanism first). (3) Confirm whether agent attachment sending is
+already live from the 2026-08-07 redeploy (row B).
+
 ---
 
 ## 1. Executive Summary
