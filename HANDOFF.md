@@ -167,6 +167,8 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**CLAIMED (2026-08-07, Junaid on the AYESHA laptop) - mark a conversation unread from the inbox.** Picked specifically because it needs **no migration and no deploy** - `leads.is_unread` already exists, so it is usable the moment it is pushed, unlike the four things now queued behind Muhammad. Touching the Conversations chat header and list in `index.html`. **Muhammad / Izza: I am in the Conversations section until this claim is removed.**
+
 **DONE, MIGRATION NOT APPLIED (2026-08-07, Junaid on the AYESHA laptop) - in-app notifications. The internal forward now actually reaches someone. Claim released.** Muhammad called the internal forward "a MUST", but as built on 06-08 it was passive - it wrote a note onto the lead and the teammate only saw it if they happened to open that lead, which is not what forwarding means. The blocker was that nothing in the schema could deliver to a person: `leads.is_unread` is one global boolean meaning "the customer sent something new", so reusing it would both assert a customer message that never happened and light up for the whole team.
 
 New `notifications` table (migration `20260807000000`, Phase 28 in `schema.sql`, **diffed identical** in both directions), a bell with an unread count in **both** the admin and agent headers, and the internal forward writing to it.
