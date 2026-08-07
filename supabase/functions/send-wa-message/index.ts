@@ -43,6 +43,16 @@ const CORS_HEADERS = {
 // and this function reads it with the service role.
 type Attachment = { dataBase64: string; mimeType: string; filename: string };
 
+// A pre-approved WhatsApp template send. This is the ONLY thing WhatsApp
+// accepts more than 24 hours after the customer's last message, which is why
+// it exists: without it a conversation that goes quiet cannot be reopened.
+//
+// metaName is Meta's own identifier for the template, not the friendly label
+// the CRM shows. `rendered` is the body with its {{n}} placeholders already
+// substituted - sent to WhatsApp as parameters, but stored in communications
+// as finished text so the conversation shows what the customer actually read.
+type TemplateSend = { metaName: string; language: string; params: string[]; rendered: string };
+
 // Base64 inflates by about a third, so 5MB of file is roughly 6.7MB on the
 // wire. Also matches WhatsApp's own 5MB image ceiling, so an image that fits
 // here will not be rejected by Meta for size.
@@ -218,11 +228,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let text = "";
   let replyToWaMessageId = "";
   let attachment: Attachment | null = null;
+  let template: TemplateSend | null = null;
   try {
     const body = await req.json();
     leadId = String(body?.lead_id ?? "").trim();
     text = String(body?.text ?? "").trim();
     replyToWaMessageId = String(body?.reply_to_wa_message_id ?? "").trim();
+    if (body?.template) {
+      template = {
+        metaName: String(body.template.meta_name ?? "").trim(),
+        language: String(body.template.language ?? "en").trim(),
+        params:   Array.isArray(body.template.params) ? body.template.params.map((p: unknown) => String(p ?? "")) : [],
+        rendered: String(body.template.rendered ?? "").trim(),
+      };
+    }
     if (body?.attachment) {
       attachment = {
         dataBase64: String(body.attachment.data_base64 ?? ""),
@@ -235,12 +254,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
   // Text alone is fine, an attachment alone is fine (the caption is optional,
   // exactly like WhatsApp), but an empty request is not.
-  if (!leadId || (!text && !attachment)) {
-    return json({ ok: false, error: "lead_id and either text or an attachment are required" });
+  if (!leadId || (!text && !attachment && !template)) {
+    return json({ ok: false, error: "lead_id and either text, an attachment or a template are required" });
   }
   if (attachment) {
     const problem = validateAttachment(attachment);
     if (problem) return json({ ok: false, error: problem });
+  }
+  if (template && !template.metaName) {
+    // The CRM stores a human label (name) and Meta's own identifier
+    // (meta_name). Only the latter can be sent, and a template row can exist
+    // with it blank, so this is a real case rather than a defensive check.
+    return json({ ok: false, error: "That template has no Meta template name saved, so WhatsApp cannot be told which template to send." });
   }
 
   const sb = makeServiceClient();
@@ -310,8 +335,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
     body: JSON.stringify({
       messaging_product: "whatsapp",
       to: phoneDigits,
-      ...(mediaPayload ?? { type: "text", text: { body: text } }),
-      ...(replyToWaMessageId ? { context: { message_id: replyToWaMessageId } } : {}),
+      ...(template
+        ? {
+            type: "template",
+            template: {
+              name: template.metaName,
+              language: { code: template.language },
+              // Only a body component is sent. Every template this CRM stores
+              // is body-only text; headers, buttons and media headers would
+              // each need their own component and their own UI to fill.
+              ...(template.params.length
+                ? { components: [{ type: "body", parameters: template.params.map((t) => ({ type: "text", text: t })) }] }
+                : {}),
+            },
+          }
+        : (mediaPayload ?? { type: "text", text: { body: text } })),
+      // Deliberately no reply context on a template send: a template is used
+      // precisely when the window has closed, so there is no live thread to
+      // quote into and Meta rejects the combination in some cases.
+      ...(replyToWaMessageId && !template ? { context: { message_id: replyToWaMessageId } } : {}),
     }),
   });
 
@@ -328,11 +370,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // An attachment sent with no caption still needs a readable body, or the
   // conversation and the Comm Log show an empty row. Same bracket convention
   // the inbound handler uses.
-  const outboundBody = text || (attachment
-    ? (attachmentKind(attachment.mimeType) === "image"
-        ? "[image sent]"
-        : `[document sent${attachment.filename ? `: ${attachment.filename}` : ""}]`)
-    : "");
+  // A template is stored as the finished text the customer received, not as
+  // the raw body with {{1}} still in it - the conversation should show what
+  // was actually read. Falls back to naming the template if the frontend did
+  // not send a rendered version.
+  const outboundBody = template
+    ? (template.rendered || `[template sent: ${template.metaName}]`)
+    : text || (attachment
+      ? (attachmentKind(attachment.mimeType) === "image"
+          ? "[image sent]"
+          : `[document sent${attachment.filename ? `: ${attachment.filename}` : ""}]`)
+      : "");
 
   // These two writes are independent (different tables, neither reads the
   // other's result) but used to run one after another - a real, avoidable

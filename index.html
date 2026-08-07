@@ -3403,6 +3403,12 @@ const _DEMO_TEMPLATES = [
   { id:'tpl2', name:'Welcome new lead', meta_name:null, language:'en', category:'UTILITY',
     body:'Hi {{1}}! Thanks for your interest in Badar Trader. A member of our team will be in touch shortly on this number.',
     status:'draft', notes:'Drafted 14 July for the Meta Lead Ads webhook. Left inactive on purpose.', is_active:true },
+  // One approved row so the send-a-template flow can be demonstrated without a
+  // live database. Nothing is approved at Meta yet - in production this list
+  // is empty until someone gets a real template through Meta's review.
+  { id:'tpl3', name:'Follow up after quiet period', meta_name:'followup_quiet', language:'en', category:'UTILITY',
+    body:'Hi {{1}}, this is {{2}} from Team Badar. Is now a good time to continue where we left off?',
+    status:'approved', notes:'Demo-only example of an approved template.', is_active:true },
 ];
 
 const _DEMO_FOLLOW_UPS = [
@@ -7815,6 +7821,7 @@ async function openConversation(convId, scope = '') {
       <div class="conv-input-bar">
         <input type="file" id="conv-attach-input" hidden onchange="onConvAttachPicked(this)" accept="image/jpeg,image/png,application/pdf" />
         <button type="button" class="conv-attach-btn" title="Attach a file" onclick="document.getElementById('conv-attach-input').click()">📎</button>
+        <button type="button" class="conv-attach-btn" title="Send an approved WhatsApp template - the only thing that works once the 24 hour window has closed" onclick="openTemplatePicker()">📋</button>
         <textarea class="conv-msg-textarea" id="conv-msg-input" placeholder="Type a message… (Shift+Enter for a new line)" rows="1"
           oninput="autoGrowConvInput(this)"
           onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendConvMessage('${convId}','${scope}'); }"></textarea>
@@ -7926,6 +7933,7 @@ async function openConversation(convId, scope = '') {
       <div class="conv-input-bar">
         <input type="file" id="conv-attach-input" hidden onchange="onConvAttachPicked(this)" accept="image/jpeg,image/png,application/pdf" />
         <button type="button" class="conv-attach-btn" title="Attach a file" onclick="document.getElementById('conv-attach-input').click()">📎</button>
+        <button type="button" class="conv-attach-btn" title="Send an approved WhatsApp template - the only thing that works once the 24 hour window has closed" onclick="openTemplatePicker()">📋</button>
         <textarea class="conv-msg-textarea" id="conv-msg-input" placeholder="Type a WhatsApp message… (Shift+Enter for a new line)" rows="1"
           oninput="autoGrowConvInput(this)"
           onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendConvMessage('${convId}','${scope}'); }"></textarea>
@@ -8062,6 +8070,200 @@ function autoGrowConvInput(el) {
   const panel = el.closest('.conv-chat-panel');
   const dynamicMax = panel ? Math.max(160, Math.floor(panel.clientHeight * 0.45)) : 320;
   el.style.height = Math.min(Math.max(el.scrollHeight, 64), Math.min(dynamicMax, 320)) + 'px';
+}
+
+// ── Send an approved template (the missing half of C2) ────────
+// WhatsApp refuses free-form messages more than 24 hours after the customer's
+// last message. A pre-approved template is the ONLY thing it will accept after
+// that, which is what makes this the way to reopen a conversation that went
+// quiet - the countdown pill in the header shows the problem, this is the way
+// out of it.
+//
+// Two honest limits worth knowing:
+//  1. `status` in message_templates is set BY HAND in the Message Templates
+//     tab. Nothing checks it against Meta. A row marked approved that Meta has
+//     not actually approved will fail at send time with Meta's own error.
+//  2. Only body-only templates are supported. Headers, buttons and media
+//     headers each need their own component and their own UI to fill in.
+let _tplTarget = null; // { convId, leadName }
+
+function templatePlaceholderCount(body) {
+  // Positional {{1}} {{2}} … as used by every template stored here.
+  const found = new Set((String(body || '').match(/\{\{\s*(\d+)\s*\}\}/g) || [])
+    .map(m => m.replace(/[^\d]/g, '')));
+  return found.size ? Math.max(...[...found].map(Number)) : 0;
+}
+
+function renderTemplateBody(body, params) {
+  // An empty value keeps its {{n}} marker rather than collapsing to nothing.
+  // Substituting blank produced previews like "this is  from Team Badar",
+  // where the agent cannot see which slot is still unfilled. Sending is
+  // blocked while any value is empty, so this only ever affects the preview.
+  return String(body || '').replace(/\{\{\s*(\d+)\s*\}\}/g, (_, n) => {
+    const v = params[Number(n) - 1];
+    return (v == null || String(v).trim() === '') ? `{{${n}}}` : v;
+  });
+}
+
+function sendableTemplates() {
+  const all = demoMode ? (_DEMO_TEMPLATES || []) : (cachedTemplates || []);
+  // Approved, active, and actually nameable to Meta. Anything else cannot be
+  // sent, so offering it would only produce a failure at the Graph API.
+  return all.filter(t => t.status === 'approved' && t.is_active !== false && (t.meta_name || '').trim());
+}
+
+function openTemplatePicker() {
+  if (!_activeConvId) { showToast('Open a conversation first.', 'err'); return; }
+  const leadName = (demoMode
+    ? (_DEMO_CONVERSATIONS.find(c => c.id === _activeConvId)?.name)
+    : (_lastConvs || []).find(c => c.lead_id === _activeConvId)?.leads?.full_name) || '';
+  _tplTarget = { convId: _activeConvId, leadName };
+
+  closeTemplatePicker();
+  const overlay = document.createElement('div');
+  overlay.className = 'fwd-overlay';
+  overlay.id = 'tpl-overlay';
+  overlay.onclick = (e) => { if (e.target === overlay) closeTemplatePicker(); };
+  overlay.innerHTML = `
+    <div class="fwd-panel" role="dialog" aria-label="Send a template">
+      <div class="fwd-head">
+        <h4>Send an approved template</h4>
+        <div class="fwd-mode-hint">The only kind of message WhatsApp accepts once the 24 hour window has closed.</div>
+      </div>
+      <div class="fwd-list" id="tpl-list"></div>
+      <div class="fwd-foot">
+        <button class="btn btn-secondary btn-sm" onclick="closeTemplatePicker()">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  renderTemplateChoices();
+  document.addEventListener('keydown', templateEscHandler);
+}
+
+function templateEscHandler(e) { if (e.key === 'Escape') closeTemplatePicker(); }
+
+function closeTemplatePicker() {
+  document.getElementById('tpl-overlay')?.remove();
+  document.removeEventListener('keydown', templateEscHandler);
+}
+
+function renderTemplateChoices() {
+  const listEl = document.getElementById('tpl-list');
+  if (!listEl) return;
+  const list = sendableTemplates();
+
+  if (!list.length) {
+    // The empty state carries the reason, because "no templates" on its own
+    // looks like a bug rather than a step nobody has done yet.
+    listEl.innerHTML = `<div class="fwd-empty" style="text-align:left;line-height:1.5">
+      <strong>No approved templates yet.</strong><br>
+      A template has to be submitted in Meta's WhatsApp Manager and approved by Meta
+      before it can be sent. Once Meta approves it, mark it <em>approved</em> in the
+      Message Templates tab and save its Meta template name - it will appear here.
+    </div>`;
+    return;
+  }
+
+  listEl.innerHTML = list.map(t => `
+    <div class="fwd-item" data-id="${esc(t.id)}" onclick="openTemplateCompose(this.dataset.id)">
+      <div>
+        <div class="nm">${esc(t.name)}</div>
+        <div class="ph">${esc(truncate(t.body, 80))}</div>
+      </div>
+    </div>`).join('');
+}
+
+function openTemplateCompose(templateId) {
+  const t = sendableTemplates().find(x => String(x.id) === String(templateId));
+  if (!t) return;
+  const count = templatePlaceholderCount(t.body);
+  // {{1}} is the customer's name in every template drafted here, so it is
+  // pre-filled with the lead's first name rather than left blank.
+  const firstName = String(_tplTarget?.leadName || '').trim().split(' ')[0] || '';
+
+  const panel = document.querySelector('#tpl-overlay .fwd-panel');
+  if (!panel) return;
+  panel.innerHTML = `
+    <div class="fwd-head">
+      <h4>${esc(t.name)}</h4>
+      <div class="fwd-preview" id="tpl-preview"></div>
+    </div>
+    <div class="fwd-search" id="tpl-fields">
+      ${count ? Array.from({ length: count }, (_, i) => `
+        <label style="display:block;font-size:0.74rem;color:#64748b;margin:6px 0 3px">Value for {{${i + 1}}}</label>
+        <input type="text" class="tpl-param" data-idx="${i}" value="${i === 0 ? esc(firstName) : ''}" oninput="updateTemplatePreview('${esc(t.id)}')" />`).join('')
+        : '<div style="font-size:0.78rem;color:#64748b">This template has no fill-in values.</div>'}
+    </div>
+    <div class="fwd-foot">
+      <button class="btn btn-secondary btn-sm" onclick="renderTemplatePickerBack()">Back</button>
+      <button class="btn btn-primary btn-sm" onclick="confirmSendTemplate('${esc(t.id)}')">Send template</button>
+    </div>`;
+  updateTemplatePreview(t.id);
+}
+
+function renderTemplatePickerBack() {
+  closeTemplatePicker();
+  openTemplatePicker();
+}
+
+function currentTemplateParams() {
+  return [...document.querySelectorAll('.tpl-param')]
+    .sort((a, b) => Number(a.dataset.idx) - Number(b.dataset.idx))
+    .map(el => el.value.trim());
+}
+
+function updateTemplatePreview(templateId) {
+  const t = sendableTemplates().find(x => String(x.id) === String(templateId));
+  const el = document.getElementById('tpl-preview');
+  if (!t || !el) return;
+  el.textContent = renderTemplateBody(t.body, currentTemplateParams());
+}
+
+function confirmSendTemplate(templateId) {
+  const t = sendableTemplates().find(x => String(x.id) === String(templateId));
+  if (!t || !_tplTarget) return;
+  const params = currentTemplateParams();
+  if (params.some(p => !p)) { showToast('Fill in every value before sending.', 'err'); return; }
+  const rendered = renderTemplateBody(t.body, params);
+
+  const ok = confirm(`Send this template to ${_tplTarget.leadName || 'this contact'}?\n\n"${truncate(rendered, 220)}"\n\nThis sends a real WhatsApp message.`);
+  if (!ok) return;
+  closeTemplatePicker();
+  doSendTemplate(t, params, rendered);
+}
+
+async function doSendTemplate(t, params, rendered) {
+  const target = _tplTarget; _tplTarget = null;
+  if (!target) return;
+
+  if (demoMode) {
+    const conv = _DEMO_CONVERSATIONS.find(c => c.id === target.convId);
+    if (conv) {
+      const timeStr = new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+      conv.messages.push({ from:'agent', text: rendered, time: timeStr });
+      conv.lastMsg = rendered; conv.lastTime = timeStr;
+    }
+    if (target.convId === _activeConvId) openConversation(target.convId, '');
+    showToast('Template sent. (demo - nothing was sent)');
+    return;
+  }
+
+  try {
+    const res = await sendWaViaFunction(target.convId, '', null, null, {
+      meta_name: t.meta_name, language: t.language || 'en', params, rendered,
+    });
+    if (res === 'unavailable') {
+      // The legacy in-browser path only knows how to send plain text, and a
+      // template is the one case where plain text is exactly what WhatsApp
+      // will refuse. Saying so beats sending something that bounces.
+      showToast('Templates need the send-wa-message function deployed. Nothing was sent.', 'err');
+      return;
+    }
+    if (res.warning) showToast(res.warning, 'err');
+    showToast('Template sent ✓');
+  } catch (err) {
+    showToast(err.message || 'Template send failed', 'err');
+  }
 }
 
 // ── Forward a message to another conversation ─────────────────
@@ -8617,7 +8819,7 @@ async function sendConvMessage(convId, scope = '') {
 // if the Edge Function can't be reached (not deployed yet, or the functions
 // endpoint is down → caller uses the legacy path), and throws on real
 // failures with the server's error message.
-async function sendWaViaFunction(convId, text, replyToWaMessageId, attachment = null) {
+async function sendWaViaFunction(convId, text, replyToWaMessageId, attachment = null, template = null) {
   let data, error;
   try {
     ({ data, error } = await sb.functions.invoke('send-wa-message', {
@@ -8626,6 +8828,7 @@ async function sendWaViaFunction(convId, text, replyToWaMessageId, attachment = 
         text,
         reply_to_wa_message_id: replyToWaMessageId || undefined,
         attachment: attachment || undefined,
+        template: template || undefined,
       }
     }));
   } catch (_) {

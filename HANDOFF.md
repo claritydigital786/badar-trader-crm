@@ -159,7 +159,25 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
-**CLAIMED (2026-08-07, Junaid on the AYESHA laptop) - send an approved template from the inbox (the missing half of C2).** Touching the Conversations input bar / picker in `index.html` and adding template support to `supabase/functions/send-wa-message/index.ts`. **Muhammad / Izza: I am in the Conversations section and in send-wa-message until this claim is removed.** Nothing deployed by this work, and it can send nothing until Meta actually approves a template.
+**DONE, NOT DEPLOYED (2026-08-07, Junaid on the AYESHA laptop) - send an approved template from the inbox. C2 is now complete. Claim released.** The countdown pill has shown agents the 24-hour window closing since D1/C2 landed, but offered no way out of it. This is the way out: a template is the only thing WhatsApp accepts after that window.
+
+A 📋 button in the input bar opens a picker of sendable templates; choosing one opens a compose step showing the body with an input per `{{n}}` placeholder, `{{1}}` pre-filled with the lead's first name, and a live preview; then a confirm dialog naming the contact and quoting the finished text. `send-wa-message` gained a `template` branch that builds Meta's `type: "template"` payload.
+
+**Which templates are offered, and why the filter is strict.** Only rows that are `status = 'approved'`, still active, **and** have a `meta_name`. That last one is not defensive padding: the CRM stores a friendly label (`name`) and Meta's own identifier (`meta_name`) separately, and a row can exist with the latter blank - offering it would produce a guaranteed Graph API failure. The function refuses that case too, in case a row slips through.
+
+**Two limits stated in the code rather than discovered later:**
+1. **`status` is self-reported.** It is set by hand in the Message Templates tab and nothing checks it against Meta. A row marked approved that Meta has not actually approved will fail at send time with Meta's own error surfaced to the agent. There is no way to verify it from here without the Meta API.
+2. **Body-only templates.** Headers, buttons and media headers each need their own component and their own UI to fill; none are supported.
+
+Also deliberate: **no reply-context on a template send.** A template is used precisely when the window has closed, so there is no live thread to quote into. And the **legacy in-browser fallback refuses templates outright** rather than falling back to plain text - plain text is exactly what WhatsApp rejects in this situation, so a silent downgrade would send something guaranteed to bounce.
+
+**A real bug found by testing, not by reading.** An empty placeholder value substituted as blank, so the preview read "this is  from Team Badar" - the agent could not see which slot was unfilled. Empty and whitespace values now keep their `{{n}}` marker in the preview. Sending is blocked while any value is empty, so this only ever affects what the agent sees.
+
+**Verified in demo mode:** placeholder counting (multiple, none, spaced `{{ 1 }}`, the same index twice), rendering (substitution, missing values, empty, whitespace); the filter tested one exclusion rule at a time (not approved / inactive / `meta_name` null / `meta_name` blank, each rejected individually); the button renders; the picker lists only the approved row; **the production empty state was tested by emptying the list and checking it explains that Meta must approve a template first and names the tab to use** - that is the state every real user sees today, so it mattered more than the happy path; compose shows one input per placeholder with `{{1}}` pre-filled; preview updates live; a blank value blocks sending with no confirm dialog; the full send appends the rendered text; Escape and backdrop close; opening with no conversation refuses. Plain-text sending still works (regression after adding a fifth parameter), and the parameter was confirmed to thread through by inspecting the function source rather than by `Function.length`, which stops counting at the first default. Network log clean - no Supabase traffic from demo. Balances and em dashes clean.
+
+A single approved demo template (`Follow up after quiet period`) was added to `_DEMO_TEMPLATES` so the flow can be shown without a database. **In production the list is empty** until Meta approves something.
+
+**UNVERIFIED:** no template has been sent. It cannot be, because none is approved - which is the whole blocker this feature waits on. The `send-wa-message` change is also **not type-checked** (no Deno here) and rides the same pending deploy as the attachment work.
 
 **DONE (2026-08-07, Junaid on the AYESHA laptop) - live-only code audit. Claim released.** Follow-on from the two bugs found on 06-08 that were both invisible in demo mode. The question this asked: what code can *only* run against live data, and therefore has never been exercised by any verification pass this project has done?
 
