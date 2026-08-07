@@ -31,7 +31,9 @@ live; **TO BUILD** = safe code work, no live send; **BLOCKED (human/3rd-party)**
 | 24-hour window countdown pill (C2) | Live; shows agents the window closing |
 | Forward a message - to a conversation, and to a teammate | Both shipped (frontend). Teammate forward is a passive `lead_activity` note |
 | In-conversation search, day-divider pills | Shipped, demo-verified |
-| WhatsApp inbound ingestion + lead creation | Deployed webhook v70 |
+| WhatsApp inbound ingestion + lead creation | Deployed webhook v73 |
+| Delivery ticks (B3/B4) | LIVE end to end - `whatsapp-webhook` deployed to v73 2026-08-07 (Muhammad's laptop, `--no-verify-jwt`). Column + on-screen ticks + status-callback writer all live. Rendering verified firsthand (read=blue, delivered/sent=grey, failed=red, null=no tick) |
+| Inbound non-image media placeholder | LIVE - shipped in the same v73 deploy; a voice note / PDF / video etc. now logs a readable placeholder instead of being silently dropped |
 | `send-wa-message` bot-takeover-flag fix | DEPLOYED 2026-08-07 (Muhammad's laptop), byte-identical to source |
 | Reports (stat cards, agent perf, source, monthly trend, financial summary) | Live via RPCs. QA-passed 2026-08-07 |
 | Subscribers, Appointments, Meta Ads read-only analytics | Live |
@@ -40,19 +42,16 @@ live; **TO BUILD** = safe code work, no live send; **BLOCKED (human/3rd-party)**
 
 | Item | What is left | Whose action |
 | --- | --- | --- |
-| **Delivery ticks (B3/B4)** | **Deploy `whatsapp-webhook`** (one command, section 16). Live column applied; frontend rendering committed and verified firsthand 2026-08-07 (read=blue, delivered/sent=grey, failed=red, null=no tick); webhook writer committed but deployed function is still v70 without it | Muhammad's laptop, `--no-verify-jwt` |
-| Inbound non-image media placeholder | Ships in that same `whatsapp-webhook` deploy | Muhammad's laptop |
 | Agent attachment sending (JPG/PNG/PDF) | `send-wa-message` was redeployed 2026-08-07 byte-identical to source, which already contained this - so it is very likely LIVE, but **no real attachment send has been confirmed**. Needs one real JPG+PDF test to move to section A | Muhammad's laptop - confirm/test |
 | Send an approved template from the inbox | Frontend + `template` branch in `send-wa-message` built (landed AFTER the last deploy, so not deployed). Also blocked on Meta approving a template (row D) | Deploy `send-wa-message` + Meta approval |
 | Supabase backup script (4x/day to Hostinger) | Built and verified against a local mock; read-only on Supabase. Needs deploying to Badar's Hostinger + the cron set up | Human (Hostinger setup) |
 
-**B3/B4 in plain terms (Muhammad asked directly):** these are the WhatsApp delivery
+**B3/B4 (Muhammad asked directly) - now DONE.** These are the WhatsApp delivery
 ticks on messages you send (one grey ✓ = sent, two grey ✓✓ = delivered, two blue =
-read, red ! = failed). The DB column is live, the on-screen ticks are built and were
-confirmed rendering, and the webhook that records each tick is written. The one
-thing left is deploying the webhook, which by hard rule only happens on your laptop
-with you present (a wrong deploy breaks live lead capture). Exact command in section
-16. Not stuck - parked on the single action only you can safely take.
+read, red ! = failed). As of 2026-08-07 they are live end to end: the DB column was
+already applied, the on-screen ticks were verified rendering, and `whatsapp-webhook`
+was deployed to v73 (from Muhammad's laptop, `--no-verify-jwt`) so each status
+callback is now recorded. This item is off the board.
 
 ### C. TO BUILD - safe code work, no live send, can start anytime
 
@@ -117,8 +116,9 @@ What is deliberately switched off (kill switches, all verified `false` in code):
 real customer, no automated follow-ups or broadcasts go out, and automation rules
 do not fire sends. Inbound logging still runs.
 
-What is incomplete or placeholder: delivery-tick UI (backend done, frontend not in
-the committed code), Message Templates (stores text only, does not submit to Meta),
+What is incomplete or placeholder (see the Progress Board for current state; this
+paragraph is the 2026-08-06 snapshot): Message Templates (stores text only, does not
+submit to Meta - a send path has since been built, see the board),
 AI Signals accuracy tracker (no persistence), Payroll (client-side calculator, no
 persistence, computes commission against an empty transaction set in live mode),
 Notifications / Sites / User Permission pages (static placeholders), and a large
