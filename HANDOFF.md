@@ -151,6 +151,8 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**CLAIMED (2026-08-07, Junaid on the AYESHA laptop) - live-only code audit.** Following the two live bugs found on 06-08 that were both invisible in demo mode. Read-only analysis of `index.html` first: enumerate code that can only execute against live data, then look for concrete defects in it. **Muhammad / Izza: analysis touches nothing. Any fix gets called out before I make it, and I will stay out of Conversations unless I re-claim it.**
+
 **DONE (2026-08-06, Junaid on the AYESHA laptop) - sweep for database calls with no `demoMode` branch. Claim released.** The mirror of the handler sweep: that one found bugs invisible in demo mode, this one finds bugs that only appear *in* it. Conversations deliberately untouched, since the other session is working there.
 
 **Method, since "I checked" is not evidence.** Static pass over every function in `index.html`, flagging any that calls `sb.from/storage/functions/auth/rpc` with no `demoMode` mention anywhere in its body: **14 candidates**. Reachability was then decided per function from the rendered DOM rather than by clicking - several are writes, and firing writes at production to test a theory is not acceptable. **Five were genuinely reachable in demo and are now fixed:**
