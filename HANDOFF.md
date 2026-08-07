@@ -149,6 +149,8 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**CLAIMED (2026-08-06, Junaid on the AYESHA laptop) - sweep for database calls with no `demoMode` branch.** The mirror of today's handler sweep: that one found bugs invisible in demo mode, this one finds bugs that only appear IN demo mode. Touching `renameProfile`, `toggleRole`, `suspendAgent` and `saveMetaSettings` in `index.html` (My Team / User Manager / Meta Integration). **Deliberately NOT touching Conversations** - the other session is working there. No backend change, no migration, no deploy.
+
 **DONE (2026-08-06, Junaid on the AYESHA laptop) - broken-handler sweep. One more live bug found and fixed.**
 
 **The Rename button in My Team / User Manager has been broken for any name containing an apostrophe.** `esc()` escapes `<`, `>`, `&` and `"` but **not** `'`, and the name was interpolated into a single-quoted argument: `renameProfile('${p.id}','${esc(p.full_name)}')`. A staff member called Sara O'Brien produced `renameProfile('u2','Sara O'Brien')`, which is a syntax error, so the button silently did nothing. Proved it by building the exact markup and compiling the parsed attribute, then re-proved the fix by clicking a real button and capturing the arguments `renameProfile` actually received.
