@@ -167,6 +167,8 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**CLAIMED (2026-08-07, Junaid on the AYESHA laptop) - in-app notifications, so the internal forward actually reaches someone.** Muhammad called the internal forward "a MUST", but it is passive: the teammate only sees it if they happen to open that lead, because there is no per-user unread and no notifications mechanism to hang an alert on. Building one: new `notifications` table (migration only, cannot apply it from here), a bell with unread count in the header, and the internal forward writing to it. **Muhammad / Izza: I am in the Conversations forward code, the header, and adding a migration.** No deploy needed; the migration needs applying before it does anything.
+
 **DONE, NOT DEPLOYED (2026-08-07, Junaid on the AYESHA laptop) - inbound media is now stored and playable, not just named. Claim released.** Completes the 06-08 fix: that one stopped voice notes, PDFs and video vanishing silently, but only recorded a `[voice note]` label - the file itself was never fetched, so the agent still could not open it. For a business that asks customers for deposit receipts, seeing that a PDF arrived without being able to read it is most of the problem still unsolved.
 
 `recordUnsupportedMessage` now pulls the media id (`mediaIdOf`, which knows that every media type keeps its id under a key named after the type, and that location and contacts carry none) and reuses the existing `downloadAndStoreMedia`. The frontend renders by kind instead of assuming an image.
