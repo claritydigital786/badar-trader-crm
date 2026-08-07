@@ -151,6 +151,22 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**DONE (2026-08-06, Junaid on the AYESHA laptop) - sweep for database calls with no `demoMode` branch. Claim released.** The mirror of the handler sweep: that one found bugs invisible in demo mode, this one finds bugs that only appear *in* it. Conversations deliberately untouched, since the other session is working there.
+
+**Method, since "I checked" is not evidence.** Static pass over every function in `index.html`, flagging any that calls `sb.from/storage/functions/auth/rpc` with no `demoMode` mention anywhere in its body: **14 candidates**. Reachability was then decided per function from the rendered DOM rather than by clicking - several are writes, and firing writes at production to test a theory is not acceptable. **Five were genuinely reachable in demo and are now fixed:**
+
+- **`renameProfile`, `toggleRole`, `suspendAgent`** - all three render as buttons in **both** My Team and User Manager. In demo they hit the live database with fake ids like `demo-agent-1` while `currentUser` is null. Exactly the failure `agentSaveStatus` had (`invalid input syntax for type uuid: "dl3"` surfacing raw in the UI).
+- **`saveMetaSettings`** - the guard had to go **before** the rows are built, not just before the write: every row reads `currentUser.id`, so it threw a TypeError before it ever reached the database.
+- **`logCommunication`** - reachable from the lead detail panel's Communications sub-tab. Found by checking the rendered DOM, not by reading call sites, which is what caught it.
+
+**A demo-branch subtlety worth recording.** These write to `_DEMO_PROFILES`, not `cachedProfiles`. `loadProfiles()` rebuilds `cachedProfiles` from `_DEMO_PROFILES` on every refresh, so a change written only to the cache is wiped by the very next render - it would have looked like it worked, then silently reverted.
+
+**A second, pre-existing bug fell out of this, and it affects live mode too.** The roster is rendered by two tables - My Team (`agents-tbody`) and User Manager (`user-manager-tbody`) - but `loadProfiles()` only ever refreshed the first. Renaming, promoting or suspending someone **from User Manager** left that table showing the stale value until you switched tabs. Added `refreshAgentTables()`, which renders both; `renderAgentsTable` already no-ops when its tbody is absent, so calling both unconditionally is safe.
+
+**The nine remaining candidates were each dismissed with a reason, not waved through:** `handleLogin`/`afterLogin` (demo is entered by its own path, never through login); `sendWaViaFunction`/`sendWaViaBrowser` (only called from the live branch of `sendConvMessage`, which returns early in demo); `viewKycFile`/`viewDepositScreenshot`/`loadConvAttachmentThumbs` (rendered only when a row has an `attachment_path`, which no demo record has); `notifyAdminPendingApproval` (both call sites sit after the `demoMode` early return in `saveLeadDetail` and `agentSaveStatus` - verified by character offset, not by eye); and `loadUpcomingFollowups`, which does fire a pointless read in demo but degrades to an honest "No follow-ups scheduled" empty state, so it is a wasted query rather than a visible bug. Left alone rather than churned.
+
+**Verified in demo mode:** rename persists and both tables show it, including a name with an apostrophe; role toggle and suspend persist; `saveMetaSettings` returns its demo message; `logCommunication` returns its demo message and its empty-body validation still fires; acting from User Manager now refreshes User Manager in place and stays consistent with My Team. **Network log checked throughout: zero Supabase requests, so nothing reached production.** Brace, paren and tag balance clean; zero em dashes.
+
 **DONE (2026-08-06, Junaid on the AYESHA laptop) - broken-handler sweep. One more live bug found and fixed.**
 
 **The Rename button in My Team / User Manager has been broken for any name containing an apostrophe.** `esc()` escapes `<`, `>`, `&` and `"` but **not** `'`, and the name was interpolated into a single-quoted argument: `renameProfile('${p.id}','${esc(p.full_name)}')`. A staff member called Sara O'Brien produced `renameProfile('u2','Sara O'Brien')`, which is a syntax error, so the button silently did nothing. Proved it by building the exact markup and compiling the parsed attribute, then re-proved the fix by clicking a real button and capturing the arguments `renameProfile` actually received.

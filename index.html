@@ -3973,11 +3973,22 @@ async function initBotManager(section) {
 }
 
 async function loadProfiles() {
-  if (demoMode) { cachedProfiles = _DEMO_PROFILES.slice(); populateAgentDropdowns(); renderAgentsTable(); return; }
+  if (demoMode) { cachedProfiles = _DEMO_PROFILES.slice(); populateAgentDropdowns(); refreshAgentTables(); return; }
   const { data, error } = await sb.from('profiles').select('*').order('full_name');
   if (!error) cachedProfiles = data || [];
   populateAgentDropdowns();
+  refreshAgentTables();
+}
+
+// The same roster is rendered by two tables - My Team (agents-tbody) and User
+// Manager (user-manager-tbody). loadProfiles() used to refresh only the first,
+// so renaming, promoting or suspending someone from User Manager left that
+// table showing the old value until you switched tabs. Affected live mode too,
+// not just demo. renderAgentsTable no-ops when its tbody is absent, so calling
+// both unconditionally is safe.
+function refreshAgentTables() {
   renderAgentsTable();
+  renderAgentsTable('user-manager-tbody');
 }
 
 function populateAgentDropdowns() {
@@ -4044,8 +4055,16 @@ async function renameProfile(id, currentName) {
   if (newName === null) return; // cancelled
   const trimmed = newName.trim();
   if (!trimmed) { alert('Name cannot be empty.'); return; }
-  const { error } = await sb.from('profiles').update({ full_name: trimmed }).eq('id', id);
-  if (error) { alert('Error: ' + error.message); return; }
+  // Demo branch: mutate the demo source, not cachedProfiles - loadProfiles()
+  // rebuilds cachedProfiles from _DEMO_PROFILES, so a change written only to
+  // the cache would be wiped by the very next refresh.
+  if (demoMode) {
+    const p = _DEMO_PROFILES.find(x => x.id === id);
+    if (p) p.full_name = trimmed;
+  } else {
+    const { error } = await sb.from('profiles').update({ full_name: trimmed }).eq('id', id);
+    if (error) { alert('Error: ' + error.message); return; }
+  }
   await loadProfiles();
   if (id === currentUser.id) {
     currentProfile.full_name = trimmed;
@@ -4107,16 +4126,26 @@ async function setProfilePhone(id, currentPhone) {
 async function toggleRole(id, current) {
   const next = current === 'admin' ? 'agent' : 'admin';
   if (!confirm(`Change this user's role to "${next}"?`)) return;
-  const { error } = await sb.from('profiles').update({ role: next }).eq('id', id);
-  if (error) { alert(error.message); return; }
+  if (demoMode) {
+    const p = _DEMO_PROFILES.find(x => x.id === id);
+    if (p) p.role = next;
+  } else {
+    const { error } = await sb.from('profiles').update({ role: next }).eq('id', id);
+    if (error) { alert(error.message); return; }
+  }
   await loadProfiles();
 }
 
 async function suspendAgent(id, suspend) {
   const action = suspend ? 'suspend' : 'unsuspend';
   if (!confirm(`Are you sure you want to ${action} this user? ${suspend ? 'They will not be able to log in.' : 'They will regain access.'}`)) return;
-  const { error } = await sb.from('profiles').update({ is_suspended: suspend }).eq('id', id);
-  if (error) { alert('Error: ' + error.message + '\n\nIf this is a column error, run this SQL in Supabase:\nALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN DEFAULT FALSE;'); return; }
+  if (demoMode) {
+    const p = _DEMO_PROFILES.find(x => x.id === id);
+    if (p) p.is_suspended = suspend;
+  } else {
+    const { error } = await sb.from('profiles').update({ is_suspended: suspend }).eq('id', id);
+    if (error) { alert('Error: ' + error.message + '\n\nIf this is a column error, run this SQL in Supabase:\nALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN DEFAULT FALSE;'); return; }
+  }
   await loadProfiles();
 }
 
@@ -4327,6 +4356,11 @@ async function saveMetaSettings() {
   const waAccessToken    = v('wa-access-token');
   const adminWaNumber    = v('admin-whatsapp-number');
   const msgEl            = document.getElementById('meta-msg');
+
+  // Guard before the rows are built, not just before the write: every row
+  // reads currentUser.id, which is null in demo mode, so this threw a
+  // TypeError before it ever reached the database.
+  if (demoMode) { setMsg(msgEl, 'Settings saved. (demo - nothing was written)', 'ok'); return; }
 
   const now = new Date().toISOString();
   const rows = [
@@ -5161,6 +5195,12 @@ async function logCommunication(leadId, ctx) {
   const msgEl     = document.getElementById('det-comm-msg');
 
   if (!body) { setMsg(msgEl, 'Please enter a message body.', 'err'); return; }
+
+  // Reachable in demo from the lead detail panel's Communications sub-tab.
+  // Without this it inserted against a fake demo id using currentUser.id,
+  // which is null in demo - the same failure agentSaveStatus and
+  // approveConversion had before they were fixed.
+  if (demoMode) { setMsg(msgEl, 'Logged. (demo - nothing was written)', 'ok'); return; }
 
   const { error } = await sb.from('communications').insert({
     lead_id: leadId, type, direction,
