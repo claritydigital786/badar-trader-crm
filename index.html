@@ -7918,7 +7918,7 @@ async function openConversation(convId, scope = '') {
               <div class="msg-wrapper${m.direction === 'outbound' ? ' outgoing' : ''}"${m.wa_message_id ? ` data-wamid="${esc(m.wa_message_id)}"` : ''}>
                 <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}" style="position:relative">
                   ${esc(displayMsgText(m.body))}
-                  ${m.attachment_path ? `<div class="msg-attachment" id="conv-att-${convId}-${i}" data-path="${esc(m.attachment_path)}" style="margin-top:8px;cursor:pointer;color:inherit">🖼 Loading image…</div>` : ''}
+                  ${m.attachment_path ? `<div class="msg-attachment" id="conv-att-${convId}-${i}" data-path="${esc(m.attachment_path)}" style="margin-top:8px;cursor:pointer;color:inherit">📎 Loading attachment…</div>` : ''}
                   ${m.wa_message_id ? `<button type="button" title="Reply to this message" data-wamid="${esc(m.wa_message_id)}" data-preview="${esc(truncate(m.body || '', 60))}" onclick="setReplyTarget(this.dataset.wamid, this.dataset.preview)" style="position:absolute;top:-10px;${m.direction === 'outbound' ? 'left' : 'right'}:-10px;width:22px;height:22px;border-radius:50%;border:1px solid #cbd5e1;background:#fff;color:#475569;font-size:0.7rem;cursor:pointer;line-height:1">↩</button>` : ''}<button type="button" class="msg-fwd-btn" title="Forward this message to another conversation" data-fwd="${esc(m.body || '')}" onclick="openForwardPicker(this.dataset.fwd)" style="${m.direction === 'outbound' ? 'left' : 'right'}:14px">↪</button><span class="msg-time">${fmtConvTime(m.created_at)}${deliveryTickHtml(m.direction, m.delivery_status)}</span>
                 </div>
               </div>`; }).join(''); })()
@@ -7972,15 +7972,55 @@ async function openConversation(convId, scope = '') {
 // (deposit-screenshots bucket) but that bucket is private, so each message
 // bubble gets a real inline thumbnail via a short-lived signed URL instead
 // of embedding the (inaccessible) raw path.
+// Inbound attachments used to be screenshots only, so this always rendered an
+// <img>. Now that voice notes, documents and video are stored too, a PDF
+// rendered through an <img> tag is just a broken image icon. The stored path
+// ends in an extension derived from the mime type, which is enough to pick the
+// right element.
+const CONV_ATT_KIND = {
+  image: ['jpg','jpeg','png','webp','gif'],
+  audio: ['mp3','ogg','oga','opus','amr','m4a','aac','mpeg','wav'],
+  video: ['mp4','3gp','3gpp','webm','quicktime','mov'],
+};
+
+function attachmentKindFromPath(path) {
+  const ext = String(path || '').split('.').pop().toLowerCase();
+  for (const [kind, exts] of Object.entries(CONV_ATT_KIND)) {
+    if (exts.includes(ext)) return kind;
+  }
+  return 'file';
+}
+
 async function loadConvAttachmentThumbs(convId, messages) {
   await Promise.all(messages.map(async (m, i) => {
     if (!m.attachment_path) return;
     const el = document.getElementById(`conv-att-${convId}-${i}`);
     if (!el) return;
     const { data, error } = await sb.storage.from('deposit-screenshots').createSignedUrl(m.attachment_path, 300);
-    if (error || !data) { el.textContent = '🖼 Screenshot (failed to load - tap to retry)'; el.onclick = () => loadConvAttachmentThumbs(convId, [m].map((mm,ii)=>mm)); return; }
-    el.innerHTML = `<img src="${esc(data.signedUrl)}" alt="Screenshot" style="max-width:220px;max-height:220px;border-radius:8px;display:block" />`;
-    el.onclick = () => window.open(data.signedUrl, '_blank');
+    if (error || !data) {
+      el.textContent = '📎 Attachment (failed to load - tap to retry)';
+      el.onclick = () => loadConvAttachmentThumbs(convId, [m]);
+      return;
+    }
+    const url = data.signedUrl;
+    const kind = attachmentKindFromPath(m.attachment_path);
+    const name = String(m.attachment_path).split('/').pop();
+
+    if (kind === 'image') {
+      el.innerHTML = `<img src="${esc(url)}" alt="Attachment" style="max-width:220px;max-height:220px;border-radius:8px;display:block" />`;
+      el.onclick = () => window.open(url, '_blank');
+    } else if (kind === 'audio') {
+      // Playable inline - a voice note the agent has to download first is
+      // barely better than not having it.
+      el.innerHTML = `<audio controls preload="none" src="${esc(url)}" style="max-width:240px;display:block"></audio>`;
+      el.onclick = null;
+    } else if (kind === 'video') {
+      el.innerHTML = `<video controls preload="metadata" src="${esc(url)}" style="max-width:240px;border-radius:8px;display:block"></video>`;
+      el.onclick = null;
+    } else {
+      el.innerHTML = `<span style="text-decoration:underline">📄 ${esc(name)}</span>`;
+      el.onclick = () => window.open(url, '_blank');
+    }
   }));
 }
 
