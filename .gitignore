@@ -4,3 +4,9 @@ supabase/.temp/
 # Local Claude Code permissions cache. Untracked deliberately: on some
 # machines this file holds a live Supabase personal access token.
 .claude/settings.local.json
+
+# Backup script's real credentials (service role key) and its output -
+# never committed. See backup-automation/README.md.
+backup-automation/config.php
+backup-automation/backups/
+backup-automation/backup.log
