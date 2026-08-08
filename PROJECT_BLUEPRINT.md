@@ -55,7 +55,7 @@ REMAINING_TODOS.md.
 | Item | What is left | Whose action |
 | --- | --- | --- |
 | Send an approved template from the inbox | Frontend + `template` branch in `send-wa-message` built, deliberately one commit behind live (can't send until Meta approves a template anyway). Deploy when a template is approved | Deploy `send-wa-message` + Meta approval |
-| Box 3 bot-flow restructure (new-or-existing account question) | Built 2026-08-07 in `whatsapp-webhook` (read-back verified, untyped-checked). Needs migration `20260807010000` applied FIRST (widens the `bot_stage` CHECK), then a webhook deploy | Muhammad's laptop - apply migration, then deploy |
+| Box 3 bot-flow restructure (new-or-existing account question) | Built 2026-08-07 in `whatsapp-webhook` (read-back verified, untyped-checked). **Migration `20260807010000` (bot_stage CHECK widened) APPLIED to live 2026-08-08 via SQL Editor.** Only the webhook deploy remains | Muhammad's laptop - deploy `whatsapp-webhook --no-verify-jwt` |
 | Supabase backup script (4x/day to Hostinger) | Built and verified against a local mock; read-only on Supabase. Needs deploying to Badar's Hostinger + the cron set up | Human (Hostinger setup) |
 
 **B3/B4 (Muhammad asked directly) - deployed.** These are the WhatsApp delivery ticks

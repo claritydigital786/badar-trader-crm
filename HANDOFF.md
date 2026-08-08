@@ -151,7 +151,7 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
-**DONE IN CODE, MIGRATION NOT APPLIED, NOT DEPLOYED (2026-08-07, Izza) - Box 3 restructure (bot flow). Claim released.** The funnel now asks "already have a live Exness/XM account, or first time?" right after the main menu, so an existing account holder skips the experience/traded-before questions and goes straight to deposit confirmation.
+**DONE IN CODE, MIGRATION APPLIED 2026-08-08, NOT DEPLOYED (2026-08-07/08, Izza) - Box 3 restructure (bot flow). Claim released.** UPDATE 2026-08-08: Muhammad applied migration `20260807010000` to live via the Supabase SQL Editor (I watched the exact widened `bot_stage` CHECK DDL run and return "Success. No rows returned" - not run by me). Safe intermediate state now: the constraint allows the two new stages but the deployed webhook v74 does not use them yet, so nothing writes them until the deploy. **The ONLY remaining step is the `whatsapp-webhook` deploy (step 3 below).** The funnel now asks "already have a live Exness/XM account, or first time?" right after the main menu, so an existing account holder skips the experience/traded-before questions and goes straight to deposit confirmation.
 
 **What was built** (only `whatsapp-webhook/index.ts`, `schema.sql`, one migration, and `docs/BOT_FLOW_MAP.md` - `index.html` untouched, confirmed):
 - Two new `bot_stage` values: `awaiting_trader_status` (BOX 3, the new question) and `awaiting_broker_existing` (BOX 3B, broker choice for an existing holder that jumps straight to `awaiting_deposit_confirm` with `trader_experience: "experienced"`, skipping `awaiting_experience` + `awaiting_traded_before`). First-time path (BOX 3A) is unchanged downstream.
