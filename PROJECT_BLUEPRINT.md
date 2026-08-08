@@ -55,7 +55,6 @@ REMAINING_TODOS.md.
 | Item | What is left | Whose action |
 | --- | --- | --- |
 | Send an approved template from the inbox | Frontend + `template` branch in `send-wa-message` built, deliberately one commit behind live (can't send until Meta approves a template anyway). Deploy when a template is approved | Deploy `send-wa-message` + Meta approval |
-| In-app notifications (bell + `notifications` table; the internal teammate-forward now actually alerts the recipient) | Built and demo-verified; migration `20260807000000_notifications.sql` NOT applied, so the bell is empty in live until then | Muhammad - apply migration |
 | Supabase backup script (4x/day to Hostinger) | Built and verified against a local mock; read-only on Supabase. Needs deploying to Badar's Hostinger + the cron set up | Human (Hostinger setup) |
 
 **B3/B4 (Muhammad asked directly) - deployed.** These are the WhatsApp delivery ticks
