@@ -35,15 +35,16 @@ live; **TO BUILD** = safe code work, no live send; **BLOCKED (human/3rd-party)**
 | Delivery ticks (B3/B4) | Deployed to `whatsapp-webhook` v73 2026-08-07 (Muhammad's laptop, `--no-verify-jwt`). Column + on-screen ticks + status-callback writer all live; rendering verified firsthand. **Live but not yet proven against a real message - see the routing blocker below** |
 | Inbound media stored + playable (voice note / PDF / video downloaded and openable, not just labelled) | Deployed to `whatsapp-webhook` v74 2026-08-07, with a 20MB guard. **Live but not yet tested against a real file - routing blocker below** |
 | Agent attachment sending (JPG/PNG/PDF) | Live - confirmed present in the deployed `send-wa-message` (carried in by the bot-takeover deploy; verified by downloading the live function). **Not yet tested with a real send - routing blocker below** |
+| Box 3 bot-flow restructure (new-or-existing account question) | Migration applied + `whatsapp-webhook` deployed 2026-08-08 (Muhammad's laptop, `--no-verify-jwt`; CLI reported "Deployed Functions", `git pull` was already up to date so the Box 3 code went up). **Live but not yet tested with a real "Start Trading" message - routing blocker below** |
 | Mark a conversation unread from the inbox | LIVE - no migration, no deploy needed (`leads.is_unread` already exists); 📩 button in the chat header |
 | `send-wa-message` bot-takeover-flag fix | DEPLOYED 2026-08-07 (Muhammad's laptop), byte-identical to source |
 | Reports (stat cards, agent perf, source, monthly trend, financial summary) | Live via RPCs. QA-passed 2026-08-07 |
 | Subscribers, Appointments, Meta Ads read-only analytics | Live |
 
-**Live but UNPROVEN - the current #1 blocker.** Tonight's three deploys (delivery
-ticks v73, inbound media v74, attachment sending) are all live and byte-identical to
-reviewed source, but **none has been tested against a real message**, because nobody
-has confirmed which WhatsApp number routes to OUR webhook versus WhatChimp's. 3903 is
+**Live but UNPROVEN - the current #1 blocker.** Four deploys (delivery ticks v73,
+inbound media v74, attachment sending, and the Box 3 restructure 2026-08-08) are all
+live, but **none has been tested against a real message**, because nobody has
+confirmed which WhatsApp number routes to OUR webhook versus WhatChimp's. 3903 is
 on WhatChimp; 6541 was reportedly migrated to us "a day or two ago" but unconfirmed.
 The answer lives in Meta's **App** Dashboard (developers.facebook.com) -> WhatsApp ->
 Configuration -> Webhook, which a Claude session may not open. **Muhammad must check
@@ -55,7 +56,6 @@ REMAINING_TODOS.md.
 | Item | What is left | Whose action |
 | --- | --- | --- |
 | Send an approved template from the inbox | Frontend + `template` branch in `send-wa-message` built, deliberately one commit behind live (can't send until Meta approves a template anyway). Deploy when a template is approved | Deploy `send-wa-message` + Meta approval |
-| Box 3 bot-flow restructure (new-or-existing account question) | Built 2026-08-07 in `whatsapp-webhook` (read-back verified, untyped-checked). **Migration `20260807010000` (bot_stage CHECK widened) APPLIED to live 2026-08-08 via SQL Editor.** Only the webhook deploy remains | Muhammad's laptop - deploy `whatsapp-webhook --no-verify-jwt` |
 | Supabase backup script (4x/day to Hostinger) | Files uploaded to Hostinger (`orange-moose-457260.hostingersite.com`, account root, not `public_html`) and all 4 cron jobs created (`0 0/6/12/18 * * *`). Only `config.php` (real project URL + service role key) is left, and only Muhammad can create it | Muhammad - create `config.php` |
 
 **B3/B4 (Muhammad asked directly) - deployed.** These are the WhatsApp delivery ticks
