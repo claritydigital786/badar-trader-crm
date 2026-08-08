@@ -51,16 +51,22 @@ live, but none has been exercised by a real WhatsApp message yet.
 - **6541 - the number dedicated to this Supabase CRM.** All real-message testing
   (Box 3, delivery ticks, media, attachments) goes through **6541 only**.
 
-**NEXT CONCRETE STEP (view-only, no sends, no cost):** from a personal phone, send a
-message to **6541** and confirm a new lead/conversation appears in the CRM Omnichannel
-Inbox (proves inbound routing to our webhook); then send a voice note + PDF to 6541 and
-confirm they show as playable/openable attachments (proves the v74 media-storage
-deploy). Note this does NOT show the Box 3 question or any bot reply - those are gated
-off (`BOT_REPLIES_ENABLED = false`); seeing Box 3 fire is a separate, deliberate call
-to enable bot replies, only after confirming WhatChimp is not also replying on 6541.
+**FINDING 2026-08-08 - 6541 is NOT clean; WhatChimp is still replying on it.** Muhammad
+sent "Hello" + a voice note to 6541 from his personal phone. 6541 auto-replied "We're
+seeing an API key error. We've forwarded your query to the concerned department..." -
+which is NOT our bot's copy and cannot be us (our replies are gated off). That is an AI
+assistant, almost certainly **WhatChimp still live on 6541**. So the earlier
+"6541 is dedicated to the CRM, routing settled" is contradicted by evidence: the
+WhatChimp double-subscription on 6541 appears UNRESOLVED. Hard consequence: **do NOT
+enable `BOT_REPLIES_ENABLED` on 6541** - real customers would get two bots answering.
+Whether OUR webhook also receives 6541's inbound is still unconfirmed (check the CRM
+inbox for the 0632 conversation, and Meta App Dashboard -> WhatsApp -> Configuration ->
+Webhook for the subscribed callback URL). Separately: WhatChimp's AI agent is erroring
+on an API key while answering real customers on 6541 - a live WhatChimp issue for
+Muhammad to fix in WhatChimp (Claude does not operate WhatChimp).
 
-So the routing question is settled by Muhammad's directive: test on 6541. The only
-thing left to prove the four deploys is for someone to actually send through 6541
+So the four deploys remain UNPROVEN against a real message, and the routing question is
+re-opened by this finding. The next move is for someone to actually send through 6541
 (e.g. tap "Start Trading") and confirm the behaviour - on Muhammad's laptop, him
 present, since it is live traffic.
 
@@ -93,7 +99,7 @@ webhook-routing question above is settled.
 | --- | --- |
 | Get a WhatsApp template approved by Meta | Meta review. Unblocks template-from-inbox, Follow-ups, and Broadcast Signal |
 | Create two Supabase Auth users (Bilal, Faisal) | A human sets a real password |
-| Real-message test of the recent deploys | Send through **6541 only** (the CRM's dedicated number per Muhammad, 2026-08-08). **3903 is WhatChimp's - never touch it.** Muhammad's laptop, him present |
+| Real-message test of the recent deploys + resolve WhatChimp-on-6541 | 2026-08-08 test showed 6541 STILL auto-replies via WhatChimp (see the finding above section B). Confirm whether our webhook also receives 6541 (CRM inbox + Meta App Dashboard webhook config), and resolve WhatChimp's subscription on 6541, before trusting any 6541 test. **3903 is WhatChimp's - never touch it.** Muhammad |
 | Meta Lead Ads intake | Meta token needs `leads_retrieval` scope |
 | Any bot/keyword/AI reply going live | Muhammad's decision + WhatChimp automation confirmed OFF + flag flip on his laptop |
 | Syed Hamza | Stays suspended until Muhammad decides (post-CRM) |
