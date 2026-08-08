@@ -35,21 +35,40 @@ live; **TO BUILD** = safe code work, no live send; **BLOCKED (human/3rd-party)**
 | Delivery ticks (B3/B4) | Deployed to `whatsapp-webhook` v73 2026-08-07 (Muhammad's laptop, `--no-verify-jwt`). Column + on-screen ticks + status-callback writer all live; rendering verified firsthand. **Live but not yet proven against a real message - see the routing blocker below** |
 | Inbound media stored + playable (voice note / PDF / video downloaded and openable, not just labelled) | Deployed to `whatsapp-webhook` v74 2026-08-07, with a 20MB guard. **Live but not yet tested against a real file - routing blocker below** |
 | Agent attachment sending (JPG/PNG/PDF) | Live - confirmed present in the deployed `send-wa-message` (carried in by the bot-takeover deploy; verified by downloading the live function). **Not yet tested with a real send - routing blocker below** |
-| Box 3 bot-flow restructure (new-or-existing account question) | Migration applied + `whatsapp-webhook` deployed 2026-08-08 (Muhammad's laptop, `--no-verify-jwt`; CLI reported "Deployed Functions", `git pull` was already up to date so the Box 3 code went up). **Live but not yet tested with a real "Start Trading" message - routing blocker below** |
+| Box 3 bot-flow restructure (new-or-existing account question) | Migration applied + `whatsapp-webhook` deployed 2026-08-08 (Muhammad's laptop, `--no-verify-jwt`). Confirmed live via `supabase functions list`: **v75, ACTIVE, updated 2026-08-08 07:50**. **Deploy proven; not yet tested with a real "Start Trading" message - routing blocker below** |
 | Mark a conversation unread from the inbox | LIVE - no migration, no deploy needed (`leads.is_unread` already exists); 📩 button in the chat header |
 | `send-wa-message` bot-takeover-flag fix | DEPLOYED 2026-08-07 (Muhammad's laptop), byte-identical to source |
 | Reports (stat cards, agent perf, source, monthly trend, financial summary) | Live via RPCs. QA-passed 2026-08-07 |
 | Subscribers, Appointments, Meta Ads read-only analytics | Live |
 
-**Live but UNPROVEN - the current #1 blocker.** Four deploys (delivery ticks v73,
+**Live but not yet proven with a real message.** Four deploys (delivery ticks v73,
 inbound media v74, attachment sending, and the Box 3 restructure 2026-08-08) are all
-live, but **none has been tested against a real message**, because nobody has
-confirmed which WhatsApp number routes to OUR webhook versus WhatChimp's. 3903 is
-on WhatChimp; 6541 was reportedly migrated to us "a day or two ago" but unconfirmed.
-The answer lives in Meta's **App** Dashboard (developers.facebook.com) -> WhatsApp ->
-Configuration -> Webhook, which a Claude session may not open. **Muhammad must check
-this before any real-device test can prove tonight's work.** Full detail in
-REMAINING_TODOS.md.
+live, but none has been exercised by a real WhatsApp message yet.
+
+**HARD RULE on the two numbers (Muhammad, direct, 2026-08-08):**
+- **3903 - NEVER touch it.** It is WhatChimp's / live traffic. No sends, no tests,
+  no operations involving 3903, ever, from any session or laptop.
+- **6541 - the number dedicated to this Supabase CRM.** All real-message testing
+  (Box 3, delivery ticks, media, attachments) goes through **6541 only**.
+
+**FINDING 2026-08-08 - 6541 is NOT clean; WhatChimp is still replying on it.** Muhammad
+sent "Hello" + a voice note to 6541 from his personal phone. 6541 auto-replied "We're
+seeing an API key error. We've forwarded your query to the concerned department..." -
+which is NOT our bot's copy and cannot be us (our replies are gated off). That is an AI
+assistant, almost certainly **WhatChimp still live on 6541**. So the earlier
+"6541 is dedicated to the CRM, routing settled" is contradicted by evidence: the
+WhatChimp double-subscription on 6541 appears UNRESOLVED. Hard consequence: **do NOT
+enable `BOT_REPLIES_ENABLED` on 6541** - real customers would get two bots answering.
+Whether OUR webhook also receives 6541's inbound is still unconfirmed (check the CRM
+inbox for the 0632 conversation, and Meta App Dashboard -> WhatsApp -> Configuration ->
+Webhook for the subscribed callback URL). Separately: WhatChimp's AI agent is erroring
+on an API key while answering real customers on 6541 - a live WhatChimp issue for
+Muhammad to fix in WhatChimp (Claude does not operate WhatChimp).
+
+So the four deploys remain UNPROVEN against a real message, and the routing question is
+re-opened by this finding. The next move is for someone to actually send through 6541
+(e.g. tap "Start Trading") and confirm the behaviour - on Muhammad's laptop, him
+present, since it is live traffic.
 
 ### B. READY, WAITING - built and verified, one action from live
 
@@ -80,7 +99,7 @@ webhook-routing question above is settled.
 | --- | --- |
 | Get a WhatsApp template approved by Meta | Meta review. Unblocks template-from-inbox, Follow-ups, and Broadcast Signal |
 | Create two Supabase Auth users (Bilal, Faisal) | A human sets a real password |
-| Confirm which number (3903 vs 6541) routes to OUR webhook | Muhammad checks Meta App Dashboard -> WhatsApp -> Configuration -> Webhook (Claude may not open it). Gates real-testing all of tonight's deploys - the current #1 blocker |
+| Real-message test of the recent deploys + resolve WhatChimp-on-6541 | 2026-08-08 test showed 6541 STILL auto-replies via WhatChimp (see the finding above section B). Confirm whether our webhook also receives 6541 (CRM inbox + Meta App Dashboard webhook config), and resolve WhatChimp's subscription on 6541, before trusting any 6541 test. **3903 is WhatChimp's - never touch it.** Muhammad |
 | Meta Lead Ads intake | Meta token needs `leads_retrieval` scope |
 | Any bot/keyword/AI reply going live | Muhammad's decision + WhatChimp automation confirmed OFF + flag flip on his laptop |
 | Syed Hamza | Stays suspended until Muhammad decides (post-CRM) |
