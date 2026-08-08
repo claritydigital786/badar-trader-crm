@@ -56,7 +56,7 @@ REMAINING_TODOS.md.
 | --- | --- | --- |
 | Send an approved template from the inbox | Frontend + `template` branch in `send-wa-message` built, deliberately one commit behind live (can't send until Meta approves a template anyway). Deploy when a template is approved | Deploy `send-wa-message` + Meta approval |
 | Box 3 bot-flow restructure (new-or-existing account question) | Built 2026-08-07 in `whatsapp-webhook` (read-back verified, untyped-checked). **Migration `20260807010000` (bot_stage CHECK widened) APPLIED to live 2026-08-08 via SQL Editor.** Only the webhook deploy remains | Muhammad's laptop - deploy `whatsapp-webhook --no-verify-jwt` |
-| Supabase backup script (4x/day to Hostinger) | Built and verified against a local mock; read-only on Supabase. Needs deploying to Badar's Hostinger + the cron set up | Human (Hostinger setup) |
+| Supabase backup script (4x/day to Hostinger) | Files uploaded to Hostinger (`orange-moose-457260.hostingersite.com`, account root, not `public_html`) and all 4 cron jobs created (`0 0/6/12/18 * * *`). Only `config.php` (real project URL + service role key) is left, and only Muhammad can create it | Muhammad - create `config.php` |
 
 **B3/B4 (Muhammad asked directly) - deployed.** These are the WhatsApp delivery ticks
 on messages you send (one grey ✓ = sent, two grey ✓✓ = delivered, two blue = read,
