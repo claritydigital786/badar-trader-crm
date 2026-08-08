@@ -1573,3 +1573,55 @@ CREATE INDEX IF NOT EXISTS notifications_recipient_unread_idx
 
 -- ── DONE (Phase 28) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+-- =============================================================
+-- Phase 29 - schema drift closure (reconstructed from code, 2026-08-08)
+-- =============================================================
+--
+-- These objects are WRITTEN by deployed code but were never defined in this
+-- file, so a rebuild from schema.sql produced a database missing them. Added
+-- to close that drift. Column shapes are RECONSTRUCTED from the code that
+-- writes them (conversion-hook, submit-lead-form, send-wa-message, and the bot
+-- funnel) and have NOT been diffed against the live database - if the live
+-- table differs (extra columns, constraints, defaults, or RLS), the live DB is
+-- the source of truth and this block should be corrected to match.
+
+-- leads: deposit/conversion columns written by conversion-hook, plus the bot
+-- back-navigation stack (previously defined only in migration 20260721000000).
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS deposit_platform    TEXT;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS deposit_amount      NUMERIC(15,2);
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS deposit_account_ref TEXT;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS verified            BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS converted_at        TIMESTAMPTZ;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS bot_stage_history   TEXT[] NOT NULL DEFAULT '{}';
+
+-- communication_logs: a note/activity log written by submit-lead-form,
+-- conversion-hook and send-wa-message (distinct from the stricter
+-- `communications` table). created_by holds the acting user's auth.uid()
+-- (NULL for server-side writes with no user). Edge functions insert via the
+-- service role, which bypasses RLS; the staff policies below mirror the
+-- `communications` table so the frontend can read the log.
+CREATE TABLE IF NOT EXISTS public.communication_logs (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  lead_id    UUID        REFERENCES public.leads(id) ON DELETE CASCADE,
+  type       TEXT        NOT NULL,
+  message    TEXT        NOT NULL,
+  created_by UUID,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS communication_logs_lead_id_idx
+  ON public.communication_logs (lead_id);
+
+ALTER TABLE public.communication_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "communication_logs: staff select all" ON public.communication_logs;
+CREATE POLICY "communication_logs: staff select all" ON public.communication_logs
+  FOR SELECT USING (public.is_active_staff());
+
+DROP POLICY IF EXISTS "communication_logs: staff insert any" ON public.communication_logs;
+CREATE POLICY "communication_logs: staff insert any" ON public.communication_logs
+  FOR INSERT WITH CHECK (public.is_active_staff());
+
+-- DONE (Phase 29)
+-- =============================================================

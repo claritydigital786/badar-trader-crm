@@ -38,6 +38,7 @@ live; **TO BUILD** = safe code work, no live send; **BLOCKED (human/3rd-party)**
 | Box 3 bot-flow restructure (new-or-existing account question) | Migration applied + `whatsapp-webhook` deployed 2026-08-08 (Muhammad's laptop, `--no-verify-jwt`). Confirmed live via `supabase functions list`: **v75, ACTIVE, updated 2026-08-08 07:50**. **Deploy proven; not yet tested with a real "Start Trading" message - routing blocker below** |
 | Mark a conversation unread from the inbox | LIVE - no migration, no deploy needed (`leads.is_unread` already exists); 📩 button in the chat header |
 | `converted_at` reporting fix | `saveLeadDetail` + `agentSaveStatus` now stamp `converted_at` when a lead first moves to Converted (was only `approveConversion`). Frontend, demo-verified 2026-08-08, ships on push |
+| Schema drift closed in `schema.sql` | Added `communication_logs` table + missing `leads` columns (`deposit_platform/amount/account_ref`, `verified`, `converted_at`, `bot_stage_history`) as Phase 29, reconstructed from the code that writes them. Repo-only (a rebuild from schema.sql is no longer broken); the live DB already has these, so nothing to apply |
 | `send-wa-message` bot-takeover-flag fix | DEPLOYED 2026-08-07 (Muhammad's laptop), byte-identical to source |
 | Reports (stat cards, agent perf, source, monthly trend, financial summary) | Live via RPCs. QA-passed 2026-08-07 |
 | Subscribers, Appointments, Meta Ads read-only analytics | Live |
@@ -90,8 +91,7 @@ webhook-routing question above is settled.
 | Item | Notes |
 | --- | --- |
 | Payroll persistence | Client-side calculator over an empty transaction set in live mode; needs a real source + persistence |
-| Close schema drift | `communication_logs` and several `leads` deposit/conversion columns are written by code but missing from `schema.sql` |
-| Webhook request-signature verification | Both public webhooks accept unsigned requests |
+| Webhook request-signature verification | Both public webhooks accept unsigned requests. NOTE: this is NOT a casual item - it changes the live webhook and a wrong signature check breaks inbound lead capture; needs the Meta app secret and a deploy (Muhammad's laptop) |
 
 ### D. BLOCKED - human or third-party, no Claude session does these
 
