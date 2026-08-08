@@ -31,30 +31,39 @@ live; **TO BUILD** = safe code work, no live send; **BLOCKED (human/3rd-party)**
 | 24-hour window countdown pill (C2) | Live; shows agents the window closing |
 | Forward a message - to a conversation, and to a teammate | Both shipped (frontend). Teammate forward is a passive `lead_activity` note |
 | In-conversation search, day-divider pills | Shipped, demo-verified |
-| WhatsApp inbound ingestion + lead creation | Deployed webhook v73 |
-| Delivery ticks (B3/B4) | LIVE end to end - `whatsapp-webhook` deployed to v73 2026-08-07 (Muhammad's laptop, `--no-verify-jwt`). Column + on-screen ticks + status-callback writer all live. Rendering verified firsthand (read=blue, delivered/sent=grey, failed=red, null=no tick) |
-| Inbound non-image media placeholder | LIVE - shipped in the v73 deploy; a voice note / PDF / video now logs a readable placeholder instead of being silently dropped. (Downloading + playing the file is a newer change awaiting its own deploy - row B) |
+| WhatsApp inbound ingestion + lead creation | Deployed webhook v74 |
+| Delivery ticks (B3/B4) | Deployed to `whatsapp-webhook` v73 2026-08-07 (Muhammad's laptop, `--no-verify-jwt`). Column + on-screen ticks + status-callback writer all live; rendering verified firsthand. **Live but not yet proven against a real message - see the routing blocker below** |
+| Inbound media stored + playable (voice note / PDF / video downloaded and openable, not just labelled) | Deployed to `whatsapp-webhook` v74 2026-08-07, with a 20MB guard. **Live but not yet tested against a real file - routing blocker below** |
+| Agent attachment sending (JPG/PNG/PDF) | Live - confirmed present in the deployed `send-wa-message` (carried in by the bot-takeover deploy; verified by downloading the live function). **Not yet tested with a real send - routing blocker below** |
 | Mark a conversation unread from the inbox | LIVE - no migration, no deploy needed (`leads.is_unread` already exists); 📩 button in the chat header |
 | `send-wa-message` bot-takeover-flag fix | DEPLOYED 2026-08-07 (Muhammad's laptop), byte-identical to source |
 | Reports (stat cards, agent perf, source, monthly trend, financial summary) | Live via RPCs. QA-passed 2026-08-07 |
 | Subscribers, Appointments, Meta Ads read-only analytics | Live |
 
+**Live but UNPROVEN - the current #1 blocker.** Tonight's three deploys (delivery
+ticks v73, inbound media v74, attachment sending) are all live and byte-identical to
+reviewed source, but **none has been tested against a real message**, because nobody
+has confirmed which WhatsApp number routes to OUR webhook versus WhatChimp's. 3903 is
+on WhatChimp; 6541 was reportedly migrated to us "a day or two ago" but unconfirmed.
+The answer lives in Meta's **App** Dashboard (developers.facebook.com) -> WhatsApp ->
+Configuration -> Webhook, which a Claude session may not open. **Muhammad must check
+this before any real-device test can prove tonight's work.** Full detail in
+REMAINING_TODOS.md.
+
 ### B. READY, WAITING - built and verified, one action from live
 
 | Item | What is left | Whose action |
 | --- | --- | --- |
-| Agent attachment sending (JPG/PNG/PDF) | `send-wa-message` was redeployed 2026-08-07 byte-identical to source, which already contained this - so it is very likely LIVE, but **no real attachment send has been confirmed**. Needs one real JPG+PDF test to move to section A | Muhammad's laptop - confirm/test |
-| Send an approved template from the inbox | Frontend + `template` branch in `send-wa-message` built (landed AFTER the last deploy, so not deployed). Also blocked on Meta approving a template (row D) | Deploy `send-wa-message` + Meta approval |
-| Inbound media download + playback (open a voice note / PDF / video, not just see it named) | Built (webhook fetches + stores the file, 20MB guard; frontend renders audio/video/file). Landed after v73, so not deployed | Muhammad's laptop - `whatsapp-webhook` deploy |
+| Send an approved template from the inbox | Frontend + `template` branch in `send-wa-message` built, deliberately one commit behind live (can't send until Meta approves a template anyway). Deploy when a template is approved | Deploy `send-wa-message` + Meta approval |
 | In-app notifications (bell + `notifications` table; the internal teammate-forward now actually alerts the recipient) | Built and demo-verified; migration `20260807000000_notifications.sql` NOT applied, so the bell is empty in live until then | Muhammad - apply migration |
 | Supabase backup script (4x/day to Hostinger) | Built and verified against a local mock; read-only on Supabase. Needs deploying to Badar's Hostinger + the cron set up | Human (Hostinger setup) |
 
-**B3/B4 (Muhammad asked directly) - now DONE.** These are the WhatsApp delivery
-ticks on messages you send (one grey ✓ = sent, two grey ✓✓ = delivered, two blue =
-read, red ! = failed). As of 2026-08-07 they are live end to end: the DB column was
-already applied, the on-screen ticks were verified rendering, and `whatsapp-webhook`
-was deployed to v73 (from Muhammad's laptop, `--no-verify-jwt`) so each status
-callback is now recorded. This item is off the board.
+**B3/B4 (Muhammad asked directly) - deployed.** These are the WhatsApp delivery ticks
+on messages you send (one grey ✓ = sent, two grey ✓✓ = delivered, two blue = read,
+red ! = failed). As of 2026-08-07 all three pieces are live: the DB column was applied,
+the on-screen ticks were verified rendering, and `whatsapp-webhook` v73 records each
+status callback. The only thing left is proving it with a real message once the
+webhook-routing question above is settled.
 
 ### C. TO BUILD - safe code work, no live send, can start anytime
 
@@ -71,7 +80,7 @@ callback is now recorded. This item is off the board.
 | --- | --- |
 | Get a WhatsApp template approved by Meta | Meta review. Unblocks template-from-inbox, Follow-ups, and Broadcast Signal |
 | Create two Supabase Auth users (Bilal, Faisal) | A human sets a real password |
-| Attach WhatsApp number 6541 for end-to-end testing | WhatChimp double-subscription settled + Muhammad's laptop |
+| Confirm which number (3903 vs 6541) routes to OUR webhook | Muhammad checks Meta App Dashboard -> WhatsApp -> Configuration -> Webhook (Claude may not open it). Gates real-testing all of tonight's deploys - the current #1 blocker |
 | Meta Lead Ads intake | Meta token needs `leads_retrieval` scope |
 | Any bot/keyword/AI reply going live | Muhammad's decision + WhatChimp automation confirmed OFF + flag flip on his laptop |
 | Syed Hamza | Stays suspended until Muhammad decides (post-CRM) |
@@ -88,9 +97,8 @@ placeholders. AI Signals compute for real but delivery is manual.
 **Open questions for Muhammad (not blocking):** (1) the live Reports "Total Revenue /
 Approved deposits" card sums every lead's `account_balance` while the Financial
 Summary's "Total Deposits" comes from an RPC - these can disagree in live (flagged
-2026-08-07). (2) Confirm whether agent attachment sending is already live from the
-2026-08-07 `send-wa-message` redeploy (row B). (The earlier open question about the
-teammate-forward notifying someone is resolved - in-app notifications are now built,
+2026-08-07). (Two earlier open questions are now resolved: attachment sending is
+confirmed live, and the teammate-forward notification is built - in-app notifications,
 row B, pending the migration.)
 
 ---
