@@ -524,7 +524,7 @@ CREATE POLICY signals_auth_update ON public.signals
 -- Tracks each lead's position in the WhatsApp qualification flow
 -- (see supabase/functions/whatsapp-webhook/index.ts).
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS bot_stage TEXT NOT NULL DEFAULT 'awaiting_language'
-  CHECK (bot_stage IN ('awaiting_language','awaiting_menu','awaiting_broker','awaiting_experience','awaiting_traded_before','awaiting_deposit_confirm','qualified','declined'));
+  CHECK (bot_stage IN ('awaiting_language','awaiting_menu','awaiting_trader_status','awaiting_broker','awaiting_broker_existing','awaiting_experience','awaiting_traded_before','awaiting_deposit_confirm','qualified','declined'));
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS language TEXT CHECK (language IN ('en','ur'));
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS broker_choice TEXT CHECK (broker_choice IN ('exness','xm','doprime')); -- doprime kept for historical rows only, see Phase 16
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS trader_experience TEXT CHECK (trader_experience IN ('new','experienced'));
@@ -555,7 +555,7 @@ ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS is_unread BOOLEAN NOT NULL DEF
 --   WHERE conrelid = 'public.leads'::regclass AND contype = 'c' AND conname LIKE '%bot_stage%';
 ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_bot_stage_check;
 ALTER TABLE public.leads ADD CONSTRAINT leads_bot_stage_check
-  CHECK (bot_stage IN ('awaiting_language','awaiting_menu','awaiting_broker','awaiting_experience','awaiting_traded_before','awaiting_deposit_confirm','qualified','declined'));
+  CHECK (bot_stage IN ('awaiting_language','awaiting_menu','awaiting_trader_status','awaiting_broker','awaiting_broker_existing','awaiting_experience','awaiting_traded_before','awaiting_deposit_confirm','qualified','declined'));
 ALTER TABLE public.leads ALTER COLUMN bot_stage SET DEFAULT 'awaiting_language';
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS language TEXT CHECK (language IN ('en','ur'));
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS needs_human BOOLEAN NOT NULL DEFAULT false;

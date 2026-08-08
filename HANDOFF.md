@@ -151,7 +151,24 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
-**IN PROGRESS (2026-08-07, Izza) - Box 3 restructure (bot flow).** Building the new "already have a live Exness/XM account vs first-time" stage per the assignment at the "FOR IZZA" entry above and the BOX 3/3A/3B copy in `docs/BOT_FLOW_MAP.md`. Touches ONLY `supabase/functions/whatsapp-webhook/index.ts` and `docs/BOT_FLOW_MAP.md` - not `index.html`, so no collision with frontend work. No `deno`/`supabase` on this laptop, so it ships untyped-checked (reviewed by reading back); **NOT deployed** - deploy is Muhammad's-laptop-only. Will release this claim once built, verified by read-back, docs updated, and pushed.
+**DONE IN CODE, MIGRATION NOT APPLIED, NOT DEPLOYED (2026-08-07, Izza) - Box 3 restructure (bot flow). Claim released.** The funnel now asks "already have a live Exness/XM account, or first time?" right after the main menu, so an existing account holder skips the experience/traded-before questions and goes straight to deposit confirmation.
+
+**What was built** (only `whatsapp-webhook/index.ts`, `schema.sql`, one migration, and `docs/BOT_FLOW_MAP.md` - `index.html` untouched, confirmed):
+- Two new `bot_stage` values: `awaiting_trader_status` (BOX 3, the new question) and `awaiting_broker_existing` (BOX 3B, broker choice for an existing holder that jumps straight to `awaiting_deposit_confirm` with `trader_experience: "experienced"`, skipping `awaiting_experience` + `awaiting_traded_before`). First-time path (BOX 3A) is unchanged downstream.
+- `matchTraderStatus()` matcher (buttons `trader_existing` / `trader_first_time` plus typed input, "existing" checked first so "already have an account" wins), and `sendTraderStatusButtons()` (button titles kept <=20 chars per WhatsApp's reply-button limit - "I have an account" / "First time" / "Go Back"; full question in the body).
+- `MIDFLOW_RESTART_STAGES` extended with both new stages (the 21-July restart-after-24h rule), and `goBack` cases added for both so the "Go Back" button re-sends the right prompt. Traced every `bot_stage_history` push/pop for the new stages.
+
+**The catch that made this bigger than the assignment described:** `leads.bot_stage` has a CHECK constraint (`schema.sql:527, 558`) listing allowed stages. The two new names are NOT in it, so **the migration `20260807010000_bot_stage_trader_status.sql` must be applied BEFORE the webhook is deployed** - otherwise the first "Start Trading" tap throws a constraint violation and breaks the live bot. Same apply-migration-first hazard as the delivery_status column. `schema.sql`'s two CHECK definitions were widened to match (keeps it the source of truth, avoids the drift this repo keeps hitting).
+
+**Verified by read-back only** (no `deno`/`supabase`/`node` on this laptop, so untyped-checked, stated honestly per this repo's pattern): brace/paren/bracket balance net-zero across the file; every new stage name, matcher, send-helper and button id spelled identically at every reference (grep-confirmed defined + wired); the two new switch cases and both goBack cases read correctly. The `awaiting_deposit_confirm` "hot" tier check in `index.html` needs no change - the new stages are earlier funnel steps and the existing path still reaches `awaiting_deposit_confirm`. **Not exercised against a real message** - needs the deploy.
+
+**FOR WHOEVER IS NEXT ON MUHAMMAD'S LAPTOP - deploy step (do NOT deploy from any other laptop):**
+1. Apply the migration FIRST: `supabase/migrations/20260807010000_bot_stage_trader_status.sql` (widens the `bot_stage` CHECK). It is idempotent (DROP IF EXISTS + ADD).
+2. Run `deno check` on the webhook (this laptop couldn't) - expect the same 7 pre-existing errors this file always has, nothing new from this change.
+3. THEN deploy: `supabase functions deploy whatsapp-webhook --no-verify-jwt --project-ref vfskqzgphrunjxquqpks`. `--no-verify-jwt` is mandatory (the live function runs `verify_jwt: false`; without the flag it breaks Meta's inbound webhook = live lead capture).
+4. First real test: tap "Start Trading", confirm the new-or-existing question appears, then walk both branches (first-time -> broker -> experience -> ...; existing -> broker -> straight to deposit).
+
+**Roman Urdu:** the new prompts are English, matching how the other funnel boxes' button prompts are already coded (English inline). A Roman Urdu mirror of the funnel is a separate, pre-existing gap across all boxes, not introduced by this change.
 
 **DONE (2026-08-07, Izza) - Reports tab (admin view) QA pass + live Progress Board rebuilt. Claim released.** (Re-logged: the first pass of this landed in three local commits that were dropped when this laptop was reset to origin/main during SSH setup; redone fresh on current main.)
 

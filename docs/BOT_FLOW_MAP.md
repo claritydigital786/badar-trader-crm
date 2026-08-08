@@ -75,12 +75,18 @@ option 2; agent or baat goes to option 3; faq goes to option 4, and faq is
 recognized at every box, not just here, so a customer can ask for it
 mid-flow without losing their place. Anything else goes to RULE R1.
 
-## BOX 3 - New or existing trader (PROPOSED restructure, needs your confirm)
+## BOX 3 - New or existing trader (BUILT 2026-08-07, not yet deployed)
 
 Muhammad's 21 July feedback: ask this before broker choice, not after, so
 someone who already has a live account on Exness or XM skips straight to
 the screenshot step instead of being walked through account opening they
-don't need.
+don't need. Final go-ahead given 2026-08-07; built in `whatsapp-webhook`
+(new `awaiting_trader_status` and `awaiting_broker_existing` stages).
+Pending: apply migration `20260807010000_bot_stage_trader_status.sql` and
+deploy the webhook (Muhammad's laptop) - see the note at the bottom of this
+file. The button labels are English (matching the other funnel boxes, whose
+prompts are also English in code); a Roman Urdu mirror of the funnel prompts
+is the same outstanding item every funnel box has, not new to Box 3.
 
 Text: Have you already opened a trading account with Exness or XM, or would
 this be your first time?
@@ -360,8 +366,13 @@ window has passed, it is limited to whatever template Meta has approved.
 2. Two form URLs - only one exists today (crm.badartrader.com/join.html).
    Is a second, separate form actually wanted, or was this about the one
    form serving both broker paths?
-3. Box 3/3A/3B restructure above is PROPOSED, needs a final yes before it
-   replaces the current live flow.
+3. Box 3/3A/3B restructure above is BUILT 2026-08-07 (Izza) in
+   `whatsapp-webhook` + a `bot_stage` CHECK-constraint migration. NOT yet
+   deployed: apply migration `20260807010000_bot_stage_trader_status.sql`
+   FIRST, then deploy the webhook (Muhammad's laptop, `--no-verify-jwt`).
+   Deploying before the migration makes the first "Start Trading" tap throw
+   a constraint violation - same apply-migration-first ordering as the
+   delivery_status column.
 4. Design Q4, the IB-switch walkthrough - this is the top priority per
    Muhammad, but the actual broker-specific steps (Exness and XM's real
    process for switching an account's partner code) are not known yet.

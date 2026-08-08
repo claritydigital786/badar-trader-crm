@@ -55,6 +55,7 @@ REMAINING_TODOS.md.
 | Item | What is left | Whose action |
 | --- | --- | --- |
 | Send an approved template from the inbox | Frontend + `template` branch in `send-wa-message` built, deliberately one commit behind live (can't send until Meta approves a template anyway). Deploy when a template is approved | Deploy `send-wa-message` + Meta approval |
+| Box 3 bot-flow restructure (new-or-existing account question) | Built 2026-08-07 in `whatsapp-webhook` (read-back verified, untyped-checked). Needs migration `20260807010000` applied FIRST (widens the `bot_stage` CHECK), then a webhook deploy | Muhammad's laptop - apply migration, then deploy |
 | In-app notifications (bell + `notifications` table; the internal teammate-forward now actually alerts the recipient) | Built and demo-verified; migration `20260807000000_notifications.sql` NOT applied, so the bell is empty in live until then | Muhammad - apply migration |
 | Supabase backup script (4x/day to Hostinger) | Built and verified against a local mock; read-only on Supabase. Needs deploying to Badar's Hostinger + the cron set up | Human (Hostinger setup) |
 

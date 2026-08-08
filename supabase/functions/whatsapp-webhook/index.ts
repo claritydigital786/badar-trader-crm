@@ -987,7 +987,8 @@ async function runBotStep(
   // him to the greeting instead of answering, because this check didn't
   // distinguish a real tap from ambiguous typed text.
   const MIDFLOW_RESTART_STAGES = [
-    "awaiting_menu", "awaiting_broker", "awaiting_experience",
+    "awaiting_menu", "awaiting_trader_status", "awaiting_broker",
+    "awaiting_broker_existing", "awaiting_experience",
     "awaiting_traded_before", "awaiting_deposit_confirm", "qualified",
   ];
   const hoursIdle = (Date.now() - lastTouch) / 3600000;
@@ -1033,8 +1034,11 @@ async function runBotStep(
       }
 
       if (choice === "start_trading") {
-        await advanceStage(sb, lead, "awaiting_broker");
-        const r = await sendBrokerCard(to, "Which broker would you like to use?");
+        // BOX 3: ask new-or-existing BEFORE broker choice, so someone who
+        // already has a live Exness/XM account skips straight to the deposit
+        // step instead of being walked through opening an account they have.
+        await advanceStage(sb, lead, "awaiting_trader_status");
+        const r = await sendTraderStatusButtons(to, "Have you already opened a trading account with Exness or XM, or would this be your first time?");
         await logOutbound(sb, lead.id, combineSendLog(r));
         return;
       }
@@ -1057,6 +1061,48 @@ async function runBotStep(
         ]);
         await logOutbound(sb, lead.id, combineSendLog(r1, r2));
       }
+      return;
+    }
+
+    case "awaiting_trader_status": {
+      const status = matchTraderStatus(input);
+      if (!status) {
+        await handleUnmatched(sb, lead, to, input, 2, "new-or-existing answer", () =>
+          sendTraderStatusButtons(to, "Sorry, I didn't catch that. Have you already opened a trading account with Exness or XM, or would this be your first time?"),
+        );
+        return;
+      }
+
+      if (status === "existing") {
+        // BOX 3B: existing account holder - pick a broker, then skip the
+        // experience/traded-before questions and go straight to deposit.
+        await advanceStage(sb, lead, "awaiting_broker_existing");
+        const r = await sendBrokerCard(to, "Which one, Exness or XM, or both?");
+        await logOutbound(sb, lead.id, combineSendLog(r));
+        return;
+      }
+
+      // BOX 3A: first-time trader - unchanged flow from here on
+      // (broker -> experience -> traded-before -> deposit).
+      await advanceStage(sb, lead, "awaiting_broker");
+      const r = await sendBrokerCard(to, "Which broker would you like to use?");
+      await logOutbound(sb, lead.id, combineSendLog(r));
+      return;
+    }
+
+    case "awaiting_broker_existing": {
+      const broker = matchBroker(input);
+      if (!broker) {
+        await handleUnmatched(sb, lead, to, input, 2, "broker choice", () =>
+          sendBrokerCard(to, "Sorry, I didn't catch that. Which one, Exness or XM, or both?"),
+        );
+        return;
+      }
+      // Existing account holder: skip awaiting_experience and
+      // awaiting_traded_before entirely, straight to deposit confirmation.
+      await advanceStage(sb, lead, "awaiting_deposit_confirm", { broker_choice: broker, trader_experience: "experienced" });
+      const rDep = await sendDepositConfirm(to, broker);
+      await logOutbound(sb, lead.id, combineSendLog(rDep));
       return;
     }
 
@@ -1327,8 +1373,14 @@ async function goBack(sb: SupabaseClient, lead: any, to: string, lang: Lang): Pr
     case "awaiting_menu":
       result = await sendMainMenuCard(to, lang);
       break;
+    case "awaiting_trader_status":
+      result = await sendTraderStatusButtons(to, "Sure, have you already opened a trading account with Exness or XM, or would this be your first time?");
+      break;
     case "awaiting_broker":
       result = await sendBrokerCard(to, "Sure, which broker would you like to use?");
+      break;
+    case "awaiting_broker_existing":
+      result = await sendBrokerCard(to, "Sure, which one, Exness or XM, or both?");
       break;
     case "awaiting_experience":
       result = await sendExperienceButtons(to, "No problem, are you new to trading, or already experienced?");
@@ -1485,6 +1537,16 @@ async function sendBrokerCard(to: string, bodyText: string): Promise<SendResult>
   );
 }
 
+// BOX 3 question. Button titles stay <=20 chars per WhatsApp's reply-button
+// limit, so the full question lives in bodyText, not the button labels.
+async function sendTraderStatusButtons(to: string, bodyText: string): Promise<SendResult> {
+  return await sendButtons(to, bodyText, [
+    { id: "trader_existing", title: "I have an account" },
+    { id: "trader_first_time", title: "First time" },
+    { id: "nav_back", title: "Go Back" },
+  ]);
+}
+
 async function sendExperienceButtons(to: string, bodyText: string): Promise<SendResult> {
   return await sendButtons(to, bodyText, [
     { id: "exp_new", title: "New to trading" },
@@ -1569,6 +1631,16 @@ function matchMenuChoice(input: UserInput): "start_trading" | "free_signals" | "
   if (/signal/i.test(input.text)) return "free_signals";
   if (/agent|baat/i.test(input.text)) return "talk_agent";
   if (/faq/i.test(input.text)) return "faqs";
+  return null;
+}
+
+function matchTraderStatus(input: UserInput): "existing" | "first_time" | null {
+  if (input.selectionId === "trader_existing") return "existing";
+  if (input.selectionId === "trader_first_time") return "first_time";
+  // "existing" checked first so "I already have an account" wins over a
+  // stray "new" elsewhere in the sentence.
+  if (/already|existing|\bhave\b|pehle se|purana/i.test(input.text)) return "existing";
+  if (/first|\bnew\b|naya|pehli/i.test(input.text)) return "first_time";
   return null;
 }
 
