@@ -41,15 +41,20 @@ live; **TO BUILD** = safe code work, no live send; **BLOCKED (human/3rd-party)**
 | Reports (stat cards, agent perf, source, monthly trend, financial summary) | Live via RPCs. QA-passed 2026-08-07 |
 | Subscribers, Appointments, Meta Ads read-only analytics | Live |
 
-**Live but UNPROVEN - the current #1 blocker.** Four deploys (delivery ticks v73,
+**Live but not yet proven with a real message.** Four deploys (delivery ticks v73,
 inbound media v74, attachment sending, and the Box 3 restructure 2026-08-08) are all
-live, but **none has been tested against a real message**, because nobody has
-confirmed which WhatsApp number routes to OUR webhook versus WhatChimp's. 3903 is
-on WhatChimp; 6541 was reportedly migrated to us "a day or two ago" but unconfirmed.
-The answer lives in Meta's **App** Dashboard (developers.facebook.com) -> WhatsApp ->
-Configuration -> Webhook, which a Claude session may not open. **Muhammad must check
-this before any real-device test can prove tonight's work.** Full detail in
-REMAINING_TODOS.md.
+live, but none has been exercised by a real WhatsApp message yet.
+
+**HARD RULE on the two numbers (Muhammad, direct, 2026-08-08):**
+- **3903 - NEVER touch it.** It is WhatChimp's / live traffic. No sends, no tests,
+  no operations involving 3903, ever, from any session or laptop.
+- **6541 - the number dedicated to this Supabase CRM.** All real-message testing
+  (Box 3, delivery ticks, media, attachments) goes through **6541 only**.
+
+So the routing question is settled by Muhammad's directive: test on 6541. The only
+thing left to prove the four deploys is for someone to actually send through 6541
+(e.g. tap "Start Trading") and confirm the behaviour - on Muhammad's laptop, him
+present, since it is live traffic.
 
 ### B. READY, WAITING - built and verified, one action from live
 
@@ -80,7 +85,7 @@ webhook-routing question above is settled.
 | --- | --- |
 | Get a WhatsApp template approved by Meta | Meta review. Unblocks template-from-inbox, Follow-ups, and Broadcast Signal |
 | Create two Supabase Auth users (Bilal, Faisal) | A human sets a real password |
-| Confirm which number (3903 vs 6541) routes to OUR webhook | Muhammad checks Meta App Dashboard -> WhatsApp -> Configuration -> Webhook (Claude may not open it). Gates real-testing all of tonight's deploys - the current #1 blocker |
+| Real-message test of the recent deploys | Send through **6541 only** (the CRM's dedicated number per Muhammad, 2026-08-08). **3903 is WhatChimp's - never touch it.** Muhammad's laptop, him present |
 | Meta Lead Ads intake | Meta token needs `leads_retrieval` scope |
 | Any bot/keyword/AI reply going live | Muhammad's decision + WhatChimp automation confirmed OFF + flag flip on his laptop |
 | Syed Hamza | Stays suspended until Muhammad decides (post-CRM) |
