@@ -20,7 +20,15 @@ const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Headers": "*", "Content-Type": "application/json" };
 
 function norm(p: string): string { p = (p || "").trim(); if (!p) return ""; return p.startsWith("+") ? p : "+" + p; }
-const PLATFORMS = ["exness", "dooprime", "course_only", "other"];
+// Anything not in this list is coerced to "other" below. "xm" was missing until
+// 2026-08-08 even though join.html has always offered XM as a broker option, so
+// every XM depositor was silently stored as deposit_platform = "other" - which
+// the leads table renders as an "OTHER" badge and the Dashboard's revenue
+// "By platform" breakdown lumps in with genuinely-unknown brokers. Historical
+// rows are still "other"; only deposits recorded after this deploys read "xm".
+// "dooprime" is kept for historical rows only - Do Prime was dropped from the
+// bot in Phase 16, same as leads.broker_choice.
+const PLATFORMS = ["exness", "xm", "dooprime", "course_only", "other"];
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });

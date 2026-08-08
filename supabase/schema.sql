@@ -1573,3 +1573,103 @@ CREATE INDEX IF NOT EXISTS notifications_recipient_unread_idx
 
 -- ── DONE (Phase 28) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
+
+
+-- ============================================================
+-- Badar Trader CRM - Phase 29 Schema (close the schema drift)
+-- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
+-- ============================================================
+
+-- ── 51. The objects live code writes but this file never defined ──
+-- (2026-08-08) Closes the "schema drift" item from PROJECT_BLUEPRINT.md's
+-- TO BUILD list. One table and six `leads` columns were written by deployed
+-- code on every run while having no definition anywhere in this repo, so
+-- rebuilding from this file alone produced a database where the Comm Log tab,
+-- the deposit/conversion path and the bot's Go Back button all failed on a
+-- missing relation or column.
+--
+-- Everything here is a NO-OP against the live database - all of these objects
+-- already exist there. There is no DROP in this section. Full reasoning, and
+-- the honest note that these definitions are reconstructed from code rather
+-- than dumped from the live catalog, is in the migration file
+-- (20260808000000_schema_drift_backfill.sql). If you have DB access, diff this
+-- against the real catalog and correct it if they differ.
+
+-- communication_logs: the manual/diagnostic log, distinct from
+-- `communications` (the real WhatsApp message stream). It exists because
+-- `communications.type` does not allow 'note' - both conversion-hook and
+-- submit-lead-form hit that constraint for real before switching to this table.
+CREATE TABLE IF NOT EXISTS public.communication_logs (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  lead_id    UUID        NOT NULL REFERENCES public.leads(id) ON DELETE CASCADE,
+  type       TEXT        NOT NULL CHECK (type IN ('note','whatsapp','email','call','sms')),
+  message    TEXT        NOT NULL,
+  created_by UUID        REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON COLUMN public.communication_logs.created_by IS
+  'The staff member who logged this line, or NULL when it was written server-side by an Edge Function (public form submission, send failure) with no signed-in user.';
+
+CREATE INDEX IF NOT EXISTS communication_logs_lead_created_idx
+  ON public.communication_logs (lead_id, created_at DESC);
+
+-- Policies are created only where none exist, rather than the
+-- DROP POLICY IF EXISTS + CREATE POLICY pattern used everywhere else in this
+-- file. Those were written from live definitions; these were reconstructed
+-- from a code comment, so overwriting the live set could silently widen or
+-- narrow who can read customer notes. See the migration file.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'communication_logs'
+  ) THEN
+    CREATE POLICY comm_logs_admin_all ON public.communication_logs
+      FOR ALL USING (public.is_admin())
+      WITH CHECK (public.is_admin());
+
+    CREATE POLICY comm_logs_agent_select_own ON public.communication_logs
+      FOR SELECT USING (
+        EXISTS (
+          SELECT 1 FROM public.leads l
+          WHERE l.id = lead_id AND l.assigned_agent_id = auth.uid()
+        )
+      );
+
+    CREATE POLICY comm_logs_agent_insert_own ON public.communication_logs
+      FOR INSERT WITH CHECK (
+        created_by = auth.uid() AND
+        EXISTS (
+          SELECT 1 FROM public.leads l
+          WHERE l.id = lead_id AND l.assigned_agent_id = auth.uid()
+        )
+      );
+
+    ALTER TABLE public.communication_logs ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
+
+-- leads: the deposit / conversion / bot-history columns.
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS converted_at TIMESTAMPTZ;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS deposit_platform TEXT;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(15,2);
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS deposit_account_ref TEXT;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS bot_stage_history TEXT[] NOT NULL DEFAULT '{}';
+
+COMMENT ON COLUMN public.leads.deposit_platform IS
+  'Broker the deposit was made with, from conversion-hook PLATFORMS (exness, xm, dooprime, course_only, other). Historical rows may read "other" for XM deposits - see the 2026-08-08 conversion-hook fix.';
+
+-- No CHECK on deposit_platform on purpose: the accepted values live in
+-- conversion-hook's PLATFORMS array and have already changed once (Do Prime was
+-- dropped from the bot in Phase 16), so pinning them here would mean a migration
+-- every time that list moves.
+--
+-- bot_stage_history is the bot's Go Back stack. It already had a migration
+-- (20260721000000_bot_back_navigation.sql) but was never written back into this
+-- file, so a rebuild from here alone produced a database where every
+-- advanceStage() write in whatsapp-webhook failed on a missing column.
+
+-- ── DONE (Phase 29) ───────────────────────────────────────────
+-- ═════════════════════════════════════════════════════════════

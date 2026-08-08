@@ -5294,6 +5294,22 @@ async function deleteLeadRecord(leadId, ctx) {
   showToast(`${name} deleted.`);
 }
 
+// Returns an ISO timestamp when a status change should stamp leads.converted_at,
+// or null when it should be left alone. Shared by saveLeadDetail (admin) and
+// agentSaveStatus (agent) so both paths behave identically.
+//
+// Stamps only on the transition INTO converted, and only when the lead is not
+// already stamped - so re-saving an already-converted lead (changing its agent,
+// say) never moves the conversion date, and a lead that came through
+// approveConversion or the conversion-hook Edge Function keeps its original
+// stamp rather than being overwritten by a later manual save.
+function convertedStamp(newStatus, prevStatus, lead) {
+  if (newStatus !== 'converted') return null;
+  if (prevStatus === 'converted') return null;
+  if (lead && lead.converted_at) return null;
+  return new Date().toISOString();
+}
+
 async function saveLeadDetail(leadId, ctx) {
   const status  = document.getElementById('det-status').value;
   const agentId = document.getElementById('det-agent')?.value || null;
@@ -5301,20 +5317,39 @@ async function saveLeadDetail(leadId, ctx) {
   const prevLead = cachedLeads.find(l => l.id === leadId);
   const prevStatus = prevLead?.status;
 
+  // Stamp converted_at when a lead moves INTO converted from this dropdown.
+  // approveConversion() and the conversion-hook Edge Function have always
+  // stamped it, but the status dropdown never did - so any lead converted by
+  // hand here (or by an agent in agentSaveStatus) was left with a NULL
+  // converted_at forever, and no time-to-conversion reporting can ever be
+  // built over a column that is only populated for some conversions.
+  // Only stamped on the transition, and only if not already set, so
+  // re-saving an already-converted lead does not move its conversion date.
+  const convStamp = convertedStamp(status, prevStatus, prevLead);
+
   if (demoMode) {
-    if (prevLead) { prevLead.status = status; prevLead.assigned_agent_id = agentId; }
+    if (prevLead) {
+      prevLead.status = status;
+      prevLead.assigned_agent_id = agentId;
+      if (convStamp) prevLead.converted_at = convStamp;
+    }
     setMsg(msgEl, 'Saved. (demo)', 'ok');
     renderLeadsTable('admin-leads-tbody', cachedLeads, true);
     await openDetail(leadId, ctx);
     return;
   }
 
-  const { error } = await sb.from('leads')
-    .update({ status, assigned_agent_id: agentId || null }).eq('id', leadId);
+  const patch = { status, assigned_agent_id: agentId || null };
+  if (convStamp) patch.converted_at = convStamp;
+  const { error } = await sb.from('leads').update(patch).eq('id', leadId);
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
   setMsg(msgEl, 'Saved.', 'ok');
 
-  if (prevLead) { prevLead.status = status; prevLead.assigned_agent_id = agentId; }
+  if (prevLead) {
+    prevLead.status = status;
+    prevLead.assigned_agent_id = agentId;
+    if (convStamp) prevLead.converted_at = convStamp;
+  }
   renderLeadsTable('admin-leads-tbody', cachedLeads, true);
   await openDetail(leadId, ctx);
 
@@ -5415,23 +5450,34 @@ async function agentSaveStatus(leadId, ctx) {
   const lead     = cachedLeads.find(l => l.id === leadId);
   const prevStatus = lead?.status;
 
+  // Same converted_at stamping as saveLeadDetail - see the comment there.
+  const convStamp = convertedStamp(status, prevStatus, lead);
+
   // Bug found 2026-08-04: no demoMode branch at all - an agent updating a
   // lead's status in demo mode hit a real Supabase call against a fake
   // demo id, surfacing a raw Postgres error ("invalid input syntax for
   // type uuid") directly in the UI instead of the intended save flow.
   if (demoMode) {
-    if (lead) lead.status = status;
+    if (lead) {
+      lead.status = status;
+      if (convStamp) lead.converted_at = convStamp;
+    }
     setMsg(msgEl, 'Status updated. (demo)', 'ok');
     renderLeadsTable('agent-leads-tbody', cachedLeads, false);
     await openDetail(leadId, ctx);
     return;
   }
 
-  const { error } = await sb.from('leads').update({ status }).eq('id', leadId);
+  const patch = { status };
+  if (convStamp) patch.converted_at = convStamp;
+  const { error } = await sb.from('leads').update(patch).eq('id', leadId);
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
   setMsg(msgEl, 'Status updated.', 'ok');
 
-  if (lead) lead.status = status;
+  if (lead) {
+    lead.status = status;
+    if (convStamp) lead.converted_at = convStamp;
+  }
   renderLeadsTable('agent-leads-tbody', cachedLeads, false);
   await openDetail(leadId, ctx);
 

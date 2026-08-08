@@ -5,14 +5,14 @@ deployed, committed, sent, or mutated. Every claim is grounded in repository cod
 committed schema, or safe read-only Supabase CLI metadata. Anything that could not
 be proven from those sources is marked UNVERIFIED with the reason._
 
-_Progress Board below refreshed 2026-08-07 (Izza), on top of the day's newer work
+_Progress Board below refreshed 2026-08-08, on top of 2026-08-07 (Izza) and the day's newer work
 (template-from-inbox, backup script, the deployed bot-takeover fix). The board is
 the at-a-glance layer; sections 1-20 are the evidence behind it. When they disagree,
 trust the board's date and re-check the code._
 
 ---
 
-## Progress Board - live status (updated 2026-08-07)
+## Progress Board - live status (updated 2026-08-08)
 
 The one-screen answer to "what is done and what is left", grouped by what each item
 is actually waiting on - so nothing sits here looking unfinished when it is really
@@ -56,6 +56,7 @@ REMAINING_TODOS.md.
 | --- | --- | --- |
 | Send an approved template from the inbox | Frontend + `template` branch in `send-wa-message` built, deliberately one commit behind live (can't send until Meta approves a template anyway). Deploy when a template is approved | Deploy `send-wa-message` + Meta approval |
 | Box 3 bot-flow restructure (new-or-existing account question) | Built 2026-08-07 in `whatsapp-webhook` (read-back verified, untyped-checked). **Migration `20260807010000` (bot_stage CHECK widened) APPLIED to live 2026-08-08 via SQL Editor.** Only the webhook deploy remains | Muhammad's laptop - deploy `whatsapp-webhook --no-verify-jwt` |
+| XM deposits recorded as "other" (conversion-hook) | `join.html` offers XM but conversion-hook's PLATFORMS whitelist lacked `xm`, so every XM depositor was stored as `deposit_platform = 'other'` and the Dashboard's revenue "By platform" breakdown mislabelled them. One-line fix committed 2026-08-08, additive only. Historical rows stay `other` | Muhammad's laptop - deploy `conversion-hook` |
 | Supabase backup script (4x/day to Hostinger) | Files uploaded to Hostinger (`orange-moose-457260.hostingersite.com`, account root, not `public_html`) and all 4 cron jobs created (`0 0/6/12/18 * * *`). Only `config.php` (real project URL + service role key) is left, and only Muhammad can create it | Muhammad - create `config.php` |
 
 **B3/B4 (Muhammad asked directly) - deployed.** These are the WhatsApp delivery ticks
@@ -70,9 +71,14 @@ webhook-routing question above is settled.
 | Item | Notes |
 | --- | --- |
 | Payroll persistence | Client-side calculator over an empty transaction set in live mode; needs a real source + persistence |
-| Close schema drift | `communication_logs` and several `leads` deposit/conversion columns are written by code but missing from `schema.sql` |
 | Webhook request-signature verification | Both public webhooks accept unsigned requests |
-| `converted_at` stamping hole | `saveLeadDetail` / `agentSaveStatus` can set a lead Converted without stamping `converted_at` |
+
+**Done off this list 2026-08-08:** schema drift is closed (`communication_logs` +
+six `leads` columns now in `schema.sql` Phase 29 and a migration, verified by
+building the database for real on Postgres 16), and the `converted_at` stamping
+hole is fixed in `index.html` (verified in a browser in demo mode). Both are
+repo-side only - neither needs anything applied or deployed to live, though the
+conversion-hook XM fix below does.
 
 ### D. BLOCKED - human or third-party, no Claude session does these
 
@@ -262,9 +268,9 @@ are placeholder stamps for changes applied by hand).
 | Object | Type | Purpose | Important relationships / side effects | Verification |
 | --- | --- | --- | --- | --- |
 | `profiles` | table | One row per staff auth user | `role` admin/agent, `is_suspended`, `phone` (staff WhatsApp number read by the agent rotation) | schema.sql:8-23; `phone` in migration `20260806010000_profiles_phone.sql` |
-| `leads` | table | Every lead/client (there is no separate clients table) | Bot state (`bot_stage`, `language`, `broker_choice`, `trader_experience`), handoff (`needs_human`, `handoff_reason`, `is_unread`), agent-ping fields, `manual_tier`, financial (`account_balance`, `kyc_status`) | schema.sql:26-43, 526-576, 951-954; `bot_stage_history TEXT[]` only in migration `20260721000000_bot_back_navigation.sql:7` |
+| `leads` | table | Every lead/client (there is no separate clients table) | Bot state (`bot_stage`, `language`, `broker_choice`, `trader_experience`), handoff (`needs_human`, `handoff_reason`, `is_unread`), agent-ping fields, `manual_tier`, financial (`account_balance`, `kyc_status`) | schema.sql:26-43, 526-576, 951-954; `bot_stage_history` plus the deposit/conversion columns backfilled into schema.sql Phase 29 (2026-08-08) |
 | `communications` | table | Per-lead message log (whatsapp/email/call/sms) | `wa_message_id` (correlates status callbacks), `attachment_path`, `delivery_status` | schema.sql:344-353, 689, 935; `delivery_status` in migration `20260806020000_communications_delivery_status.sql` |
-| `communication_logs` | table | Manual log lines; written by conversion-hook, submit-lead-form, send-wa-message | NO `CREATE TABLE` in repo (drift, see section 17) | UNVERIFIED - not defined in repo |
+| `communication_logs` | table | Manual log lines; written by conversion-hook, submit-lead-form, send-wa-message | Drift closed 2026-08-08: now defined in the repo. Definition is reconstructed from code, not dumped from live | schema.sql Phase 29; migration `20260808000000_schema_drift_backfill.sql`. Applied to a real Postgres 16 and exercised, not diffed against live |
 | `lead_activity` | table | Per-lead activity (call/whatsapp/email/note) | Written by Log Activity and reassignment traces | schema.sql:46-54 |
 | `audit_log` | table | Insert/update/delete audit of leads | Populated by `audit_leads()` trigger | schema.sql:57-66, 124-144 |
 | `settings` | table | key/value (WA token, meta_token, openai_api_key, admin number, model) | Read by webhook and frontend; admin-only RLS | schema.sql:69-74 |
@@ -578,8 +584,8 @@ Safe code work that can be done now (no live send, no deploy needed to build):
   ordered rollout below).
 - Payroll: wire a real transaction source and persist results (currently computes
   commission against an empty set in live mode).
-- Add `CREATE TABLE communication_logs` and the missing `leads` deposit/conversion
-  columns to `schema.sql`/a migration to close schema drift (section 17).
+- DONE 2026-08-08: `CREATE TABLE communication_logs` and the missing `leads`
+  deposit/conversion columns are now in `schema.sql` (Phase 29) and a migration.
 - Add request-signature verification to the two public webhooks.
 
 Code work blocked by another implementation:
@@ -620,13 +626,17 @@ Do not assume this order if a live DB check reveals a different reality.
 ## 17. Risks and Technical Debt
 
 Supported by evidence:
-- Schema drift (high): `communication_logs` is written by three functions
-  (conversion-hook, submit-lead-form, send-wa-message) but has no `CREATE TABLE` in
-  the repo; `leads.deposit_platform/deposit_amount/deposit_account_ref/converted_at/
-  verified` are written by conversion-hook / submit-lead-form but never defined in
-  the repo; `bot_stage_history` lives only in a migration, not `schema.sql`. The
-  committed schema is behind the live DB, so rebuilding from `schema.sql` yields a
-  broken database.
+- Schema drift (was high) - CLOSED 2026-08-08. `communication_logs` and the six
+  `leads` columns (`converted_at`, `verified`, `deposit_platform`, `deposit_amount`,
+  `deposit_account_ref`, `bot_stage_history`) are now defined in `schema.sql`
+  (Phase 29) and in migration `20260808000000_schema_drift_backfill.sql`. Proven
+  rather than asserted: a database built from the previous `schema.sql` on a real
+  Postgres 16 fails conversion-hook's own deposit UPDATE on the missing `verified`
+  column; the same writes all succeed after. What is still UNVERIFIED is whether
+  these reconstructed definitions match the live column types and RLS policy text -
+  no session here has database credentials. The migration is deliberately a no-op
+  against live (guarded statements, no DROP), so it changes nothing there; its
+  value is that a rebuild from the repo now works.
 - Deployed-vs-migration mismatch (high): webhook v70 writes `communications.
   delivery_status`, but whether that column exists live is UNVERIFIED. If it does
   not, status writes fail silently.

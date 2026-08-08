@@ -75,10 +75,13 @@ $tables = [
     'follow_up_sends',
     'signal_broadcasts',
     'ai_agents',
-    // Referenced by index.html but not defined in schema.sql (known drift,
-    // see PROJECT_BLUEPRINT.md) - attempted defensively. A missing table
-    // just logs a skip below, it does not fail the whole run.
     'communication_logs',
+    // Added to schema.sql on 2026-08-07 (Phase 28) but missed by this list.
+    // Its migration is parked, so today every run logs a skip for it - which is
+    // the point: the day it is applied, it is already covered rather than
+    // silently absent from every backup. A missing table just logs a skip
+    // below, it does not fail the whole run.
+    'notifications',
 ];
 
 /**
