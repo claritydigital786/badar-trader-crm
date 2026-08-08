@@ -56,7 +56,6 @@ REMAINING_TODOS.md.
 | --- | --- | --- |
 | Send an approved template from the inbox | Frontend + `template` branch in `send-wa-message` built, deliberately one commit behind live (can't send until Meta approves a template anyway). Deploy when a template is approved | Deploy `send-wa-message` + Meta approval |
 | Box 3 bot-flow restructure (new-or-existing account question) | Built 2026-08-07 in `whatsapp-webhook` (read-back verified, untyped-checked). Needs migration `20260807010000` applied FIRST (widens the `bot_stage` CHECK), then a webhook deploy | Muhammad's laptop - apply migration, then deploy |
-| In-app notifications (bell + `notifications` table; the internal teammate-forward now actually alerts the recipient) | Built and demo-verified; migration `20260807000000_notifications.sql` NOT applied, so the bell is empty in live until then | Muhammad - apply migration |
 | Supabase backup script (4x/day to Hostinger) | Built and verified against a local mock; read-only on Supabase. Needs deploying to Badar's Hostinger + the cron set up | Human (Hostinger setup) |
 
 **B3/B4 (Muhammad asked directly) - deployed.** These are the WhatsApp delivery ticks
@@ -99,8 +98,9 @@ placeholders. AI Signals compute for real but delivery is manual.
 Approved deposits" card sums every lead's `account_balance` while the Financial
 Summary's "Total Deposits" comes from an RPC - these can disagree in live (flagged
 2026-08-07). (Two earlier open questions are now resolved: attachment sending is
-confirmed live, and the teammate-forward notification is built - in-app notifications,
-row B, pending the migration.)
+confirmed live, and the teammate-forward notification was built - though Muhammad has
+since parked the in-app notifications work, so it is intentionally off this board;
+the code and migration stay in the repo, see REMAINING_TODOS.)
 
 ---
 
