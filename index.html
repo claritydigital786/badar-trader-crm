@@ -5302,19 +5302,29 @@ async function saveLeadDetail(leadId, ctx) {
   const prevStatus = prevLead?.status;
 
   if (demoMode) {
-    if (prevLead) { prevLead.status = status; prevLead.assigned_agent_id = agentId; }
+    if (prevLead) {
+      prevLead.status = status; prevLead.assigned_agent_id = agentId;
+      if (status === 'converted' && !prevLead.converted_at) prevLead.converted_at = new Date().toISOString();
+    }
     setMsg(msgEl, 'Saved. (demo)', 'ok');
     renderLeadsTable('admin-leads-tbody', cachedLeads, true);
     await openDetail(leadId, ctx);
     return;
   }
 
-  const { error } = await sb.from('leads')
-    .update({ status, assigned_agent_id: agentId || null }).eq('id', leadId);
+  const update = { status, assigned_agent_id: agentId || null };
+  // Stamp converted_at when a lead first moves to Converted, so revenue and
+  // time-to-convert reports don't miss leads set straight to Converted from
+  // the dropdown (only approveConversion stamped it before - see HANDOFF).
+  if (status === 'converted' && !prevLead?.converted_at) update.converted_at = new Date().toISOString();
+  const { error } = await sb.from('leads').update(update).eq('id', leadId);
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
   setMsg(msgEl, 'Saved.', 'ok');
 
-  if (prevLead) { prevLead.status = status; prevLead.assigned_agent_id = agentId; }
+  if (prevLead) {
+    prevLead.status = status; prevLead.assigned_agent_id = agentId;
+    if (update.converted_at) prevLead.converted_at = update.converted_at;
+  }
   renderLeadsTable('admin-leads-tbody', cachedLeads, true);
   await openDetail(leadId, ctx);
 
@@ -5420,18 +5430,26 @@ async function agentSaveStatus(leadId, ctx) {
   // demo id, surfacing a raw Postgres error ("invalid input syntax for
   // type uuid") directly in the UI instead of the intended save flow.
   if (demoMode) {
-    if (lead) lead.status = status;
+    if (lead) {
+      lead.status = status;
+      if (status === 'converted' && !lead.converted_at) lead.converted_at = new Date().toISOString();
+    }
     setMsg(msgEl, 'Status updated. (demo)', 'ok');
     renderLeadsTable('agent-leads-tbody', cachedLeads, false);
     await openDetail(leadId, ctx);
     return;
   }
 
-  const { error } = await sb.from('leads').update({ status }).eq('id', leadId);
+  const update = { status };
+  if (status === 'converted' && !lead?.converted_at) update.converted_at = new Date().toISOString();
+  const { error } = await sb.from('leads').update(update).eq('id', leadId);
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
   setMsg(msgEl, 'Status updated.', 'ok');
 
-  if (lead) lead.status = status;
+  if (lead) {
+    lead.status = status;
+    if (update.converted_at) lead.converted_at = update.converted_at;
+  }
   renderLeadsTable('agent-leads-tbody', cachedLeads, false);
   await openDetail(leadId, ctx);
 

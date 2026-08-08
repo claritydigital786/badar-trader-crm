@@ -37,6 +37,7 @@ live; **TO BUILD** = safe code work, no live send; **BLOCKED (human/3rd-party)**
 | Agent attachment sending (JPG/PNG/PDF) | Live - confirmed present in the deployed `send-wa-message` (carried in by the bot-takeover deploy; verified by downloading the live function). **Not yet tested with a real send - routing blocker below** |
 | Box 3 bot-flow restructure (new-or-existing account question) | Migration applied + `whatsapp-webhook` deployed 2026-08-08 (Muhammad's laptop, `--no-verify-jwt`). Confirmed live via `supabase functions list`: **v75, ACTIVE, updated 2026-08-08 07:50**. **Deploy proven; not yet tested with a real "Start Trading" message - routing blocker below** |
 | Mark a conversation unread from the inbox | LIVE - no migration, no deploy needed (`leads.is_unread` already exists); 📩 button in the chat header |
+| `converted_at` reporting fix | `saveLeadDetail` + `agentSaveStatus` now stamp `converted_at` when a lead first moves to Converted (was only `approveConversion`). Frontend, demo-verified 2026-08-08, ships on push |
 | `send-wa-message` bot-takeover-flag fix | DEPLOYED 2026-08-07 (Muhammad's laptop), byte-identical to source |
 | Reports (stat cards, agent perf, source, monthly trend, financial summary) | Live via RPCs. QA-passed 2026-08-07 |
 | Subscribers, Appointments, Meta Ads read-only analytics | Live |
@@ -91,7 +92,6 @@ webhook-routing question above is settled.
 | Payroll persistence | Client-side calculator over an empty transaction set in live mode; needs a real source + persistence |
 | Close schema drift | `communication_logs` and several `leads` deposit/conversion columns are written by code but missing from `schema.sql` |
 | Webhook request-signature verification | Both public webhooks accept unsigned requests |
-| `converted_at` stamping hole | `saveLeadDetail` / `agentSaveStatus` can set a lead Converted without stamping `converted_at` |
 
 ### D. BLOCKED - human or third-party, no Claude session does these
 
