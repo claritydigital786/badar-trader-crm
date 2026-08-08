@@ -51,6 +51,14 @@ live, but none has been exercised by a real WhatsApp message yet.
 - **6541 - the number dedicated to this Supabase CRM.** All real-message testing
   (Box 3, delivery ticks, media, attachments) goes through **6541 only**.
 
+**NEXT CONCRETE STEP (view-only, no sends, no cost):** from a personal phone, send a
+message to **6541** and confirm a new lead/conversation appears in the CRM Omnichannel
+Inbox (proves inbound routing to our webhook); then send a voice note + PDF to 6541 and
+confirm they show as playable/openable attachments (proves the v74 media-storage
+deploy). Note this does NOT show the Box 3 question or any bot reply - those are gated
+off (`BOT_REPLIES_ENABLED = false`); seeing Box 3 fire is a separate, deliberate call
+to enable bot replies, only after confirming WhatChimp is not also replying on 6541.
+
 So the routing question is settled by Muhammad's directive: test on 6541. The only
 thing left to prove the four deploys is for someone to actually send through 6541
 (e.g. tap "Start Trading") and confirm the behaviour - on Muhammad's laptop, him
