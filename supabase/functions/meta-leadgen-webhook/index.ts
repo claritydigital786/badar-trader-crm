@@ -35,6 +35,79 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "
 const META_LEADGEN_VERIFY_TOKEN = Deno.env.get("META_LEADGEN_VERIFY_TOKEN") ?? "";
 const GRAPH_VERSION = "v21.0";
 
+// ── Meta webhook signature verification (X-Hub-Signature-256) ─────────────
+// Same change, same reasoning and same three states as whatsapp-webhook - see
+// the long comment there. In short: until 2026-08-08 this endpoint accepted any
+// unsigned POST, so anyone who learned the URL could inject fabricated leads
+// straight into the CRM (and each insert fires the lead_created automation
+// trigger, so a fake lead can also trigger a real outbound message).
+//
+//   1. META_APP_SECRET unset  -> verification skipped, behaviour unchanged.
+//   2. Secret set, not enforced -> checked and logged, request still processed.
+//   3. Secret set and META_SIGNATURE_ENFORCED = "true" -> 401 on bad signature.
+//
+// Both webhooks read the same two variables, because both are subscriptions on
+// the same Meta app and therefore share one app secret.
+const META_APP_SECRET = Deno.env.get("META_APP_SECRET") ?? "";
+const META_SIGNATURE_ENFORCED =
+  (Deno.env.get("META_SIGNATURE_ENFORCED") ?? "").trim().toLowerCase() === "true";
+
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+async function hmacSha256Hex(secret: string, message: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function checkMetaSignature(
+  rawBody: string,
+  header: string | null,
+): Promise<{ allowed: boolean; reason: string }> {
+  if (!META_APP_SECRET) {
+    return { allowed: true, reason: "META_APP_SECRET not set - verification skipped" };
+  }
+
+  let valid = false;
+  let detail: string;
+  const prefix = "sha256=";
+
+  if (!header) {
+    detail = "no X-Hub-Signature-256 header";
+  } else if (!header.startsWith(prefix)) {
+    detail = "signature header is not sha256=";
+  } else {
+    const provided = header.slice(prefix.length).trim().toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(provided)) {
+      detail = "signature is not a 64-character hex digest";
+    } else {
+      const expected = await hmacSha256Hex(META_APP_SECRET, rawBody);
+      valid = timingSafeEqualHex(provided, expected);
+      detail = valid ? "signature valid" : "signature mismatch";
+    }
+  }
+
+  if (valid) return { allowed: true, reason: detail };
+  if (!META_SIGNATURE_ENFORCED) {
+    return { allowed: true, reason: `AUDIT ONLY, would have been rejected: ${detail}` };
+  }
+  return { allowed: false, reason: detail };
+}
+
 function makeSupabase(): SupabaseClient {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 }
@@ -86,8 +159,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
 
+  // Read the raw body once - the signature is over these exact bytes, so it
+  // has to be checked before the JSON is parsed. Wrapped because this read
+  // used to sit inside the try below as part of req.json(), and an unreadable
+  // body should still produce the same clean error response it always did.
+  let rawBody: string;
   try {
-    const payload = await req.json();
+    rawBody = await req.text();
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ ok: false, error: `could not read request body: ${e instanceof Error ? e.message : String(e)}` }),
+      { status: 500 },
+    );
+  }
+
+  const sig = await checkMetaSignature(rawBody, req.headers.get("x-hub-signature-256"));
+  if (!sig.allowed) {
+    console.error(`Meta leadgen webhook: rejected unverified request - ${sig.reason}`);
+    return new Response("Invalid signature", { status: 401 });
+  }
+  if (META_APP_SECRET) console.log(`Meta leadgen webhook signature: ${sig.reason}`);
+
+  try {
+    const payload = JSON.parse(rawBody);
     const sb = makeSupabase();
     const metaToken = await getMetaToken(sb);
     const report: Record<string, unknown> = {};

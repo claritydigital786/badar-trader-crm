@@ -15,6 +15,98 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "
 
 const GRAPH_VERSION = "v21.0";
 
+// ── Meta webhook signature verification (X-Hub-Signature-256) ─────────────
+// Until 2026-08-08 this endpoint accepted ANY unsigned POST, so anyone who
+// learned the URL could fabricate inbound customer messages, delivery statuses
+// and leads. The GET hub.verify_token handshake in the handler below only
+// protects the subscription step; it does nothing for the POSTs that follow.
+//
+// Meta signs every webhook POST with an HMAC-SHA256 of the raw request body,
+// keyed on the Meta app secret, in the X-Hub-Signature-256 header.
+//
+// THREE STATES ON PURPOSE, so deploying this cannot break live lead capture:
+//   1. META_APP_SECRET unset (the state on deploy day) - verification is
+//      skipped entirely and every request is processed exactly as before.
+//   2. Secret set, META_SIGNATURE_ENFORCED unset or "false" - AUDIT MODE:
+//      the signature is checked and the result logged, but the request is
+//      still processed either way.
+//   3. Secret set and META_SIGNATURE_ENFORCED = "true" - unsigned or
+//      mismatched requests are rejected with 401.
+//
+// Go through them in that order: deploy, set the secret, watch the function
+// logs until real Meta traffic is verifying cleanly, and only then enforce.
+// Jumping straight to state 3 risks silently dropping every real lead if the
+// secret is wrong, which is the one failure this endpoint must never have.
+const META_APP_SECRET = Deno.env.get("META_APP_SECRET") ?? "";
+const META_SIGNATURE_ENFORCED =
+  (Deno.env.get("META_SIGNATURE_ENFORCED") ?? "").trim().toLowerCase() === "true";
+
+// Compares two hex digests without leaking, through timing, how much of the
+// prefix matched. Length is compared first and returned early on purpose: the
+// digest length is fixed and public, so it reveals nothing an attacker does
+// not already know.
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+async function hmacSha256Hex(secret: string, message: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+// Returns whether the request should be processed, plus a reason for the log.
+// `rawBody` must be the exact body text as received - the signature is over
+// those bytes, so it cannot be recomputed from a parsed and re-serialised
+// object (key order and whitespace would differ).
+async function checkMetaSignature(
+  rawBody: string,
+  header: string | null,
+): Promise<{ allowed: boolean; reason: string }> {
+  if (!META_APP_SECRET) {
+    return { allowed: true, reason: "META_APP_SECRET not set - verification skipped" };
+  }
+
+  let valid = false;
+  let detail: string;
+  const prefix = "sha256=";
+
+  if (!header) {
+    detail = "no X-Hub-Signature-256 header";
+  } else if (!header.startsWith(prefix)) {
+    detail = "signature header is not sha256=";
+  } else {
+    const provided = header.slice(prefix.length).trim().toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(provided)) {
+      detail = "signature is not a 64-character hex digest";
+    } else {
+      const expected = await hmacSha256Hex(META_APP_SECRET, rawBody);
+      valid = timingSafeEqualHex(provided, expected);
+      detail = valid ? "signature valid" : "signature mismatch";
+    }
+  }
+
+  if (valid) return { allowed: true, reason: detail };
+  if (!META_SIGNATURE_ENFORCED) {
+    // Audit mode: say clearly that this WOULD have been rejected, so the log
+    // is actionable rather than just noisy.
+    return { allowed: true, reason: `AUDIT ONLY, would have been rejected: ${detail}` };
+  }
+  return { allowed: false, reason: detail };
+}
+
 // How long before a confusion/inactivity handoff is considered stale. A lead
 // who returns after this many hours has their needs_human flag cleared and the
 // bot flow resumed (explicit agent requests are exempt - see runBotStep).
@@ -162,8 +254,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   if (req.method === "POST") {
+    // Read the raw body once. The signature is computed over these exact
+    // bytes, so it has to be checked before the JSON is parsed.
+    //
+    // The read is wrapped because it used to sit inside the try below as part
+    // of req.json(): a body that cannot even be read must still be answered
+    // with 200, or Meta retries a request that will never parse.
+    let rawBody: string;
     try {
-      const body = await req.json();
+      rawBody = await req.text();
+    } catch (err) {
+      console.error("WhatsApp webhook: could not read request body:", err);
+      return new Response("OK", { status: 200 });
+    }
+
+    const sig = await checkMetaSignature(rawBody, req.headers.get("x-hub-signature-256"));
+    if (!sig.allowed) {
+      console.error(`WhatsApp webhook: rejected unverified request - ${sig.reason}`);
+      return new Response("Invalid signature", { status: 401 });
+    }
+    if (META_APP_SECRET) console.log(`WhatsApp webhook signature: ${sig.reason}`);
+
+    try {
+      const body = JSON.parse(rawBody);
       await handleIncomingMessage(body);
     } catch (err) {
       console.error("Error processing WhatsApp webhook payload:", err);

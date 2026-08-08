@@ -56,6 +56,7 @@ REMAINING_TODOS.md.
 | --- | --- | --- |
 | Send an approved template from the inbox | Frontend + `template` branch in `send-wa-message` built, deliberately one commit behind live (can't send until Meta approves a template anyway). Deploy when a template is approved | Deploy `send-wa-message` + Meta approval |
 | Box 3 bot-flow restructure (new-or-existing account question) | Built 2026-08-07 in `whatsapp-webhook` (read-back verified, untyped-checked). **Migration `20260807010000` (bot_stage CHECK widened) APPLIED to live 2026-08-08 via SQL Editor.** Only the webhook deploy remains | Muhammad's laptop - deploy `whatsapp-webhook --no-verify-jwt` |
+| Webhook signature verification (both public webhooks) | Meta `X-Hub-Signature-256` verification built 2026-08-08. Deploying alone changes nothing - with no secret set it is skipped. Then a staged rollout: set `META_APP_SECRET` (audit mode, logs only), confirm real traffic verifies, then `META_SIGNATURE_ENFORCED=true`. Order matters: enforcing with a wrong secret would reject every real lead | Muhammad - deploy both, then the app secret from Meta |
 | XM deposits recorded as "other" (conversion-hook) | `join.html` offers XM but conversion-hook's PLATFORMS whitelist lacked `xm`, so every XM depositor was stored as `deposit_platform = 'other'` and the Dashboard's revenue "By platform" breakdown mislabelled them. One-line fix committed 2026-08-08, additive only. Historical rows stay `other` | Muhammad's laptop - deploy `conversion-hook` |
 | Supabase backup script (4x/day to Hostinger) | Files uploaded to Hostinger (`orange-moose-457260.hostingersite.com`, account root, not `public_html`) and all 4 cron jobs created (`0 0/6/12/18 * * *`). Only `config.php` (real project URL + service role key) is left, and only Muhammad can create it | Muhammad - create `config.php` |
 
@@ -71,9 +72,10 @@ webhook-routing question above is settled.
 | Item | Notes |
 | --- | --- |
 | Payroll persistence | Client-side calculator over an empty transaction set in live mode; needs a real source + persistence |
-| Webhook request-signature verification | Both public webhooks accept unsigned requests |
 
-**Done off this list 2026-08-08:** schema drift is closed (`communication_logs` +
+**Done off this list 2026-08-08:** webhook signature verification is built (moved
+to READY, WAITING - it needs a deploy plus a staged secret rollout), schema drift
+is closed (`communication_logs` +
 six `leads` columns now in `schema.sql` Phase 29 and a migration, verified by
 building the database for real on Postgres 16), and the `converted_at` stamping
 hole is fixed in `index.html` (verified in a browser in demo mode). Both are
@@ -637,6 +639,12 @@ Supported by evidence:
   no session here has database credentials. The migration is deliberately a no-op
   against live (guarded statements, no DROP), so it changes nothing there; its
   value is that a rebuild from the repo now works.
+- Unsigned webhooks (was high) - CODE FIXED 2026-08-08, NOT YET ENFORCED. Both
+  public webhooks accepted any unsigned POST; only the GET `hub.verify_token`
+  handshake was ever checked, which protects the subscription step and nothing
+  after it. Both now verify `X-Hub-Signature-256`, but deliberately stay inert
+  until `META_APP_SECRET` is set, and only reject once `META_SIGNATURE_ENFORCED`
+  is true. Until those two steps happen live, the exposure is unchanged.
 - Deployed-vs-migration mismatch (high): webhook v70 writes `communications.
   delivery_status`, but whether that column exists live is UNVERIFIED. If it does
   not, status writes fail silently.

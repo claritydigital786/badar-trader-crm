@@ -42,6 +42,21 @@ Nothing reads `converted_at` yet, so this changes no screen today. It is worth d
 
 **Untouched on purpose:** Conversations, Comm Log, every live conversation and campaign, all seven send flags, and the parked notifications migration.
 
+**5. Webhook request-signature verification built** (same session, continued) - the next item on the same safe list. **Both public webhooks accepted any unsigned POST.** The GET `hub.verify_token` handshake only ever protected the subscription step; every POST after it was unauthenticated, so anyone who learned a URL could inject fabricated inbound customer messages, fake delivery statuses, or fake leads. The leadgen one is the sharper edge: a fabricated lead insert also fires the `lead_created` automation trigger, so it can cause a real outbound WhatsApp message. Both now verify Meta's `X-Hub-Signature-256` (HMAC-SHA256 over the raw request body, keyed on the Meta app secret).
+
+**Built in three states on purpose, and the order of the rollout is the whole point:**
+1. **`META_APP_SECRET` unset** - the state on deploy day. Verification is skipped entirely and every request is processed exactly as it is today, so **deploying this on its own changes nothing and cannot break lead capture.**
+2. **Secret set, not enforced - AUDIT MODE.** Signatures are checked and the result written to the function log, but every request is still processed. A failure logs `AUDIT ONLY, would have been rejected: <reason>`.
+3. **Secret set and `META_SIGNATURE_ENFORCED=true`** - unsigned or mismatched POSTs get a 401.
+
+Going straight to state 3 with a wrong secret would silently reject every real lead, which is the one failure this endpoint must never have. The exact four-step rollout, including which parts only Muhammad can do (fetching the app secret from Meta - a Claude session may not open Meta, standing rule), is written out in REMAINING_TODOS.
+
+**Verified with real HMAC signatures, and the actual handlers, not just the helper.** 34 checks on the verification function itself, run against genuine signatures: valid signature accepted; tampered body (one added space) rejected; signature made with the wrong secret rejected; missing header, legacy `sha1=` header, non-hex digest and short digest all rejected; uppercase hex accepted; a non-ASCII body (Urdu text plus an emoji) verified correctly; and the digest compared byte for byte against Node's own `crypto` implementation. Then 22 more checks running the **real `Deno.serve` handler** out of each file against simulated requests, which is what confirms the surrounding behaviour did not shift: the GET verify handshake still returns the challenge, a wrong verify token is still 403, an unsupported method is still 405, a replayed signature on a different body is rejected, and malformed JSON still returns the same status each endpoint always returned (200 for the WhatsApp one so Meta does not retry, 500 for leadgen).
+
+**One real regression I introduced and caught before committing:** verifying the signature means reading the raw body with `req.text()` instead of `req.json()`, and I first placed that read *outside* the existing `try`. A body that could not be read would then have become an unhandled error and a 500 - and on the WhatsApp webhook a 500 makes Meta retry a request that will never parse. Both reads are now wrapped so the old status codes hold, which is what the malformed-JSON checks above are pinning down.
+
+**Not `deno check`ed** - no Deno in this environment and the proxy blocks installing it. Syntax-parsed clean with the TypeScript compiler, along with all nine functions.
+
 ---
 
 ## 2026-08-07 (late) - Account switch handoff (weekly limit approaching on this account)
