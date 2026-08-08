@@ -14,6 +14,16 @@ trust the board's date and re-check the code._
 
 ## Progress Board - live status (updated 2026-08-08)
 
+**New this update:** `docs/LEAD_LIFECYCLE_AND_PAYROLL.md` answers the payroll
+question (conversion becomes an observed event, not a status an agent picks, so
+Badar approves exceptions and a monthly sheet rather than individual leads); a
+Settings hub tab; a Bot Manager visual pass; the sidebar consolidated into 5
+collapsible groups; and four layout bugs fixed that only a screenshot could find
+(Bot Manager's right edge was clipped and unreachable, table action columns were
+pushed off, four tabs overflowed at 375px, and Pipeline Overview rendered blank
+when Chart.js failed to load). All 22 admin sections now verified at 1440px and
+375px in both themes: 0 overflow, 0 console errors.
+
 The one-screen answer to "what is done and what is left", grouped by what each item
 is actually waiting on - so nothing sits here looking unfinished when it is really
 waiting on a single deploy or a Meta approval. Legend: **LIVE** = working on real

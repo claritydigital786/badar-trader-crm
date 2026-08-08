@@ -608,7 +608,17 @@
     .subtab-content.active { display: block; }
 
     /* ── Bot Manager ── */
-    .bm-layout { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
+    /* minmax(0, 1fr), not 1fr. A `1fr` grid track refuses to shrink below its
+       content's min-content width, and the widest things in the right-hand
+       column (the 7-across sub-tab row, and the rules tables) are wider than
+       the space available - so the whole column was pushed past the viewport
+       and the right edge was CLIPPED, not scrollable. Found 2026-08-08 by
+       screenshotting the tab rather than by reading the CSS: the Bot Settings
+       button, the Webhook Workflows sub-tab and the Edit/Active controls on
+       every table row were all cut off the screen with no way to reach them.
+       That is a large part of why this screen felt broken. */
+    .bm-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 18px; align-items: start; }
+    .bm-main { min-width: 0; }
     .bm-bots { background: #fff; border: 1px solid #e5e8ef; border-radius: 10px; padding: 16px; }
     .bm-bots-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
     .bm-bots-head h4 { margin: 0; font-size: 0.95rem; }
@@ -680,6 +690,170 @@
     @media (max-width: 900px) {
       .bm-layout { grid-template-columns: 1fr; }
     }
+
+    /* ── Bot Manager: brighter field labels + stronger primary actions ──
+       Muhammad, 2026-08-08: "look at the field names, how dull are they
+       looking... brighten all of the field names with yellow or gold", and
+       the Send/primary buttons read as too small and weak.
+
+       The global `label` rule is grey #64748b at 0.75rem, which sits almost
+       invisible against a white card and reads as a disabled field. Gold is
+       the CRM's own brand colour (#d4a843 / #b8862e), so this makes the form
+       look deliberate rather than borrowed.
+
+       Scoped to Bot Manager on purpose rather than changed globally: the
+       login card and the other 20-odd tabs keep the exact look already
+       signed off. Extending it app-wide later is one selector. */
+    #admin-tab-bot-manager label {
+      color: #b8862e;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+    }
+    [data-theme="dark"] #admin-tab-bot-manager label { color: #d4a843; }
+
+    /* A gold rule under each form heading, so a long form reads as sections
+       instead of one undifferentiated wall of grey. */
+    #admin-tab-bot-manager .card > h4 {
+      color: #0f172a;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #d4a843;
+      display: inline-block;
+    }
+    [data-theme="dark"] #admin-tab-bot-manager .card > h4 { color: #f1f5f9; }
+
+    /* Primary actions in Bot Manager: gold, and big enough to look like the
+       thing you are meant to press. */
+    #admin-tab-bot-manager .btn-primary {
+      background: linear-gradient(180deg, #e0b755 0%, #d4a843 100%);
+      color: #241a05;
+      padding: 13px 26px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      box-shadow: 0 2px 8px rgba(212,168,67,.35);
+    }
+    #admin-tab-bot-manager .btn-primary:hover { opacity: 1; filter: brightness(1.06); }
+    #admin-tab-bot-manager .btn-primary.btn-sm {
+      padding: 8px 16px; font-size: 0.84rem;
+    }
+
+    /* ── Conversations Send button ──
+       Same 2026-08-08 note. This is the one control in the app actually
+       labelled "Send" and it was .btn-sm - 5px of vertical padding, smaller
+       than the attach and template icons beside it, on the button an agent
+       presses more than any other in the product. */
+    #conv-send-btn.btn-sm {
+      padding: 10px 22px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(14,165,233,.3);
+    }
+    #conv-send-btn.btn-sm:hover { opacity: 1; filter: brightness(1.08); }
+
+    /* Anything genuinely wider than the column scrolls inside its own box,
+       so the page itself never scrolls sideways and nothing is unreachable.
+       The sub-tab rows get a thin scrollbar; the tables scroll inside their
+       card. */
+    #admin-tab-bot-manager .subtabs,
+    #admin-tab-bot-manager .bm-primary-tabs {
+      overflow-x: auto;
+      flex-wrap: nowrap;
+      scrollbar-width: thin;
+    }
+    #admin-tab-bot-manager .bm-primary-tabs .bm-ptab,
+    #admin-tab-bot-manager .subtabs .subtab-btn { flex-shrink: 0; white-space: nowrap; }
+    #admin-tab-bot-manager .card { overflow-x: auto; }
+
+    /* Keep the action column reachable. The long free-text column (a reply
+       body, a template body, a prompt) would otherwise take all the width and
+       push Active/Edit/Delete off the right-hand edge, so the buttons a person
+       came to the table to press were the first thing to disappear. The text
+       column now truncates with an ellipsis instead. */
+    #admin-tab-bot-manager table { table-layout: fixed; width: 100%; }
+    #admin-tab-bot-manager table td,
+    #admin-tab-bot-manager table th { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #admin-tab-bot-manager table td:last-child,
+    #admin-tab-bot-manager table th:last-child { width: 132px; white-space: nowrap; overflow: visible; }
+
+    /* On a phone, a wide table scrolls inside its own card instead of pushing
+       the section past the screen edge. Found 2026-08-08 by measuring every
+       tab at 375px: Appointments, Broadcast Signal, Subscribers and AI Signals
+       each overflowed their content area by 5 to 219px, so the right-hand
+       columns were unreachable on a phone. Same bug class as the Bot Manager
+       clipping, just at a different breakpoint. */
+    @media (max-width: 768px) {
+      .tab-content .card { overflow-x: auto; }
+      /* The table itself becomes the scroll container. Putting the overflow on
+         the card alone was not enough - the wrapper div between the card and
+         the table was still being stretched to the table's full width, so the
+         section kept overflowing. Measured, not assumed. */
+      .tab-content table { display: block; width: 100%; overflow-x: auto; }
+      .tab-content table thead,
+      .tab-content table tbody { display: table; width: 100%; min-width: max-content; }
+    }
+
+    /* ── Collapsible sidebar sections ──
+       Muhammad, 2026-08-08: "there are such options which could be easily
+       consolidated... one single section/head, the consolidated ones disappear
+       under that section, and there should be a dropdown arrow through which a
+       user could see the hidden options."
+
+       The nav was 24 items under 7 headings, so the SETTINGS group sat below
+       the fold on a laptop - which is why Settings read as missing entirely.
+       Headings are now buttons that collapse their group, with a chevron, and
+       the open/closed state is remembered per person. */
+    .nav-section-label {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; background: none; border: none; text-align: left;
+      cursor: pointer; font: inherit;
+    }
+    .nav-section-label:hover { color: #0f172a; }
+    [data-theme="dark"] .nav-section-label:hover { color: #f1f5f9; }
+    .nav-section-label > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .nav-caret {
+      font-size: 0.6rem; line-height: 1; margin-left: 8px; opacity: .75;
+      transition: transform .18s ease;
+    }
+    .nav-group.collapsed .nav-caret { transform: rotate(-90deg); }
+    .nav-group-items { overflow: hidden; }
+    .nav-group.collapsed .nav-group-items { display: none; }
+    .nav-group-count {
+      font-size: 0.62rem; font-weight: 700; border-radius: 10px;
+      padding: 1px 6px; margin-left: 6px; background: #f1f5f9; color: #64748b;
+      display: none;
+    }
+    .nav-group.collapsed .nav-group-count { display: inline-block; }
+    [data-theme="dark"] .nav-group-count { background: #16223a; color: #94a3b8; }
+
+    /* ── Settings hub ── */
+    .set-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+      gap: 14px; margin-bottom: 22px;
+    }
+    .set-card {
+      background: #fff; border: 1px solid #e5e8ef; border-radius: 10px;
+      padding: 16px; cursor: pointer; text-align: left; width: 100%;
+      transition: transform .15s, box-shadow .15s, border-color .15s;
+    }
+    .set-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,23,42,.08); border-color: #d4a843; }
+    .set-card-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .set-card-icon {
+      width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 1rem;
+    }
+    .set-card h4 { margin: 0; font-size: 0.92rem; color: #0f172a; }
+    .set-card p  { margin: 0; font-size: 0.8rem; color: #64748b; line-height: 1.45; }
+    .set-card-tag {
+      display: inline-block; margin-top: 10px; font-size: 0.68rem; font-weight: 700;
+      border-radius: 20px; padding: 2px 9px; letter-spacing: .04em;
+    }
+    .set-tag-live    { background: #e2f6ec; color: #1fa971; }
+    .set-tag-planned { background: #f1f5f9; color: #64748b; }
+    [data-theme="dark"] .set-card    { background: #111b2e; border-color: #1e293b; }
+    [data-theme="dark"] .set-card h4 { color: #f1f5f9; }
+    [data-theme="dark"] .set-tag-planned { background: #16223a; color: #94a3b8; }
 
     /* ── Lead detail panel ── */
     .detail-panel {
@@ -1232,34 +1406,71 @@
       <p>Lead Management CRM</p>
     </div>
     <div id="admin-tabs" class="sidebar-nav">
-      <div class="nav-section-label">MAIN</div>
-      <div class="nav-item active" data-tab="dashboard"><span class="nav-icon" style="background:var(--tint-gold-bg)">🏠</span> Dashboard</div>
-      <div class="nav-item" data-tab="leads"><span class="nav-icon" style="background:var(--tint-sky-bg)">👥</span> All Leads <span class="nav-badge" id="leads-count-badge"></span></div>
-      <div class="nav-item" data-tab="agents"><span class="nav-icon" style="background:var(--tint-success-bg)">🏆</span> My Team</div>
-      <div class="nav-item" data-tab="meta-ads"><span class="nav-icon" style="background:var(--tint-warn-bg)">📈</span> Meta Ads</div>
-      <div class="nav-section-label">BOT MANAGER</div>
-      <div class="nav-item" data-tab="bot-manager"><span class="nav-icon" style="background:var(--tint-sky-bg)">🤖</span> Bot Manager</div>
-      <div class="nav-section-label">TOOLS</div>
-      <div class="nav-item" data-tab="add-lead"><span class="nav-icon" style="background:var(--tint-gold-bg)">➕</span> Add Lead</div>
-      <div class="nav-item" data-tab="conversations"><span class="nav-icon" style="background:var(--tint-sky-bg)">💬</span> Omnichannel Inbox <span id="conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
-      <div class="nav-item" data-tab="comm-log"><span class="nav-icon" style="background:var(--tint-success-bg)">🕐</span> Comm Log</div>
-      <div class="nav-item" data-tab="reports"><span class="nav-icon" style="background:var(--tint-warn-bg)">📋</span> Reports</div>
-      <div class="nav-item" data-tab="automation"><span class="nav-icon" style="background:var(--tint-danger-bg)">⚡</span> Automation</div>
-      <div class="nav-item" data-tab="appointments"><span class="nav-icon" style="background:var(--tint-danger-bg)">📅</span> Appointments</div>
-      <div class="nav-section-label">FINANCE</div>
-      <div class="nav-item" data-tab="payroll"><span class="nav-icon" style="background:var(--tint-gold-bg)">💰</span> Payroll</div>
-      <div class="nav-section-label">WHATSAPP SIGNALS</div>
-      <div class="nav-item" data-tab="signal-broadcast"><span class="nav-icon" style="background:var(--tint-sky-bg)">📡</span> Broadcast Signal</div>
-      <div class="nav-item" data-tab="subscribers"><span class="nav-icon" style="background:var(--tint-success-bg)">👤</span> Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
-      <div class="nav-item" data-tab="ai-signals"><span class="nav-icon" style="background:var(--tint-warn-bg)">🤖</span> AI Signals</div>
-      <div class="nav-section-label">SYSTEM</div>
-      <div class="nav-item" data-tab="user-permission"><span class="nav-icon" style="background:var(--tint-danger-bg)">🛡️</span> User Permission</div>
-      <div class="nav-item" data-tab="user-manager"><span class="nav-icon" style="background:var(--tint-sky-bg)">🧑‍💼</span> User Manager</div>
-      <div class="nav-section-label">SETTINGS</div>
-      <div class="nav-item" data-tab="meta"><span class="nav-icon" style="background:var(--tint-gold-bg)">🔗</span> Meta Integration</div>
-      <div class="nav-item" data-tab="notifications"><span class="nav-icon" style="background:var(--tint-sky-bg)">🔔</span> Notifications</div>
-      <div class="nav-item" data-tab="sites"><span class="nav-icon" style="background:var(--tint-success-bg)">🌐</span> Sites</div>
-      <div class="nav-item" data-tab="guide"><span class="nav-icon" style="background:var(--tint-warn-bg)">📖</span> Guide</div>
+      <!-- Grouped and collapsible. Consolidated from 7 headings to 5:
+           the old BOT MANAGER heading held a single item and is folded into
+           Engage, and SYSTEM (User Manager, User Permission) is folded into
+           Settings, where every other CRM puts them. -->
+      <div class="nav-group" data-group="main">
+        <button type="button" class="nav-section-label" onclick="toggleNavGroup('main')">
+          <span>MAIN <span class="nav-group-count">4</span></span><span class="nav-caret">▼</span>
+        </button>
+        <div class="nav-group-items">
+          <div class="nav-item active" data-tab="dashboard"><span class="nav-icon" style="background:var(--tint-gold-bg)">🏠</span> Dashboard</div>
+          <div class="nav-item" data-tab="leads"><span class="nav-icon" style="background:var(--tint-sky-bg)">👥</span> All Leads <span class="nav-badge" id="leads-count-badge"></span></div>
+          <div class="nav-item" data-tab="agents"><span class="nav-icon" style="background:var(--tint-success-bg)">🏆</span> My Team</div>
+          <div class="nav-item" data-tab="meta-ads"><span class="nav-icon" style="background:var(--tint-warn-bg)">📈</span> Meta Ads</div>
+        </div>
+      </div>
+
+      <div class="nav-group" data-group="engage">
+        <button type="button" class="nav-section-label" onclick="toggleNavGroup('engage')">
+          <span>ENGAGE <span class="nav-group-count">6</span></span><span class="nav-caret">▼</span>
+        </button>
+        <div class="nav-group-items">
+          <div class="nav-item" data-tab="conversations"><span class="nav-icon" style="background:var(--tint-sky-bg)">💬</span> Omnichannel Inbox <span id="conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
+          <div class="nav-item" data-tab="bot-manager"><span class="nav-icon" style="background:var(--tint-sky-bg)">🤖</span> Bot Manager</div>
+          <div class="nav-item" data-tab="add-lead"><span class="nav-icon" style="background:var(--tint-gold-bg)">➕</span> Add Lead</div>
+          <div class="nav-item" data-tab="comm-log"><span class="nav-icon" style="background:var(--tint-success-bg)">🕐</span> Comm Log</div>
+          <div class="nav-item" data-tab="automation"><span class="nav-icon" style="background:var(--tint-danger-bg)">⚡</span> Automation</div>
+          <div class="nav-item" data-tab="appointments"><span class="nav-icon" style="background:var(--tint-danger-bg)">📅</span> Appointments</div>
+        </div>
+      </div>
+
+      <div class="nav-group" data-group="signals">
+        <button type="button" class="nav-section-label" onclick="toggleNavGroup('signals')">
+          <span>SIGNALS <span class="nav-group-count">3</span></span><span class="nav-caret">▼</span>
+        </button>
+        <div class="nav-group-items">
+          <div class="nav-item" data-tab="signal-broadcast"><span class="nav-icon" style="background:var(--tint-sky-bg)">📡</span> Broadcast Signal</div>
+          <div class="nav-item" data-tab="subscribers"><span class="nav-icon" style="background:var(--tint-success-bg)">👤</span> Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
+          <div class="nav-item" data-tab="ai-signals"><span class="nav-icon" style="background:var(--tint-warn-bg)">🤖</span> AI Signals</div>
+        </div>
+      </div>
+
+      <div class="nav-group" data-group="finance">
+        <button type="button" class="nav-section-label" onclick="toggleNavGroup('finance')">
+          <span>FINANCE <span class="nav-group-count">2</span></span><span class="nav-caret">▼</span>
+        </button>
+        <div class="nav-group-items">
+          <div class="nav-item" data-tab="payroll"><span class="nav-icon" style="background:var(--tint-gold-bg)">💰</span> Payroll</div>
+          <div class="nav-item" data-tab="reports"><span class="nav-icon" style="background:var(--tint-warn-bg)">📋</span> Reports</div>
+        </div>
+      </div>
+
+      <div class="nav-group" data-group="settings">
+        <button type="button" class="nav-section-label" onclick="toggleNavGroup('settings')">
+          <span>SETTINGS <span class="nav-group-count">7</span></span><span class="nav-caret">▼</span>
+        </button>
+        <div class="nav-group-items">
+          <div class="nav-item" data-tab="settings"><span class="nav-icon" style="background:var(--tint-gold-bg)">⚙️</span> Settings</div>
+          <div class="nav-item" data-tab="meta"><span class="nav-icon" style="background:var(--tint-sky-bg)">🔗</span> Meta Integration</div>
+          <div class="nav-item" data-tab="user-manager"><span class="nav-icon" style="background:var(--tint-sky-bg)">🧑‍💼</span> User Manager</div>
+          <div class="nav-item" data-tab="user-permission"><span class="nav-icon" style="background:var(--tint-danger-bg)">🛡️</span> User Permission</div>
+          <div class="nav-item" data-tab="notifications"><span class="nav-icon" style="background:var(--tint-sky-bg)">🔔</span> Notifications</div>
+          <div class="nav-item" data-tab="sites"><span class="nav-icon" style="background:var(--tint-success-bg)">🌐</span> Sites</div>
+          <div class="nav-item" data-tab="guide"><span class="nav-icon" style="background:var(--tint-warn-bg)">📖</span> Guide</div>
+        </div>
+      </div>
     </div>
     <div class="sidebar-footer" onclick="toggleAccountMenu(event, 'admin')" style="cursor:pointer;position:relative">
       <div class="user-avatar" id="sidebar-user-initials">BT</div>
@@ -1317,6 +1528,10 @@
       <div class="quick-tile" onclick="adminTab('train-ai')">
         <span class="quick-tile-icon" style="background:var(--tint-warn-bg)">🧠</span>
         <div><h4>Bot Manager</h4><p>Improve AI responses</p></div>
+      </div>
+      <div class="quick-tile" onclick="createNewCampaign()">
+        <span class="quick-tile-icon" style="background:var(--tint-gold-bg)">🎯</span>
+        <div><h4>Create New Campaign</h4><p>Name it, set the prompt, go</p></div>
       </div>
       <div class="quick-tile" onclick="adminTab('meta')">
         <span class="quick-tile-icon" style="background:var(--tint-danger-bg)">🔗</span>
@@ -1939,9 +2154,9 @@
         <!-- ══════════ AI ══════════ -->
         <div class="bm-section" id="bm-section-ai">
           <div class="subtabs">
-            <button class="subtab-btn active" onclick="bmSub('ai','ai-configuration',this)">AI Configuration</button>
-            <button class="subtab-btn"        onclick="bmSub('ai','ai-agents',this)">Agents</button>
-            <button class="subtab-btn"        onclick="bmSub('ai','ai-knowledge-base',this)">AI Knowledge Base</button>
+            <button class="subtab-btn active" data-bm-sub="ai-configuration" onclick="bmSub('ai','ai-configuration',this)">AI Configuration</button>
+            <button class="subtab-btn"        data-bm-sub="ai-agents" onclick="bmSub('ai','ai-agents',this)">Agents</button>
+            <button class="subtab-btn"        data-bm-sub="ai-knowledge-base" onclick="bmSub('ai','ai-knowledge-base',this)">AI Knowledge Base</button>
           </div>
 
           <!-- AI Configuration -->
@@ -2070,6 +2285,10 @@
             </div>
 
             <div class="card">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+                <h4 style="margin:0">Training Campaigns</h4>
+                <button class="btn btn-primary btn-sm btn-inline" onclick="createNewCampaign()">+ Create New Campaign</button>
+              </div>
               <table>
                 <thead><tr>
                   <th>Campaign</th><th>Bot Number</th><th>Prompt</th><th>Active</th><th></th>
@@ -2164,7 +2383,7 @@
   <div id="admin-tab-appointments" class="tab-content">
     <h3>Appointments</h3>
 
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+    <div class="stat-grid" style="gap:12px">
       <div class="stat-card"><div class="stat-value" id="appt-today">0</div><div class="stat-label">Today</div></div>
       <div class="stat-card"><div class="stat-value" id="appt-upcoming">0</div><div class="stat-label">Upcoming</div></div>
       <div class="stat-card"><div class="stat-value" id="appt-overdue" style="color:#dc4c40">0</div><div class="stat-label">Overdue</div></div>
@@ -2483,6 +2702,178 @@
   </div>
 
   <!-- Guide (admin sees every section, agents see their own subset - see agent-tab-guide) -->
+  <!-- ══════════ SETTINGS HUB ══════════
+       Muhammad, 2026-08-08: "in the side panel there should be a settings
+       section with all of those required functions". There WAS a SETTINGS
+       label in the sidebar, but it sat 20 nav items down, below the fold on
+       a laptop, holding only Meta Integration / Notifications / Sites /
+       Guide - which is why it read as missing.
+
+       Every CRM this was checked against (Respond.io, Wati, AiSensy, and the
+       forex back-office CRMs) uses ONE Settings entry that opens a hub of
+       grouped sections, rather than scattering configuration through the main
+       nav. This is that hub. Cards that route to a screen which already
+       exists are marked Live; the rest say plainly what is not built yet
+       rather than opening an empty page. -->
+  <div id="admin-tab-settings" class="tab-content">
+    <h3>Settings</h3>
+    <p style="color:#64748b;font-size:0.85rem;margin:2px 0 18px">
+      Everything that configures the CRM, in one place. Anything marked
+      <strong>Not built yet</strong> says so on purpose rather than opening a blank screen.
+    </p>
+
+    <h4 style="margin:18px 0 10px">Workspace</h4>
+    <div class="set-grid">
+      <button class="set-card" onclick="adminTab('user-manager')">
+        <div class="set-card-top"><span class="set-card-icon" style="background:var(--tint-sky-bg)">🧑‍💼</span><h4>User Manager</h4></div>
+        <p>Add staff, promote to admin, suspend an account.</p>
+        <span class="set-card-tag set-tag-live">Live</span>
+      </button>
+      <button class="set-card" onclick="adminTab('user-permission')">
+        <div class="set-card-top"><span class="set-card-icon" style="background:var(--tint-danger-bg)">🛡️</span><h4>Roles and Permissions</h4></div>
+        <p>What an Admin can do versus an Agent. Reference only today, no per-feature toggles yet.</p>
+        <span class="set-card-tag set-tag-live">Live</span>
+      </button>
+      <button class="set-card" onclick="adminTab('agents')">
+        <div class="set-card-top"><span class="set-card-icon" style="background:var(--tint-success-bg)">🏆</span><h4>My Team</h4></div>
+        <p>Agent roster, WhatsApp numbers, and the round-robin assignment order.</p>
+        <span class="set-card-tag set-tag-live">Live</span>
+      </button>
+    </div>
+
+    <h4 style="margin:18px 0 10px">Channels</h4>
+    <div class="set-grid">
+      <button class="set-card" onclick="adminTab('meta')">
+        <div class="set-card-top"><span class="set-card-icon" style="background:var(--tint-gold-bg)">🔗</span><h4>Meta Integration</h4></div>
+        <p>WhatsApp access token, phone number ID, WABA and ad account.</p>
+        <span class="set-card-tag set-tag-live">Live</span>
+      </button>
+      <button class="set-card" onclick="adminTab('bot-manager')">
+        <div class="set-card-top"><span class="set-card-icon" style="background:var(--tint-sky-bg)">🤖</span><h4>Bot Manager</h4></div>
+        <p>Keyword replies, templates, follow-up sequences, AI prompts and campaigns.</p>
+        <span class="set-card-tag set-tag-live">Live</span>
+      </button>
+      <button class="set-card" onclick="adminTab('sites')">
+        <div class="set-card-top"><span class="set-card-icon" style="background:var(--tint-success-bg)">🌐</span><h4>Landing Pages</h4></div>
+        <p>The public forms that feed leads into the CRM.</p>
+        <span class="set-card-tag set-tag-live">Live</span>
+      </button>
+    </div>
+
+    <h4 style="margin:18px 0 10px">Pipeline and money</h4>
+    <div class="set-grid">
+      <button class="set-card" onclick="adminTab('payroll')">
+        <div class="set-card-top"><span class="set-card-icon" style="background:var(--tint-gold-bg)">💰</span><h4>Payroll</h4></div>
+        <p>Agent commission. Reads verified conversions once the rules below are wired.</p>
+        <span class="set-card-tag set-tag-live">Live</span>
+      </button>
+      <button class="set-card" onclick="adminTab('automation')">
+        <div class="set-card-top"><span class="set-card-icon" style="background:var(--tint-danger-bg)">⚡</span><h4>Automation Rules</h4></div>
+        <p>What fires when a lead is created, changes status, or is verified.</p>
+        <span class="set-card-tag set-tag-live">Live</span>
+      </button>
+      <button class="set-card" onclick="adminTab('notifications')">
+        <div class="set-card-top"><span class="set-card-icon" style="background:var(--tint-sky-bg)">🔔</span><h4>Notifications</h4></div>
+        <p>Who gets told about what. The in-app bell is built but parked.</p>
+        <span class="set-card-tag set-tag-planned">Parked</span>
+      </button>
+    </div>
+
+    <h4 style="margin:18px 0 10px">Business rules</h4>
+    <div class="info-box">
+      These save to the database now. <strong>Nothing reads them yet</strong> - they are the inputs the
+      conversion-verification and payroll rules in <code>docs/LEAD_LIFECYCLE_AND_PAYROLL.md</code> need,
+      captured here first so Badar can set the numbers before that engine is built. Written down honestly
+      rather than shown as if they were already controlling behaviour.
+    </div>
+    <div class="card">
+      <h4 style="margin-bottom:14px">Business and pipeline</h4>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Business Name</label>
+          <input type="text" id="set-business-name" placeholder="Badar Trader" />
+        </div>
+        <div class="form-group">
+          <label>Reporting Currency</label>
+          <select id="set-currency">
+            <option value="USD">USD - US Dollar</option>
+            <option value="PKR">PKR - Pakistani Rupee</option>
+            <option value="AED">AED - UAE Dirham</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>First Response SLA (hours)</label>
+          <input type="text" id="set-sla-first-response" placeholder="e.g. 2" />
+        </div>
+        <div class="form-group">
+          <label>Stale Lead After (hours)</label>
+          <input type="text" id="set-sla-stale" placeholder="e.g. 48" />
+        </div>
+      </div>
+      <div id="set-biz-msg" class="msg"></div>
+      <button class="btn btn-primary btn-inline" onclick="saveBusinessSettings()">Save Business Settings</button>
+    </div>
+
+    <div class="card">
+      <h4 style="margin-bottom:14px">Conversion verification and commission</h4>
+      <p style="color:#64748b;font-size:0.82rem;margin-bottom:14px">
+        Badar does not want to approve every lead an agent marks Converted. These are the thresholds that
+        let the CRM verify most conversions on evidence and send only the exceptions to a human. The full
+        reasoning, and what competitors do, is in <code>docs/LEAD_LIFECYCLE_AND_PAYROLL.md</code>.
+      </p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Minimum Qualifying Deposit</label>
+          <input type="text" id="set-min-deposit" placeholder="e.g. 500" />
+        </div>
+        <div class="form-group">
+          <label>Agent Commission (%)</label>
+          <input type="text" id="set-commission-pct" placeholder="e.g. 10" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Clawback Window (days)</label>
+          <input type="text" id="set-clawback-days" placeholder="e.g. 30" />
+        </div>
+        <div class="form-group">
+          <label>Spot-Check Sample (%)</label>
+          <input type="text" id="set-audit-sample" placeholder="e.g. 10" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Auto-Verify Conversions</label>
+        <select id="set-auto-verify">
+          <option value="false">Off - every conversion waits for a human</option>
+          <option value="true">On - verify on evidence, send only exceptions to a human</option>
+        </select>
+      </div>
+      <div id="set-conv-msg" class="msg"></div>
+      <button class="btn btn-primary btn-inline" onclick="saveConversionSettings()">Save Verification Rules</button>
+    </div>
+
+    <h4 style="margin:18px 0 10px">Data and help</h4>
+    <div class="set-grid">
+      <button class="set-card" onclick="adminTab('reports')">
+        <div class="set-card-top"><span class="set-card-icon" style="background:var(--tint-warn-bg)">📋</span><h4>Reports</h4></div>
+        <p>Pipeline, agent performance, sources and financial summary.</p>
+        <span class="set-card-tag set-tag-live">Live</span>
+      </button>
+      <button class="set-card" onclick="showBackupInfo()">
+        <div class="set-card-top"><span class="set-card-icon" style="background:var(--tint-success-bg)">💾</span><h4>Backups</h4></div>
+        <p>Four times a day to Badar's own Hostinger account, independent of Supabase.</p>
+        <span class="set-card-tag set-tag-live">Live</span>
+      </button>
+      <button class="set-card" onclick="adminTab('guide')">
+        <div class="set-card-top"><span class="set-card-icon" style="background:var(--tint-warn-bg)">📖</span><h4>Guide</h4></div>
+        <p>What every section of the CRM does, for admins and agents.</p>
+        <span class="set-card-tag set-tag-live">Live</span>
+      </button>
+    </div>
+  </div>
+
   <div id="admin-tab-guide" class="tab-content">
     <h3>Guide</h3>
     <p style="color:#64748b;font-size:0.85rem;margin-bottom:18px">What each section of this dashboard is for.</p>
@@ -2826,7 +3217,7 @@
       <iframe src="signal-desk.html" title="Signal Desk" style="width:100%;height:78vh;border:none;display:block;background:#0d1117"></iframe>
     </details>
 
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+    <div class="stat-grid" style="gap:12px">
       <div class="stat-card"><div class="stat-value" id="sub-total-bc">0</div><div class="stat-label">Total Subscribers</div></div>
       <div class="stat-card"><div class="stat-value" id="bc-total-subs">0</div><div class="stat-label">Active (sendable)</div></div>
       <div class="stat-card"><div class="stat-value" id="bc-communities-count">0</div><div class="stat-label">Communities</div></div>
@@ -2913,7 +3304,7 @@
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+    <div class="stat-grid" style="gap:12px">
       <div class="stat-card"><div class="stat-value" id="sub-total">0</div><div class="stat-label">Total Subscribers</div></div>
       <div class="stat-card"><div class="stat-value" id="sub-active">0</div><div class="stat-label">Active</div></div>
       <div class="stat-card"><div class="stat-value" id="sub-pending">0</div><div class="stat-label">Pending Confirmation</div></div>
@@ -2971,7 +3362,7 @@
       <strong>Real technical analysis, not demo data.</strong> Pattern, trend and confidence are computed from real historical price data (SMA crossover, RSI, 20-period breakout/breakdown) - not picked from a fixed list. BTCUSD and XAUUSD use real Binance candles (XAUUSD via PAXG, a gold-backed token, since no free intraday gold feed with browser access exists). EURUSD/GBPUSD/USDJPY use real ECB daily rates - daily closes only, no free intraday FX feed is available either. It is normal for "Generate Signal" to sometimes return no clear signal - that is a real result, not a bug, when price is range-bound. Win rate and signal history stay empty until signals are actually broadcast and their outcomes tracked, which is not built yet.
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+    <div class="stat-grid" style="gap:12px">
       <div class="stat-card"><div class="stat-value" id="ai-accuracy-pct" style="color:#22c55e">-</div><div class="stat-label">Overall TP Hit Rate</div></div>
       <div class="stat-card"><div class="stat-value" id="ai-signals-sent">0</div><div class="stat-label">Signals Broadcast</div></div>
       <div class="stat-card"><div class="stat-value" id="ai-pending-count">0</div><div class="stat-label">Pending Outcome</div></div>
@@ -3473,6 +3864,7 @@ function enterDemoMode() {
   document.getElementById('admin-name').textContent        = 'Demo Admin';
   const _demoAvatarEl = document.getElementById('sidebar-user-initials');
   if (_demoAvatarEl) _demoAvatarEl.textContent = 'DA';
+  applyNavGroupState();
   populateAgentDropdowns();
   renderDashboardStats();
   renderAgentsTable();
@@ -3604,6 +3996,7 @@ async function afterLogin(user) {
 // ── ADMIN ─────────────────────────────────────────────────────
 async function initAdmin() {
   document.getElementById('admin-dashboard').style.display = 'block';
+  applyNavGroupState();
   const _adminName = currentProfile.full_name || currentUser.email;
   document.getElementById('admin-name').textContent = _adminName;
   const _dashName = document.getElementById('dash-admin-name');
@@ -3664,7 +4057,8 @@ function adminTab(name, el) {
     'comm-log': 'Communication Log',
     'signal-broadcast': 'Broadcast Signal', subscribers: 'Subscribers', 'ai-signals': 'AI Signals',
     guide: 'Guide', 'user-manager': 'User Manager', 'user-permission': 'User Permission',
-    'bot-manager': 'Bot Manager', appointments: 'Appointments'
+    'bot-manager': 'Bot Manager', appointments: 'Appointments',
+    settings: 'Settings'
   };
   const titleEl = document.getElementById('current-tab-title');
   if (titleEl) titleEl.textContent = titles[name] || name;
@@ -3685,6 +4079,8 @@ function adminTab(name, el) {
   if (name === 'signal-broadcast') initBroadcastTab();
   if (name === 'subscribers')      loadSubscribers();
   if (name === 'ai-signals')       initAISignalsTab();
+  if (name === 'settings')         initSettings();
+  applyNavGroupState();
 }
 
 // ── BOT MANAGER ────────────────────────────────────────────────
@@ -3755,6 +4151,65 @@ function bmPrimary(name) {
   if (btn) btn.classList.add('active');
   if (name === 'ai') { loadAiKb(); loadOpenAiSettings(); loadAiAgentToggle(); loadAgents(); renderGateTable(); }
   if (name === 'automation') { loadKeywordReplies(); loadTemplates(); loadFollowUps(); }
+}
+
+// ── Collapsible sidebar groups ─────────────────────────────────
+// The open/closed state is per browser, not per account, because it is a
+// personal preference about a nav panel and does not belong in the database.
+const _NAV_GROUP_KEY = 'badar_nav_groups';
+
+function _readNavGroupState() {
+  try { return JSON.parse(localStorage.getItem(_NAV_GROUP_KEY) || '{}') || {}; }
+  catch { return {}; }   // corrupt or unavailable storage must not break the nav
+}
+
+function toggleNavGroup(name) {
+  const group = document.querySelector(`.nav-group[data-group="${name}"]`);
+  if (!group) return;
+  const collapsed = group.classList.toggle('collapsed');
+  const btn = group.querySelector('.nav-section-label');
+  if (btn) btn.setAttribute('aria-expanded', String(!collapsed));
+  const state = _readNavGroupState();
+  state[name] = collapsed;
+  try { localStorage.setItem(_NAV_GROUP_KEY, JSON.stringify(state)); } catch { /* private mode */ }
+}
+
+// Applies the remembered state, then force-opens whichever group holds the
+// active tab - otherwise someone who collapsed a group and reloaded would land
+// on a screen whose nav item is hidden, with no clue where they are.
+function applyNavGroupState() {
+  const state = _readNavGroupState();
+  document.querySelectorAll('.nav-group').forEach(group => {
+    const name = group.dataset.group;
+    const collapsed = state[name] === true;
+    group.classList.toggle('collapsed', collapsed);
+    const btn = group.querySelector('.nav-section-label');
+    if (btn) btn.setAttribute('aria-expanded', String(!collapsed));
+  });
+  const active = document.querySelector('#admin-tabs .nav-item.active');
+  const holder = active && active.closest('.nav-group');
+  if (holder) holder.classList.remove('collapsed');
+}
+
+// Dashboard -> "Create New Campaign" (Muhammad, 2026-08-08: "there should be
+// a Create New Campaign option on the dashboard"). Creating a campaign was
+// four clicks deep - Bot Manager, then AI, then AI Knowledge Base, then scroll
+// past the list to the form - so the one action the dashboard is for was the
+// hardest to reach. This lands directly on an empty form.
+function createNewCampaign() {
+  adminTab('bot-manager');
+  bmPrimary('ai');
+  const kbBtn = document.querySelector(
+    '#bm-section-ai .subtabs .subtab-btn[data-bm-sub="ai-knowledge-base"]');
+  bmSub('ai', 'ai-knowledge-base', kbBtn);
+  resetAiKbForm();
+  // The form is below the campaign list, so without this it opens off-screen
+  // and looks like nothing happened.
+  const form = document.getElementById('akb-name');
+  if (form) {
+    form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    form.focus({ preventScroll: true });
+  }
 }
 
 function bmSub(section, panel, btn) {
@@ -4426,6 +4881,124 @@ async function saveMetaSettings() {
   const { error } = await sb.from('settings').upsert(rows, { onConflict: 'key' });
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
   setMsg(msgEl, 'Settings saved.', 'ok');
+}
+
+// ── SETTINGS HUB ───────────────────────────────────────────────
+// Both forms below write to the existing key/value `settings` table, which
+// already has admin-only RLS, so this needs no migration. Nothing reads these
+// keys yet - see the honest note in the tab itself and the plan in
+// docs/LEAD_LIFECYCLE_AND_PAYROLL.md.
+const _SETTINGS_KEYS = [
+  'business_name', 'reporting_currency', 'sla_first_response_hours', 'sla_stale_lead_hours',
+  'payroll_min_deposit', 'payroll_commission_pct', 'payroll_clawback_days',
+  'payroll_audit_sample_pct', 'conversion_auto_verify',
+];
+
+// Demo defaults, so the Settings tab shows a populated, believable screen in
+// demo mode instead of a row of empty boxes. Kept separate from live values.
+const _DEMO_SETTINGS = {
+  business_name: 'Badar Trader', reporting_currency: 'USD',
+  sla_first_response_hours: '2', sla_stale_lead_hours: '48',
+  payroll_min_deposit: '500', payroll_commission_pct: '10',
+  payroll_clawback_days: '30', payroll_audit_sample_pct: '10',
+  conversion_auto_verify: 'false',
+};
+
+function _setVal(id, value) { const el = document.getElementById(id); if (el) el.value = value; }
+
+async function initSettings() {
+  const apply = get => {
+    _setVal('set-business-name',       get('business_name') || 'Badar Trader');
+    _setVal('set-currency',            get('reporting_currency') || 'USD');
+    _setVal('set-sla-first-response',  get('sla_first_response_hours') || '');
+    _setVal('set-sla-stale',           get('sla_stale_lead_hours') || '');
+    _setVal('set-min-deposit',         get('payroll_min_deposit') || '');
+    _setVal('set-commission-pct',      get('payroll_commission_pct') || '');
+    _setVal('set-clawback-days',       get('payroll_clawback_days') || '');
+    _setVal('set-audit-sample',        get('payroll_audit_sample_pct') || '');
+    _setVal('set-auto-verify',         get('conversion_auto_verify') || 'false');
+  };
+
+  if (demoMode) { apply(k => _DEMO_SETTINGS[k] || ''); return; }
+
+  const { data, error } = await sb.from('settings').select('key,value').in('key', _SETTINGS_KEYS);
+  if (error) { console.error('initSettings:', error); return; }
+  const get = k => ((data || []).find(r => r.key === k) || {}).value || '';
+  apply(get);
+}
+
+// Shared writer. Returns true on success so each caller can set its own
+// message without repeating the upsert and the demo guard.
+async function _saveSettingKeys(pairs, msgEl) {
+  // Guarded before the rows are built, not just before the write: every row
+  // reads currentUser.id, which is null in demo mode. Same bug class as
+  // saveMetaSettings on 2026-08-06.
+  if (demoMode) {
+    Object.entries(pairs).forEach(([k, val]) => { _DEMO_SETTINGS[k] = val; });
+    setMsg(msgEl, 'Saved. (demo - nothing was written to the database)', 'ok');
+    return true;
+  }
+  const now = new Date().toISOString();
+  const rows = Object.entries(pairs).map(([key, value]) => ({
+    key, value, updated_by: currentUser.id, updated_at: now,
+  }));
+  const { error } = await sb.from('settings').upsert(rows, { onConflict: 'key' });
+  if (error) { setMsg(msgEl, error.message, 'err'); return false; }
+  return true;
+}
+
+// Rejects anything that is not a non-negative number, so a typo cannot be
+// saved as a threshold that later silently decides who gets paid.
+function _numOrNull(id, label, errors, { max = null } = {}) {
+  const raw = (document.getElementById(id)?.value || '').trim();
+  if (!raw) return '';
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) { errors.push(`${label} must be a number, 0 or above.`); return null; }
+  if (max !== null && n > max) { errors.push(`${label} cannot be above ${max}.`); return null; }
+  return String(n);
+}
+
+async function saveBusinessSettings() {
+  const msgEl = document.getElementById('set-biz-msg');
+  const errors = [];
+  const sla   = _numOrNull('set-sla-first-response', 'First response SLA', errors);
+  const stale = _numOrNull('set-sla-stale', 'Stale lead window', errors);
+  const name  = (document.getElementById('set-business-name')?.value || '').trim();
+  if (!name) errors.push('Business name cannot be empty.');
+  if (errors.length) { setMsg(msgEl, errors.join(' '), 'err'); return; }
+
+  const ok = await _saveSettingKeys({
+    business_name: name,
+    reporting_currency: document.getElementById('set-currency').value,
+    sla_first_response_hours: sla,
+    sla_stale_lead_hours: stale,
+  }, msgEl);
+  if (ok && !demoMode) setMsg(msgEl, 'Business settings saved.', 'ok');
+}
+
+async function saveConversionSettings() {
+  const msgEl = document.getElementById('set-conv-msg');
+  const errors = [];
+  const minDep  = _numOrNull('set-min-deposit', 'Minimum qualifying deposit', errors);
+  const pct     = _numOrNull('set-commission-pct', 'Agent commission', errors, { max: 100 });
+  const claw    = _numOrNull('set-clawback-days', 'Clawback window', errors);
+  const sample  = _numOrNull('set-audit-sample', 'Spot-check sample', errors, { max: 100 });
+  if (errors.length) { setMsg(msgEl, errors.join(' '), 'err'); return; }
+
+  const ok = await _saveSettingKeys({
+    payroll_min_deposit: minDep,
+    payroll_commission_pct: pct,
+    payroll_clawback_days: claw,
+    payroll_audit_sample_pct: sample,
+    conversion_auto_verify: document.getElementById('set-auto-verify').value,
+  }, msgEl);
+  if (ok && !demoMode) {
+    setMsg(msgEl, 'Verification rules saved. Nothing reads them yet - the engine is not built.', 'ok');
+  }
+}
+
+function showBackupInfo() {
+  showToast('Backups run 4x daily to Badar\'s Hostinger account. Setup and status: backup-automation/README.md');
 }
 
 function toggleOpenAiKeyVisibility() {
@@ -7323,7 +7896,31 @@ function renderDashboardCharts(leads) {
   const donutCanvas = document.getElementById('dash-pipeline-donut');
   const trendCanvas = document.getElementById('dash-trend-chart');
   const legendEl = document.getElementById('dash-pipeline-legend');
-  if (!donutCanvas || !trendCanvas || typeof Chart === 'undefined') return;
+  if (!donutCanvas || !trendCanvas) return;
+
+  // Chart.js is loaded from a CDN. When that request fails - an offline
+  // laptop, a corporate network blocking jsdelivr, a CDN outage - this used
+  // to return here and leave Pipeline Overview as a large empty box with no
+  // explanation, which reads as a broken dashboard. The status counts do not
+  // need any library, so render those and say plainly why the chart is
+  // missing. (2026-08-08: found by screenshotting the dashboard, where the
+  // sandbox proxy blocks the CDN and reproduced exactly this blank card.)
+  if (typeof Chart === 'undefined') {
+    const counts = {};
+    (leads || []).forEach(l => { counts[l.status] = (counts[l.status] || 0) + 1; });
+    const keys = Object.keys(STATUS_CHART_LABELS).filter(k => counts[k] > 0);
+    if (legendEl) {
+      legendEl.innerHTML = (keys.length ? keys.map(k => `
+        <div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:${dashChartTextColor()}">
+          <span style="width:10px;height:10px;border-radius:50%;background:${STATUS_CHART_COLORS[k]};display:inline-block"></span>
+          ${STATUS_CHART_LABELS[k]} <strong>${counts[k]}</strong>
+        </div>`).join('') : `<div style="color:${dashChartTextColor()};font-size:0.85rem">No leads yet</div>`)
+        + `<div style="flex-basis:100%;margin-top:10px;font-size:0.8rem;color:#b45309">
+             Charts could not load (the Chart.js library was blocked or offline). The counts above are live; reload once you are back online.
+           </div>`;
+    }
+    return;
+  }
 
   const counts = {};
   (leads || []).forEach(l => { counts[l.status] = (counts[l.status] || 0) + 1; });
