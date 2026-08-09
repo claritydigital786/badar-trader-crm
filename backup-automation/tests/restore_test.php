@@ -14,6 +14,7 @@ function restoreTestAssert(bool $condition, string $message): void {
 function restoreTestArchive(string $path, ?callable $mutate = null): void {
     $zip = new ZipArchive();
     restoreTestAssert($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true, 'could not create restore fixture');
+    $tableMetadata = [];
     foreach (crmRestoreTableMap() as $table => $conflictColumn) {
         $row = $table === 'settings'
             ? ['key' => 'test_key', 'value' => 'test_value']
@@ -22,8 +23,21 @@ function restoreTestArchive(string $path, ?callable $mutate = null): void {
         if ($table === 'settings') {
             $rows[] = ['key' => 'meta_token', 'value' => 'old-archive-secret'];
         }
-        $zip->addFromString($table . '.json', json_encode($rows, JSON_THROW_ON_ERROR));
+        $tableJson = json_encode($rows, JSON_THROW_ON_ERROR);
+        $zip->addFromString($table . '.json', $tableJson);
+        $tableMetadata[$table] = [
+            'rows' => count($rows),
+            'bytes' => strlen($tableJson),
+            'sha256' => hash('sha256', $tableJson),
+        ];
     }
+    $zip->addFromString('backup_manifest.json', json_encode([
+        'format_version' => 3,
+        'created_at' => '2026-08-10T00:00:00Z',
+        'tables' => $tableMetadata,
+        'excluded_secret_setting_keys' => [],
+        'secret_values_included' => false,
+    ], JSON_THROW_ON_ERROR));
     $bytes = "restore-test\0bytes";
     $archiveObjectPath = 'storage/objects/' . hash('sha256', "attachments\0docs/test.bin") . '.bin';
     $zip->addFromString($archiveObjectPath, $bytes);
@@ -112,6 +126,10 @@ try {
         fn() => crmRestoreVerifySafetyMarker($target . '/missing-safety-marker', 'test-key'),
         'outbound safety check'
     );
+    restoreTestExpectFailure(
+        fn() => crmRestoreVerifyAuthIds($target . '/missing-auth-marker', 'test-key', ['00000000-0000-4000-8000-000000000001']),
+        'Auth users do not match'
+    );
 
     $schemaSql = (string) file_get_contents(dirname(__DIR__, 2) . '/supabase/schema.sql');
     preg_match_all('/CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+public\.([a-z_][a-z0-9_]*)/i', $schemaSql, $schemaMatches);
@@ -145,6 +163,33 @@ try {
         'checksum or size'
     );
 
+    $tamperedTablePath = $tempDir . '/tampered-table.zip';
+    restoreTestArchive($tamperedTablePath, function (ZipArchive $zip): void {
+        $zip->addFromString('leads.json', json_encode([
+            ['id' => '00000000-0000-4000-8000-000000000002'],
+        ], JSON_THROW_ON_ERROR));
+    });
+    restoreTestExpectFailure(
+        fn() => crmRestoreArchive($tamperedTablePath, $target, '', false, '', false, null, fn(string $message) => null),
+        'database table checksum or size'
+    );
+
+    $legacyApplyPath = $tempDir . '/legacy-apply.zip';
+    restoreTestArchive($legacyApplyPath, fn(ZipArchive $zip) => $zip->deleteName('backup_manifest.json'));
+    restoreTestExpectFailure(
+        fn() => crmRestoreArchive(
+            $legacyApplyPath,
+            $target,
+            'test-key',
+            true,
+            'DISPOSABLE_STAGING_ONLY',
+            false,
+            null,
+            fn(string $message) => null
+        ),
+        'format version 3'
+    );
+
     $unsafePath = $tempDir . '/unsafe.zip';
     restoreTestArchive($unsafePath, fn(ZipArchive $zip) => $zip->addFromString('../escape.txt', 'no'));
     restoreTestExpectFailure(
@@ -176,7 +221,7 @@ try {
     $safeSettingsBody = json_encode([['key' => 'test_key', 'value' => 'test_value']]);
     restoreTestAssert($settingsRequests[0]['sha256'] === hash('sha256', $safeSettingsBody), 'older archive secret setting was not removed before restore');
 
-    echo "PASS: archive integrity, complete table scope, production refusal, confirmation gate, dry-run isolation, traversal defense, checksums and mock disposable restore.\n";
+    echo "PASS: database and Storage integrity, complete table scope, production refusal, confirmation gates, Auth-ID preflight, dry-run isolation, traversal defense and mock disposable restore.\n";
 } finally {
     proc_terminate($process);
     foreach ($pipes as $pipe) {

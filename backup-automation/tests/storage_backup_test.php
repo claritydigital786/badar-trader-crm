@@ -192,8 +192,18 @@ try {
     $settingsRows = json_decode((string) $integrationZip->getFromName('settings.json'), true);
     testAssert($settingsRows === [['key' => 'openai_model', 'value' => 'test-safe-model']], 'secret settings were not excluded from the archive');
     $backupManifest = json_decode((string) $integrationZip->getFromName('backup_manifest.json'), true);
+    testAssert($backupManifest['format_version'] === 3, 'backup manifest version did not require table checksums');
     testAssert($backupManifest['secret_values_included'] === false, 'backup manifest did not record secret exclusion');
     testAssert($backupManifest['excluded_secret_setting_keys'] === crmBackupSecretSettingKeys(), 'backup manifest secret-key list was wrong');
+    testAssert(count($backupManifest['tables']) === 22, 'backup manifest did not cover all 22 tables');
+    foreach ($backupManifest['tables'] as $table => $metadata) {
+        $databaseJson = $integrationZip->getFromName($table . '.json');
+        testAssert(is_string($databaseJson), "backup manifest references missing $table.json");
+        $databaseRows = json_decode($databaseJson, true, 512, JSON_THROW_ON_ERROR);
+        testAssert($metadata['rows'] === count($databaseRows), "backup manifest row count was wrong for $table");
+        testAssert($metadata['bytes'] === strlen($databaseJson), "backup manifest byte count was wrong for $table");
+        testAssert($metadata['sha256'] === hash('sha256', $databaseJson), "backup manifest checksum was wrong for $table");
+    }
     $integrationManifest = json_decode((string) $integrationZip->getFromName('storage/manifest.json'), true);
     testAssert($integrationManifest['objects'][0]['bucket'] === 'clean', 'full backup used the wrong bucket');
     testAssert($integrationManifest['objects'][0]['path'] === 'clean.txt', 'full backup lost the original object path');

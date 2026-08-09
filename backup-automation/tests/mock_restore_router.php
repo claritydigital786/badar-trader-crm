@@ -19,6 +19,19 @@ if ($method === 'POST' && $path === '/rest/v1/rpc/confirm_disposable_restore_saf
     return;
 }
 
+if ($method === 'POST' && $path === '/rest/v1/rpc/confirm_disposable_restore_auth_ids') {
+    $body = json_decode((string) file_get_contents('php://input'), true);
+    if (!is_array($body) || !is_array($body['p_profile_ids'] ?? null) || $body['p_profile_ids'] === []) {
+        http_response_code(400);
+        echo 'missing profile ids';
+        return;
+    }
+    http_response_code(200);
+    header('Content-Type: application/json');
+    echo json_encode('BADAR_DISPOSABLE_AUTH_IDS_READY_V1');
+    return;
+}
+
 if ($method === 'POST' && (str_starts_with((string) $path, '/rest/v1/')
     || $path === '/storage/v1/bucket'
     || str_starts_with((string) $path, '/storage/v1/object/'))) {

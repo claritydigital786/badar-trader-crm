@@ -83,3 +83,36 @@ $$;
 
 REVOKE ALL ON FUNCTION public.confirm_disposable_restore_safety() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.confirm_disposable_restore_safety() TO service_role;
+
+CREATE OR REPLACE FUNCTION public.confirm_disposable_restore_auth_ids(p_profile_ids UUID[])
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  missing_auth_user_count INTEGER;
+BEGIN
+  SELECT COUNT(*)
+  INTO missing_auth_user_count
+  FROM (
+    SELECT DISTINCT requested.profile_id
+    FROM unnest(COALESCE(p_profile_ids, ARRAY[]::UUID[])) AS requested(profile_id)
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM auth.users AS auth_user
+      WHERE auth_user.id = requested.profile_id
+    )
+  ) AS missing_auth_users;
+
+  IF missing_auth_user_count <> 0 THEN
+    RAISE EXCEPTION 'Disposable staging is missing % archived Auth user ID(s)',
+      missing_auth_user_count;
+  END IF;
+
+  RETURN 'BADAR_DISPOSABLE_AUTH_IDS_READY_V1';
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.confirm_disposable_restore_auth_ids(UUID[]) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.confirm_disposable_restore_auth_ids(UUID[]) TO service_role;
