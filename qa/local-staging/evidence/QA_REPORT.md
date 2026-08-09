@@ -61,7 +61,7 @@ Coverage includes Admin full access, assigned Agent reads and writes, cross-Agen
 
 ## Browser QA
 
-Admin navigation passed for all 21 modules: Dashboard, All Leads, My Team, Meta Analytics, Bot Manager, Add Lead, Omnichannel Inbox, Communication Log, Reports, Automation, Appointments, Payroll, Broadcast Signal, Subscribers, AI Signals, User Permission, User Manager, Meta Integration, Notifications, Landing Pages, and Guide.
+Admin navigation passed for all 20 active modules: Dashboard, All Leads, My Team, Meta Analytics, Bot Manager, Add Lead, Omnichannel Inbox, Communication Log, Reports, Automation, Appointments, Payroll, Broadcast Signal, Subscribers, AI Signals, User Permission, User Manager, Meta Integration, Landing Pages, and Guide. Parked Notifications is excluded from the active-module count.
 
 Agent navigation passed for all six allowed modules: Dashboard, My Leads, Omnichannel Inbox, Comm Log, Log Activity, and Guide. Admin-only navigation was absent from the Agent view.
 
@@ -72,7 +72,7 @@ The browser verified:
 - Agent A's My Leads, Inbox, and Comm Log showed Fake Customer Alpha only.
 - Fake Customer Beta and the unassigned fake lead were absent from Agent A's pages.
 - User Permission and both guides describe assigned-lead access.
-- The parked Notifications page loads with a zero badge and no missing-table console error.
+- Admin login with the parked notifications table absent produces no missing-table console error.
 - The final browser console contained zero errors or warnings.
 
 ## Responsive QA
@@ -92,4 +92,4 @@ The browser verified:
 
 ## Final result
 
-The disposable staging harness prepares an outbound-safe baseline, replays all 32 applicable migration steps cleanly, leaves parked notifications absent, passes schema lint, and passes 75 of 75 assigned-access checks including appointments. All 21 Admin and 6 Agent modules load, Agent A sees only the assigned fake lead, tested mobile layouts do not overflow, and the final browser console is clean. PR #14 remains unmerged and production was not changed by this corrective package.
+The disposable staging harness prepares an outbound-safe baseline, replays all 32 applicable migration steps cleanly, leaves parked notifications absent, passes schema lint, and passes 75 of 75 assigned-access checks including appointments. All 20 active Admin and 6 Agent modules load, Agent A sees only the assigned fake lead, tested mobile layouts do not overflow, and the final browser console is clean. PR #14 remains unmerged and production was not changed by this corrective package.
