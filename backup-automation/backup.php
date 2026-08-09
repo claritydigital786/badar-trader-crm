@@ -159,7 +159,7 @@ backupLog($logFile, "Backup run started: $runStamp");
 $okCount = 0;
 $failCount = 0;
 $totalRows = 0;
-$tableRowCounts = [];
+$tableMetadata = [];
 $redactedSettingKeys = [];
 
 foreach ($tables as $table) {
@@ -185,10 +185,9 @@ foreach ($tables as $table) {
         backupLog($logFile, '  NOTE: excluded ' . count($redactedSettingKeys) . ' secret settings from the archive.');
     }
 
-    $written = file_put_contents(
-        $runDir . '/' . $table . '.json',
-        json_encode($rows, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
-    );
+    $tablePath = $runDir . '/' . $table . '.json';
+    $tableJson = json_encode($rows, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $written = $tableJson === false ? false : file_put_contents($tablePath, $tableJson);
 
     if ($written === false) {
         backupLog($logFile, "  ERROR writing $table.json to disk");
@@ -196,17 +195,29 @@ foreach ($tables as $table) {
         continue;
     }
 
+    $tableHash = hash_file('sha256', $tablePath);
+    $tableBytes = filesize($tablePath);
+    if ($tableHash === false || $tableBytes === false) {
+        backupLog($logFile, "  ERROR hashing $table.json after writing it");
+        $failCount++;
+        continue;
+    }
+
     $rowCount = count($rows);
     $totalRows += $rowCount;
-    $tableRowCounts[$table] = $rowCount;
+    $tableMetadata[$table] = [
+        'rows' => $rowCount,
+        'bytes' => $tableBytes,
+        'sha256' => $tableHash,
+    ];
     $okCount++;
     backupLog($logFile, "  OK: $table ($rowCount rows)");
 }
 
 $backupManifest = [
-    'format_version' => 2,
+    'format_version' => 3,
     'created_at' => gmdate('c'),
-    'tables' => $tableRowCounts,
+    'tables' => $tableMetadata,
     'excluded_secret_setting_keys' => array_values(array_unique($redactedSettingKeys)),
     'secret_values_included' => false,
 ];

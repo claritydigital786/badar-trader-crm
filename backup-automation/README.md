@@ -40,8 +40,11 @@ that module.
 The `settings` table is filtered before it reaches disk. `meta_token`,
 `wa_verify_token`, `wa_access_token`, and `openai_api_key` are excluded because
 the archive is stored on separate hosting and is not an appropriate secret
-vault. `backup_manifest.json` records only the excluded key names. Restore those
-credentials through the approved secret or configuration screens after recovery.
+vault. `backup_manifest.json` records only the excluded key names. It also records
+the row count, byte size, and SHA-256 checksum for every table JSON file, so a
+changed or incomplete database export is rejected before any staging write.
+Restore credentials through the approved secret or configuration screens after
+recovery.
 
 ## Where backups land
 
@@ -101,7 +104,9 @@ php restore.php /absolute/path/to/backup.zip
 Before a real disposable-staging restore, rebuild the schema and create staging
 Auth users whose IDs match the archived `profiles` rows. Supabase Auth password
 hashes are not part of this public-schema backup, so staff passwords must be set
-again in staging.
+again in staging. The staging safety SQL installs a service-role-only preflight,
+and the restore verifies all archived profile IDs against `auth.users` before its
+first table write.
 
 Important: `supabase/schema.sql` currently contains scheduled jobs and automation
 callbacks with the production project URL. A staging rebuild must not be seeded
@@ -124,12 +129,13 @@ php restore.php /absolute/path/to/backup.zip
 ```
 
 The restore upserts archived public-schema rows, recreates standard Storage
-buckets when absent, and uploads objects after validating every recorded size
-and SHA-256 checksum. It never deletes target rows. Run it only against an empty
-or disposable staging project. Table writes are separate API operations, so a
-failed run can leave a partial staging restore and should be rerun only after the
-failure is understood. The automated test uses a loopback mock server, never
-Supabase:
+buckets when absent, and uploads objects after validating every recorded database
+and Storage size and SHA-256 checksum. It never deletes target rows. Validation
+can still inspect older archives with an explicit warning, but apply mode refuses
+archives without the version 3 checksum manifest. Run it only against an empty or
+disposable staging project. Table writes are separate API operations, so a failed
+run can leave a partial staging restore and should be rerun only after the failure
+is understood. The automated test uses a loopback mock server, never Supabase:
 
 ```sh
 php tests/restore_test.php

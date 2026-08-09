@@ -104,6 +104,20 @@ function crmRestoreVerifySafetyMarker(string $targetUrl, string $serviceKey): vo
     }
 }
 
+/** @param list<string> $profileIds */
+function crmRestoreVerifyAuthIds(string $targetUrl, string $serviceKey, array $profileIds): void {
+    $url = rtrim($targetUrl, '/') . '/rest/v1/rpc/confirm_disposable_restore_auth_ids';
+    $body = json_encode(['p_profile_ids' => $profileIds], JSON_THROW_ON_ERROR);
+    $response = crmRestoreRequest('POST', $url, $serviceKey, $body, ['Content-Type: application/json']);
+    if (!$response['ok']) {
+        throw new RuntimeException('staging Auth users do not match the archived profile IDs');
+    }
+    $marker = json_decode($response['body'], true);
+    if ($marker !== 'BADAR_DISPOSABLE_AUTH_IDS_READY_V1') {
+        throw new RuntimeException('target returned an invalid disposable-staging Auth-ID marker');
+    }
+}
+
 /** @return array{directory: string, entries: int, bytes: int} */
 function crmRestoreExtractArchive(string $archivePath, int $maxEntries = 100000, int $maxBytes = 10737418240): array {
     if (!is_file($archivePath)) {
@@ -209,11 +223,80 @@ function crmRestoreArchive(
     $storageBytes = 0;
 
     try {
+        $databaseManifestPath = $directory . '/backup_manifest.json';
+        $databaseManifest = null;
+        $databaseManifestVersion = 0;
+        $databaseTableMetadata = [];
+        if (is_file($databaseManifestPath)) {
+            $databaseManifest = json_decode(
+                (string) file_get_contents($databaseManifestPath),
+                true,
+                512,
+                JSON_THROW_ON_ERROR
+            );
+            if (!is_array($databaseManifest)) {
+                throw new RuntimeException('backup manifest is not a JSON object');
+            }
+            $databaseManifestVersion = (int) ($databaseManifest['format_version'] ?? 0);
+            if (!in_array($databaseManifestVersion, [2, 3], true)) {
+                throw new RuntimeException('unsupported backup manifest version');
+            }
+            if (($databaseManifest['secret_values_included'] ?? null) === true) {
+                if ($apply) {
+                    throw new RuntimeException('apply mode refuses an archive whose manifest includes secret settings');
+                }
+                $log('WARNING: archive manifest reports secret settings; validation will not write them.');
+            }
+            $databaseTableMetadata = $databaseManifest['tables'] ?? null;
+            if (!is_array($databaseTableMetadata)) {
+                throw new RuntimeException('backup manifest is missing table metadata');
+            }
+            $manifestTables = array_keys($databaseTableMetadata);
+            $expectedTables = array_keys(crmRestoreTableMap());
+            sort($manifestTables);
+            sort($expectedTables);
+            if ($manifestTables !== $expectedTables) {
+                throw new RuntimeException('backup manifest table scope does not match the restore scope');
+            }
+        } elseif ($apply) {
+            throw new RuntimeException('apply mode requires a format version 3 backup manifest');
+        } else {
+            $log('WARNING: legacy archive has no database checksum manifest; validation is structural only.');
+        }
+
+        if ($apply && $databaseManifestVersion !== 3) {
+            throw new RuntimeException('apply mode requires a format version 3 backup manifest');
+        }
+        if ($apply && ($databaseManifest['secret_values_included'] ?? null) !== false) {
+            throw new RuntimeException('apply mode requires confirmed secret exclusion in the backup manifest');
+        }
+
         foreach (crmRestoreTableMap() as $table => $conflictColumn) {
             $path = $directory . '/' . $table . '.json';
             if (!is_file($path)) {
                 throw new RuntimeException("backup archive is missing $table.json");
             }
+            $tableBytes = filesize($path);
+            $tableHash = hash_file('sha256', $path);
+            if ($tableBytes === false || $tableHash === false) {
+                throw new RuntimeException("could not verify $table.json");
+            }
+            if ($databaseManifestVersion === 3) {
+                $metadata = $databaseTableMetadata[$table] ?? null;
+                if (!is_array($metadata)
+                    || !is_int($metadata['rows'] ?? null)
+                    || !is_int($metadata['bytes'] ?? null)
+                    || !is_string($metadata['sha256'] ?? null)
+                    || preg_match('/^[a-f0-9]{64}$/', $metadata['sha256']) !== 1
+                    || $metadata['rows'] < 0
+                    || $metadata['bytes'] < 0) {
+                    throw new RuntimeException("backup manifest contains invalid metadata for $table.json");
+                }
+                if ($tableBytes !== $metadata['bytes'] || !hash_equals($metadata['sha256'], $tableHash)) {
+                    throw new RuntimeException("database table checksum or size validation failed for $table.json");
+                }
+            }
+
             $rows = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
             if (!is_array($rows) || !array_is_list($rows)) {
                 throw new RuntimeException("$table.json is not a JSON row array");
@@ -223,6 +306,13 @@ function crmRestoreArchive(
                     throw new RuntimeException("$table.json contains a non-object row");
                 }
             }
+            $manifestRowCount = $databaseManifestVersion === 3
+                ? ($databaseTableMetadata[$table]['rows'] ?? null)
+                : ($databaseTableMetadata[$table] ?? null);
+            if ($databaseManifestVersion > 0
+                && (!is_int($manifestRowCount) || $manifestRowCount < 0 || count($rows) !== $manifestRowCount)) {
+                throw new RuntimeException("database table row-count validation failed for $table.json");
+            }
             if ($table === 'settings') {
                 $secretKeys = crmBackupSecretSettingKeys();
                 $rows = array_values(array_filter($rows, static function (array $row) use ($secretKeys): bool {
@@ -231,6 +321,10 @@ function crmRestoreArchive(
             }
             $tables[$table] = ['rows' => $rows, 'conflict' => $conflictColumn];
             $rowCount += count($rows);
+        }
+
+        if ($databaseManifestVersion === 2) {
+            $log('WARNING: version 2 database manifest has row counts but no table checksums.');
         }
 
         $manifestPath = $directory . '/storage/manifest.json';
@@ -288,6 +382,15 @@ function crmRestoreArchive(
         }
 
         crmRestoreVerifySafetyMarker($targetUrl, $serviceKey);
+        $profileIds = [];
+        foreach ($tables['profiles']['rows'] as $profile) {
+            $profileId = (string) ($profile['id'] ?? '');
+            if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $profileId) !== 1) {
+                throw new RuntimeException('profiles.json contains an invalid Auth user ID');
+            }
+            $profileIds[$profileId] = true;
+        }
+        crmRestoreVerifyAuthIds($targetUrl, $serviceKey, array_keys($profileIds));
 
         foreach ($tables as $table => $tableInfo) {
             foreach (array_chunk($tableInfo['rows'], 200) as $chunk) {

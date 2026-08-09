@@ -38,10 +38,15 @@ _Add items here._
   reviewed line by line from this repo. Notifications is not in production history.
   Both PR #14 pooled `lead_activity` migrations are in production and require the
   assigned-only corrective migration Junaid is preparing. No SQL was executed.
-- [x] **Backup archive validation and mock restore.** DONE 2026-08-10 on
-  Muhammad's branch. Added secret exclusion, correct non-`id` pagination, archive
-  integrity validation, production refusal, disposable-staging confirmation and
-  outbound-safety gates, and a complete loopback mock restore. A real staging
+- [x] **Backup archive validation and mock restore hardening is complete on
+  Muhammad's PR #16.** The first local package added secret exclusion, correct
+  non-`id` pagination, archive integrity validation, production refusal,
+  disposable-staging confirmation and outbound-safety gates, and a complete
+  loopback mock restore. The final extension adds row count, byte size, and
+  SHA-256 checksums for every database table file, refuses weak legacy archives
+  in apply mode, and verifies archived profile IDs exist in staging Auth before
+  the first write. PHP syntax, backup integration, restore integrity, tamper
+  rejection, and the 24-write loopback restore all pass. A real staging
   restore remains blocked on PR #14's production-URL correction, staging Auth IDs,
   and a database execution check of the staging-only safety SQL.
 - [ ] **PR #14 staging safety correction required before merge.** The staging
@@ -221,3 +226,10 @@ _Add items here._
   closed as superseded, and Junaid's active PR #14 assigned-lead correction claim
   was respected. Muhammad's separate session claimed backup restore-readiness so
   both people can continue without touching the same task or files.
+- "ok, just move on. don't stop, please" - continued Muhammad's separate PR #16
+  backup and recovery lane without overlapping Junaid. The refresh caught that PR
+  #14 still copied production URLs into staging, still included the parked
+  Notifications module, and still pooled appointment access, so it was not merged.
+  PR #16 then added database-file checksums and the staging Auth-ID preflight and
+  passed both loopback suites without touching Supabase, Hostinger, Meta,
+  WhatChimp, WhatsApp, or a live conversation.

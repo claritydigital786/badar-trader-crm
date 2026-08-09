@@ -161,8 +161,10 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
-**DONE 2026-08-10 (Muhammad laptop) - backup restore-readiness package. Claim
-released.** Branch `muhammad/backup-restore-readiness-20260810` adds archive
+**DONE IN PR #16 2026-08-10 (Muhammad laptop) - backup restore-readiness package.
+Do not independently merge it or overlap its `backup-automation/` files while the
+PR remains open.** Branch
+`muhammad/backup-restore-readiness-20260810` adds archive
 validation and a safety-gated restore command. Validation requires all 22 active
 table files, a complete Storage manifest, exact sizes and SHA-256 checksums, safe
 ZIP paths, and no failed Storage object. Apply mode permanently refuses the live
@@ -177,11 +179,15 @@ table has an `id` column, so `settings` now orders by `key` and
 `payroll_settings` by `agent_id`. The Hostinger ZIP no longer receives
 `meta_token`, `wa_verify_token`, `wa_access_token`, or `openai_api_key`; the
 manifest records only their key names, and restore strips the same keys from old
-archives. Both the original backup suite and the new restore suite pass. The
-restore suite proves complete table scope, dry-run zero-write behavior, production
-refusal, confirmation and outbound-safety gates, traversal rejection, checksum
-rejection, secret removal, exact binary preservation, and 22 table plus bucket and
-object writes against a loopback mock server. No credential, production data,
+archives. The final package records row count, byte size, and SHA-256 for every
+database table JSON, refuses to apply archives without the version 3 manifest,
+and checks that every archived profile ID already exists in disposable Auth before
+the first table write. Both the original backup suite and the restore suite pass.
+The restore suite proves complete table scope, dry-run zero-write behavior,
+production refusal, confirmation, outbound-safety and Auth-ID gates, traversal
+rejection, database and Storage checksum rejection, secret removal, exact binary
+preservation, and 22 table plus bucket and object writes against a loopback mock
+server. No credential, production data,
 Hostinger file, Supabase project, Meta, WhatChimp, WhatsApp, or live conversation
 was touched. A real disposable Supabase restore still waits for PR #14's staging
 baseline to remove its production URLs and for matching disposable Auth identities;
