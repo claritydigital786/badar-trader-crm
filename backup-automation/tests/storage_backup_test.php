@@ -220,6 +220,47 @@ try {
     testAssert($integrationZip->getFromName($integrationObjectPath) === "clean storage bytes\n", 'full backup changed object bytes');
     $integrationZip->close();
     testAssert(str_contains((string) file_get_contents($integrationLog), 'Backup run finished: 22 tables OK, 0 failed'), 'full backup log did not report success');
+    testAssert(str_contains((string) file_get_contents($integrationLog), 'Validated the finalized archive'), 'full backup did not validate the finalized ZIP');
+
+    $noStorageDir = $tempDir . '/no-storage-backups';
+    $noStorageLog = $tempDir . '/no-storage.log';
+    $noStoragePipes = [];
+    $noStorageProcess = proc_open(
+        [PHP_BINARY, $backupScript],
+        [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ],
+        $noStoragePipes,
+        dirname(__DIR__),
+        [
+            'BACKUP_CONFIG_FILE' => $integrationConfig,
+            'BACKUP_OUTPUT_DIR' => $noStorageDir,
+            'BACKUP_LOG_FILE' => $noStorageLog,
+            'BACKUP_RETAIN_COUNT' => '1',
+            'BACKUP_STORAGE_ENABLED' => 'false',
+        ]
+    );
+    testAssert(is_resource($noStorageProcess), 'could not start disabled-Storage backup test');
+    fclose($noStoragePipes[0]);
+    $noStorageStdout = stream_get_contents($noStoragePipes[1]);
+    $noStorageStderr = stream_get_contents($noStoragePipes[2]);
+    fclose($noStoragePipes[1]);
+    fclose($noStoragePipes[2]);
+    $noStorageExit = proc_close($noStorageProcess);
+    testAssert(
+        $noStorageExit === 0,
+        "disabled-Storage backup failed with exit $noStorageExit\n$noStorageStdout\n$noStorageStderr"
+    );
+    $noStorageArchives = glob($noStorageDir . '/*.zip');
+    testAssert(count($noStorageArchives) === 1, 'disabled-Storage run did not retain a validated ZIP');
+    $noStorageZip = new ZipArchive();
+    testAssert($noStorageZip->open($noStorageArchives[0]) === true, 'disabled-Storage ZIP could not be opened');
+    $noStorageManifest = json_decode((string) $noStorageZip->getFromName('storage/manifest.json'), true);
+    testAssert($noStorageManifest['buckets'] === [] && $noStorageManifest['objects'] === [], 'disabled-Storage manifest was not empty');
+    $noStorageZip->close();
+    testAssert(str_contains((string) file_get_contents($noStorageLog), 'Validated the finalized archive'), 'disabled-Storage ZIP was not self-validated');
 
     $schemaSql = (string) file_get_contents(dirname(__DIR__, 2) . '/supabase/schema.sql');
     preg_match_all('/CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+public\.([a-z_][a-z0-9_]*)/i', $schemaSql, $schemaMatches);

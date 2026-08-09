@@ -30,9 +30,11 @@ $scriptDir = __DIR__;
 $scopeHelpers = $scriptDir . '/backup_scope.php';
 $storageHelpers = $scriptDir . '/storage_backup.php';
 $configHelpers = $scriptDir . '/backup_config.php';
+$restoreHelpers = $scriptDir . '/restore_backup.php';
 require_once $scopeHelpers;
 require_once $storageHelpers;
 require_once $configHelpers;
+require_once $restoreHelpers;
 try {
     $configFile = crmBackupResolveConfigFile($scriptDir);
     if ($configFile !== null) {
@@ -268,7 +270,23 @@ if ($storageEnabled) {
         backupLog($logFile, '  ERROR backing up Storage: ' . $error->getMessage());
     }
 } else {
-    backupLog($logFile, '  NOTE: Storage backup disabled by BACKUP_STORAGE_ENABLED.');
+    $storageDirectory = $runDir . '/storage';
+    if (!is_dir($storageDirectory) && !mkdir($storageDirectory, 0755, true) && !is_dir($storageDirectory)) {
+        $failCount++;
+        backupLog($logFile, '  ERROR creating the disabled-Storage manifest directory.');
+    } else {
+        $emptyStorageManifest = json_encode([
+            'format_version' => 1,
+            'created_at' => gmdate('c'),
+            'buckets' => [],
+            'objects' => [],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        if (file_put_contents($storageDirectory . '/manifest.json', $emptyStorageManifest) === false) {
+            $failCount++;
+            backupLog($logFile, '  ERROR writing the disabled-Storage manifest.');
+        }
+    }
+    backupLog($logFile, '  NOTE: Storage backup disabled by BACKUP_STORAGE_ENABLED; wrote an empty restore manifest.');
 }
 
 // Zip the run's folder into one file if PHP's zip extension is available -
@@ -287,6 +305,27 @@ if (class_exists('ZipArchive')) {
         if (!$zip->close()) {
             $zipOk = false;
             backupLog($logFile, '  ERROR finalizing zip archive');
+        }
+
+        if ($zipOk) {
+            try {
+                crmRestoreArchive(
+                    $zipPath,
+                    'http://127.0.0.1',
+                    '',
+                    false,
+                    '',
+                    false,
+                    null,
+                    static function (string $message): void {
+                    },
+                    $backupsDir
+                );
+                backupLog($logFile, 'Validated the finalized archive before removing loose files.');
+            } catch (Throwable $error) {
+                $zipOk = false;
+                backupLog($logFile, '  ERROR validating the finalized archive: ' . $error->getMessage());
+            }
         }
 
         if ($zipOk) {

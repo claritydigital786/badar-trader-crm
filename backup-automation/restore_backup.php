@@ -119,7 +119,12 @@ function crmRestoreVerifyAuthIds(string $targetUrl, string $serviceKey, array $p
 }
 
 /** @return array{directory: string, entries: int, bytes: int} */
-function crmRestoreExtractArchive(string $archivePath, int $maxEntries = 100000, int $maxBytes = 10737418240): array {
+function crmRestoreExtractArchive(
+    string $archivePath,
+    int $maxEntries = 100000,
+    int $maxBytes = 10737418240,
+    ?string $workspaceRoot = null
+): array {
     if (!is_file($archivePath)) {
         throw new RuntimeException('backup archive does not exist');
     }
@@ -137,7 +142,12 @@ function crmRestoreExtractArchive(string $archivePath, int $maxEntries = 100000,
         throw new RuntimeException('backup archive entry count is outside the safety limit');
     }
 
-    $directory = sys_get_temp_dir() . '/badar-crm-restore-' . bin2hex(random_bytes(10));
+    $workspaceRoot = $workspaceRoot ?? sys_get_temp_dir();
+    if (!is_dir($workspaceRoot) || !is_writable($workspaceRoot)) {
+        $zip->close();
+        throw new RuntimeException('restore workspace root is not a writable directory');
+    }
+    $directory = rtrim($workspaceRoot, '/\\') . '/badar-crm-restore-' . bin2hex(random_bytes(10));
     if (!mkdir($directory, 0700, true)) {
         $zip->close();
         throw new RuntimeException('could not create restore workspace');
@@ -204,7 +214,8 @@ function crmRestoreArchive(
     string $confirmation,
     bool $allowRemote,
     ?string $expectedProjectRef,
-    callable $log
+    callable $log,
+    ?string $workspaceRoot = null
 ): array {
     crmRestoreValidateTarget($targetUrl, $allowRemote, $expectedProjectRef);
     if ($apply && $confirmation !== 'DISPOSABLE_STAGING_ONLY') {
@@ -214,7 +225,7 @@ function crmRestoreArchive(
         throw new RuntimeException('apply mode requires the staging service-role key');
     }
 
-    $extracted = crmRestoreExtractArchive($archivePath);
+    $extracted = crmRestoreExtractArchive($archivePath, 100000, 10737418240, $workspaceRoot);
     $directory = $extracted['directory'];
     $tables = [];
     $rowCount = 0;

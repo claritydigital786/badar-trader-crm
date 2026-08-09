@@ -194,7 +194,12 @@ rejection, database and Storage checksum rejection, secret removal, exact binary
 preservation, and 22 table plus bucket and object writes against a loopback mock
 server. The entry point is CLI-only and refuses config, backup, and log paths under
 `public_html`, `htdocs`, or `wwwroot`; `BACKUP_CONFIG_FILE` supports an absolute
-private credential path. No credential, production data,
+private credential path. Every finalized ZIP is now reopened through the full
+restore validator before loose files are deleted. Validation uses a temporary
+workspace inside the private backup directory because the integration test proved
+that a restricted cron process may not be allowed to write to PHP's default temp
+directory. Storage-disabled diagnostic runs receive an empty manifest and pass the
+same self-check. No credential, production data,
 Hostinger file, Supabase project, Meta, WhatChimp, WhatsApp, or live conversation
 was touched. A real disposable Supabase restore still waits for PR #14's staging
 baseline to remove its production URLs and for matching disposable Auth identities;
