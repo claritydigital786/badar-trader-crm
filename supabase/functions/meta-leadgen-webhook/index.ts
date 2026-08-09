@@ -29,10 +29,16 @@
 // Deploy: supabase functions deploy meta-leadgen-webhook --no-verify-jwt
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  isMetaSignatureEnforced,
+  readAndVerifyMetaRequest,
+} from "../_shared/meta_signature.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const META_LEADGEN_VERIFY_TOKEN = Deno.env.get("META_LEADGEN_VERIFY_TOKEN") ?? "";
+const META_APP_SECRET = Deno.env.get("META_APP_SECRET") ?? "";
+const META_SIGNATURE_ENFORCED = isMetaSignatureEnforced(Deno.env.get("META_SIGNATURE_ENFORCED"));
 const GRAPH_VERSION = "v21.0";
 
 function makeSupabase(): SupabaseClient {
@@ -86,8 +92,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
 
+  // Meta signs the exact bytes received, so verify before decoding or parsing.
+  let rawBody: Uint8Array;
+  let signature: { allowed: boolean; verified: boolean; reason: string };
   try {
-    const payload = await req.json();
+    ({ rawBody, signature } = await readAndVerifyMetaRequest(req, {
+      appSecret: META_APP_SECRET,
+      enforced: META_SIGNATURE_ENFORCED,
+    }));
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ ok: false, error: `could not read request body: ${e instanceof Error ? e.message : String(e)}` }),
+      { status: 500 },
+    );
+  }
+
+  if (!signature.allowed) {
+    console.error(`Meta leadgen webhook: rejected unverified request - ${signature.reason}`);
+    return new Response("Invalid signature", { status: 401 });
+  }
+  if (META_APP_SECRET) console.log(`Meta leadgen webhook signature: ${signature.reason}`);
+
+  try {
+    const payload = JSON.parse(new TextDecoder().decode(rawBody));
     const sb = makeSupabase();
     const metaToken = await getMetaToken(sb);
     const report: Record<string, unknown> = {};

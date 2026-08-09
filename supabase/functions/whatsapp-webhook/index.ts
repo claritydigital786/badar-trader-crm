@@ -6,12 +6,18 @@
 // explicit "talk to an agent" requests keep the bot silent for a human.
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  isMetaSignatureEnforced,
+  readAndVerifyMetaRequest,
+} from "../_shared/meta_signature.mjs";
 
 const WHATSAPP_VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
 const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN") ?? "";
 const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const META_APP_SECRET = Deno.env.get("META_APP_SECRET") ?? "";
+const META_SIGNATURE_ENFORCED = isMetaSignatureEnforced(Deno.env.get("META_SIGNATURE_ENFORCED"));
 
 const GRAPH_VERSION = "v21.0";
 
@@ -162,8 +168,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   if (req.method === "POST") {
+    // Meta signs the exact bytes received, so verify before decoding or parsing.
+    let rawBody: Uint8Array;
+    let signature: { allowed: boolean; verified: boolean; reason: string };
     try {
-      const body = await req.json();
+      ({ rawBody, signature } = await readAndVerifyMetaRequest(req, {
+        appSecret: META_APP_SECRET,
+        enforced: META_SIGNATURE_ENFORCED,
+      }));
+    } catch (err) {
+      console.error("WhatsApp webhook: could not read request body:", err);
+      return new Response("OK", { status: 200 });
+    }
+
+    if (!signature.allowed) {
+      console.error(`WhatsApp webhook: rejected unverified request - ${signature.reason}`);
+      return new Response("Invalid signature", { status: 401 });
+    }
+    if (META_APP_SECRET) console.log(`WhatsApp webhook signature: ${signature.reason}`);
+
+    try {
+      const body = JSON.parse(new TextDecoder().decode(rawBody));
       await handleIncomingMessage(body);
     } catch (err) {
       console.error("Error processing WhatsApp webhook payload:", err);
