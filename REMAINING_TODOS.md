@@ -26,8 +26,11 @@ _Add items here._
   pg_cron jobs and automation callbacks hard-coded to the live production project
   ref. Fake staging lead and transaction inserts can therefore enqueue production
   function calls. Neutralize those outbound paths in the prepared staging baseline,
-  add a no-production-ref assertion, and exclude the parked Notifications migration
-  and its QA counts. Review feedback was posted on PR #14; Junaid retains ownership.
+  add a no-production-ref assertion, and exclude the parked Notifications phase from
+  both `schema.sql` and the later migration plus its QA counts. The assigned-only
+  matrix must also replace `appointments: staff full access` with Admin full access
+  and Agent access to rows where `agent_id = auth.uid()`. Review feedback was posted
+  on PR #14; Junaid retains ownership.
 
 - [x] ~~Deploy `whatsapp-webhook` so the Train AI model picker takes effect.~~ DONE 2026-08-06 from Muhammad's laptop with him present. Live function is now **v69**, byte-identical to the repo, `verify_jwt` still false, all reply gates still false. `settings.openai_model` is `gpt-5-mini`, so the picker is now genuinely wired - but `tryAIReply()` still never runs while `AI_REPLIES_ENABLED = false`.
 - [x] ~~Apply `supabase/migrations/20260806000000_ai_agents.sql`.~~ DONE 2026-08-06 from Muhammad's laptop. Applied as a single migration rather than `supabase db push`, because that command reconciles the whole migrations folder against the remote history and many files here are named `applied_via_sql_editor` (applied by hand, possibly not recorded), so a push could have replayed old migrations against the live DB. Verified after: 8 columns, RLS on, 1 admin-only policy, updated_at trigger, 2 indexes, 2 foreign keys. Security advisors show no new warnings from this table.
