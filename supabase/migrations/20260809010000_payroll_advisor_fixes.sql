@@ -26,4 +26,3 @@ REVOKE ALL ON TABLE public.payroll_settings FROM anon, authenticated;
 REVOKE ALL ON TABLE public.payroll_runs FROM anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.payroll_settings TO authenticated;
 GRANT SELECT, INSERT ON TABLE public.payroll_runs TO authenticated;
-
