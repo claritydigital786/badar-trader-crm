@@ -17,6 +17,29 @@ _Add items here._
 
 - [ ] **Junaid's Muhammad-assigned local-only sequence, one branch at a time.** Package 1 is corrected after Muhammad's PR comments and submitted to PR #14: outbound-safe staging preparation, parked notifications excluded, assigned-lead and assigned-appointment RLS, protected actor audit fields, 32-step replay, clean schema lint, 80/80 permission matrix, Admin/Agent browser QA, mobile checks, and clean console evidence. Wait for Muhammad to review and conclude PR #14 before opening the next branch. Later packages: local Deno/bundle verification for Meta signature protection; final WhatsApp template copy and trading-signal rules for Muhammad's approval; one-at-a-time audits of Bot Manager, Automation, Broadcast Signal and User Permissions; reconcile public-form rate limiting, Turnstile and internal-function authentication. No production deployment, credentials, live accounts, real customer data or real sends.
 - [ ] **Review corrected PR #14 without merging automatically.** The latest correction replaces pooled Agent access with assigned-lead and assigned-appointment access, prevents same-lead actor and appointment creator forgery, neutralizes all production callbacks before local Docker starts, and excludes the parked notifications table and migration. The local 32-step replay, schema lint, 80/80 RLS matrix, browser modules, mobile layouts, and console checks pass. Production still has the earlier pooled policy and was not changed by this package. Muhammad must review the correction and separately decide any future merge, production migration, or deployment. PR #13 remains a separate documentation-only ownership note.
+- [ ] **Production security-advisor hardening, queued for Junaid's later User
+  Permissions and internal-function-auth package, not Muhammad's current branch.**
+  Read-only Supabase metadata on 2026-08-10 reports 27 warnings: 11 functions
+  with mutable `search_path`, `pg_net` installed in `public`, seven
+  `SECURITY DEFINER` functions executable by `anon` and the same seven executable
+  by `authenticated`, plus leaked-password protection disabled. Most urgent:
+  `settings: agents read wa send creds` currently exposes `wa_access_token` to
+  every authenticated user, not just active agents. Move all sends behind the
+  authenticated Edge Function, then remove browser token access. Revoke direct
+  RPC execution from roles that do not need it and set explicit function search
+  paths. Enabling leaked-password protection remains Muhammad's Auth setting.
+- [ ] **Production performance-advisor cleanup after permission correctness.**
+  Read-only metadata reports 62 notices: 25 unindexed foreign keys, 3 per-row
+  Auth/RLS evaluations, 12 unused indexes, and 22 multiple-permissive-policy
+  warnings. Do not remove unused indexes merely because they are currently unused;
+  fix the assigned-only policy model first, rerun advisors, then review query usage.
+- [x] **Production migration and branch metadata audit.** DONE read-only on
+  2026-08-10. Supabase records 29 migrations and only the default `main` branch,
+  so no paid staging branch exists. The 13 old local placeholders now have their
+  production names confirmed, but their original SQL is still absent and cannot be
+  reviewed line by line from this repo. Notifications is not in production history.
+  Both PR #14 pooled `lead_activity` migrations are in production and require the
+  assigned-only corrective migration Junaid is preparing. No SQL was executed.
 - [x] **Backup archive validation and mock restore.** DONE 2026-08-10 on
   Muhammad's branch. Added secret exclusion, correct non-`id` pagination, archive
   integrity validation, production refusal, disposable-staging confirmation and
