@@ -78,6 +78,7 @@ present, since it is live traffic.
 | Item | What is left | Whose action |
 | --- | --- | --- |
 | Send an approved template from the inbox | Frontend + `template` branch in `send-wa-message` built, deliberately one commit behind live (can't send until Meta approves a template anyway). Deploy when a template is approved | Deploy `send-wa-message` + Meta approval |
+| Meta webhook signature protection | Both public webhook handlers now share exact-byte HMAC-SHA256 verification and dependency-free tests pass. Production remains unchanged until the staged rollout | Muhammad - deploy both with `--no-verify-jwt`, set `META_APP_SECRET` in audit mode, confirm real `signature valid` logs, then set `META_SIGNATURE_ENFORCED=true` |
 | Supabase backup script (4x/day to Hostinger) | Files uploaded to Hostinger (`orange-moose-457260.hostingersite.com`, account root, not `public_html`) and all 4 cron jobs created (`0 0/6/12/18 * * *`). Only `config.php` (real project URL + service role key) is left, and only Muhammad can create it | Muhammad - create `config.php` |
 
 **B3/B4 (Muhammad asked directly) - deployed.** These are the WhatsApp delivery ticks
@@ -89,9 +90,8 @@ webhook-routing question above is settled.
 
 ### C. TO BUILD - safe code work, no live send, can start anytime
 
-| Item | Notes |
-| --- | --- |
-| Webhook request-signature verification | Both public webhooks accept unsigned requests. NOTE: this is NOT a casual item - it changes the live webhook and a wrong signature check breaks inbound lead capture; needs the Meta app secret and a deploy (Muhammad's laptop) |
+No currently listed self-contained code item remains in this bucket. Webhook signature
+protection moved to READY, WAITING after local verification on 2026-08-09.
 
 ### D. BLOCKED - human or third-party, no Claude session does these
 
@@ -158,11 +158,12 @@ set of Bot Manager reference cards that are explicitly "not built yet."
 Biggest blockers: several are human-only (Meta `leads_retrieval` token scope, Meta
 template approval, confirming WhatChimp automation is off, creating two Auth users).
 
-Biggest technical risks: schema drift between `schema.sql` and the live database
-(three tables/columns written by code but never defined in the repo), webhooks with
-no request-signature verification, an unauthenticated cron-driven send function
-(`nudge-agents`) with no code-level kill switch, and a per-row HTTP trigger on
-`leads` INSERT that makes a bulk import risky.
+Biggest technical risks in that 2026-08-06 snapshot were schema drift and unsigned
+webhooks. Schema drift is now closed in the repo. Webhook signature verification is
+built and locally tested, but the live endpoints remain unsigned until Muhammad
+completes the staged deploy, audit, and enforcement rollout. The unauthenticated
+cron-driven `nudge-agents` send function still has no code-level kill switch, and a
+per-row HTTP trigger on `leads` INSERT still makes a bulk import risky.
 
 ---
 
@@ -379,9 +380,11 @@ PLACEHOLDER, MANUAL ONLY / BLOCKED ON HUMAN ACTION / UNKNOWN, UNVERIFIED.
 ## 7. WhatsApp System
 
 Inbound (verified):
-1. Meta Cloud API POSTs to `whatsapp-webhook` (v70, public, no JWT). GET is gated by
-   `WHATSAPP_VERIFY_TOKEN` (index.ts:158). POST is NOT signature-verified (no
-   `X-Hub-Signature-256` check; `req.json()` at 166 trusts the body).
+1. Meta Cloud API POSTs to `whatsapp-webhook` (live v75, public, no JWT). GET is gated
+   by `WHATSAPP_VERIFY_TOKEN`. The committed next version verifies
+   `X-Hub-Signature-256` over the exact request bytes before parsing, but the live
+   v75 source still uses `req.json()` and accepts unsigned POSTs until Muhammad
+   completes the rollout shown in the Progress Board.
 2. The webhook records the inbound message into `communications`, creates/updates
    the `leads` row, downloads any image to the `deposit-screenshots` bucket, and
    marks the message read via `markAsRead` (blue ticks, ungated).
@@ -399,10 +402,11 @@ Outbound paths (verified):
   design - agents must be able to reply).
 - Read receipts: `markAsRead` (1664), ungated but not a customer-visible message.
 
-Delivery status callbacks: Meta status entries (`sent/delivered/read/failed`) are
-handled at index.ts:506-546 with a forward-only rank guard (a late "delivered"
-cannot overwrite a "read"), writing `communications.delivery_status`. Deployed in
-v70. The FRONTEND does not render ticks in committed code (see sections 6 and 11).
+Delivery status callbacks: Meta status entries (`sent/delivered/read/failed`) use a
+forward-only rank guard, so a late "delivered" cannot overwrite a "read", and write
+`communications.delivery_status`. The webhook writer and frontend ticks are both
+live; their remaining gap is a real-message proof after the 6541 routing issue is
+resolved.
 
 24-hour window: computed client-side in `waWindowState()` / `startWaWindowTicker()`
 (index.html around 7409-7479), shown as a live countdown pill and used to disable
@@ -419,11 +423,11 @@ no escalation message actually goes out today (see section 10).
 sequenceDiagram
   participant C as Customer WhatsApp
   participant M as Meta Cloud API
-  participant W as whatsapp-webhook v70
+  participant W as whatsapp-webhook v75
   participant DB as Supabase
   participant A as Agent (CRM)
   C->>M: message
-  M->>W: POST (no signature check)
+  M->>W: POST (live v75 has no signature check yet)
   W->>DB: insert communications + upsert lead
   W->>M: markAsRead (ungated)
   W->>W: runBotStep -> reply blocked (BOT_REPLIES_ENABLED=false)
@@ -452,8 +456,10 @@ Business settings). The webhook subscription and Page link are also human steps.
 UNVERIFIED: the actual live token scope and subscription state could not be
 inspected (would require Meta access, which is prohibited).
 
-Security note: the POST is not signature-verified, so a crafted `leadgen` body could
-insert leads. Documented as a risk (section 17), not exploited.
+Security note: live v3 is not signature-verified, so a crafted `leadgen` body could
+insert leads. The committed next version verifies the exact request bytes using the
+shared Meta HMAC helper, but that protection is not live until Muhammad completes
+the staged rollout. This risk was documented and locally fixed, never exploited.
 
 ---
 
@@ -591,45 +597,40 @@ live DB exactly as in `schema.sql`.
 
 ## 15. Remaining Work
 
-Safe code work that can be done now (no live send, no deploy needed to build):
-- Delivery-tick frontend rendering (already drafted locally; needs review, then the
-  ordered rollout below).
-- Payroll: wire a real transaction source and persist results (currently computes
-  commission against an empty set in live mode).
-- Add `CREATE TABLE communication_logs` and the missing `leads` deposit/conversion
-  columns to `schema.sql`/a migration to close schema drift (section 17).
-- Add request-signature verification to the two public webhooks.
+No self-contained task currently remains in the Progress Board's TO BUILD bucket.
+Payroll persistence, delivery ticks, media handling, schema drift, conversion
+timestamping, and webhook signature code are complete.
 
-Code work blocked by another implementation:
-- Delivery-tick frontend must not be pushed before the `delivery_status` migration
-  is applied live and the webhook confirmed writing it (else the inbox query breaks).
-- Message Templates auto-submit needs the Meta Template API integration first.
+READY, WAITING work:
+- Deploy both signature-aware Meta webhooks with `--no-verify-jwt`, set the app
+  secret in audit mode, confirm real `signature valid` logs, and only then enforce.
+- Deploy template sending after Meta approves at least one template.
+- Finish the Hostinger backup `config.php` with the real secret outside any AI
+  session.
 
-Human-only work: section 13.
-
-Deployment-only work:
-- Apply `20260806020000_communications_delivery_status.sql` (and confirm the other
-  recent migrations are applied).
-- Deploy the webhook if any newer change lands (currently v70).
-
-Unknown / needs verification: live migration-applied state, live cron.job state,
-Meta token scope, existence of `communication_logs` and deposit columns live.
+Human-only or third-party work remains in section 13 and the Progress Board:
+resolve WhatChimp's remaining subscription on 6541, approve a Meta template, create
+the two staff Auth accounts, grant the Meta lead token `leads_retrieval`, and decide
+when the bot and notification features may be activated.
 
 ---
 
 ## 16. Recommended Execution Order
 
 Respecting all safety constraints (bot stays off, sends only from Muhammad's laptop):
-1. Verify live DB state (a human runs read-only SQL): which migrations are applied,
-   whether `communication_logs` and the deposit columns exist, and current
-   `cron.job` rows.
-2. Apply the `communications.delivery_status` migration if not already applied.
-3. Confirm the deployed webhook (v70) is writing `delivery_status` against the live
-   column.
-4. Commit and deploy the delivery-tick frontend (auto-deploys via Vercel). Verify.
-5. Close schema drift (add the missing table/columns to the repo).
-6. Only when Muhammad decides and WhatChimp automation is confirmed off: plan the
-   bot flag flips one at a time, each tested on his laptop with him present.
+1. Resolve which webhook receives 6541 and remove WhatChimp from that CRM number.
+   Never touch 3903.
+2. Deploy the two signature-aware webhooks with `--no-verify-jwt`. With no app
+   secret set, this changes no request behavior.
+3. Muhammad sets `META_APP_SECRET`; keep `META_SIGNATURE_ENFORCED=false` and inspect
+   genuine Meta traffic logs for `signature valid` on both functions.
+4. Only after audit mode is clean, set `META_SIGNATURE_ENFORCED=true`. Set it back
+   to `false` immediately if genuine traffic fails verification.
+5. Obtain Meta template approval, then deploy and test template sending on
+   Muhammad's laptop with him present.
+6. Create the two staff Auth accounts and finish the Hostinger backup config.
+7. Only when Muhammad decides and WhatChimp automation is confirmed off: plan bot
+   flag flips one at a time, each tested on his laptop with him present.
 Do not assume this order if a live DB check reveals a different reality.
 
 ---
@@ -637,19 +638,14 @@ Do not assume this order if a live DB check reveals a different reality.
 ## 17. Risks and Technical Debt
 
 Supported by evidence:
-- Schema drift (high): `communication_logs` is written by three functions
-  (conversion-hook, submit-lead-form, send-wa-message) but has no `CREATE TABLE` in
-  the repo; `leads.deposit_platform/deposit_amount/deposit_account_ref/converted_at/
-  verified` are written by conversion-hook / submit-lead-form but never defined in
-  the repo; `bot_stage_history` lives only in a migration, not `schema.sql`. The
-  committed schema is behind the live DB, so rebuilding from `schema.sql` yields a
-  broken database.
-- Deployed-vs-migration mismatch (high): webhook v70 writes `communications.
-  delivery_status`, but whether that column exists live is UNVERIFIED. If it does
-  not, status writes fail silently.
-- Unauthenticated webhooks with no signature check (medium): whatsapp-webhook and
-  meta-leadgen-webhook trust the POST body; a crafted request could drive ingestion
-  or lead creation.
+- Webhook signature rollout incomplete (medium): committed code verifies both Meta
+  POST webhooks and its dependency-free tests pass, but the downloaded live v75/v3
+  sources still trust `req.json()`. Protection remains absent until the staged
+  deploy, audit, and enforcement steps complete.
+- Schema drift risk is closed in committed Phase 29. The reconstructed definitions
+  remain subordinate to live DB shapes if a future read-only diff finds a mismatch.
+- The delivery-status migration and deployed callback writer are live; frontend
+  ticks render. Only a real-message proof remains after 6541 routing is resolved.
 - `nudge-agents` has no code kill switch (medium): safe only while unscheduled.
 - Per-row HTTP trigger on `leads` INSERT (medium): makes bulk import dangerous.
 - Duplicate function definition (low): `guard_leads_admin_only_columns()` defined
@@ -659,7 +655,9 @@ Supported by evidence:
 - Documentation drift (low): a Bot Manager help string says "no scheduled job reads
   this table" for follow-ups, but a `send-follow-ups` cron reading
   `follow_up_sequences` does exist in `schema.sql`.
-- No automated tests in the repo (medium): all verification is manual/simulated.
+- Limited automated tests (medium): webhook signature verification now has a
+  dependency-free committed test, but most of the monolithic CRM remains manually
+  or demo-mode verified.
 
 ---
 
@@ -732,8 +730,9 @@ Flags that must stay OFF: `BOT_REPLIES_ENABLED`, `KEYWORD_REPLIES_ENABLED`,
 `AI_REPLIES_ENABLED`, `NEW_LEAD_NOTIFICATIONS_ENABLED`, `FOLLOW_UPS_ENABLED`,
 `SIGNAL_BROADCAST_ENABLED`, `AUTOMATION_ENABLED`. Keep `nudge-agents` unscheduled.
 
-Safe work to pick up next: adding webhook signature checks, with the Meta app secret
-and a deliberately planned deploy window because a bad check can stop inbound leads.
+Safe webhook signature code is complete. Its remaining work is a Muhammad-only
+staged deploy, audit, and enforcement window because a wrong app secret can stop
+inbound leads. No session should fetch or receive the Meta app secret.
 
 Before starting: pull `main`, read the latest HANDOFF.md and REMAINING_TODOS.md, and
 announce your claim (ideally in a dedicated Active Work Claims section) so the other
