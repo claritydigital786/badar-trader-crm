@@ -12,7 +12,7 @@ trust the board's date and re-check the code._
 
 ---
 
-## Progress Board - live status (updated 2026-08-07)
+## Progress Board - live status (updated 2026-08-09)
 
 The one-screen answer to "what is done and what is left", grouped by what each item
 is actually waiting on - so nothing sits here looking unfinished when it is really
