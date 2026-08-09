@@ -15,6 +15,29 @@ Two things live here, kept apart on purpose:
 
 _Add items here._
 
+- [ ] **Production security-advisor hardening, queued for Junaid's later User
+  Permissions and internal-function-auth package, not Muhammad's current branch.**
+  Read-only Supabase metadata on 2026-08-10 reports 27 warnings: 11 functions
+  with mutable `search_path`, `pg_net` installed in `public`, seven
+  `SECURITY DEFINER` functions executable by `anon` and the same seven executable
+  by `authenticated`, plus leaked-password protection disabled. Most urgent:
+  `settings: agents read wa send creds` currently exposes `wa_access_token` to
+  every authenticated user, not just active agents. Move all sends behind the
+  authenticated Edge Function, then remove browser token access. Revoke direct
+  RPC execution from roles that do not need it and set explicit function search
+  paths. Enabling leaked-password protection remains Muhammad's Auth setting.
+- [ ] **Production performance-advisor cleanup after permission correctness.**
+  Read-only metadata reports 62 notices: 25 unindexed foreign keys, 3 per-row
+  Auth/RLS evaluations, 12 unused indexes, and 22 multiple-permissive-policy
+  warnings. Do not remove unused indexes merely because they are currently unused;
+  fix the assigned-only policy model first, rerun advisors, then review query usage.
+- [x] **Production migration and branch metadata audit.** DONE read-only on
+  2026-08-10. Supabase records 29 migrations and only the default `main` branch,
+  so no paid staging branch exists. The 13 old local placeholders now have their
+  production names confirmed, but their original SQL is still absent and cannot be
+  reviewed line by line from this repo. Notifications is not in production history.
+  Both PR #14 pooled `lead_activity` migrations are in production and require the
+  assigned-only corrective migration Junaid is preparing. No SQL was executed.
 - [x] **Backup archive validation and mock restore.** DONE 2026-08-10 on
   Muhammad's branch. Added secret exclusion, correct non-`id` pagination, archive
   integrity validation, production refusal, disposable-staging confirmation and
