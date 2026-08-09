@@ -23,17 +23,20 @@ Only the local Database, Auth, and Data API services were required. Messaging an
 
 ## Migration and schema checks
 
-- Rebuilt an empty local database from the authoritative `supabase/schema.sql` baseline plus all 32 committed migration files.
-- Applied all 33 local migration steps successfully in chronological order.
+- Sanitized the authoritative `supabase/schema.sql` before Docker applied it.
+- Removed all three production cron schedules and replaced the production automation callback with a local no-op.
+- Asserted that the prepared SQL contains no production project reference, enabled `cron.schedule`, or `net.http_post` callback.
+- Omitted parked Phase 28 notifications from the baseline and skipped `20260807000000_notifications.sql`.
+- Applied all 32 local migration steps successfully in chronological order.
 - Applied corrective migration `20260810020000_restrict_agents_to_assigned_leads.sql` last.
 - Ran `supabase db lint --local --schema public --level warning`.
 - Result: no schema errors found.
 
-The clean replay caught and corrected two issues before this package was submitted. A storage policy initially referenced the active-staff helper before that helper existed in the baseline, and the first permission-matrix run found that Admin lacked the expected full-access policy on `communication_logs`. The authoritative schema and corrective migration now cover both cases.
+The clean replay and PR review caught four issues before the final package was submitted. A storage policy initially referenced the active-staff helper before that helper existed in the baseline. The first permission-matrix run found that Admin lacked the expected full-access policy on `communication_logs`. Muhammad's review then found production cron and automation callbacks in the copied baseline, plus pooled appointment access. The sanitizer, authoritative schema, corrective migration, and matrix now cover all four cases.
 
 ## Fake seed
 
-The seed created Fake Admin, Fake Agent A, Fake Agent B, three fake leads, and related fake communications, transactions, KYC records, activity, communication logs, appointments, notifications, settings, automation, Bot Manager content, broadcast history, subscribers, and payroll data.
+The seed created Fake Admin, Fake Agent A, Fake Agent B, three fake leads, and related fake communications, transactions, KYC records, activity, communication logs, appointments, settings, automation, Bot Manager content, broadcast history, subscribers, and payroll data. It did not create notifications because that feature remains parked.
 
 All phone numbers use the reserved `+1 555` test range. All email addresses use `@local.test`.
 
@@ -44,6 +47,7 @@ All phone numbers use the reserved `+1 555` test range. All email addresses use 
 - Agent B can access only Fake Customer Beta, which is assigned to Agent B.
 - Neither Agent can access the unassigned lead or the other Agent's lead.
 - Related communications, transactions, KYC documents, activity, communication logs, and private lead files follow the same assigned-lead boundary.
+- Agent appointments are limited to rows where `agent_id` is the signed-in Agent.
 - Agent-created communications, activity, and communication logs must identify the signed-in Agent as the actor.
 - A suspended Agent sees no protected lead records.
 
@@ -51,9 +55,9 @@ This replaces the earlier pooled active-staff model proposed in PR #14. The corr
 
 ## Cross-agent RLS matrix
 
-Result: **76 passed, 0 failed**.
+Result: **75 passed, 0 failed**.
 
-Coverage includes Admin full access, assigned Agent reads and writes, cross-Agent denial, unassigned-lead denial, protected balance denial, actor-forgery denial, admin-only module denial, settings boundaries, recipient-scoped notifications, and suspended-agent denial.
+Coverage includes Admin full access, assigned Agent reads and writes, cross-Agent denial, unassigned-lead denial, assigned-only appointment reads, updates and inserts, protected balance denial, actor-forgery denial, admin-only module denial, settings boundaries, and suspended-agent denial. The matrix is repeatable on the same disposable runtime.
 
 ## Browser QA
 
@@ -68,6 +72,7 @@ The browser verified:
 - Agent A's My Leads, Inbox, and Comm Log showed Fake Customer Alpha only.
 - Fake Customer Beta and the unassigned fake lead were absent from Agent A's pages.
 - User Permission and both guides describe assigned-lead access.
+- The parked Notifications page loads with a zero badge and no missing-table console error.
 - The final browser console contained zero errors or warnings.
 
 ## Responsive QA
@@ -87,4 +92,4 @@ The browser verified:
 
 ## Final result
 
-The disposable staging harness replays all 33 migration steps cleanly, schema lint is clean, the assigned-lead RLS matrix passes 76 of 76 checks, all 21 Admin and 6 Agent modules load, Agent A sees only the assigned fake lead, tested mobile layouts do not overflow, and the final browser console is clean. PR #14 remains unmerged and production was not changed by this corrective package.
+The disposable staging harness prepares an outbound-safe baseline, replays all 32 applicable migration steps cleanly, leaves parked notifications absent, passes schema lint, and passes 75 of 75 assigned-access checks including appointments. All 21 Admin and 6 Agent modules load, Agent A sees only the assigned fake lead, tested mobile layouts do not overflow, and the final browser console is clean. PR #14 remains unmerged and production was not changed by this corrective package.

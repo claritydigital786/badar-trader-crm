@@ -1404,10 +1404,23 @@ CREATE TRIGGER appointments_updated_at
 ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "appointments: staff full access" ON public.appointments;
-CREATE POLICY "appointments: staff full access" ON public.appointments
+DROP POLICY IF EXISTS "appointments: admin full access" ON public.appointments;
+CREATE POLICY "appointments: admin full access" ON public.appointments
   FOR ALL TO authenticated
-  USING (public.is_active_staff())
-  WITH CHECK (public.is_active_staff());
+  USING ((SELECT public.is_admin()))
+  WITH CHECK ((SELECT public.is_admin()));
+
+DROP POLICY IF EXISTS "appointments: agent own" ON public.appointments;
+CREATE POLICY "appointments: agent own" ON public.appointments
+  FOR ALL TO authenticated
+  USING (
+    (SELECT public.is_active_staff())
+    AND agent_id = (SELECT auth.uid())
+  )
+  WITH CHECK (
+    (SELECT public.is_active_staff())
+    AND agent_id = (SELECT auth.uid())
+  );
 
 -- ── DONE (Phase 23) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════

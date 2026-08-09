@@ -151,6 +151,25 @@ CREATE POLICY "communication_logs: agent insert own" ON public.communication_log
     )
   );
 
+DROP POLICY IF EXISTS "appointments: staff full access" ON public.appointments;
+DROP POLICY IF EXISTS "appointments: admin full access" ON public.appointments;
+CREATE POLICY "appointments: admin full access" ON public.appointments
+  FOR ALL TO authenticated
+  USING ((SELECT public.is_admin()))
+  WITH CHECK ((SELECT public.is_admin()));
+
+DROP POLICY IF EXISTS "appointments: agent own" ON public.appointments;
+CREATE POLICY "appointments: agent own" ON public.appointments
+  FOR ALL TO authenticated
+  USING (
+    (SELECT public.is_active_staff())
+    AND agent_id = (SELECT auth.uid())
+  )
+  WITH CHECK (
+    (SELECT public.is_active_staff())
+    AND agent_id = (SELECT auth.uid())
+  );
+
 DROP POLICY IF EXISTS "kyc-documents: agent select own clients" ON storage.objects;
 CREATE POLICY "kyc-documents: agent select own clients" ON storage.objects
   FOR SELECT TO authenticated

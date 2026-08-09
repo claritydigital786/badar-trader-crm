@@ -8294,9 +8294,11 @@ async function loadNotifications() {
     .select('*').eq('recipient_id', currentUser.id)
     .order('created_at', { ascending: false }).limit(30);
   if (error) {
-    // PGRST205 = table missing, i.e. the migration has not been run. Not an
-    // agent's problem, so it stays in the console rather than on screen.
-    console.error('loadNotifications:', error.message);
+    // Notifications are parked until Muhammad approves their migration.
+    // A missing table is therefore expected and should not pollute the console.
+    if (error.code !== 'PGRST205' && error.code !== '42P01') {
+      console.error('loadNotifications:', error.message);
+    }
     _notifications = [];
   } else {
     _notifications = data || [];

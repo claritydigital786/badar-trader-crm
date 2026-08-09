@@ -524,40 +524,6 @@ def seed(local: LocalSupabase):
 
     upsert_rows(
         local,
-        "notifications",
-        [
-            {
-                "id": "87000000-0000-4000-8000-000000000001",
-                "recipient_id": agent_a_id,
-                "actor_id": admin_id,
-                "kind": "assignment",
-                "title": "Fake local assignment for Agent A",
-                "body": "Local QA notification.",
-                "lead_id": LEAD_A,
-            },
-            {
-                "id": "87000000-0000-4000-8000-000000000002",
-                "recipient_id": agent_b_id,
-                "actor_id": admin_id,
-                "kind": "assignment",
-                "title": "Fake local assignment for Agent B",
-                "body": "Local QA notification.",
-                "lead_id": LEAD_B,
-            },
-            {
-                "id": "87000000-0000-4000-8000-000000000003",
-                "recipient_id": admin_id,
-                "actor_id": admin_id,
-                "kind": "system",
-                "title": "Fake local admin notification",
-                "body": "Local QA notification.",
-                "lead_id": None,
-            },
-        ],
-    )
-
-    upsert_rows(
-        local,
         "communication_logs",
         [
             {
@@ -638,7 +604,7 @@ def rls_matrix(local: LocalSupabase):
         ("communications", "body", "Fake assigned-lead local reply. Nothing was sent."),
         ("lead_activity", "summary", "Fake assigned-lead local activity."),
         ("communication_logs", "message", "Fake assigned-lead communication log."),
-        ("notifications", "title", "Fake cross-agent local forward"),
+        ("appointments", "title", "Fake Agent A matrix insert"),
     ):
         status, data = local.service_rest(
             "DELETE",
@@ -696,6 +662,7 @@ def rls_matrix(local: LocalSupabase):
             "kyc_documents": 2,
             "lead_activity": 2,
             "communication_logs": 2,
+            "appointments": 2,
         },
         "Agent A": {
             "leads": 1,
@@ -704,6 +671,7 @@ def rls_matrix(local: LocalSupabase):
             "kyc_documents": 1,
             "lead_activity": 1,
             "communication_logs": 1,
+            "appointments": 1,
         },
         "Agent B": {
             "leads": 1,
@@ -712,12 +680,12 @@ def rls_matrix(local: LocalSupabase):
             "kyc_documents": 1,
             "lead_activity": 1,
             "communication_logs": 1,
+            "appointments": 1,
         },
     }
     for principal, counts in related_counts.items():
         for table, expected_count in counts.items():
             select_count(principal, table, expected_count)
-        select_count(principal, "appointments", 2)
 
     for table, admin_count in (
         ("ai_knowledge_base", 1),
@@ -736,9 +704,6 @@ def rls_matrix(local: LocalSupabase):
         select_count("Agent A", table, 0, query)
         select_count("Agent B", table, 0, query)
 
-    select_count("Admin", "notifications", 1)
-    select_count("Agent A", "notifications", 1)
-    select_count("Agent B", "notifications", 1)
     select_count("Admin", "settings", 5, "select=key")
     select_count("Agent A", "settings", 2, "select=key")
     select_count("Agent B", "settings", 2, "select=key")
@@ -938,33 +903,67 @@ def rls_matrix(local: LocalSupabase):
     agent_b_id = user_id(local, "agent.b@local.test")
     status, data = local.user_rest(
         tokens["Agent A"],
-        "POST",
-        "notifications",
-        {
-            "recipient_id": agent_b_id,
-            "actor_id": agent_a_id,
-            "kind": "forward",
-            "title": "Fake cross-agent local forward",
-            "body": "Local QA only.",
-            "lead_id": LEAD_B,
-        },
-        "return=minimal",
+        "PATCH",
+        "appointments?agent_id=eq." + agent_b_id,
+        {"notes": "Cross-agent appointment update."},
+        "return=representation",
     )
-    record("Agent A", "INSERT notification for Agent B", "allowed", status == 201, f"HTTP {status}")
+    record(
+        "Agent A",
+        "UPDATE Agent B appointment",
+        "denied",
+        status == 200 and data == [],
+        f"HTTP {status}, rows {len(data) if isinstance(data, list) else None}",
+    )
+
+    status, data = local.user_rest(
+        tokens["Agent A"],
+        "PATCH",
+        "appointments?agent_id=eq." + agent_a_id,
+        {"notes": "Assigned appointment update."},
+        "return=representation",
+    )
+    record(
+        "Agent A",
+        "UPDATE own appointment",
+        "allowed",
+        status == 200 and isinstance(data, list) and len(data) == 1,
+        f"HTTP {status}, rows {len(data) if isinstance(data, list) else None}",
+    )
 
     status, data = local.user_rest(
         tokens["Agent A"],
         "POST",
-        "notifications",
+        "appointments",
         {
-            "recipient_id": agent_b_id,
-            "actor_id": agent_b_id,
-            "kind": "forward",
-            "title": "Forged fake notification",
+            "title": "Fake cross-agent matrix insert",
+            "scheduled_at": "2026-08-13T12:00:00Z",
+            "agent_id": agent_b_id,
+            "created_by": agent_a_id,
         },
         "return=representation",
     )
-    record("Agent A", "FORGE notification as Agent B", "denied", status >= 400, f"HTTP {status}")
+    record("Agent A", "INSERT Agent B appointment", "denied", status >= 400, f"HTTP {status}")
+
+    status, data = local.user_rest(
+        tokens["Agent A"],
+        "POST",
+        "appointments",
+        {
+            "title": "Fake Agent A matrix insert",
+            "scheduled_at": "2026-08-13T12:00:00Z",
+            "agent_id": agent_a_id,
+            "created_by": agent_a_id,
+        },
+        "return=representation",
+    )
+    record(
+        "Agent A",
+        "INSERT own appointment",
+        "allowed",
+        status == 201 and isinstance(data, list) and len(data) == 1,
+        f"HTTP {status}",
+    )
 
     status, data = local.user_rest(
         tokens["Admin"],

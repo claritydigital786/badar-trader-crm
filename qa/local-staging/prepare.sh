@@ -25,11 +25,18 @@ fi
 
 mkdir -p "$runtime_dir/supabase/migrations"
 cp "$script_dir/supabase/config.toml" "$runtime_dir/supabase/config.toml"
-cp "$repo_root/supabase/schema.sql" \
+python3 "$script_dir/sanitize_schema.py" \
+  "$repo_root/supabase/schema.sql" \
   "$runtime_dir/supabase/migrations/20260701000000_schema_baseline.sql"
 
 for migration in "$repo_root"/supabase/migrations/*.sql; do
+  if [[ "$(basename -- "$migration")" == "20260807000000_notifications.sql" ]]; then
+    continue
+  fi
   cp "$migration" "$runtime_dir/supabase/migrations/$(basename -- "$migration")"
 done
+
+python3 "$script_dir/sanitize_schema.py" \
+  --verify-dir "$runtime_dir/supabase/migrations"
 
 echo "$runtime_dir"
