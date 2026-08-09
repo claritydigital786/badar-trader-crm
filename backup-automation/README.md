@@ -63,6 +63,14 @@ Storage object. Storage objects use hash-based archive names so an unsafe
 remote filename cannot escape the backup directory. The manifest maps each
 hash back to its original bucket and path and records size and SHA-256.
 
+After finalizing a ZIP, the cron reopens it through the same validation path used
+by `restore.php`. Loose table and Storage files are removed only after that full
+check passes. If finalization or validation fails, the bad ZIP is removed, the
+loose recovery files stay available, the log records the exact failure, and the
+cron exits non-zero. The validation workspace is created inside the private
+backup directory so restricted hosting cron processes do not depend on system
+temporary-directory permissions.
+
 Old backups are pruned automatically, keeping the most recent 28
 (a week of history at 4 runs/day) - change `BACKUP_RETAIN_COUNT` in
 `config.php` to keep more or fewer.
@@ -83,7 +91,9 @@ database export. Normally no extra configuration is required.
 - Set `BACKUP_STORAGE_BUCKETS` to a comma-separated allowlist only if you want
   to restrict the backup to named buckets.
 - Set `BACKUP_STORAGE_MAX_OBJECTS` to cap one run. The default is 50,000.
-- Set `BACKUP_STORAGE_ENABLED=false` only for a temporary diagnostic run.
+- Set `BACKUP_STORAGE_ENABLED=false` only for a temporary diagnostic run. The
+  archive will contain an empty Storage manifest so it remains self-validating
+  and restore-compatible.
 
 If one object cannot be downloaded, the archive still contains all successful
 tables and objects, the manifest marks the failed object, the log names it, and
