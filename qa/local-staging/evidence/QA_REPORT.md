@@ -32,7 +32,7 @@ Only the local Database, Auth, and Data API services were required. Messaging an
 - Ran `supabase db lint --local --schema public --level warning`.
 - Result: no schema errors found.
 
-The clean replay and PR review caught four issues before the final package was submitted. A storage policy initially referenced the active-staff helper before that helper existed in the baseline. The first permission-matrix run found that Admin lacked the expected full-access policy on `communication_logs`. Muhammad's review then found production cron and automation callbacks in the copied baseline, plus pooled appointment access. The sanitizer, authoritative schema, corrective migration, and matrix now cover all four cases.
+The clean replay and PR review caught five permission and staging issues before the final package was submitted. A storage policy initially referenced the active-staff helper before that helper existed in the baseline. The first permission-matrix run found that Admin lacked the expected full-access policy on `communication_logs`. Muhammad's review then found production cron and automation callbacks in the copied baseline, plus pooled appointment access. The final review found that same-lead actor forgery was not tested and that appointment creator identity was not protected. The sanitizer, authoritative schema, corrective migration, and matrix now cover all five cases.
 
 ## Fake seed
 
@@ -49,15 +49,17 @@ All phone numbers use the reserved `+1 555` test range. All email addresses use 
 - Related communications, transactions, KYC documents, activity, communication logs, and private lead files follow the same assigned-lead boundary.
 - Agent appointments are limited to rows where `agent_id` is the signed-in Agent.
 - Agent-created communications, activity, and communication logs must identify the signed-in Agent as the actor.
+- Agent appointment inserts must identify the signed-in Agent in both `agent_id` and `created_by`.
+- Agents can update an appointment assigned to them, including one created by Admin, but cannot alter its `created_by` audit field.
 - A suspended Agent sees no protected lead records.
 
 This replaces the earlier pooled active-staff model proposed in PR #14. The corrective migration is prepared locally only. Production remains unchanged by this package.
 
 ## Cross-agent RLS matrix
 
-Result: **75 passed, 0 failed**.
+Result: **80 passed, 0 failed**.
 
-Coverage includes Admin full access, assigned Agent reads and writes, cross-Agent denial, unassigned-lead denial, assigned-only appointment reads, updates and inserts, protected balance denial, actor-forgery denial, admin-only module denial, settings boundaries, and suspended-agent denial. The matrix is repeatable on the same disposable runtime.
+Coverage includes Admin full access, assigned Agent reads and writes, cross-Agent denial, unassigned-lead denial, assigned-only appointment reads, updates and inserts, protected balance denial, same-lead `logged_by`, `actor_id`, and `created_by` forgery denial, appointment creator forgery denial on insert and update, admin-only module denial, settings boundaries, and suspended-agent denial.
 
 ## Browser QA
 
@@ -92,4 +94,4 @@ The browser verified:
 
 ## Final result
 
-The disposable staging harness prepares an outbound-safe baseline, replays all 32 applicable migration steps cleanly, leaves parked notifications absent, passes schema lint, and passes 75 of 75 assigned-access checks including appointments. All 20 active Admin and 6 Agent modules load, Agent A sees only the assigned fake lead, tested mobile layouts do not overflow, and the final browser console is clean. PR #14 remains unmerged and production was not changed by this corrective package.
+The disposable staging harness prepares an outbound-safe baseline, replays all 32 applicable migration steps cleanly, leaves parked notifications absent, passes schema lint, and passes 80 of 80 assigned-access and actor-forgery checks including appointments. All 20 active Admin and 6 Agent modules load, Agent A sees only the assigned fake lead, tested mobile layouts do not overflow, and the final browser console is clean. PR #14 remains unmerged and production was not changed by this corrective package.

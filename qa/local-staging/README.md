@@ -37,7 +37,7 @@ python3 qa/local-staging/local_qa.py \
 
 The seed command creates only fake `@local.test` users and fake CRM records. The RLS command signs in as the fake Admin, Agent A, and Agent B users and checks expected read and write boundaries through the local Data API.
 
-The current matrix enforces assigned-lead access. Admin can access all fake leads and appointments. Each active Agent can access only the fake lead and appointment assigned to that Agent and their related records. Cross-Agent and unassigned-lead access is denied.
+The current matrix enforces assigned-lead access. Admin can access all fake leads and appointments. Each active Agent can access only the fake lead and appointment assigned to that Agent and their related records. Cross-Agent and unassigned-lead access is denied. Same-lead writes cannot spoof another staff member in communication, activity, log, or appointment creator audit fields.
 
 ## Local browser override
 

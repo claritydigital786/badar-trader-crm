@@ -159,8 +159,28 @@ CREATE POLICY "appointments: admin full access" ON public.appointments
   WITH CHECK ((SELECT public.is_admin()));
 
 DROP POLICY IF EXISTS "appointments: agent own" ON public.appointments;
-CREATE POLICY "appointments: agent own" ON public.appointments
-  FOR ALL TO authenticated
+DROP POLICY IF EXISTS "appointments: agent select own" ON public.appointments;
+DROP POLICY IF EXISTS "appointments: agent insert own" ON public.appointments;
+DROP POLICY IF EXISTS "appointments: agent update own" ON public.appointments;
+DROP POLICY IF EXISTS "appointments: agent delete own" ON public.appointments;
+
+CREATE POLICY "appointments: agent select own" ON public.appointments
+  FOR SELECT TO authenticated
+  USING (
+    (SELECT public.is_active_staff())
+    AND agent_id = (SELECT auth.uid())
+  );
+
+CREATE POLICY "appointments: agent insert own" ON public.appointments
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    (SELECT public.is_active_staff())
+    AND agent_id = (SELECT auth.uid())
+    AND created_by = (SELECT auth.uid())
+  );
+
+CREATE POLICY "appointments: agent update own" ON public.appointments
+  FOR UPDATE TO authenticated
   USING (
     (SELECT public.is_active_staff())
     AND agent_id = (SELECT auth.uid())
@@ -169,6 +189,35 @@ CREATE POLICY "appointments: agent own" ON public.appointments
     (SELECT public.is_active_staff())
     AND agent_id = (SELECT auth.uid())
   );
+
+CREATE POLICY "appointments: agent delete own" ON public.appointments
+  FOR DELETE TO authenticated
+  USING (
+    (SELECT public.is_active_staff())
+    AND agent_id = (SELECT auth.uid())
+  );
+
+CREATE OR REPLACE FUNCTION public.protect_appointment_created_by()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  IF OLD.created_by IS DISTINCT FROM NEW.created_by
+     AND (SELECT auth.role()) = 'authenticated'
+     AND NOT (SELECT public.is_admin()) THEN
+    RAISE EXCEPTION 'Agents cannot change appointment created_by'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS appointments_protect_created_by ON public.appointments;
+CREATE TRIGGER appointments_protect_created_by
+  BEFORE UPDATE OF created_by ON public.appointments
+  FOR EACH ROW EXECUTE FUNCTION public.protect_appointment_created_by();
 
 DROP POLICY IF EXISTS "kyc-documents: agent select own clients" ON storage.objects;
 CREATE POLICY "kyc-documents: agent select own clients" ON storage.objects

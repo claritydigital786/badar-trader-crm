@@ -798,6 +798,21 @@ def rls_matrix(local: LocalSupabase):
     status, data = local.user_rest(
         tokens["Agent A"],
         "POST",
+        "communications",
+        {
+            "lead_id": LEAD_A,
+            "type": "whatsapp",
+            "direction": "outbound",
+            "body": "Fake same-lead actor forgery attempt.",
+            "logged_by": user_id(local, "agent.b@local.test"),
+        },
+        "return=representation",
+    )
+    record("Agent A", "FORGE communication logged_by on own lead", "denied", status >= 400, f"HTTP {status}")
+
+    status, data = local.user_rest(
+        tokens["Agent A"],
+        "POST",
         "lead_activity",
         {
             "lead_id": LEAD_B,
@@ -838,6 +853,20 @@ def rls_matrix(local: LocalSupabase):
     status, data = local.user_rest(
         tokens["Agent A"],
         "POST",
+        "lead_activity",
+        {
+            "lead_id": LEAD_A,
+            "actor_id": user_id(local, "agent.b@local.test"),
+            "channel": "note",
+            "summary": "Fake same-lead actor forgery attempt.",
+        },
+        "return=representation",
+    )
+    record("Agent A", "FORGE activity actor_id on own lead", "denied", status >= 400, f"HTTP {status}")
+
+    status, data = local.user_rest(
+        tokens["Agent A"],
+        "POST",
         "communication_logs",
         {
             "lead_id": LEAD_B,
@@ -868,6 +897,20 @@ def rls_matrix(local: LocalSupabase):
         status == 201 and isinstance(data, list) and len(data) == 1,
         f"HTTP {status}",
     )
+
+    status, data = local.user_rest(
+        tokens["Agent A"],
+        "POST",
+        "communication_logs",
+        {
+            "lead_id": LEAD_A,
+            "type": "note",
+            "message": "Fake same-lead actor forgery attempt.",
+            "created_by": user_id(local, "agent.b@local.test"),
+        },
+        "return=representation",
+    )
+    record("Agent A", "FORGE log created_by on own lead", "denied", status >= 400, f"HTTP {status}")
 
     status, data = local.user_rest(
         tokens["Agent A"],
@@ -964,6 +1007,29 @@ def rls_matrix(local: LocalSupabase):
         status == 201 and isinstance(data, list) and len(data) == 1,
         f"HTTP {status}",
     )
+
+    status, data = local.user_rest(
+        tokens["Agent A"],
+        "POST",
+        "appointments",
+        {
+            "title": "Fake appointment creator forgery",
+            "scheduled_at": "2026-08-13T13:00:00Z",
+            "agent_id": agent_a_id,
+            "created_by": agent_b_id,
+        },
+        "return=representation",
+    )
+    record("Agent A", "FORGE appointment created_by on insert", "denied", status >= 400, f"HTTP {status}")
+
+    status, data = local.user_rest(
+        tokens["Agent A"],
+        "PATCH",
+        "appointments?id=eq.85000000-0000-4000-8000-000000000001",
+        {"created_by": agent_b_id},
+        "return=representation",
+    )
+    record("Agent A", "FORGE appointment created_by on update", "denied", status >= 400, f"HTTP {status}")
 
     status, data = local.user_rest(
         tokens["Admin"],
