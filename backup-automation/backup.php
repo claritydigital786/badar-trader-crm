@@ -24,7 +24,9 @@ error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
 $scriptDir = __DIR__;
+$scopeHelpers = $scriptDir . '/backup_scope.php';
 $storageHelpers = $scriptDir . '/storage_backup.php';
+require_once $scopeHelpers;
 require_once $storageHelpers;
 $configFile = $scriptDir . '/config.php';
 if (is_file($configFile)) {
@@ -75,32 +77,9 @@ if (!$supabaseUrl || !$serviceKey) {
 // added later, add its name here too - this list is not auto-discovered,
 // on purpose, so a backup run's scope is always exactly what's reviewed
 // and committed, not whatever happens to exist live at run time.
-$tables = [
-    'profiles',
-    'leads',
-    'lead_activity',
-    'audit_log',
-    'settings',
-    'transactions',
-    'kyc_documents',
-    'communications',
-    'automation_rules',
-    'signals',
-    'ai_knowledge_base',
-    'keyword_replies',
-    'follow_up_sequences',
-    'message_templates',
-    'subscribers',
-    'appointments',
-    'follow_up_sends',
-    'signal_broadcasts',
-    'ai_agents',
-    'payroll_settings',
-    'payroll_runs',
-    // notifications is deliberately excluded while its migration remains
-    // parked by Muhammad's instruction. Add it only if that module is revived.
-    'communication_logs',
-];
+$tableMap = crmBackupTableMap();
+$tables = array_keys($tableMap);
+$secretSettingKeys = crmBackupSecretSettingKeys();
 
 /**
  * Fetches every row of one table via PostgREST, paginating with the Range
@@ -108,14 +87,14 @@ $tables = [
  * Returns null (not an empty array) on a real failure, so the caller can
  * tell "table has zero rows" apart from "the request failed".
  */
-function fetchAllRows(string $supabaseUrl, string $serviceKey, string $table, string $logFile): ?array {
+function fetchAllRows(string $supabaseUrl, string $serviceKey, string $table, string $orderColumn, string $logFile): ?array {
     $pageSize = 1000;
     $offset = 0;
     $all = [];
 
     while (true) {
         $url = rtrim($supabaseUrl, '/') . '/rest/v1/' . rawurlencode($table)
-            . '?select=*&order=' . rawurlencode('id.asc');
+            . '?select=*&order=' . rawurlencode($orderColumn . '.asc');
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
@@ -180,13 +159,30 @@ backupLog($logFile, "Backup run started: $runStamp");
 $okCount = 0;
 $failCount = 0;
 $totalRows = 0;
+$tableRowCounts = [];
+$redactedSettingKeys = [];
 
 foreach ($tables as $table) {
-    $rows = fetchAllRows($supabaseUrl, $serviceKey, $table, $logFile);
+    $rows = fetchAllRows($supabaseUrl, $serviceKey, $table, $tableMap[$table], $logFile);
 
     if ($rows === null) {
         $failCount++;
         continue;
+    }
+
+    if ($table === 'settings') {
+        $safeRows = [];
+        foreach ($rows as $row) {
+            $key = is_array($row) ? (string) ($row['key'] ?? '') : '';
+            if (in_array($key, $secretSettingKeys, true)) {
+                $redactedSettingKeys[] = $key;
+                continue;
+            }
+            $safeRows[] = $row;
+        }
+        $rows = $safeRows;
+        sort($redactedSettingKeys);
+        backupLog($logFile, '  NOTE: excluded ' . count($redactedSettingKeys) . ' secret settings from the archive.');
     }
 
     $written = file_put_contents(
@@ -202,8 +198,22 @@ foreach ($tables as $table) {
 
     $rowCount = count($rows);
     $totalRows += $rowCount;
+    $tableRowCounts[$table] = $rowCount;
     $okCount++;
     backupLog($logFile, "  OK: $table ($rowCount rows)");
+}
+
+$backupManifest = [
+    'format_version' => 2,
+    'created_at' => gmdate('c'),
+    'tables' => $tableRowCounts,
+    'excluded_secret_setting_keys' => array_values(array_unique($redactedSettingKeys)),
+    'secret_values_included' => false,
+];
+$backupManifestJson = json_encode($backupManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+if ($backupManifestJson === false || file_put_contents($runDir . '/backup_manifest.json', $backupManifestJson) === false) {
+    $failCount++;
+    backupLog($logFile, '  ERROR writing backup_manifest.json to disk');
 }
 
 if ($storageEnabled) {

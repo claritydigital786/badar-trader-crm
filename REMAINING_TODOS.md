@@ -15,6 +15,20 @@ Two things live here, kept apart on purpose:
 
 _Add items here._
 
+- [x] **Backup archive validation and mock restore.** DONE 2026-08-10 on
+  Muhammad's branch. Added secret exclusion, correct non-`id` pagination, archive
+  integrity validation, production refusal, disposable-staging confirmation and
+  outbound-safety gates, and a complete loopback mock restore. A real staging
+  restore remains blocked on PR #14's production-URL correction, staging Auth IDs,
+  and a database execution check of the staging-only safety SQL.
+- [ ] **PR #14 staging safety correction required before merge.** The staging
+  preparation copies `supabase/schema.sql` unchanged, but that file contains
+  pg_cron jobs and automation callbacks hard-coded to the live production project
+  ref. Fake staging lead and transaction inserts can therefore enqueue production
+  function calls. Neutralize those outbound paths in the prepared staging baseline,
+  add a no-production-ref assertion, and exclude the parked Notifications migration
+  and its QA counts. Review feedback was posted on PR #14; Junaid retains ownership.
+
 - [x] ~~Deploy `whatsapp-webhook` so the Train AI model picker takes effect.~~ DONE 2026-08-06 from Muhammad's laptop with him present. Live function is now **v69**, byte-identical to the repo, `verify_jwt` still false, all reply gates still false. `settings.openai_model` is `gpt-5-mini`, so the picker is now genuinely wired - but `tryAIReply()` still never runs while `AI_REPLIES_ENABLED = false`.
 - [x] ~~Apply `supabase/migrations/20260806000000_ai_agents.sql`.~~ DONE 2026-08-06 from Muhammad's laptop. Applied as a single migration rather than `supabase db push`, because that command reconciles the whole migrations folder against the remote history and many files here are named `applied_via_sql_editor` (applied by hand, possibly not recorded), so a push could have replayed old migrations against the live DB. Verified after: 8 columns, RLS on, 1 admin-only policy, updated_at trigger, 2 indexes, 2 foreign keys. Security advisors show no new warnings from this table.
 - [x] ~~**Payroll persistence.**~~ DONE 2026-08-09 (Junaid). `payroll_settings` and immutable `payroll_runs` snapshots are live in Supabase with admin-only RLS and exact Data API grants. The frontend reads real period-filtered deposits, saves salary settings and runs, reopens run history, validates inputs, and keeps CSV export. Verified in Chrome Demo Mode on desktop and 375px mobile, zero console errors; live schema, policies, grants, indexes and advisors verified after both migrations. No live payroll record was created during testing.
@@ -175,3 +189,9 @@ _Add items here._
   locally verify Supabase Storage backup support without overlapping Junaid's
   frozen PR #14 staging files. No production, Meta, WhatChimp, live messaging,
   credential, billing, account, or merge action was authorized.
+- "what else remaining? Let's execute whatever is remaining to be executed. Also,
+  can you please show me the progress on the right side of this tool?" - enabled
+  the live Codex task plan and resumed safe work. PR #15 was merged, PR #13 was
+  closed as superseded, and Junaid's active PR #14 assigned-lead correction claim
+  was respected. Muhammad's separate session claimed backup restore-readiness so
+  both people can continue without touching the same task or files.
