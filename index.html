@@ -2658,6 +2658,10 @@
         </tbody>
       </table>
     </div>
+    <div style="margin-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <button class="btn btn-secondary btn-inline btn-sm" onclick="savePayrollSettings()">Save Salary Setup</button>
+      <span id="payroll-setup-msg" class="form-msg"></span>
+    </div>
 
     <div class="payroll-period-bar">
       <div>
@@ -2669,7 +2673,7 @@
           <option value="monthly" selected>Monthly</option>
         </select>
       </div>
-      <button class="btn btn-primary btn-inline" onclick="calculatePayroll()">Calculate Payroll</button>
+      <button class="btn btn-primary btn-inline" id="payroll-calculate-btn" onclick="calculatePayroll()">Calculate and Save Payroll</button>
     </div>
 
     <div id="payroll-results" style="display:none">
@@ -2686,6 +2690,18 @@
       <div style="margin-top:14px">
         <button class="btn btn-secondary btn-inline btn-sm" onclick="exportPayrollCSV()">📥 Export CSV</button>
       </div>
+    </div>
+
+    <p class="section-h">Saved Payroll Runs</p>
+    <div class="card" style="padding:0">
+      <table>
+        <thead><tr>
+          <th>Created</th><th>Period</th><th>Agents</th><th>Revenue</th><th>Total Pay</th><th></th>
+        </tr></thead>
+        <tbody id="payroll-runs-tbody">
+          <tr><td colspan="6" class="empty-state">No saved payroll runs yet.</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 
@@ -3410,6 +3426,11 @@ const _DEMO_TRANSACTIONS = [
   { id:'dtx2', client_id:'dl6', type:'deposit', amount:50000, currency:'USD', notes:'Investment deposit, wire transfer.',  created_at:'2026-05-27T14:30:00Z', recorder:{ full_name:'Sara Khan'  } },
   { id:'dtx3', client_id:'dl4', type:'deposit', amount:10000, currency:'USD', notes:'Crypto account funded via USDT swap.',created_at:'2026-06-13T09:15:00Z', recorder:{ full_name:'Sara Khan'  } },
 ];
+let _DEMO_PAYROLL_SETTINGS = [
+  { agent_id:'demo-agent-1', base_salary_monthly:500, commission_percent:5 },
+  { agent_id:'demo-agent-2', base_salary_monthly:650, commission_percent:4.5 },
+];
+let _DEMO_PAYROLL_RUNS = [];
 
 // ── Phase 3 demo data ──────────────────────────────────────────
 const _DEMO_COMM_LOGS = [
@@ -3681,7 +3702,7 @@ function adminTab(name, el) {
   if (name === 'appointments')     loadAppointments();
   if (name === 'reports')          loadReports();
   if (name === 'comm-log')         loadCommLog();
-  if (name === 'payroll')          { if (!document.querySelector('#payroll-setup-tbody strong')) renderPayrollSetup(); }
+  if (name === 'payroll')          initPayroll();
   if (name === 'signal-broadcast') initBroadcastTab();
   if (name === 'subscribers')      loadSubscribers();
   if (name === 'ai-signals')       initAISignalsTab();
@@ -9295,6 +9316,30 @@ function stopConvRealtime() {
   }
 }
 
+let _payrollSettings = [];
+let _payrollRuns = [];
+
+async function initPayroll() {
+  await Promise.all([loadPayrollSettings(), loadPayrollRuns()]);
+  renderPayrollSetup();
+  renderPayrollRuns();
+}
+
+async function loadPayrollSettings() {
+  if (demoMode) {
+    _payrollSettings = _DEMO_PAYROLL_SETTINGS.map(row => ({ ...row }));
+    return;
+  }
+  const { data, error } = await sb.from('payroll_settings').select('*');
+  if (error) {
+    console.error('loadPayrollSettings:', error);
+    _payrollSettings = [];
+    setMsg(document.getElementById('payroll-setup-msg'), 'Payroll storage is not available until its migration is applied.', 'err');
+    return;
+  }
+  _payrollSettings = data || [];
+}
+
 function renderPayrollSetup() {
   const agents = (demoMode ? _DEMO_PROFILES : cachedProfiles).filter(p => p.role === 'agent' && !p.is_suspended);
   const tbody = document.getElementById('payroll-setup-tbody');
@@ -9303,48 +9348,197 @@ function renderPayrollSetup() {
     tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No agents found.</td></tr>';
     return;
   }
-  tbody.innerHTML = agents.map(a => `
-    <tr>
+  tbody.innerHTML = agents.map(a => {
+    const saved = _payrollSettings.find(row => row.agent_id === a.id);
+    return `<tr>
       <td><strong style="color:#0f172a">${esc(a.full_name || a.email)}</strong></td>
-      <td><input type="number" id="pr-base-${a.id}" value="500" min="0" step="50" style="width:130px" /></td>
-      <td><input type="number" id="pr-comm-${a.id}" value="5" min="0" max="100" step="0.5" style="width:110px" /></td>
-    </tr>`).join('');
+      <td><input type="number" id="pr-base-${a.id}" value="${Number(saved?.base_salary_monthly ?? 500)}" min="0" step="50" style="width:130px" /></td>
+      <td><input type="number" id="pr-comm-${a.id}" value="${Number(saved?.commission_percent ?? 5)}" min="0" max="100" step="0.5" style="width:110px" /></td>
+    </tr>`;
+  }).join('');
 }
 
-function calculatePayroll() {
+function collectPayrollSettings() {
+  const agents = (demoMode ? _DEMO_PROFILES : cachedProfiles).filter(p => p.role === 'agent' && !p.is_suspended);
+  return agents.map(agent => ({
+    agent_id: agent.id,
+    base_salary_monthly: Number(document.getElementById('pr-base-' + agent.id)?.value),
+    commission_percent: Number(document.getElementById('pr-comm-' + agent.id)?.value),
+  }));
+}
+
+function validPayrollSettings(rows) {
+  return rows.length > 0 && rows.every(row =>
+    Number.isFinite(row.base_salary_monthly) && row.base_salary_monthly >= 0 &&
+    Number.isFinite(row.commission_percent) && row.commission_percent >= 0 && row.commission_percent <= 100
+  );
+}
+
+async function savePayrollSettings(quiet = false) {
+  const msgEl = document.getElementById('payroll-setup-msg');
+  const rows = collectPayrollSettings();
+  if (!validPayrollSettings(rows)) {
+    if (!quiet) setMsg(msgEl, 'Enter a valid non-negative salary and a commission from 0 to 100 for every agent.', 'err');
+    return false;
+  }
+  if (demoMode) {
+    _DEMO_PAYROLL_SETTINGS = rows.map(row => ({ ...row }));
+    _payrollSettings = rows.map(row => ({ ...row }));
+    if (!quiet) setMsg(msgEl, 'Salary setup saved. (demo)', 'ok');
+    return true;
+  }
+  const payload = rows.map(row => ({ ...row, updated_by: currentUser.id }));
+  const { error } = await sb.from('payroll_settings').upsert(payload, { onConflict:'agent_id' });
+  if (error) {
+    console.error('savePayrollSettings:', error);
+    if (!quiet) setMsg(msgEl, 'Could not save salary setup: ' + error.message, 'err');
+    return false;
+  }
+  _payrollSettings = payload;
+  if (!quiet) setMsg(msgEl, 'Salary setup saved.', 'ok');
+  return true;
+}
+
+function payrollPeriodBounds(period, now = new Date()) {
+  const start = new Date(now);
+  if (period === 'daily') {
+    start.setHours(0, 0, 0, 0);
+  } else if (period === 'weekly') {
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    start.setHours(0, 0, 0, 0);
+  } else if (period === 'biweekly') {
+    start.setDate(start.getDate() - 13);
+    start.setHours(0, 0, 0, 0);
+  } else {
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+  }
+  // At the exact first millisecond of a period, start and now are equal.
+  // Keep the saved range valid without materially widening its transaction query.
+  const end = new Date(Math.max(now.getTime(), start.getTime() + 1));
+  return { start, end };
+}
+
+function renderPayrollRows(rows) {
+  window._payrollRows = rows;
+  const tbody = document.getElementById('payroll-results-tbody');
+  if (tbody) tbody.innerHTML = rows.length ? rows.map(r => `<tr>
+      <td><strong style="color:#0f172a">${esc(r.name)}</strong></td>
+      <td>${r.conversions}</td>
+      <td>$${fmtMoney(r.revenue)}</td>
+      <td>$${fmtMoney(r.commission)} <span style="color:#94a3b8;font-size:0.78rem">(${r.commPct}%)</span></td>
+      <td>$${fmtMoney(r.basePay)} <span style="color:#94a3b8;font-size:0.78rem">(${esc(r.pLabel)})</span></td>
+      <td style="font-weight:700;color:#10b981">$${fmtMoney(r.totalPay)}</td>
+    </tr>`).join('') : '<tr><td colspan="6" class="empty-state">No active agents found.</td></tr>';
+  const resEl = document.getElementById('payroll-results');
+  if (resEl) resEl.style.display = 'block';
+}
+
+async function calculatePayroll() {
   const period = document.getElementById('payroll-period')?.value || 'monthly';
   const mult   = { daily:1/30, weekly:1/4, biweekly:1/2, monthly:1 }[period] || 1;
   const pLabel = { daily:'Daily', weekly:'Weekly', biweekly:'Bi-weekly', monthly:'Monthly' }[period];
   const agents = (demoMode ? _DEMO_PROFILES : cachedProfiles).filter(p => p.role === 'agent' && !p.is_suspended);
   const leads  = demoMode ? _DEMO_LEADS : cachedLeads;
-  const txns   = demoMode ? _DEMO_TRANSACTIONS : [];
-
+  if (!await savePayrollSettings(true)) {
+    setMsg(document.getElementById('payroll-setup-msg'), 'Fix the salary setup before calculating payroll.', 'err');
+    return;
+  }
+  const { start, end } = payrollPeriodBounds(period);
+  let txns;
+  if (demoMode) {
+    txns = _DEMO_TRANSACTIONS.filter(t => {
+      const created = new Date(t.created_at);
+      return created >= start && created <= end;
+    });
+  } else {
+    const { data, error } = await sb.from('transactions')
+      .select('client_id,amount,created_at').eq('type', 'deposit')
+      .gte('created_at', start.toISOString()).lte('created_at', end.toISOString());
+    if (error) {
+      console.error('calculatePayroll transactions:', error);
+      alert('Could not load transactions: ' + error.message);
+      return;
+    }
+    txns = data || [];
+  }
   const rows = agents.map(a => {
-    const base    = parseFloat(document.getElementById('pr-base-' + a.id)?.value || 500);
-    const commPct = parseFloat(document.getElementById('pr-comm-' + a.id)?.value || 5);
-    const converted = leads.filter(l => l.assigned_agent_id === a.id && l.status === 'converted');
-    const convIds   = new Set(converted.map(l => l.id));
-    const revenue   = txns.filter(t => convIds.has(t.client_id) && t.type === 'deposit')
-                          .reduce((s, t) => s + (t.amount || 0), 0);
+    const setting = _payrollSettings.find(row => row.agent_id === a.id);
+    const base = Number(setting?.base_salary_monthly ?? 500);
+    const commPct = Number(setting?.commission_percent ?? 5);
+    const converted = leads.filter(l => {
+      if (l.assigned_agent_id !== a.id || l.status !== 'converted') return false;
+      const convertedAt = new Date(l.converted_at || l.created_at);
+      return convertedAt >= start && convertedAt <= end;
+    });
+    const assignedClientIds = new Set(leads.filter(l => l.assigned_agent_id === a.id).map(l => l.id));
+    const revenue = txns.filter(t => assignedClientIds.has(t.client_id)).reduce((sum, t) => sum + Number(t.amount || 0), 0);
     const commission = revenue * (commPct / 100);
-    const basePay    = base * mult;
-    return { name: a.full_name || a.email, conversions: converted.length, revenue, commission, commPct, basePay, pLabel, totalPay: basePay + commission };
+    const basePay = base * mult;
+    return { agentId:a.id, name:a.full_name || a.email, conversions:converted.length, revenue, commission, commPct, basePay, pLabel, totalPay:basePay + commission };
   });
-  window._payrollRows = rows;
+  renderPayrollRows(rows);
+  const run = {
+    period_type:period, period_start:start.toISOString(), period_end:end.toISOString(), result_rows:rows,
+    total_revenue:rows.reduce((sum, row) => sum + row.revenue, 0),
+    total_commission:rows.reduce((sum, row) => sum + row.commission, 0),
+    total_pay:rows.reduce((sum, row) => sum + row.totalPay, 0),
+    created_by:demoMode ? _DEMO_USER.id : currentUser.id,
+  };
+  if (demoMode) {
+    _DEMO_PAYROLL_RUNS.unshift({ ...run, id:'demo-payroll-' + Date.now(), created_at:new Date().toISOString() });
+  } else {
+    const { data, error } = await sb.from('payroll_runs').insert(run).select().single();
+    if (error) {
+      console.error('calculatePayroll save run:', error);
+      alert('Payroll calculated, but the run could not be saved: ' + error.message);
+      return;
+    }
+    _payrollRuns.unshift(data);
+  }
+  await loadPayrollRuns();
+  renderPayrollRuns();
+}
 
-  const tbody = document.getElementById('payroll-results-tbody');
-  if (tbody) tbody.innerHTML = rows.map(r => `
-    <tr>
-      <td><strong style="color:#0f172a">${esc(r.name)}</strong></td>
-      <td>${r.conversions}</td>
-      <td>$${fmtMoney(r.revenue)}</td>
-      <td>$${fmtMoney(r.commission)} <span style="color:#94a3b8;font-size:0.78rem">(${r.commPct}%)</span></td>
-      <td>$${fmtMoney(r.basePay)} <span style="color:#94a3b8;font-size:0.78rem">(${r.pLabel})</span></td>
-      <td style="font-weight:700;color:#10b981">$${fmtMoney(r.totalPay)}</td>
+async function loadPayrollRuns() {
+  if (demoMode) {
+    _payrollRuns = _DEMO_PAYROLL_RUNS.map(row => ({ ...row }));
+    return;
+  }
+  const { data, error } = await sb.from('payroll_runs').select('*').order('created_at', { ascending:false }).limit(20);
+  if (error) {
+    console.error('loadPayrollRuns:', error);
+    _payrollRuns = [];
+    return;
+  }
+  _payrollRuns = data || [];
+}
+
+function renderPayrollRuns() {
+  const tbody = document.getElementById('payroll-runs-tbody');
+  if (!tbody) return;
+  if (!_payrollRuns.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No saved payroll runs yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _payrollRuns.map(run => `<tr>
+      <td>${fmtDate(run.created_at)}</td>
+      <td>${esc(({ daily:'Daily', weekly:'Weekly', biweekly:'Bi-weekly', monthly:'Monthly' })[run.period_type] || run.period_type)}</td>
+      <td>${Array.isArray(run.result_rows) ? run.result_rows.length : 0}</td>
+      <td>$${fmtMoney(Number(run.total_revenue || 0))}</td>
+      <td>$${fmtMoney(Number(run.total_pay || 0))}</td>
+      <td><button class="btn btn-secondary btn-inline btn-sm" onclick="openPayrollRun('${run.id}')">View</button></td>
     </tr>`).join('');
+}
 
-  const resEl = document.getElementById('payroll-results');
-  if (resEl) resEl.style.display = 'block';
+function openPayrollRun(id) {
+  const run = _payrollRuns.find(row => row.id === id);
+  if (!run || !Array.isArray(run.result_rows)) return;
+  document.getElementById('payroll-period').value = run.period_type;
+  renderPayrollRows(run.result_rows.map(row => ({
+    ...row, revenue:Number(row.revenue || 0), commission:Number(row.commission || 0),
+    basePay:Number(row.basePay || 0), totalPay:Number(row.totalPay || 0),
+  })));
 }
 
 function exportLeadsCSV() {

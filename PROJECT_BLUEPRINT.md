@@ -5,7 +5,7 @@ deployed, committed, sent, or mutated. Every claim is grounded in repository cod
 committed schema, or safe read-only Supabase CLI metadata. Anything that could not
 be proven from those sources is marked UNVERIFIED with the reason._
 
-_Progress Board below refreshed 2026-08-07 (Izza), on top of the day's newer work
+_Progress Board below refreshed 2026-08-09, on top of the day's newer work
 (template-from-inbox, backup script, the deployed bot-takeover fix). The board is
 the at-a-glance layer; sections 1-20 are the evidence behind it. When they disagree,
 trust the board's date and re-check the code._
@@ -41,6 +41,7 @@ live; **TO BUILD** = safe code work, no live send; **BLOCKED (human/3rd-party)**
 | Schema drift closed in `schema.sql` | Added `communication_logs` table + missing `leads` columns (`deposit_platform/amount/account_ref`, `verified`, `converted_at`, `bot_stage_history`) as Phase 29, reconstructed from the code that writes them. Repo-only (a rebuild from schema.sql is no longer broken); the live DB already has these, so nothing to apply |
 | `send-wa-message` bot-takeover-flag fix | DEPLOYED 2026-08-07 (Muhammad's laptop), byte-identical to source |
 | Reports (stat cards, agent perf, source, monthly trend, financial summary) | Live via RPCs. QA-passed 2026-08-07 |
+| Payroll persistence | Live DB tables + admin-only RLS applied 2026-08-09. Reads period-filtered deposits, saves salary settings and immutable run snapshots, reopens history, exports CSV. Chrome demo verified desktop + 375px mobile, zero console errors |
 | Subscribers, Appointments, Meta Ads read-only analytics | Live |
 
 **Live but not yet proven with a real message.** Four deploys (delivery ticks v73,
@@ -90,7 +91,6 @@ webhook-routing question above is settled.
 
 | Item | Notes |
 | --- | --- |
-| Payroll persistence | Client-side calculator over an empty transaction set in live mode; needs a real source + persistence |
 | Webhook request-signature verification | Both public webhooks accept unsigned requests. NOTE: this is NOT a casual item - it changes the live webhook and a wrong signature check breaks inbound lead capture; needs the Meta app secret and a deploy (Muhammad's laptop) |
 
 ### D. BLOCKED - human or third-party, no Claude session does these
@@ -151,8 +151,7 @@ do not fire sends. Inbound logging still runs.
 What is incomplete or placeholder (see the Progress Board for current state; this
 paragraph is the 2026-08-06 snapshot): Message Templates (stores text only, does not
 submit to Meta - a send path has since been built, see the board),
-AI Signals accuracy tracker (no persistence), Payroll (client-side calculator, no
-persistence, computes commission against an empty transaction set in live mode),
+AI Signals accuracy tracker (no persistence),
 Notifications / Sites / User Permission pages (static placeholders), and a large
 set of Bot Manager reference cards that are explicitly "not built yet."
 
@@ -367,7 +366,7 @@ PLACEHOLDER, MANUAL ONLY / BLOCKED ON HUMAN ACTION / UNKNOWN, UNVERIFIED.
 | Reports | WORKS ON REAL DATA | RPCs report_* (index.html:6717-6719) | Live | none |
 | Meta Ads analytics | WORKS ON REAL DATA (read-only) | Graph insights (index.html:5315-5346) | Read-only | none |
 | Meta Lead Ads intake | PARTIALLY IMPLEMENTED / BLOCKED ON HUMAN ACTION | meta-leadgen-webhook v1; token lacks `leads_retrieval` (per code comment) | Real leads not retrieved until scope added | Meta token scope + webhook subscription (human) |
-| Payroll | PARTIALLY IMPLEMENTED | client-side calc; `txns = demoMode ? _DEMO : []` (index.html:8119); no persistence | None; commission computes on empty set live | needs real transaction source + persistence |
+| Payroll | WORKS ON REAL DATA | `payroll_settings` + immutable `payroll_runs`; period-filtered deposit query; saved-run history; CSV export | Live, admin-only RLS | none |
 | Appointments | WORKS ON REAL DATA | `appointments` table; index.html:5631 | Live | none |
 | Notifications page | PLACEHOLDER, MANUAL ONLY | static; Save fires alert() (index.html:2690) | None | not wired |
 | Sites / Landing Pages | PLACEHOLDER, MANUAL ONLY | static links (index.html:2332-2361) | None | not wired |
@@ -629,8 +628,7 @@ Respecting all safety constraints (bot stays off, sends only from Muhammad's lap
    column.
 4. Commit and deploy the delivery-tick frontend (auto-deploys via Vercel). Verify.
 5. Close schema drift (add the missing table/columns to the repo).
-6. Fix Payroll persistence.
-7. Only when Muhammad decides and WhatChimp automation is confirmed off: plan the
+6. Only when Muhammad decides and WhatChimp automation is confirmed off: plan the
    bot flag flips one at a time, each tested on his laptop with him present.
 Do not assume this order if a live DB check reveals a different reality.
 
@@ -734,8 +732,8 @@ Flags that must stay OFF: `BOT_REPLIES_ENABLED`, `KEYWORD_REPLIES_ENABLED`,
 `AI_REPLIES_ENABLED`, `NEW_LEAD_NOTIFICATIONS_ENABLED`, `FOLLOW_UPS_ENABLED`,
 `SIGNAL_BROADCAST_ENABLED`, `AUTOMATION_ENABLED`. Keep `nudge-agents` unscheduled.
 
-Safe work to pick up next: delivery-tick frontend (after the migration is confirmed
-applied), Payroll persistence, closing schema drift, adding webhook signature checks.
+Safe work to pick up next: adding webhook signature checks, with the Meta app secret
+and a deliberately planned deploy window because a bad check can stop inbound leads.
 
 Before starting: pull `main`, read the latest HANDOFF.md and REMAINING_TODOS.md, and
 announce your claim (ideally in a dedicated Active Work Claims section) so the other
