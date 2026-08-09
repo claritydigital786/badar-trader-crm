@@ -25,13 +25,15 @@ Only the local Database, Auth, and Data API services were required. Messaging, E
 
 ## Migration and schema checks
 
-- Rebuilt an empty local database from the authoritative `supabase/schema.sql` baseline plus all 30 committed migration files.
-- Applied all 31 local migration steps successfully in chronological order.
+- Rebuilt an empty local database from the authoritative `supabase/schema.sql` baseline plus all 31 committed migration files.
+- Applied all 32 local migration steps successfully in chronological order.
 - Repeated the reset after browser testing to prove the result from a clean database.
 - Ran `supabase db lint --local --schema public --level warning`.
 - Result: no schema errors found.
 
 The clean replay exposed one permission drift issue. Phase 15 gave active agents pooled visibility over leads and activity, but the old insert policy still prevented an agent from logging activity on a colleague's lead. Migration `20260810000000_lead_activity_staff_insert.sql` aligns inserts with the documented active-staff model while requiring `actor_id = auth.uid()`.
+
+The production performance advisor then identified per-row `auth.uid()` evaluation in that policy. Migration `20260810010000_optimize_lead_activity_staff_insert.sql` wraps the authentication helpers in scalar subqueries. A fresh local replay still passed all 71 RLS checks, the schema lint remained clean, and the advisor warning disappeared after the production correction.
 
 ## Fake seed
 
@@ -115,4 +117,4 @@ The final fresh browser console check returned no errors or warnings.
 
 ## Final result
 
-The disposable local staging harness is reproducible, the complete migration chain replays cleanly, the local schema lints cleanly, all 71 RLS checks pass, the tested admin and agent workflows pass, mobile layouts do not overflow, and the final browser console is clean.
+The disposable local staging harness is reproducible, the complete 32-step migration chain replays cleanly, the local schema lints cleanly, all 71 RLS checks pass, the tested admin and agent workflows pass, mobile layouts do not overflow, and the final browser console is clean.

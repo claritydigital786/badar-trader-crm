@@ -1018,7 +1018,7 @@ CREATE POLICY "activity: staff select all" ON public.lead_activity
 DROP POLICY IF EXISTS "activity: agent insert" ON public.lead_activity;
 CREATE POLICY "activity: staff insert any" ON public.lead_activity
   FOR INSERT TO authenticated
-  WITH CHECK (is_active_staff() AND actor_id = auth.uid());
+  WITH CHECK ((SELECT is_active_staff()) AND actor_id = (SELECT auth.uid()));
 
 -- NOTE: the guard_leads_admin_only_columns trigger (Phase 2) still blocks
 -- non-admins from changing account_balance/kyc_status even though they can
