@@ -3,15 +3,13 @@
 - Date: 2026-08-10
 - Branch: `junaid/safe-local-staging-20260809`
 - Base: `462ed52`
-- Draft PR: [#14](https://github.com/claritydigital786/badar-trader-crm/pull/14)
-
-GitHub assigned #14 because draft PR #13 already existed as a documentation-only ownership note from a separate branch. PR #13 was not modified.
+- Pull request: [#14](https://github.com/claritydigital786/badar-trader-crm/pull/14)
 
 ## Safety boundary
 
-All work used a disposable Supabase stack at `127.0.0.1` and fake `@local.test` identities. No hosted Supabase project was linked or queried. No production deployment, production secret, real staff account, real customer record, live message, Meta account, WhatChimp account, WhatsApp Manager account, webhook enforcement flag, or protected WhatsApp number was accessed or changed.
+All work used a disposable Supabase stack at `127.0.0.1` and fake `@local.test` identities. No hosted Supabase project was linked or queried during this corrective package. No production deployment, production secret, real staff account, real customer record, live message, Meta account, WhatChimp account, WhatsApp Manager account, webhook enforcement flag, or protected WhatsApp number was accessed or changed.
 
-The browser test opened messages seeded in the local database, but no send action was used.
+The browser opened only fake messages seeded in the local database. No send action was used.
 
 ## Environment
 
@@ -19,102 +17,74 @@ The browser test opened messages seeded in the local database, but no send actio
 - Supabase CLI 2.113.0
 - PostgreSQL 15 in the local Supabase stack
 - Python 3 standard library QA harness
-- Chrome local browser session at desktop width and 375 pixel mobile width
+- In-app Chrome browser at 1280 pixel desktop width and 375 pixel mobile width
 
-Only the local Database, Auth, and Data API services were required. Messaging, Edge Functions, Storage, analytics, and dashboard services were excluded from startup.
+Only the local Database, Auth, and Data API services were required. Messaging and live integrations were not used.
 
 ## Migration and schema checks
 
-- Rebuilt an empty local database from the authoritative `supabase/schema.sql` baseline plus all 31 committed migration files.
-- Applied all 32 local migration steps successfully in chronological order.
-- Repeated the reset after browser testing to prove the result from a clean database.
+- Rebuilt an empty local database from the authoritative `supabase/schema.sql` baseline plus all 32 committed migration files.
+- Applied all 33 local migration steps successfully in chronological order.
+- Applied corrective migration `20260810020000_restrict_agents_to_assigned_leads.sql` last.
 - Ran `supabase db lint --local --schema public --level warning`.
 - Result: no schema errors found.
 
-The clean replay exposed one permission drift issue. Phase 15 gave active agents pooled visibility over leads and activity, but the old insert policy still prevented an agent from logging activity on a colleague's lead. Migration `20260810000000_lead_activity_staff_insert.sql` aligns inserts with the documented active-staff model while requiring `actor_id = auth.uid()`.
-
-The production performance advisor then identified per-row `auth.uid()` evaluation in that policy. Migration `20260810010000_optimize_lead_activity_staff_insert.sql` wraps the authentication helpers in scalar subqueries. A fresh local replay still passed all 71 RLS checks, the schema lint remained clean, and the advisor warning disappeared after the production correction.
+The clean replay caught and corrected two issues before this package was submitted. A storage policy initially referenced the active-staff helper before that helper existed in the baseline, and the first permission-matrix run found that Admin lacked the expected full-access policy on `communication_logs`. The authoritative schema and corrective migration now cover both cases.
 
 ## Fake seed
 
-The seed created:
-
-- Fake Admin
-- Fake Agent A
-- Fake Agent B
-- Three fake leads and related fake communications, transactions, KYC records, activity, appointments, notifications, settings, automation, Bot Manager content, broadcast history, subscribers, and payroll data
+The seed created Fake Admin, Fake Agent A, Fake Agent B, three fake leads, and related fake communications, transactions, KYC records, activity, communication logs, appointments, notifications, settings, automation, Bot Manager content, broadcast history, subscribers, and payroll data.
 
 All phone numbers use the reserved `+1 555` test range. All email addresses use `@local.test`.
 
+## Corrected access model
+
+- Admin can access all leads and related records.
+- Agent A can access only Fake Customer Alpha, which is assigned to Agent A.
+- Agent B can access only Fake Customer Beta, which is assigned to Agent B.
+- Neither Agent can access the unassigned lead or the other Agent's lead.
+- Related communications, transactions, KYC documents, activity, communication logs, and private lead files follow the same assigned-lead boundary.
+- Agent-created communications, activity, and communication logs must identify the signed-in Agent as the actor.
+- A suspended Agent sees no protected lead records.
+
+This replaces the earlier pooled active-staff model proposed in PR #14. The corrective migration is prepared locally only. Production remains unchanged by this package.
+
 ## Cross-agent RLS matrix
 
-Result: **71 passed, 0 failed**.
+Result: **76 passed, 0 failed**.
 
-Coverage included:
-
-- Admin sees all three profiles; each agent sees only their own profile.
-- Active staff see the pooled leads, communications, transactions, KYC, activity, appointments, and communication logs required by the current product model.
-- Agents cannot read admin-only Bot Manager, keyword, follow-up, template, subscriber, automation, broadcast, or payroll records.
-- Agents see only the two permitted WhatsApp settings and cannot read admin-only settings.
-- Notifications are recipient-scoped.
-- Agent A can update allowed notes and add a communication or activity to Agent B's lead.
-- Agent A cannot change protected balances, insert transactions, suspend Agent B, or forge Agent B as a notification sender.
-- A suspended Agent B sees no leads, communications, or appointments.
+Coverage includes Admin full access, assigned Agent reads and writes, cross-Agent denial, unassigned-lead denial, protected balance denial, actor-forgery denial, admin-only module denial, settings boundaries, recipient-scoped notifications, and suspended-agent denial.
 
 ## Browser QA
 
-Admin navigation passed for 21 modules:
+Admin navigation passed for all 21 modules: Dashboard, All Leads, My Team, Meta Analytics, Bot Manager, Add Lead, Omnichannel Inbox, Communication Log, Reports, Automation, Appointments, Payroll, Broadcast Signal, Subscribers, AI Signals, User Permission, User Manager, Meta Integration, Notifications, Landing Pages, and Guide.
 
-1. Dashboard
-2. All Leads
-3. My Team
-4. Meta Ads
-5. Bot Manager
-6. Add Lead
-7. Omnichannel Inbox
-8. Comm Log
-9. Reports
-10. Automation
-11. Appointments
-12. Payroll
-13. Broadcast Signal
-14. Subscribers
-15. AI Signals
-16. User Permission
-17. User Manager
-18. Meta Integration
-19. Notifications
-20. Sites
-21. Guide
+Agent navigation passed for all six allowed modules: Dashboard, My Leads, Omnichannel Inbox, Comm Log, Log Activity, and Guide. Admin-only navigation was absent from the Agent view.
 
-Agent navigation passed for all six allowed modules: Dashboard, My Leads, Inbox, Comm Log, Log Activity, and Guide. Admin-only navigation was absent from the agent view.
+The browser verified:
 
-Verified local workflows:
-
-- Admin created a fake lead assigned to Fake Agent B, found it through search, and opened its detail view.
-- Admin viewed fake keyword and AI Agent records in Bot Manager.
-- Admin calculated and saved a fake payroll run.
-- Agent A viewed the pooled lead list and Fake Agent B's fake conversation without sending a reply.
-- Agent A logged a fake note against Fake Agent B's lead through the normal UI.
-- Agent assignment text now says `Team member` when RLS correctly hides a colleague's profile, instead of incorrectly saying `Unassigned`.
-- Comm Log now resolves creator names from already-visible profiles instead of requesting a database relationship that does not exist.
-
-The final fresh browser console check returned no errors or warnings.
+- Admin saw all three fake leads.
+- Agent A dashboard showed one assigned lead.
+- Agent A's My Leads, Inbox, and Comm Log showed Fake Customer Alpha only.
+- Fake Customer Beta and the unassigned fake lead were absent from Agent A's pages.
+- User Permission and both guides describe assigned-lead access.
+- The final browser console contained zero errors or warnings.
 
 ## Responsive QA
 
-- Desktop dashboard verified at 1470 pixels wide.
-- Admin Dashboard, All Leads, and Inbox verified at 375 pixels wide.
-- Agent Dashboard verified at 375 pixels wide.
-- Mobile document and body widths stayed at exactly 375 pixels on the tested pages, with no page-level horizontal overflow.
+- Admin and Agent desktop pages were checked at 1280 pixels wide.
+- Admin Dashboard and All Leads were checked at 375 by 812 pixels.
+- Agent Dashboard and Inbox were checked at 375 by 812 pixels.
+- Body and document widths remained at 375 pixels on tested mobile pages, with no page-level horizontal overflow.
 
 ## Screenshots
 
 - [Admin desktop dashboard](admin-desktop-dashboard.png)
-- [Admin mobile dashboard menu](admin-mobile-dashboard.png)
-- [Admin mobile inbox](admin-mobile-inbox.png)
-- [Agent mobile dashboard](agent-mobile-dashboard.png)
+- [Admin mobile dashboard](admin-mobile-dashboard.png)
+- [Admin mobile leads](admin-mobile-leads.png)
+- [Agent desktop assigned leads](agent-desktop-my-leads.png)
+- [Agent mobile inbox](agent-mobile-inbox.png)
 
 ## Final result
 
-The disposable local staging harness is reproducible, the complete 32-step migration chain replays cleanly, the local schema lints cleanly, all 71 RLS checks pass, the tested admin and agent workflows pass, mobile layouts do not overflow, and the final browser console is clean.
+The disposable staging harness replays all 33 migration steps cleanly, schema lint is clean, the assigned-lead RLS matrix passes 76 of 76 checks, all 21 Admin and 6 Agent modules load, Agent A sees only the assigned fake lead, tested mobile layouts do not overflow, and the final browser console is clean. PR #14 remains unmerged and production was not changed by this corrective package.

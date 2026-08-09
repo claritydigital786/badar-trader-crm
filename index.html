@@ -1649,7 +1649,7 @@
     <div class="card" style="margin-top:14px">
       <p class="section-h" style="margin-top:0">Agent</p>
       <p style="color:#475569;font-size:0.85rem;line-height:1.7">
-        Sees every active lead and conversation (any active staff member can pick up any lead), can log activity and reply in Conversations, cannot approve KYC, cannot change integration settings, cannot promote or suspend other users, and cannot see a suspended teammate's data.
+        Sees only leads assigned to their own account and the related conversations, activity, KYC records, transactions, and communication logs. Can update and reply only within those assigned leads. Cannot approve KYC, change integration settings, promote or suspend users, or access another agent's leads.
       </p>
     </div>
   </div>
@@ -2577,7 +2577,7 @@
     </div>
     <div class="card" style="background:#eef2f7">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">A note on agent access</p>
-      <p style="color:#475569;font-size:0.88rem">Any active agent can see every lead now, not just their own assigned ones (changed 21 July 2026). Reports, Automation, Payroll, and Settings stay admin-only.</p>
+      <p style="color:#475569;font-size:0.88rem">Agents see only leads assigned to them and the records attached to those leads. Reports, Automation, Payroll, and Settings stay admin-only.</p>
     </div>
   </div>
 
@@ -3363,7 +3363,7 @@
     </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">My Leads</p>
-      <p style="color:#475569;font-size:0.88rem">Every lead in the system, not just your own assigned ones (changed 21 July 2026, any active agent can now see everybody's leads). Open any lead here for its full record.</p>
+      <p style="color:#475569;font-size:0.88rem">The leads assigned to your account. Open a lead here to see its related record and activity.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Omnichannel Inbox</p>
@@ -3371,11 +3371,11 @@
     </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Comm Log</p>
-      <p style="color:#475569;font-size:0.88rem">A running log of every communication across all leads, a quick overview without opening each one individually.</p>
+      <p style="color:#475569;font-size:0.88rem">A running log of communications for your assigned leads, without opening each lead individually.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Log Activity</p>
-      <p style="color:#475569;font-size:0.88rem">Record a call, WhatsApp message, email, or note against any lead, with an optional follow-up date.</p>
+      <p style="color:#475569;font-size:0.88rem">Record a call, WhatsApp message, email, or note against one of your assigned leads, with an optional follow-up date.</p>
     </div>
     <div class="card" style="background:#eef2f7">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Not shown here</p>
@@ -4605,7 +4605,7 @@ async function loadAgentLeads() {
   if (demoMode) {
     cachedLeads = _DEMO_LEADS.slice();
   } else {
-    // RLS grants any active staff member (agent or admin) all leads, not just their own - see schema.sql Phase 15
+    // RLS returns only leads assigned to the signed-in Agent.
     const { data, error } = await sb
       .from('leads').select('*').order('created_at', { ascending: false });
     if (error) { console.error('loadAgentLeads:', error); return; }
@@ -7619,13 +7619,8 @@ async function renderConversations(scope = '') {
     return;
   }
 
-  // Live mode - load from Supabase. Stale comment fixed 2026-08-05: this used
-  // to say agents only see their own leads' communications, citing a policy
-  // ("communications: agent select own") that was replaced back on 2026-07-21
-  // by Phase 15's "communications: staff select all" - any active staff
-  // member (agent or admin) sees every conversation, matching the pooled
-  // (not siloed) model documented in the User Permission tab. RLS via
-  // is_active_staff() enforces this; a suspended user gets nothing.
+  // Live mode - RLS returns every conversation for Admins and only
+  // conversations related to the signed-in Agent's assigned leads.
   listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:0.85rem">Loading…</div>';
   try {
     const { data: comms, error } = await sb
@@ -9628,8 +9623,8 @@ async function loadCommLog(scope = '') {
     renderCommLog(scope);
     return;
   }
-  // Live mode - RLS scopes this automatically through the pooled active-staff
-  // policies. communication_logs.created_by has no declared profile foreign
+  // Live mode - RLS scopes this to all rows for Admins and assigned-lead rows
+  // for Agents. communication_logs.created_by has no declared profile foreign
   // key, so resolve creator names from profiles already visible to this user.
   const [manualRes, autoRes] = await Promise.all([
     sb.from('communication_logs')

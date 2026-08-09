@@ -631,6 +631,30 @@ def seed(local: LocalSupabase):
 
 
 def rls_matrix(local: LocalSupabase):
+    # Keep the matrix repeatable on the same disposable runtime. Successful
+    # write checks create clearly named fake rows, so remove only those rows
+    # before counting the seeded baseline again.
+    for table, column, value in (
+        ("communications", "body", "Fake assigned-lead local reply. Nothing was sent."),
+        ("lead_activity", "summary", "Fake assigned-lead local activity."),
+        ("communication_logs", "message", "Fake assigned-lead communication log."),
+        ("notifications", "title", "Fake cross-agent local forward"),
+    ):
+        status, data = local.service_rest(
+            "DELETE",
+            f"{table}?{column}=eq.{urllib.parse.quote(value)}",
+            prefer="return=minimal",
+        )
+        require_status(status, (200, 204), f"clear prior fake QA row from {table}", data)
+
+    status, data = local.service_rest(
+        "PATCH",
+        "profiles?email=eq.agent.b%40local.test",
+        {"is_suspended": False},
+        "return=minimal",
+    )
+    require_status(status, (200, 204), "restore fake Agent B before matrix", data)
+
     tokens = {
         "Admin": local.sign_in("admin@local.test"),
         "Agent A": local.sign_in("agent.a@local.test"),
@@ -664,14 +688,36 @@ def rls_matrix(local: LocalSupabase):
     select_count("Agent A", "profiles", 1, "select=id,email,role")
     select_count("Agent B", "profiles", 1, "select=id,email,role")
 
-    for principal in tokens:
-        select_count(principal, "leads", 3)
-        select_count(principal, "communications", 3)
-        select_count(principal, "transactions", 2)
-        select_count(principal, "kyc_documents", 2)
-        select_count(principal, "lead_activity", 2)
+    related_counts = {
+        "Admin": {
+            "leads": 3,
+            "communications": 3,
+            "transactions": 2,
+            "kyc_documents": 2,
+            "lead_activity": 2,
+            "communication_logs": 2,
+        },
+        "Agent A": {
+            "leads": 1,
+            "communications": 2,
+            "transactions": 0,
+            "kyc_documents": 1,
+            "lead_activity": 1,
+            "communication_logs": 1,
+        },
+        "Agent B": {
+            "leads": 1,
+            "communications": 1,
+            "transactions": 1,
+            "kyc_documents": 1,
+            "lead_activity": 1,
+            "communication_logs": 1,
+        },
+    }
+    for principal, counts in related_counts.items():
+        for table, expected_count in counts.items():
+            select_count(principal, table, expected_count)
         select_count(principal, "appointments", 2)
-        select_count(principal, "communication_logs", 2)
 
     for table, admin_count in (
         ("ai_knowledge_base", 1),
@@ -707,6 +753,21 @@ def rls_matrix(local: LocalSupabase):
     record(
         "Agent A",
         "UPDATE Agent B lead notes",
+        "denied",
+        status == 200 and data == [],
+        f"HTTP {status}, rows {len(data) if isinstance(data, list) else None}",
+    )
+
+    status, data = local.user_rest(
+        tokens["Agent A"],
+        "PATCH",
+        f"leads?id=eq.{LEAD_A}",
+        {"notes": "Assigned-lead local QA update by Agent A."},
+        "return=representation",
+    )
+    record(
+        "Agent A",
+        "UPDATE own assigned lead notes",
         "allowed",
         status == 200 and isinstance(data, list) and len(data) == 1,
         f"HTTP {status}, rows {len(data) if isinstance(data, list) else None}",
@@ -715,7 +776,7 @@ def rls_matrix(local: LocalSupabase):
     status, data = local.user_rest(
         tokens["Agent A"],
         "PATCH",
-        f"leads?id=eq.{LEAD_B}",
+        f"leads?id=eq.{LEAD_A}",
         {"account_balance": 999999},
         "return=representation",
     )
@@ -743,6 +804,27 @@ def rls_matrix(local: LocalSupabase):
     record(
         "Agent A",
         "INSERT communication on Agent B lead",
+        "denied",
+        status >= 400,
+        f"HTTP {status}",
+    )
+
+    status, data = local.user_rest(
+        tokens["Agent A"],
+        "POST",
+        "communications",
+        {
+            "lead_id": LEAD_A,
+            "type": "whatsapp",
+            "direction": "outbound",
+            "body": "Fake assigned-lead local reply. Nothing was sent.",
+            "logged_by": user_id(local, "agent.a@local.test"),
+        },
+        "return=representation",
+    )
+    record(
+        "Agent A",
+        "INSERT communication on own assigned lead",
         "allowed",
         status == 201 and isinstance(data, list) and len(data) == 1,
         f"HTTP {status}",
@@ -763,6 +845,60 @@ def rls_matrix(local: LocalSupabase):
     record(
         "Agent A",
         "INSERT activity on Agent B lead",
+        "denied",
+        status >= 400,
+        f"HTTP {status}",
+    )
+
+    status, data = local.user_rest(
+        tokens["Agent A"],
+        "POST",
+        "lead_activity",
+        {
+            "lead_id": LEAD_A,
+            "actor_id": user_id(local, "agent.a@local.test"),
+            "channel": "note",
+            "summary": "Fake assigned-lead local activity.",
+        },
+        "return=representation",
+    )
+    record(
+        "Agent A",
+        "INSERT activity on own assigned lead",
+        "allowed",
+        status == 201 and isinstance(data, list) and len(data) == 1,
+        f"HTTP {status}",
+    )
+
+    status, data = local.user_rest(
+        tokens["Agent A"],
+        "POST",
+        "communication_logs",
+        {
+            "lead_id": LEAD_B,
+            "type": "note",
+            "message": "Fake cross-agent communication log.",
+            "created_by": user_id(local, "agent.a@local.test"),
+        },
+        "return=representation",
+    )
+    record("Agent A", "INSERT log on Agent B lead", "denied", status >= 400, f"HTTP {status}")
+
+    status, data = local.user_rest(
+        tokens["Agent A"],
+        "POST",
+        "communication_logs",
+        {
+            "lead_id": LEAD_A,
+            "type": "note",
+            "message": "Fake assigned-lead communication log.",
+            "created_by": user_id(local, "agent.a@local.test"),
+        },
+        "return=representation",
+    )
+    record(
+        "Agent A",
+        "INSERT log on own assigned lead",
         "allowed",
         status == 201 and isinstance(data, list) and len(data) == 1,
         f"HTTP {status}",

@@ -958,23 +958,15 @@ ALTER TABLE public.leads ADD CONSTRAINT leads_manual_tier_check
 
 
 -- ============================================================
--- Badar Trader CRM - Phase 15 Schema (all active staff see every lead)
+-- Badar Trader CRM - Phase 15 Schema (assigned-lead access)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- ============================================================
 
--- ── 33. All active staff (any agent or admin) can see every lead ──
--- Muhammad, 2026-07-21: agents should see everybody's leads, not just
--- their own assigned ones. Someone had already applied this live to the
--- `leads` and `communications` tables at some earlier point (policy names
--- "staff select all" / "staff update all" / "staff insert any", gated by
--- is_active_staff() below) but it was never written back into this file,
--- so this file and the live database had quietly drifted apart - this
--- section documents what's actually live and extends the same pattern to
--- kyc_documents, transactions, and lead_activity, which had been missed
--- (an agent could see a lead but not its KYC/ledger/activity history
--- unless it was their own). Admin-only write actions (KYC verify/reject,
--- balance edits) are unchanged - this only widens read (and, for leads,
--- update) access, not who can approve compliance/financial records.
+-- ── 33. Active agents can access only assigned leads and related rows ──
+-- The temporary pooled model from 2026-07-21 was reversed by Muhammad on
+-- 2026-08-10. Admin policies remain unchanged. Agent access follows
+-- leads.assigned_agent_id through communications, KYC, transactions and
+-- activity, and suspended staff receive no assigned-lead access.
 CREATE OR REPLACE FUNCTION public.is_active_staff()
 RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER
@@ -986,45 +978,113 @@ AS $$
   );
 $$;
 
+CREATE INDEX IF NOT EXISTS leads_assigned_agent_id_idx
+  ON public.leads (assigned_agent_id)
+  WHERE assigned_agent_id IS NOT NULL;
+
+DROP POLICY IF EXISTS "leads: staff select all" ON public.leads;
 DROP POLICY IF EXISTS "leads: agent select own" ON public.leads;
-CREATE POLICY "leads: staff select all" ON public.leads
-  FOR SELECT TO authenticated USING (is_active_staff());
+CREATE POLICY "leads: agent select own" ON public.leads
+  FOR SELECT TO authenticated
+  USING ((SELECT is_active_staff()) AND assigned_agent_id = (SELECT auth.uid()));
 
+DROP POLICY IF EXISTS "leads: staff update all" ON public.leads;
 DROP POLICY IF EXISTS "leads: agent update own" ON public.leads;
-CREATE POLICY "leads: staff update all" ON public.leads
+CREATE POLICY "leads: agent update own" ON public.leads
   FOR UPDATE TO authenticated
-  USING (is_active_staff()) WITH CHECK (is_active_staff());
+  USING ((SELECT is_active_staff()) AND assigned_agent_id = (SELECT auth.uid()))
+  WITH CHECK ((SELECT is_active_staff()) AND assigned_agent_id = (SELECT auth.uid()));
 
+DROP POLICY IF EXISTS "communications: staff select all" ON public.communications;
 DROP POLICY IF EXISTS "communications: agent select own" ON public.communications;
-CREATE POLICY "communications: staff select all" ON public.communications
-  FOR SELECT TO authenticated USING (is_active_staff());
+CREATE POLICY "communications: agent select own" ON public.communications
+  FOR SELECT TO authenticated USING (
+    (SELECT is_active_staff()) AND EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id = lead_id AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
 
+DROP POLICY IF EXISTS "communications: staff insert any" ON public.communications;
 DROP POLICY IF EXISTS "communications: agent insert own" ON public.communications;
-CREATE POLICY "communications: staff insert any" ON public.communications
-  FOR INSERT TO authenticated WITH CHECK (is_active_staff());
+CREATE POLICY "communications: agent insert own" ON public.communications
+  FOR INSERT TO authenticated WITH CHECK (
+    (SELECT is_active_staff()) AND logged_by = (SELECT auth.uid()) AND EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id = lead_id AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
 
+DROP POLICY IF EXISTS "kyc: staff select all" ON public.kyc_documents;
 DROP POLICY IF EXISTS "kyc: agent select own clients" ON public.kyc_documents;
-CREATE POLICY "kyc: staff select all" ON public.kyc_documents
-  FOR SELECT TO authenticated USING (is_active_staff());
+CREATE POLICY "kyc: agent select own clients" ON public.kyc_documents
+  FOR SELECT TO authenticated USING (
+    (SELECT is_active_staff()) AND EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id = client_id AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
 
+DROP POLICY IF EXISTS "transactions: staff select all" ON public.transactions;
 DROP POLICY IF EXISTS "transactions: agent select own clients" ON public.transactions;
-CREATE POLICY "transactions: staff select all" ON public.transactions
-  FOR SELECT TO authenticated USING (is_active_staff());
+CREATE POLICY "transactions: agent select own clients" ON public.transactions
+  FOR SELECT TO authenticated USING (
+    (SELECT is_active_staff()) AND EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id = client_id AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
 
+DROP POLICY IF EXISTS "activity: staff select all" ON public.lead_activity;
 DROP POLICY IF EXISTS "activity: agent select" ON public.lead_activity;
-CREATE POLICY "activity: staff select all" ON public.lead_activity
-  FOR SELECT TO authenticated USING (is_active_staff());
+CREATE POLICY "activity: agent select" ON public.lead_activity
+  FOR SELECT TO authenticated USING (
+    (SELECT is_active_staff()) AND EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id = lead_id AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
 
+DROP POLICY IF EXISTS "activity: staff insert any" ON public.lead_activity;
 DROP POLICY IF EXISTS "activity: agent insert" ON public.lead_activity;
-CREATE POLICY "activity: staff insert any" ON public.lead_activity
+CREATE POLICY "activity: agent insert" ON public.lead_activity
   FOR INSERT TO authenticated
-  WITH CHECK ((SELECT is_active_staff()) AND actor_id = (SELECT auth.uid()));
+  WITH CHECK (
+    (SELECT is_active_staff()) AND actor_id = (SELECT auth.uid()) AND EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id = lead_id AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
+
+-- Recreate private-file reads after is_active_staff() exists, so suspended
+-- Agents cannot retain access to files for previously assigned leads.
+DROP POLICY IF EXISTS "kyc-documents: agent select own clients" ON storage.objects;
+CREATE POLICY "kyc-documents: agent select own clients" ON storage.objects
+  FOR SELECT TO authenticated USING (
+    bucket_id = 'kyc-documents' AND
+    (SELECT public.is_active_staff()) AND
+    EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id::text = (storage.foldername(name))[1]
+      AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
+
+DROP POLICY IF EXISTS "deposit-screenshots: agent select own clients" ON storage.objects;
+CREATE POLICY "deposit-screenshots: agent select own clients" ON storage.objects
+  FOR SELECT TO authenticated USING (
+    bucket_id = 'deposit-screenshots' AND
+    (SELECT public.is_active_staff()) AND
+    EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id::text = (storage.foldername(name))[1]
+      AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
 
 -- NOTE: the guard_leads_admin_only_columns trigger (Phase 2) still blocks
--- non-admins from changing account_balance/kyc_status even though they can
--- now UPDATE the row otherwise, and KYC/financial write policies are still
--- admin-only (see Phase 2/3 above) - only visibility changed, not who can
--- approve or edit compliance and ledger data.
+-- non-admins from changing account_balance/kyc_status. KYC and financial
+-- write policies remain admin-only.
 
 -- ── DONE (Phase 15) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
@@ -1620,13 +1680,31 @@ CREATE INDEX IF NOT EXISTS communication_logs_lead_id_idx
 
 ALTER TABLE public.communication_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "communication_logs: admin full access" ON public.communication_logs;
+CREATE POLICY "communication_logs: admin full access" ON public.communication_logs
+  FOR ALL TO authenticated
+  USING ((SELECT public.is_admin()))
+  WITH CHECK ((SELECT public.is_admin()));
+
 DROP POLICY IF EXISTS "communication_logs: staff select all" ON public.communication_logs;
-CREATE POLICY "communication_logs: staff select all" ON public.communication_logs
-  FOR SELECT USING (public.is_active_staff());
+DROP POLICY IF EXISTS "communication_logs: agent select own" ON public.communication_logs;
+CREATE POLICY "communication_logs: agent select own" ON public.communication_logs
+  FOR SELECT TO authenticated USING (
+    (SELECT public.is_active_staff()) AND EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id = lead_id AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
 
 DROP POLICY IF EXISTS "communication_logs: staff insert any" ON public.communication_logs;
-CREATE POLICY "communication_logs: staff insert any" ON public.communication_logs
-  FOR INSERT WITH CHECK (public.is_active_staff());
+DROP POLICY IF EXISTS "communication_logs: agent insert own" ON public.communication_logs;
+CREATE POLICY "communication_logs: agent insert own" ON public.communication_logs
+  FOR INSERT TO authenticated WITH CHECK (
+    (SELECT public.is_active_staff()) AND created_by = (SELECT auth.uid()) AND EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id = lead_id AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
 
 -- DONE (Phase 29)
 -- =============================================================
