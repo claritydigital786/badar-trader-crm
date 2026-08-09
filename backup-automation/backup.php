@@ -24,6 +24,8 @@ error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
 $scriptDir = __DIR__;
+$storageHelpers = $scriptDir . '/storage_backup.php';
+require_once $storageHelpers;
 $configFile = $scriptDir . '/config.php';
 if (is_file($configFile)) {
     require $configFile;
@@ -37,8 +39,26 @@ $serviceKey  = getenv('SUPABASE_SERVICE_ROLE_KEY') ?: (defined('SUPABASE_SERVICE
 // exactly 7 days of history at 4x/day.
 $retainCount = (int) (getenv('BACKUP_RETAIN_COUNT') ?: (defined('BACKUP_RETAIN_COUNT') ? BACKUP_RETAIN_COUNT : 28));
 
-$backupsDir = $scriptDir . '/backups';
-$logFile    = $scriptDir . '/backup.log';
+$storageEnabledRaw = getenv('BACKUP_STORAGE_ENABLED');
+if ($storageEnabledRaw === false && defined('BACKUP_STORAGE_ENABLED')) {
+    $storageEnabledRaw = BACKUP_STORAGE_ENABLED ? 'true' : 'false';
+}
+$storageEnabled = $storageEnabledRaw === false
+    ? true
+    : filter_var($storageEnabledRaw, FILTER_VALIDATE_BOOLEAN);
+
+$storageBucketsRaw = getenv('BACKUP_STORAGE_BUCKETS');
+if ($storageBucketsRaw === false && defined('BACKUP_STORAGE_BUCKETS')) {
+    $storageBucketsRaw = (string) BACKUP_STORAGE_BUCKETS;
+}
+$storageBucketAllowList = $storageBucketsRaw === false || trim($storageBucketsRaw) === ''
+    ? null
+    : array_values(array_filter(array_map('trim', explode(',', $storageBucketsRaw)), fn(string $v): bool => $v !== ''));
+
+$storageMaxObjects = (int) (getenv('BACKUP_STORAGE_MAX_OBJECTS') ?: (defined('BACKUP_STORAGE_MAX_OBJECTS') ? BACKUP_STORAGE_MAX_OBJECTS : 50000));
+
+$backupsDir = getenv('BACKUP_OUTPUT_DIR') ?: $scriptDir . '/backups';
+$logFile    = getenv('BACKUP_LOG_FILE') ?: $scriptDir . '/backup.log';
 
 function backupLog(string $logFile, string $message): void {
     $line = '[' . date('Y-m-d H:i:s') . '] ' . $message . PHP_EOL;
@@ -51,7 +71,7 @@ if (!$supabaseUrl || !$serviceKey) {
     exit(1);
 }
 
-// Every table in supabase/schema.sql as of 2026-08-07. If a new table is
+// Every active table in supabase/schema.sql as of 2026-08-10. If a new table is
 // added later, add its name here too - this list is not auto-discovered,
 // on purpose, so a backup run's scope is always exactly what's reviewed
 // and committed, not whatever happens to exist live at run time.
@@ -75,9 +95,10 @@ $tables = [
     'follow_up_sends',
     'signal_broadcasts',
     'ai_agents',
-    // Referenced by index.html but not defined in schema.sql (known drift,
-    // see PROJECT_BLUEPRINT.md) - attempted defensively. A missing table
-    // just logs a skip below, it does not fail the whole run.
+    'payroll_settings',
+    'payroll_runs',
+    // notifications is deliberately excluded while its migration remains
+    // parked by Muhammad's instruction. Add it only if that module is revived.
     'communication_logs',
 ];
 
@@ -142,49 +163,13 @@ function fetchAllRows(string $supabaseUrl, string $serviceKey, string $table, st
     return $all;
 }
 
-function pruneOldBackups(string $backupsDir, int $retainCount, string $logFile): void {
-    if (!is_dir($backupsDir)) {
-        return;
-    }
-    // A finished backup is either a single <timestamp>.zip file (the normal
-    // case, when PHP's zip extension is available) or a leftover
-    // <timestamp>/ directory of loose JSON files (the fallback case, when
-    // it isn't). Found by testing: pruning only ever looked for
-    // directories, but the zip step deletes each run's directory right
-    // after archiving it - so on any host with zip support, this function
-    // was silently finding nothing to prune, ever, and backups would have
-    // accumulated on disk forever.
-    $entries = array_values(array_filter(scandir($backupsDir), function (string $name) use ($backupsDir): bool {
-        if ($name === '.' || $name === '..') {
-            return false;
-        }
-        $path = $backupsDir . '/' . $name;
-        return is_dir($path) || str_ends_with($name, '.zip');
-    }));
-    sort($entries); // timestamped names sort chronologically as strings
-
-    $excess = count($entries) - $retainCount;
-    if ($excess <= 0) {
-        return;
-    }
-
-    foreach (array_slice($entries, 0, $excess) as $old) {
-        $path = $backupsDir . '/' . $old;
-        if (is_dir($path)) {
-            foreach (glob($path . '/*') as $file) {
-                @unlink($file);
-            }
-            @rmdir($path);
-        } else {
-            @unlink($path);
-        }
-        backupLog($logFile, "Pruned old backup: $old");
-    }
-}
-
 // ── Run ──────────────────────────────────────────────────────────────
 $runStamp = date('Y-m-d_His');
 $runDir = $backupsDir . '/' . $runStamp;
+if (file_exists($runDir) || is_link($runDir)) {
+    backupLog($logFile, "FATAL: backup run path already exists: $runDir");
+    exit(1);
+}
 if (!is_dir($runDir) && !mkdir($runDir, 0755, true) && !is_dir($runDir)) {
     backupLog($logFile, "FATAL: could not create backup directory $runDir");
     exit(1);
@@ -221,30 +206,75 @@ foreach ($tables as $table) {
     backupLog($logFile, "  OK: $table ($rowCount rows)");
 }
 
+if ($storageEnabled) {
+    try {
+        $storageResult = crmBackupStorage(
+            $supabaseUrl,
+            $serviceKey,
+            $runDir,
+            function (string $message) use ($logFile): void {
+                backupLog($logFile, $message);
+            },
+            $storageBucketAllowList,
+            1000,
+            $storageMaxObjects
+        );
+        $failCount += $storageResult['failed_count'];
+        backupLog(
+            $logFile,
+            "Storage backup: {$storageResult['bucket_count']} buckets, {$storageResult['object_count']} objects, "
+            . "{$storageResult['failed_count']} failed, {$storageResult['total_bytes']} bytes."
+        );
+    } catch (Throwable $error) {
+        $failCount++;
+        backupLog($logFile, '  ERROR backing up Storage: ' . $error->getMessage());
+    }
+} else {
+    backupLog($logFile, '  NOTE: Storage backup disabled by BACKUP_STORAGE_ENABLED.');
+}
+
 // Zip the run's folder into one file if PHP's zip extension is available -
-// far more practical to keep or move around than 19 loose JSON files.
+// far more practical to keep or move around than the JSON and binary files.
 if (class_exists('ZipArchive')) {
     $zipPath = $backupsDir . '/' . $runStamp . '.zip';
     $zip = new ZipArchive();
     if ($zip->open($zipPath, ZipArchive::CREATE) === true) {
-        foreach (glob($runDir . '/*.json') as $file) {
-            $zip->addFile($file, basename($file));
+        $zipOk = true;
+        try {
+            crmAddDirectoryToZip($zip, $runDir);
+        } catch (Throwable $error) {
+            $zipOk = false;
+            backupLog($logFile, '  ERROR adding files to zip: ' . $error->getMessage());
         }
-        $zip->close();
-        // Loose JSON files are redundant once zipped - keep only the archive.
-        foreach (glob($runDir . '/*.json') as $file) {
-            @unlink($file);
+        if (!$zip->close()) {
+            $zipOk = false;
+            backupLog($logFile, '  ERROR finalizing zip archive');
         }
-        @rmdir($runDir);
-        backupLog($logFile, "Zipped to $runStamp.zip");
+
+        if ($zipOk) {
+            // Loose files are redundant once the archive is safely finalized.
+            crmDeleteTree($runDir);
+            backupLog($logFile, "Zipped to $runStamp.zip");
+        } else {
+            $failCount++;
+            @unlink($zipPath);
+            backupLog($logFile, "  WARNING: zip failed, leaving $runStamp/ as loose files");
+        }
     } else {
-        backupLog($logFile, "  WARNING: could not create zip, leaving $runStamp/ as loose JSON files");
+        $failCount++;
+        backupLog($logFile, "  WARNING: could not create zip, leaving $runStamp/ as loose files");
     }
 } else {
     backupLog($logFile, '  NOTE: PHP zip extension not available, leaving backup as loose JSON files');
 }
 
-pruneOldBackups($backupsDir, $retainCount, $logFile);
+crmPruneOldBackups(
+    $backupsDir,
+    $retainCount,
+    function (string $message) use ($logFile): void {
+        backupLog($logFile, $message);
+    }
+);
 
 backupLog($logFile, "Backup run finished: $okCount tables OK, $failCount failed, $totalRows total rows.");
 
