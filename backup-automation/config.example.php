@@ -1,8 +1,12 @@
 <?php
 /**
- * Copy this file to config.php (same folder) and fill in the real values.
- * config.php is gitignored - it will hold a real Supabase service role
- * key, which must never be committed or pasted into a chat session.
+ * Copy this file to a private location outside public_html, htdocs, or
+ * wwwroot and fill in the real values. If the entire backup-automation
+ * folder is already outside the web root, config.php may stay beside the
+ * script. Otherwise set BACKUP_CONFIG_FILE in the cron command to the
+ * private file's absolute path. config.php is gitignored, but an external
+ * filename is safer because it cannot be accidentally uploaded with the app.
+ * The service-role key must never be committed or pasted into a chat session.
  *
  * Get these from the Supabase Dashboard:
  * Project Settings -> API -> Project URL, and

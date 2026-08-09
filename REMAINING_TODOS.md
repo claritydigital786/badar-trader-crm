@@ -48,7 +48,11 @@ _Add items here._
   the first write. PHP syntax, backup integration, restore integrity, tamper
   rejection, and the 24-write loopback restore all pass. A real staging
   restore remains blocked on PR #14's production-URL correction, staging Auth IDs,
-  and a database execution check of the staging-only safety SQL.
+  and a database execution check of the staging-only safety SQL. Hostinger
+  credentials, archives, and logs are now also rejected under common web-root
+  paths, an absolute private config override is supported, and HTTP execution is
+  refused. The existing account layout already places `backup-automation` beside
+  `public_html`, so Muhammad can keep `config.php` in that private folder.
 - [ ] **PR #14 staging safety correction required before merge.** The staging
   preparation copies `supabase/schema.sql` unchanged, but that file contains
   pg_cron jobs and automation callbacks hard-coded to the live production project

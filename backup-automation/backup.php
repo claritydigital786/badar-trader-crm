@@ -12,25 +12,35 @@
  * files on this same hosting account - it cannot alter anything in
  * Supabase or in the CRM.
  *
- * Credentials are never hardcoded here. Copy config.example.php to
- * config.php (gitignored) and fill in the real project URL and service
- * role key - or export them as environment variables (SUPABASE_URL,
- * SUPABASE_SERVICE_ROLE_KEY) via the hosting's cron job command instead,
- * whichever Hostinger's control panel makes easier.
+ * Credentials are never hardcoded here. Keep config.php outside every web
+ * root, either beside this script when the whole backup-automation folder is
+ * outside public_html or at the absolute BACKUP_CONFIG_FILE path.
  */
 
 declare(strict_types=1);
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit(1);
+}
+
 $scriptDir = __DIR__;
 $scopeHelpers = $scriptDir . '/backup_scope.php';
 $storageHelpers = $scriptDir . '/storage_backup.php';
+$configHelpers = $scriptDir . '/backup_config.php';
 require_once $scopeHelpers;
 require_once $storageHelpers;
-$configFile = $scriptDir . '/config.php';
-if (is_file($configFile)) {
-    require $configFile;
+require_once $configHelpers;
+try {
+    $configFile = crmBackupResolveConfigFile($scriptDir);
+    if ($configFile !== null) {
+        require $configFile;
+    }
+} catch (Throwable $error) {
+    fwrite(STDERR, 'FATAL: ' . $error->getMessage() . PHP_EOL);
+    exit(1);
 }
 
 $supabaseUrl = getenv('SUPABASE_URL') ?: (defined('SUPABASE_URL') ? SUPABASE_URL : null);
@@ -61,6 +71,13 @@ $storageMaxObjects = (int) (getenv('BACKUP_STORAGE_MAX_OBJECTS') ?: (defined('BA
 
 $backupsDir = getenv('BACKUP_OUTPUT_DIR') ?: $scriptDir . '/backups';
 $logFile    = getenv('BACKUP_LOG_FILE') ?: $scriptDir . '/backup.log';
+try {
+    crmBackupAssertPrivateDataPath($backupsDir, 'backup output directory');
+    crmBackupAssertPrivateDataPath($logFile, 'backup log file');
+} catch (Throwable $error) {
+    fwrite(STDERR, 'FATAL: ' . $error->getMessage() . PHP_EOL);
+    exit(1);
+}
 
 function backupLog(string $logFile, string $message): void {
     $line = '[' . date('Y-m-d H:i:s') . '] ' . $message . PHP_EOL;
@@ -69,7 +86,7 @@ function backupLog(string $logFile, string $message): void {
 }
 
 if (!$supabaseUrl || !$serviceKey) {
-    backupLog($logFile, 'FATAL: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set. Copy config.example.php to config.php and fill it in, or set the two environment variables in the cron job command.');
+    backupLog($logFile, 'FATAL: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set. Put a private config.php beside the out-of-web-root script, set BACKUP_CONFIG_FILE to a private absolute path, or set the two environment variables in the cron job command.');
     exit(1);
 }
 
