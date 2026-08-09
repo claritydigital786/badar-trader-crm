@@ -3,6 +3,9 @@
 - Date: 2026-08-10
 - Branch: `junaid/safe-local-staging-20260809`
 - Base: `462ed52`
+- Draft PR: [#14](https://github.com/claritydigital786/badar-trader-crm/pull/14)
+
+GitHub assigned #14 because draft PR #13 already existed as a documentation-only ownership note from a separate branch. PR #13 was not modified.
 
 ## Safety boundary
 
