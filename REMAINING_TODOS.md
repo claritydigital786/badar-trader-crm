@@ -56,16 +56,16 @@ _Add items here._
   finalized ZIP is now reopened and fully validated before loose recovery files
   are removed; restricted-cron temporary-directory behavior and the intentionally
   disabled-Storage path are covered by the integration suite.
-- [ ] **PR #14 staging safety correction required before merge.** The staging
-  preparation copies `supabase/schema.sql` unchanged, but that file contains
-  pg_cron jobs and automation callbacks hard-coded to the live production project
-  ref. Fake staging lead and transaction inserts can therefore enqueue production
-  function calls. Neutralize those outbound paths in the prepared staging baseline,
-  add a no-production-ref assertion, and exclude the parked Notifications phase from
-  both `schema.sql` and the later migration plus its QA counts. The assigned-only
-  matrix must also replace `appointments: staff full access` with Admin full access
-  and Agent access to rows where `agent_id = auth.uid()`. Review feedback was posted
-  on PR #14; Junaid retains ownership.
+- [ ] **PR #14 final permission corrections required before merge; Junaid owns
+  this lane.** Commit `412bd26` corrected the earlier production-reference,
+  outbound-callback, parked-Notifications, appointment-pooling, and browser-override
+  blockers. Two review gaps remain: add otherwise-valid same-lead denial cases proving
+  an Agent cannot forge another user's `communications.logged_by`,
+  `lead_activity.actor_id`, or `communication_logs.created_by`; and protect
+  appointment `created_by` on Agent insert and update while retaining Admin access.
+  Rerun the complete permission matrix and update its actual check count and report.
+  Do not merge, apply production SQL, deploy, or touch PR #16 without Muhammad's
+  explicit decision.
 
 - [x] ~~Deploy `whatsapp-webhook` so the Train AI model picker takes effect.~~ DONE 2026-08-06 from Muhammad's laptop with him present. Live function is now **v69**, byte-identical to the repo, `verify_jwt` still false, all reply gates still false. `settings.openai_model` is `gpt-5-mini`, so the picker is now genuinely wired - but `tryAIReply()` still never runs while `AI_REPLIES_ENABLED = false`.
 - [x] ~~Apply `supabase/migrations/20260806000000_ai_agents.sql`.~~ DONE 2026-08-06 from Muhammad's laptop. Applied as a single migration rather than `supabase db push`, because that command reconciles the whole migrations folder against the remote history and many files here are named `applied_via_sql_editor` (applied by hand, possibly not recorded), so a push could have replayed old migrations against the live DB. Verified after: 8 columns, RLS on, 1 admin-only policy, updated_at trigger, 2 indexes, 2 foreign keys. Security advisors show no new warnings from this table.
