@@ -3392,8 +3392,31 @@
 // ─────────────────────────────────────────────────────────────
 //  CONFIG  - replace these two values with your Supabase project
 // ─────────────────────────────────────────────────────────────
-const SUPABASE_URL      = 'https://vfskqzgphrunjxquqpks.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_5DS10RNCXLR26dRezQm6Gw_tEMxYuuR';
+const PRODUCTION_SUPABASE_URL = 'https://vfskqzgphrunjxquqpks.supabase.co';
+const PRODUCTION_SUPABASE_ANON_KEY = 'sb_publishable_5DS10RNCXLR26dRezQm6Gw_tEMxYuuR';
+
+function getLocalSupabaseOverride() {
+  if (!['127.0.0.1', 'localhost'].includes(window.location.hostname)) return null;
+
+  const params = new URLSearchParams(window.location.search);
+  const url = params.get('local-supabase-url');
+  const anonKey = params.get('local-supabase-anon-key');
+  if (!url || !anonKey) return null;
+
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(parsed.hostname)) {
+      return null;
+    }
+    return { url: parsed.origin, anonKey };
+  } catch (_) {
+    return null;
+  }
+}
+
+const localSupabaseOverride = getLocalSupabaseOverride();
+const SUPABASE_URL = localSupabaseOverride?.url || PRODUCTION_SUPABASE_URL;
+const SUPABASE_ANON_KEY = localSupabaseOverride?.anonKey || PRODUCTION_SUPABASE_ANON_KEY;
 // ─────────────────────────────────────────────────────────────
 
 let sb             = null;
@@ -8041,7 +8064,9 @@ async function openConversation(convId, scope = '') {
     renderContactPanel(scope, convId, {
       name: lead?.full_name, phone: lead?.phone, status: lead?.status,
       source: lead?.source, email: lead?.email,
-      agentName: ownAgent ? (ownAgent.full_name || ownAgent.email) : 'Unassigned',
+      agentName: ownAgent
+        ? (ownAgent.full_name || ownAgent.email)
+        : (lead?.assigned_agent_id ? 'Team member' : 'Unassigned'),
       agentId: lead?.assigned_agent_id || null,
       createdAt: lead?.created_at, window: waWindow,
     });
@@ -9603,11 +9628,12 @@ async function loadCommLog(scope = '') {
     renderCommLog(scope);
     return;
   }
-  // Live mode - RLS scopes this automatically: admins see every lead's logs,
-  // agents only see logs for leads assigned to them (comm_logs_agent_select_own).
+  // Live mode - RLS scopes this automatically through the pooled active-staff
+  // policies. communication_logs.created_by has no declared profile foreign
+  // key, so resolve creator names from profiles already visible to this user.
   const [manualRes, autoRes] = await Promise.all([
     sb.from('communication_logs')
-      .select('*, lead:leads!lead_id(full_name, status), creator:profiles!created_by(full_name)')
+      .select('*, lead:leads!lead_id(full_name, status)')
       .order('created_at', { ascending: false }),
     sb.from('communications')
       .select('id, lead_id, type, body, direction, created_at, leads(full_name, status)')
@@ -9619,7 +9645,9 @@ async function loadCommLog(scope = '') {
     ...r,
     lead_name:       r.lead?.full_name    || '-',
     lead_status:     r.lead?.status       || '',
-    created_by_name: r.creator?.full_name || '-',
+    created_by_name: cachedProfiles.find(p => p.id === r.created_by)?.full_name
+      || (r.created_by === currentUser?.id ? currentProfile?.full_name : 'Team member')
+      || '-',
   }));
   const auto = (autoRes.data || []).map(r => ({
     id:              'auto-' + r.id,
