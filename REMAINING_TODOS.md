@@ -148,6 +148,8 @@ _Add items here._
 
 ## 2026-08-09
 
+- "Make the Muhammad/Junaid task split a permanent rule at the top of HANDOFF.md, then establish safe staging and begin testing" - added the mandatory non-overlapping assignment mechanism and current staging split. Production, live messaging, billing and credentials remain outside this authorization.
+- "Allow my brother Junaid to do these tasks from his laptop because I am busy" - reassigned the complete safe local staging and QA lane to Junaid. Muhammad now has an approval-only lane and no active implementation work. Junaid may build and test a disposable local Supabase environment with fake data on his own branch, but this does not authorize production, credentials, real accounts or customer data, live messaging, webhook enforcement, Meta, WhatChimp, WhatsApp Manager, 3903 or 6541.
 - "pls go a head" - after Payroll was verified live, authorized continuing with the next safe CRM task. Claimed the unmerged Meta webhook signature-protection review on Junaid's Ayesha laptop. Scope is local code reconciliation and signed/unsigned/tampered-body verification only; live enforcement and Edge Function deployment remain blocked to Muhammad's laptop with him present.
 - "ok whats left behind" - requested the current remaining CRM work after checking the latest shared GitHub, HANDOFF, progress board, and active work claims.
 - "Please continue with the remaining tasks." - selected the safest unblocked code item, Payroll persistence, and claimed it on Junaid's Ayesha laptop.

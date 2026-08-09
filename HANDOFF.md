@@ -1,5 +1,51 @@
 # Badar Trader CRM - Handoff
 
+## Mandatory work-splitting rule - read before every task
+
+Muhammad and Junaid work in parallel. At the start of every CRM session, Codex
+must read this section, check the latest Active Work Claims and divide the next
+work into two non-overlapping assignments before either person edits code.
+
+The mechanism is mandatory:
+
+1. Name one assignment **Muhammad** and one assignment **Junaid**.
+2. Give each assignment a clear outcome, allowed files and verification checks.
+3. Do not assign the same file to both people at the same time. If unavoidable,
+   sequence the work instead of editing in parallel.
+4. Each person works on a separate Git branch and opens a pull request. Neither
+   person pushes directly to `main` while the other assignment is active.
+5. Record each assignment under Active Work Claims before editing, then mark it
+   completed or released when finished.
+6. The second person must pull the reviewed merge before starting dependent work.
+7. Production, live messaging, credentials, billing and destructive actions keep
+   their existing approval gates. Dividing a task never authorizes those actions.
+8. If Izza joins a session, add a third non-overlapping assignment using the same
+   rules.
+
+Current split for safe staging, 2026-08-09:
+
+- **Muhammad:** approval-only lane while he is busy. No active implementation or
+  staging work is assigned. Later, Muhammad must personally approve any action
+  involving production, credentials, billing, live messaging or destructive data
+  changes. Junaid does not need to wait for Muhammad for the safe local work below.
+- **Junaid:** owns the complete safe local staging and QA lane from his laptop.
+  Pull current `main`, create branch `junaid/safe-local-staging-20260809`, build a
+  disposable local Supabase environment, apply migrations locally, seed fake
+  Admin/Agent A/Agent B records, run the direct cross-agent RLS permission matrix,
+  and run browser QA for navigation, empty modules, workflows, console errors and
+  responsive layouts. Allowed files: local staging configuration, migrations,
+  seed/test utilities, QA evidence and staging documentation. Commit the results
+  and open a pull request instead of pushing directly to `main`.
+
+Junaid's authorization is limited to local and disposable test systems. It does
+not authorize production deployments, production secrets, real customer data,
+real staff account changes, live sends, webhook enforcement, or any change in
+Meta, WhatChimp, WhatsApp Manager, number 3903 or number 6541. If Docker Desktop
+is missing, ask Muhammad before installing it.
+
+These assignments remain active until their results are reconciled in a pull
+request or explicitly released here.
+
 _Last updated: 2026-07-14 (mid-session, cut short by usage limit - written fast, verify
 claims before trusting them further). For a fresh Claude Code session with zero memory of
 prior conversations._
