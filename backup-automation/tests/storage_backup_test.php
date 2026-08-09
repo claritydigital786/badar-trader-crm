@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/storage_backup.php';
 require_once dirname(__DIR__) . '/backup_scope.php';
+require_once dirname(__DIR__) . '/backup_config.php';
 
 function testAssert(bool $condition, string $message): void {
     if (!$condition) {
@@ -63,6 +64,9 @@ try {
     testAssert(!crmStoragePathIsSafe('docs/../../escape.bin'), 'nested traversal path was accepted');
     testAssert(!crmStoragePathIsSafe('docs\\escape.bin'), 'backslash path was accepted');
     testAssert(!crmStoragePathIsSafe("bad\0name.bin"), 'NUL path was accepted');
+    testAssert(crmBackupPathUsesCommonWebRoot('/home/account/public_html/config.php'), 'public_html config path was not detected');
+    testAssert(crmBackupPathUsesCommonWebRoot('/srv/htdocs/backups'), 'htdocs output path was not detected');
+    testAssert(!crmBackupPathUsesCommonWebRoot('/home/account/backup-automation/config.php'), 'private config path was rejected');
 
     $listed = crmStorageListObjects($baseUrl, 'test-service-key', 'attachments', 1, 20);
     testAssert($listed['errors'] === [], 'recursive list returned errors: ' . implode('; ', $listed['errors']));
@@ -148,6 +152,12 @@ try {
 
     $integrationDir = $tempDir . '/integration-backups';
     $integrationLog = $tempDir . '/integration.log';
+    $integrationConfig = $tempDir . '/private-config.php';
+    file_put_contents(
+        $integrationConfig,
+        "<?php\ndefine('SUPABASE_URL', " . var_export($baseUrl, true) . ");\n"
+        . "define('SUPABASE_SERVICE_ROLE_KEY', 'test-service-key');\n"
+    );
     $backupScript = dirname(__DIR__) . '/backup.php';
     $integrationPipes = [];
     $integrationProcess = proc_open(
@@ -160,8 +170,7 @@ try {
         $integrationPipes,
         dirname(__DIR__),
         [
-            'SUPABASE_URL' => $baseUrl,
-            'SUPABASE_SERVICE_ROLE_KEY' => 'test-service-key',
+            'BACKUP_CONFIG_FILE' => $integrationConfig,
             'BACKUP_OUTPUT_DIR' => $integrationDir,
             'BACKUP_LOG_FILE' => $integrationLog,
             'BACKUP_RETAIN_COUNT' => '3',

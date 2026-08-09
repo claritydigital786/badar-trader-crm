@@ -50,7 +50,11 @@ _Add items here._
   the first write. PHP syntax, backup integration, restore integrity, tamper
   rejection, and the 24-write loopback restore all pass. A real staging
   restore remains blocked on PR #14's production-URL correction, staging Auth IDs,
-  and a database execution check of the staging-only safety SQL.
+  and a database execution check of the staging-only safety SQL. Hostinger
+  credentials, archives, and logs are now also rejected under common web-root
+  paths, an absolute private config override is supported, and HTTP execution is
+  refused. The existing account layout already places `backup-automation` beside
+  `public_html`, so Muhammad can keep `config.php` in that private folder.
 - [x] ~~Deploy `whatsapp-webhook` so the Train AI model picker takes effect.~~ DONE 2026-08-06 from Muhammad's laptop with him present. Live function is now **v69**, byte-identical to the repo, `verify_jwt` still false, all reply gates still false. `settings.openai_model` is `gpt-5-mini`, so the picker is now genuinely wired - but `tryAIReply()` still never runs while `AI_REPLIES_ENABLED = false`.
 - [x] ~~Apply `supabase/migrations/20260806000000_ai_agents.sql`.~~ DONE 2026-08-06 from Muhammad's laptop. Applied as a single migration rather than `supabase db push`, because that command reconciles the whole migrations folder against the remote history and many files here are named `applied_via_sql_editor` (applied by hand, possibly not recorded), so a push could have replayed old migrations against the live DB. Verified after: 8 columns, RLS on, 1 admin-only policy, updated_at trigger, 2 indexes, 2 foreign keys. Security advisors show no new warnings from this table.
 - [x] ~~**Payroll persistence.**~~ DONE 2026-08-09 (Junaid). `payroll_settings` and immutable `payroll_runs` snapshots are live in Supabase with admin-only RLS and exact Data API grants. The frontend reads real period-filtered deposits, saves salary settings and runs, reopens run history, validates inputs, and keeps CSV export. Verified in Chrome Demo Mode on desktop and 375px mobile, zero console errors; live schema, policies, grants, indexes and advisors verified after both migrations. No live payroll record was created during testing.

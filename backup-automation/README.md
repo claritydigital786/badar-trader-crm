@@ -11,12 +11,16 @@ Supabase, the CRM, or any live conversation.
 
 ## One-time setup on Hostinger
 
-1. Upload this whole `backup-automation/` folder to the hosting account
-   (File Manager, or however the rest of the site is deployed).
-2. Copy `config.example.php` to `config.php` in the same folder, and fill
+1. Upload this whole `backup-automation/` folder to the hosting account as a
+   sibling of `public_html`, never inside `public_html`, `htdocs`, or `wwwroot`.
+   This keeps the credentials, CRM archives, and logs outside the web root.
+2. Copy `config.example.php` to `config.php` in that private folder and fill
    in the real `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (Supabase
-   Dashboard -> Project Settings -> API). `config.php` is gitignored - it
-   only needs to exist on the server, never in this git repo.
+   Dashboard -> Project Settings -> API). `config.php` is gitignored and only
+   exists on the server. If the script and private config must use separate
+   folders, set `BACKUP_CONFIG_FILE` to the config file's absolute path in the
+   cron command. The script refuses a relative config path or any config,
+   archive, or log path under the three common web-root names.
 3. In Hostinger's hPanel: **Advanced -> Cron Jobs -> Create a new cron job**.
    - Command: `php /home/YOUR_USERNAME/backup-automation/backup.php`
      (hPanel usually shows the full path for you - use that, not a guess).
@@ -25,7 +29,12 @@ Supabase, the CRM, or any live conversation.
      expression; otherwise pick the closest preset ("Every 6 hours").
 4. Trigger it once by hand (hPanel usually has a "Run now" button, or SSH
    in and run `php backup.php` directly) to confirm it works before
-   trusting the schedule.
+trusting the schedule.
+
+The backup entry point also refuses non-CLI execution. An HTTP request cannot run
+the backup even if somebody accidentally places the PHP files under a routed
+folder. The files still belong outside the web root because a server
+misconfiguration could expose source or archive bytes without executing PHP.
 
 ## What gets backed up
 

@@ -192,7 +192,9 @@ The restore suite proves complete table scope, dry-run zero-write behavior,
 production refusal, confirmation, outbound-safety and Auth-ID gates, traversal
 rejection, database and Storage checksum rejection, secret removal, exact binary
 preservation, and 22 table plus bucket and object writes against a loopback mock
-server. No credential, production data,
+server. The entry point is CLI-only and refuses config, backup, and log paths under
+`public_html`, `htdocs`, or `wwwroot`; `BACKUP_CONFIG_FILE` supports an absolute
+private credential path. No credential, production data,
 Hostinger file, Supabase project, Meta, WhatChimp, WhatsApp, or live conversation
 was touched. A real disposable Supabase restore still waits for PR #14's staging
 baseline to remove its production URLs and for matching disposable Auth identities;
