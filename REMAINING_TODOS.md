@@ -240,3 +240,15 @@ _Add items here._
   PR #16 then added database-file checksums and the staging Auth-ID preflight and
   passed both loopback suites without touching Supabase, Hostinger, Meta,
   WhatChimp, WhatsApp, or a live conversation.
+- "Why can Junaid see the CRM's left control panel but I cannot?" - live browser
+  inspection confirmed Muhammad is signed in as `syedbadartk`, `Admin · Owner`,
+  and the complete 232-pixel sidebar is rendered. The docked Codex browser shows a
+  narrower visible pane while retaining a 1280-pixel CRM viewport, cropping the
+  page's left edge. Junaid's local PR preview is fitted differently. This is a
+  browser-pane layout issue, not an account permission or missing-sidebar issue.
+- "Please don't just let the work stop. Please set it to be continued on both
+  laptops" - renewed the non-overlapping two-laptop split. Junaid continues only
+  PR #14's final actor-forgery and appointment-creator permission corrections;
+  Muhammad continues PR #16 backup/restore readiness and read-only review of the
+  newest questions. No merge, production deployment, migration, live messaging,
+  credential, or billing action is implied by this continuation.
