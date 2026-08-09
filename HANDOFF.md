@@ -161,6 +161,32 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
+**DONE 2026-08-10 - Muhammad's Supabase Storage backup package. Claim
+released.**
+
+- **Muhammad:** completed the missing Supabase Storage backup capability on
+  branch `muhammad/storage-backup-20260810`. The archive now includes all 22
+  active database tables, every standard Storage bucket object, a restore-ready
+  manifest, original bucket and object paths, byte sizes, and SHA-256 checksums.
+  Hash-based archive names prevent remote object names from becoming unsafe
+  local paths. Partial downloads are recorded in the manifest and produce a
+  non-zero cron exit without discarding successful files. ZIP finalization is
+  checked before loose files are removed.
+- **Junaid:** PR #14 (`junaid/safe-local-staging-20260809`) remains frozen for
+  Muhammad's review. Junaid owns its local staging, migrations, schema, QA files,
+  `index.html`, and PR-specific documentation. No new edits are assigned while
+  Muhammad's Storage backup package is active.
+
+Verification passed: PHP syntax, recursive folder listing, pagination, exact
+binary-byte preservation, unsafe-path rejection, partial-failure reporting,
+manifest contents, schema-to-backup scope, full cron entry integration, ZIP
+inspection, and retention behavior. Tests used only a loopback mock endpoint and
+the literal test key `test-service-key`. No production endpoint, credential,
+Storage object, Hostinger file, database row, deployment, PR merge, or live CRM
+system was touched. Remaining human gate: review the branch, upload the reviewed
+files to Hostinger, configure the real key outside `public_html`, run one real
+backup, inspect the archive, and restore it only into disposable staging.
+
 **DONE, READY FOR STAGED DEPLOYMENT 2026-08-09 (Junaid, Ayesha laptop) - Meta webhook signature protection. Claim released.** Reviewed Izza's existing commit `8888bf1`, reconciled it with current `main`, and integrated HMAC-SHA256 verification into both public Meta POST webhooks. Both handlers now read the exact request bytes once, verify `X-Hub-Signature-256` through the shared `_shared/meta_signature.mjs` module, and only then decode and parse JSON. Keeping one shared verifier prevents the WhatsApp and leadgen implementations from drifting. The rollout remains deliberately fail-open until Muhammad completes the staged secret setup: no `META_APP_SECRET` means unchanged behavior; secret set with `META_SIGNATURE_ENFORCED` false means audit-only logging; enforcement true rejects unsigned, malformed, wrong-secret, replayed, or tampered requests with 401.
 
 **Verification:** the committed dependency-free test covers a known HMAC-SHA256 reference vector, valid enforcement and audit paths, changed bytes, wrong secret, missing/legacy/non-hex/short headers, uppercase digest, literal and escaped Unicode, exact non-text bytes, disabled-secret behavior, strict flag parsing, signed `Request` body handling, and replaying a signature against changed bytes. It passes in the local JavaScript runtime. The first run caught and fixed a real cross-realm `Uint8Array` validation issue. A separate source-wiring check confirms both handlers import the shared verifier, verify before JSON parsing, preserve their previous malformed-body response behavior, return 401 only for enforced signature failures, and leave all four WhatsApp reply/notification flags false. Git diff checks and the no-em-dash/no-emoji checks pass. Deno is not installed on this laptop, so a full `deno check` or Supabase bundle remains part of the Muhammad-laptop deploy gate. Read-only Supabase inspection confirms production was not changed: `whatsapp-webhook` remains v75 and `meta-leadgen-webhook` remains v3, both ACTIVE with `verify_jwt: false`, and their downloaded live sources still use `req.json()` with no signature verifier. No Edge Function was deployed, no secret was read or changed, no live webhook request was made, and no customer record was touched.

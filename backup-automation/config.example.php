@@ -17,3 +17,14 @@ define('SUPABASE_SERVICE_ROLE_KEY', 'YOUR_SERVICE_ROLE_KEY');
 
 // Optional: how many past backups to keep (28 = 7 days at 4 runs/day).
 // define('BACKUP_RETAIN_COUNT', 28);
+
+// Storage objects such as deposit screenshots and conversation attachments
+// are backed up by default. Set false only for a temporary diagnostic run.
+// define('BACKUP_STORAGE_ENABLED', true);
+
+// Optional comma-separated allowlist. Leave unset to include every standard
+// file bucket returned by Supabase Storage.
+// define('BACKUP_STORAGE_BUCKETS', 'deposit-screenshots,conversation-attachments');
+
+// Safety cap for one run. Increase only after checking Hostinger disk space.
+// define('BACKUP_STORAGE_MAX_OBJECTS', 50000);
