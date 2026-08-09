@@ -166,6 +166,33 @@ Whoever finishes their piece first should update this section (mark it done, sam
 **DONE, PR #14 READY 2026-08-10 (Junaid, Ayesha laptop) - disposable local Supabase staging and full CRM QA. Claim released.** Built a reproducible local-only harness in `qa/local-staging/`, starting from the authoritative `schema.sql` baseline and replaying all 31 committed migrations after it. A clean reset applied all 32 local migration steps, fake Admin / Agent A / Agent B users and fake CRM records seeded successfully, `supabase db lint` found no schema errors, and the cross-agent Data API matrix passed 71/71 allow and deny checks. The matrix found a real Phase 15 policy drift: agents could view a colleague's lead but could not log activity on it. Migration `20260810000000_lead_activity_staff_insert.sql` now permits active staff inserts while requiring the actor to be the signed-in user. Browser QA passed all 21 admin modules and all 6 agent modules, fake lead creation and search, cross-agent activity logging, Bot Manager records, fake payroll calculation, pooled inbox and Comm Log visibility, desktop, and 375-pixel mobile layouts. The final console check had zero errors or warnings. Two frontend corrections came from the pass: Comm Log no longer requests a nonexistent `communication_logs.created_by` relationship, and an RLS-hidden colleague is labeled `Team member` instead of `Unassigned`. The local query override accepts loopback HTTP only, so hosted pages continue using the production constants. Evidence is in `qa/local-staging/evidence/QA_REPORT.md`, and the implementation is open at `https://github.com/claritydigital786/badar-trader-crm/pull/14`. GitHub assigned #14 because draft PR #13 had already been opened from another laptop as a documentation-only ownership note on the separate `codex/safe-local-staging-20260809` branch. PR #13 was not modified. The initial local phase did not contact production or any third-party system; the later controlled production policy rollout is recorded immediately below.
 
 **UPDATE 2026-08-10 - PR #14 is ready and the production RLS migration is applied, but the GitHub merge needs explicit production-deploy approval.** The final clean local replay now includes 32 migration steps and still passes 71/71 RLS checks with a clean schema lint. The two `lead_activity` policy migrations were applied to the production Supabase project and verified through migration history and exact `pg_policies` metadata. The post-change advisor found a per-row `auth.uid()` performance warning, so `20260810010000_optimize_lead_activity_staff_insert.sql` was added and applied; that warning is now gone. No production row or customer data was read or changed. PR #14's latest Vercel preview is Ready, it has no review feedback or GitHub Actions failures, and it is marked ready for review. The attempted merge was blocked because merging `main` can trigger a production frontend deployment, while the original staging authorization explicitly prohibited production deployment. Do not bypass this gate. Muhammad must explicitly approve merging PR #14 with the understanding that Vercel may deploy the frontend changes to production.
+**DONE 2026-08-10 (Muhammad laptop) - backup restore-readiness package. Claim
+released.** Branch `muhammad/backup-restore-readiness-20260810` adds archive
+validation and a safety-gated restore command. Validation requires all 22 active
+table files, a complete Storage manifest, exact sizes and SHA-256 checksums, safe
+ZIP paths, and no failed Storage object. Apply mode permanently refuses the live
+project ref, requires the exact disposable-staging confirmation, and checks a
+database safety marker before its first table or Storage write. A companion
+disposable-staging SQL file disables the four automation triggers, replaces the
+production callback with a no-op, removes cron commands containing the production
+ref, and exposes the marker only to `service_role`.
+
+The review also corrected two backup faults. Pagination no longer assumes every
+table has an `id` column, so `settings` now orders by `key` and
+`payroll_settings` by `agent_id`. The Hostinger ZIP no longer receives
+`meta_token`, `wa_verify_token`, `wa_access_token`, or `openai_api_key`; the
+manifest records only their key names, and restore strips the same keys from old
+archives. Both the original backup suite and the new restore suite pass. The
+restore suite proves complete table scope, dry-run zero-write behavior, production
+refusal, confirmation and outbound-safety gates, traversal rejection, checksum
+rejection, secret removal, exact binary preservation, and 22 table plus bucket and
+object writes against a loopback mock server. No credential, production data,
+Hostinger file, Supabase project, Meta, WhatChimp, WhatsApp, or live conversation
+was touched. A real disposable Supabase restore still waits for PR #14's staging
+baseline to remove its production URLs and for matching disposable Auth identities;
+the staging safety SQL has not been database-executed on this laptop because no
+Docker or PostgreSQL client is installed.
+
 **DONE 2026-08-10 - Muhammad's Supabase Storage backup package. Claim
 released.**
 

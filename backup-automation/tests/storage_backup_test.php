@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/storage_backup.php';
+require_once dirname(__DIR__) . '/backup_scope.php';
 
 function testAssert(bool $condition, string $message): void {
     if (!$condition) {
@@ -186,7 +187,13 @@ try {
     $integrationZip = new ZipArchive();
     testAssert($integrationZip->open($integrationArchives[0]) === true, 'full backup archive could not be opened');
     testAssert($integrationZip->locateName('profiles.json') !== false, 'full backup archive omitted database JSON');
+    testAssert($integrationZip->locateName('backup_manifest.json') !== false, 'full backup archive omitted its manifest');
     testAssert($integrationZip->locateName('storage/manifest.json') !== false, 'full backup archive omitted Storage manifest');
+    $settingsRows = json_decode((string) $integrationZip->getFromName('settings.json'), true);
+    testAssert($settingsRows === [['key' => 'openai_model', 'value' => 'test-safe-model']], 'secret settings were not excluded from the archive');
+    $backupManifest = json_decode((string) $integrationZip->getFromName('backup_manifest.json'), true);
+    testAssert($backupManifest['secret_values_included'] === false, 'backup manifest did not record secret exclusion');
+    testAssert($backupManifest['excluded_secret_setting_keys'] === crmBackupSecretSettingKeys(), 'backup manifest secret-key list was wrong');
     $integrationManifest = json_decode((string) $integrationZip->getFromName('storage/manifest.json'), true);
     testAssert($integrationManifest['objects'][0]['bucket'] === 'clean', 'full backup used the wrong bucket');
     testAssert($integrationManifest['objects'][0]['path'] === 'clean.txt', 'full backup lost the original object path');
@@ -200,10 +207,7 @@ try {
     $activeSchemaTables = array_values(array_diff(array_unique($schemaMatches[1]), ['notifications']));
     sort($activeSchemaTables);
 
-    $backupPhp = (string) file_get_contents($backupScript);
-    preg_match('/\$tables\s*=\s*\[(.*?)\];/s', $backupPhp, $tableBlock);
-    preg_match_all("/'([a-z_][a-z0-9_]*)'/", $tableBlock[1] ?? '', $backupMatches);
-    $configuredTables = array_values(array_unique($backupMatches[1]));
+    $configuredTables = array_keys(crmBackupTableMap());
     sort($configuredTables);
     $missingTables = array_values(array_diff($activeSchemaTables, $configuredTables));
     testAssert($missingTables === [], 'active schema tables missing from backup: ' . implode(', ', $missingTables));

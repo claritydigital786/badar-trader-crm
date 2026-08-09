@@ -31,11 +31,17 @@ Supabase, the CRM, or any live conversation.
 
 Every active table in `supabase/schema.sql` as of 2026-08-10 (22 tables - leads,
 communications, profiles, transactions, kyc_documents, and so on - see the
-`$tables` list at the top of `backup.php` for the exact set). If a new
-table is added to the CRM later, add its name to that list too - it is a
+table map in `backup_scope.php` for the exact set). If a new
+table is added to the CRM later, add its name to that map too - it is a
 deliberate, reviewed list, not auto-discovered from whatever exists live.
 The parked Notifications migration remains excluded until Muhammad revives
 that module.
+
+The `settings` table is filtered before it reaches disk. `meta_token`,
+`wa_verify_token`, `wa_access_token`, and `openai_api_key` are excluded because
+the archive is stored on separate hosting and is not an appropriate secret
+vault. `backup_manifest.json` records only the excluded key names. Restore those
+credentials through the approved secret or configuration screens after recovery.
 
 ## Where backups land
 
@@ -75,6 +81,56 @@ the process exits non-zero so cron monitoring can alert you.
 
 - Does not touch WhatsApp, Meta, or any live customer conversation - it
   only reads already-stored Supabase data.
-- Does not restore anything. This is one-directional: Supabase -> JSON
-  and binary files on Hostinger. A restore remains a separately reviewed,
-  disposable-staging operation because it writes records and objects.
+- The scheduled backup remains one-directional and cannot write to Supabase.
+- `restore.php` is a separate, manually-invoked recovery tool. It validates an
+  archive by default and makes no target request in that mode. Apply mode needs
+  `RESTORE_APPLY=true` and the exact confirmation
+  `RESTORE_CONFIRMATION=DISPOSABLE_STAGING_ONLY`.
+- The live CRM project ref is permanently refused. A remote target also needs
+  `RESTORE_ALLOW_REMOTE_DISPOSABLE=true` and a matching
+  `RESTORE_TARGET_PROJECT_REF`, which must identify a different Supabase project.
+
+## Validate and restore-test
+
+Validate an archive without credentials or writes:
+
+```sh
+php restore.php /absolute/path/to/backup.zip
+```
+
+Before a real disposable-staging restore, rebuild the schema and create staging
+Auth users whose IDs match the archived `profiles` rows. Supabase Auth password
+hashes are not part of this public-schema backup, so staff passwords must be set
+again in staging.
+
+Important: `supabase/schema.sql` currently contains scheduled jobs and automation
+callbacks with the production project URL. A staging rebuild must not be seeded
+or used until those outbound paths are neutralized. Apply
+`disposable_staging_safety.sql` to the disposable target immediately after its
+schema is built. The restore calls its verification function before the first
+write and refuses the target if any protected trigger, production cron command,
+or production callback remains enabled.
+
+Then set the staging values outside the repository and run:
+
+```sh
+RESTORE_TARGET_URL=https://STAGING_PROJECT_REF.supabase.co \
+RESTORE_TARGET_PROJECT_REF=STAGING_PROJECT_REF \
+RESTORE_SERVICE_ROLE_KEY=STAGING_SERVICE_ROLE_KEY \
+RESTORE_ALLOW_REMOTE_DISPOSABLE=true \
+RESTORE_APPLY=true \
+RESTORE_CONFIRMATION=DISPOSABLE_STAGING_ONLY \
+php restore.php /absolute/path/to/backup.zip
+```
+
+The restore upserts archived public-schema rows, recreates standard Storage
+buckets when absent, and uploads objects after validating every recorded size
+and SHA-256 checksum. It never deletes target rows. Run it only against an empty
+or disposable staging project. Table writes are separate API operations, so a
+failed run can leave a partial staging restore and should be rerun only after the
+failure is understood. The automated test uses a loopback mock server, never
+Supabase:
+
+```sh
+php tests/restore_test.php
+```
