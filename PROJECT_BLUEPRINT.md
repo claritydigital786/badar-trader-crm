@@ -5,14 +5,14 @@ deployed, committed, sent, or mutated. Every claim is grounded in repository cod
 committed schema, or safe read-only Supabase CLI metadata. Anything that could not
 be proven from those sources is marked UNVERIFIED with the reason._
 
-_Progress Board below refreshed 2026-08-09, on top of the day's newer work
+_Progress Board below refreshed 2026-08-10, on top of the day's newer work
 (template-from-inbox, backup script, the deployed bot-takeover fix). The board is
 the at-a-glance layer; sections 1-20 are the evidence behind it. When they disagree,
 trust the board's date and re-check the code._
 
 ---
 
-## Progress Board - live status (updated 2026-08-09)
+## Progress Board - live status (updated 2026-08-10)
 
 The one-screen answer to "what is done and what is left", grouped by what each item
 is actually waiting on - so nothing sits here looking unfinished when it is really
@@ -77,6 +77,7 @@ present, since it is live traffic.
 
 | Item | What is left | Whose action |
 | --- | --- | --- |
+| Disposable local staging and full CRM QA | Corrected PR [#14](https://github.com/claritydigital786/badar-trader-crm/pull/14) is submitted for Muhammad's review without merge. The preparer removes production cron and automation callbacks before Docker starts and excludes parked notifications. The corrective migration restricts Agents to assigned leads, related records, and own appointments. Fake-data verification passed: 32 applicable migration steps replayed, schema lint clean, RLS matrix 75/75, browser modules and mobile layouts passed, and the final console was clean. Production was not changed by this corrective package and still has the earlier pooled policy until Muhammad approves a later rollout | Muhammad / maintainer |
 | Send an approved template from the inbox | Frontend + `template` branch in `send-wa-message` built, deliberately one commit behind live (can't send until Meta approves a template anyway). Deploy when a template is approved | Deploy `send-wa-message` + Meta approval |
 | Meta webhook signature protection | Both public webhook handlers now share exact-byte HMAC-SHA256 verification and dependency-free tests pass. Production remains unchanged until the staged rollout | Muhammad - deploy both with `--no-verify-jwt`, set `META_APP_SECRET` in audit mode, confirm real `signature valid` logs, then set `META_SIGNATURE_ENFORCED=true` |
 | Supabase backup script (4x/day to Hostinger) | Files uploaded to Hostinger (`orange-moose-457260.hostingersite.com`, account root, not `public_html`) and all 4 cron jobs created (`0 0/6/12/18 * * *`). Only `config.php` (real project URL + service role key) is left, and only Muhammad can create it | Muhammad - create `config.php` |
