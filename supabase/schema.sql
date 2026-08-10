@@ -1456,7 +1456,7 @@ SET search_path = ''
 AS $$
 BEGIN
   IF OLD.created_by IS DISTINCT FROM NEW.created_by
-     AND (SELECT auth.role()) = 'authenticated'
+     AND (SELECT auth.uid()) IS NOT NULL
      AND NOT (SELECT public.is_admin()) THEN
     RAISE EXCEPTION 'Agents cannot change appointment created_by'
       USING ERRCODE = '42501';

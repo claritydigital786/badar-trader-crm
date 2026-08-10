@@ -29,6 +29,7 @@ Only the local Database, Auth, and Data API services were required. Messaging an
 - Omitted parked Phase 28 notifications from the baseline and skipped `20260807000000_notifications.sql`.
 - Applied all 32 local migration steps successfully in chronological order.
 - Applied corrective migration `20260810020000_restrict_agents_to_assigned_leads.sql` last.
+- Replaced the deprecated appointment-trigger `auth.role()` test with `(SELECT auth.uid()) IS NOT NULL` in both the authoritative schema and corrective migration.
 - Ran `supabase db lint --local --schema public --level warning`.
 - Result: no schema errors found.
 
@@ -57,7 +58,7 @@ This replaces the earlier pooled active-staff model proposed in PR #14. The corr
 
 ## Cross-agent RLS matrix
 
-Result: **80 passed, 0 failed**.
+Result after the final `auth.uid()` compatibility rerun: **80 passed, 0 failed**.
 
 Coverage includes Admin full access, assigned Agent reads and writes, cross-Agent denial, unassigned-lead denial, assigned-only appointment reads, updates and inserts, protected balance denial, same-lead `logged_by`, `actor_id`, and `created_by` forgery denial, appointment creator forgery denial on insert and update, admin-only module denial, settings boundaries, and suspended-agent denial.
 
