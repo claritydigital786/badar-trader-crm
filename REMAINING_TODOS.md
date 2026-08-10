@@ -71,8 +71,10 @@ _Add items here._
   sanitizer, shell, Python and diff checks, and successful Vercel status.
   Muhammad's laptop cannot independently run the full replay because Docker CLI is
   absent and Supabase CLI 2.109.1 is below the harness's documented 2.113.0 minimum.
-  PR #14 is now ready for Muhammad's explicit merge decision. Do not merge, apply
-  production SQL, deploy, or touch PR #16 before that decision.
+  PR #14 was explicitly approved and merged on 2026-08-10. That sequencing gate is
+  closed. PR #16 is resumed only to reconcile its draft branch with current `main`
+  and rerun local backup / restore checks. No production SQL, deployment, live
+  credential, real archive, or restore action is authorized.
 
 - [x] ~~Deploy `whatsapp-webhook` so the Train AI model picker takes effect.~~ DONE 2026-08-06 from Muhammad's laptop with him present. Live function is now **v69**, byte-identical to the repo, `verify_jwt` still false, all reply gates still false. `settings.openai_model` is `gpt-5-mini`, so the picker is now genuinely wired - but `tryAIReply()` still never runs while `AI_REPLIES_ENABLED = false`.
 - [x] ~~Apply `supabase/migrations/20260806000000_ai_agents.sql`.~~ DONE 2026-08-06 from Muhammad's laptop. Applied as a single migration rather than `supabase db push`, because that command reconciles the whole migrations folder against the remote history and many files here are named `applied_via_sql_editor` (applied by hand, possibly not recorded), so a push could have replayed old migrations against the live DB. Verified after: 8 columns, RLS on, 1 admin-only policy, updated_at trigger, 2 indexes, 2 foreign keys. Security advisors show no new warnings from this table.
@@ -269,3 +271,10 @@ _Add items here._
   Muhammad continues PR #16 backup/restore readiness and read-only review of the
   newest questions. No merge, production deployment, migration, live messaging,
   credential, or billing action is implied by this continuation.
+- "Junaid is busy somewhere else. I am alone today. Please help me. Do not stop.
+  Continue please." - resumed Muhammad's isolated PR #16 lane after confirming
+  PR #14 is merged, PR #17 is mergeable and PR #16 alone is conflicting. Reconciled
+  the draft backup branch with current `main` without force-push, then passed PHP
+  syntax, both loopback backup / restore suites, disposable baseline sanitization,
+  Python compilation, shell syntax and diff checks. No merge, deployment,
+  production access, credential, live archive, WhatsApp, Meta or WhatChimp action.

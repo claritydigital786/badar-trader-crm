@@ -127,13 +127,13 @@ again in staging. The staging safety SQL installs a service-role-only preflight,
 and the restore verifies all archived profile IDs against `auth.users` before its
 first table write.
 
-Important: `supabase/schema.sql` currently contains scheduled jobs and automation
-callbacks with the production project URL. A staging rebuild must not be seeded
-or used until those outbound paths are neutralized. Apply
-`disposable_staging_safety.sql` to the disposable target immediately after its
-schema is built. The restore calls its verification function before the first
-write and refuses the target if any protected trigger, production cron command,
-or production callback remains enabled.
+Build disposable staging with `qa/local-staging/prepare.sh`. That preparer strips
+production cron schedules and replaces the production automation callback with a
+local no-op before the database starts. Apply `disposable_staging_safety.sql` to
+the disposable target immediately after its schema is built as a second,
+restore-specific guard. The restore calls its verification function before the
+first write and refuses the target if any protected trigger, production cron
+command, or production callback remains enabled.
 
 Then set the staging values outside the repository and run:
 
