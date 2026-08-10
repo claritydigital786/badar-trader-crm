@@ -56,14 +56,16 @@ _Add items here._
   finalized ZIP is now reopened and fully validated before loose recovery files
   are removed; restricted-cron temporary-directory behavior and the intentionally
   disabled-Storage path are covered by the integration suite.
-- [ ] **PR #14 final permission corrections required before merge; Junaid owns
-  this lane.** Commit `412bd26` corrected the earlier production-reference,
-  outbound-callback, parked-Notifications, appointment-pooling, and browser-override
-  blockers. Two review gaps remain: add otherwise-valid same-lead denial cases proving
-  an Agent cannot forge another user's `communications.logged_by`,
-  `lead_activity.actor_id`, or `communication_logs.created_by`; and protect
-  appointment `created_by` on Agent insert and update while retaining Admin access.
-  Rerun the complete permission matrix and update its actual check count and report.
+- [ ] **PR #14 final compatibility cleanup required before Muhammad's review;
+  Junaid owns this lane.** Commit `431d6d7` added all five requested same-lead
+  actor-forgery and appointment-creator denial cases, split appointment policies by
+  operation, synchronized the authoritative schema and migration, and reports an
+  80/80 disposable permission matrix. Static review passed, but the new appointment
+  trigger uses deprecated `auth.role()` logic. Replace that condition with
+  `(SELECT auth.uid()) IS NOT NULL` in both SQL copies, preserving service-role
+  maintenance while avoiding anonymous-auth ambiguity, then rerun the 80/80 matrix.
+  Muhammad's laptop cannot independently run the full replay because Docker CLI is
+  absent and Supabase CLI 2.109.1 is below the harness's documented 2.113.0 minimum.
   Do not merge, apply production SQL, deploy, or touch PR #16 without Muhammad's
   explicit decision.
 
