@@ -909,6 +909,54 @@
     [data-theme="dark"] .msg-fwd-btn { background:#202c33; border-color:#2a3942; color:#8696a0; }
     [data-theme="dark"] .msg-fwd-btn:hover { background:#2a3942; }
 
+    /* WhatsApp-style per-message action control. The chevron stays subtle
+       until hover/focus, while touch devices always get a visible target. */
+    .msg-action-btn { position:absolute; top:2px; right:3px; width:25px; height:22px;
+      border:0; border-radius:5px; background:linear-gradient(90deg,transparent,rgba(255,255,255,.92) 38%);
+      color:#667781; cursor:pointer; font-size:1rem; line-height:20px; padding:0; opacity:0;
+      transition:opacity .12s ease; z-index:2; }
+    .msg-bubble.outgoing .msg-action-btn { background:linear-gradient(90deg,transparent,rgba(217,253,211,.96) 38%); }
+    .msg-bubble:hover .msg-action-btn, .msg-action-btn:focus-visible, .msg-action-btn[aria-expanded="true"] { opacity:1; }
+    @media (hover:none) { .msg-action-btn { opacity:.76; } }
+    [data-theme="dark"] .msg-action-btn { color:#aebac1; background:linear-gradient(90deg,transparent,rgba(32,44,51,.96) 38%); }
+    [data-theme="dark"] .msg-bubble.outgoing .msg-action-btn { background:linear-gradient(90deg,transparent,rgba(0,92,75,.96) 38%); }
+    .msg-action-marks { display:inline-flex; gap:3px; margin-right:3px; color:#667781; font-size:.68rem; vertical-align:middle; }
+    .msg-reaction-mark { position:absolute; left:7px; bottom:-12px; min-width:25px; height:22px;
+      display:flex; align-items:center; justify-content:center; padding:0 5px; border-radius:11px;
+      background:#fff; border:1px solid #d1d7db; box-shadow:0 1px 2px rgba(11,20,26,.14); font-size:.88rem; z-index:1; }
+    .msg-wrapper:has(.msg-reaction-mark) { margin-bottom:12px; }
+    [data-theme="dark"] .msg-reaction-mark { background:#202c33; border-color:#3b4a54; }
+
+    .msg-action-menu { position:fixed; z-index:90; width:238px; max-height:min(520px,calc(100vh - 20px));
+      overflow-y:auto; padding:7px; border-radius:12px; background:#fff; border:1px solid #e2e8f0;
+      box-shadow:0 12px 38px rgba(15,23,42,.26); color:#111b21; }
+    .msg-action-item { width:100%; display:flex; align-items:center; gap:12px; padding:9px 10px;
+      border:0; border-radius:8px; background:none; color:inherit; cursor:pointer; text-align:left;
+      font:inherit; font-size:.86rem; }
+    .msg-action-item:hover, .msg-action-item:focus-visible { background:#f0f2f5; outline:none; }
+    .msg-action-item .ico { width:20px; text-align:center; font-size:1rem; flex:0 0 auto; }
+    .msg-action-item.danger { color:#b42318; }
+    .msg-action-divider { height:1px; margin:5px 4px; background:#e9edef; }
+    .msg-reaction-picker { display:flex; align-items:center; justify-content:space-between; gap:2px;
+      padding:6px 5px 7px; border-top:1px solid #e9edef; }
+    .msg-reaction-picker button { width:31px; height:31px; border:0; border-radius:50%; background:none;
+      cursor:pointer; font-size:1.15rem; line-height:31px; padding:0; }
+    .msg-reaction-picker button:hover { background:#f0f2f5; transform:scale(1.08); }
+    [data-theme="dark"] .msg-action-menu { background:#233138; border-color:#3b4a54; color:#e9edef; }
+    [data-theme="dark"] .msg-action-item:hover, [data-theme="dark"] .msg-action-item:focus-visible,
+    [data-theme="dark"] .msg-reaction-picker button:hover { background:#182229; }
+    [data-theme="dark"] .msg-action-divider, [data-theme="dark"] .msg-reaction-picker { border-color:#3b4a54; background-color:transparent; }
+    .msg-hidden-notice { align-self:center; display:flex; gap:9px; align-items:center; margin:7px 0;
+      padding:5px 10px; border-radius:8px; background:#fff; color:#667781; box-shadow:0 1px .5px rgba(11,20,26,.13);
+      font-size:.72rem; }
+    .msg-hidden-notice button { border:0; background:none; color:#008069; font-weight:700; cursor:pointer; padding:0; }
+    [data-theme="dark"] .msg-hidden-notice { background:#182229; color:#aebac1; box-shadow:none; }
+
+    .msg-info-grid { display:grid; grid-template-columns:110px 1fr; gap:8px 12px; font-size:.82rem; }
+    .msg-info-grid dt { color:#667781; }
+    .msg-info-grid dd { margin:0; color:#111b21; word-break:break-word; }
+    [data-theme="dark"] .msg-info-grid dd { color:#e9edef; }
+
     /* Forward target picker. Fixed overlay so it sits above the whole app,
        matching how .sidebar-overlay already works. */
     .fwd-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:60; display:flex; align-items:center; justify-content:center; padding:16px; }
@@ -3534,6 +3582,16 @@ function enterDemoMode() {
 
 // ── Boot ──────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
+  const localDemoPreview =
+    (location.hostname === '127.0.0.1' || location.hostname === 'localhost') &&
+    new URLSearchParams(location.search).get('demo-preview') === '1';
+  if (localDemoPreview) {
+    enterDemoMode();
+    adminTab('conversations');
+    setTimeout(() => openConversation('conv2'), 0);
+    return;
+  }
+
   // Wire up sidebar nav items via event delegation
   const adminTabsEl = document.getElementById('admin-tabs');
   if (adminTabsEl) {
@@ -7526,11 +7584,60 @@ const _DEMO_CONVERSATIONS = [
   },
 ];
 let _activeConvId = null;
+let _activeConvScope = '';
 let _convRealtimeSub = null;
 let _convRealtimeScope = '';
 let _activeConvFilter = 'all';
 let _replyTarget = null; // { waMessageId, preview } - set when an agent taps "reply" on a specific message
 let _lastConvs = []; // cache of the last rendered conversation rows, so switching tabs doesn't re-fetch
+let _messageActions = new Map(); // communication id -> current user's pin/star/hide/reaction row
+let _messageActionTarget = null;
+
+function messageActionState(messageId) {
+  return _messageActions.get(String(messageId || '')) || {};
+}
+
+async function loadMessageActions(messageIds) {
+  if (demoMode) return;
+  _messageActions = new Map();
+  const ids = (messageIds || []).filter(Boolean);
+  if (!ids.length || !currentUser?.id) return;
+  const { data, error } = await sb.from('communication_message_actions')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .in('communication_id', ids);
+  if (error) {
+    // The branch can be previewed before its migration is applied. Keep the
+    // inbox readable and surface the missing persistence only when an action
+    // is attempted, instead of breaking every conversation on load.
+    console.error('loadMessageActions:', error.message);
+    return;
+  }
+  (data || []).forEach(row => _messageActions.set(row.communication_id, row));
+}
+
+function messageActionMarksHtml(messageId) {
+  const state = messageActionState(messageId);
+  const marks = `${state.is_pinned ? '📌' : ''}${state.is_starred ? '⭐' : ''}`;
+  return `${marks ? `<span class="msg-action-marks" aria-label="${state.is_pinned ? 'Pinned ' : ''}${state.is_starred ? 'Starred' : ''}">${marks}</span>` : ''}`
+    + `${state.reaction ? `<span class="msg-reaction-mark" title="Your WhatsApp reaction">${esc(state.reaction)}</span>` : ''}`;
+}
+
+function messageActionButtonHtml({ id, waMessageId = '', text = '', direction = 'inbound', createdAt = '', createdLabel = '', status = '' }) {
+  const state = messageActionState(id);
+  return `<button type="button" class="msg-action-btn" aria-label="Message actions" aria-haspopup="menu" aria-expanded="false"
+    data-message-id="${esc(id)}" data-wamid="${esc(waMessageId)}" data-text="${esc(text)}"
+    data-direction="${esc(direction)}" data-created-at="${esc(createdAt)}" data-created-label="${esc(createdLabel)}"
+    data-status="${esc(status)}" data-pinned="${state.is_pinned ? 'true' : 'false'}"
+    data-starred="${state.is_starred ? 'true' : 'false'}" data-reaction="${esc(state.reaction || '')}"
+    onclick="openMessageActions(event,this)">⌄</button>`;
+}
+
+function hiddenMessagesNoticeHtml() {
+  const count = [..._messageActions.values()].filter(a => a.is_hidden).length;
+  return count ? `<div class="msg-hidden-notice">${count} message${count === 1 ? '' : 's'} hidden from your view
+    <button type="button" onclick="restoreHiddenMessages()">Restore</button></div>` : '';
+}
 
 // Classifies a lead into one of: new, warm, hot, closed. "unread" is checked
 // separately (is_unread) since it can apply on top of any of these.
@@ -7884,6 +7991,7 @@ function openLeadFromConversation(leadId, scope = '') {
 async function openConversation(convId, scope = '') {
   stopWaWindowTicker();
   _activeConvId = convId;
+  _activeConvScope = scope;
   _replyTarget = null; // switching leads should never carry a reply target over
   _convAttachment = null; // nor a file picked for a different conversation
   // Search matches are DOM references into the thread being replaced, so they
@@ -7930,13 +8038,23 @@ async function openConversation(convId, scope = '') {
         <button type="button" title="Close search" onclick="closeConvMsgSearch()">&times;</button>
       </div>
       <div class="conv-messages" id="conv-msgs-${convId}">
-        ${(() => { let lastDay = ''; return conv.messages.map(m => {
+        ${hiddenMessagesNoticeHtml()}
+        ${(() => { let lastDay = ''; return conv.messages.map((m, i) => ({ ...m, _messageId: `demo-${convId}-${i}` }))
+          .filter(m => !messageActionState(m._messageId).is_hidden).map(m => {
           const sep = (m.dayLabel && m.dayLabel !== lastDay) ? `<div class="msg-day-sep">${esc(m.dayLabel)}</div>` : '';
           lastDay = m.dayLabel || lastDay;
           return `${sep}
           <div class="msg-wrapper${m.from === 'agent' ? ' outgoing' : ''}">
-            <div class="msg-bubble ${m.from === 'agent' ? 'outgoing' : 'incoming'}" style="position:relative"><button type="button" class="msg-fwd-btn" title="Forward this message to another conversation" data-fwd="${esc(m.text || '')}" onclick="openForwardPicker(this.dataset.fwd)" style="${m.from === 'agent' ? 'left' : 'right'}:-10px">↪</button><span class="msg-body">${esc(displayMsgText(m.text))}</span><span class="msg-time">${m.time}${deliveryTickHtml(m.from === 'agent' ? 'outbound' : 'inbound', m.deliveryStatus)}</span></div>
+            <div class="msg-bubble ${m.from === 'agent' ? 'outgoing' : 'incoming'}">
+              ${messageActionButtonHtml({ id:m._messageId, waMessageId:`demo-${m._messageId}`, text:m.text, direction:m.from === 'agent' ? 'outbound' : 'inbound', createdLabel:`${m.dayLabel || ''} ${m.time || ''}`.trim(), status:m.deliveryStatus || '' })}
+              <span class="msg-body">${esc(displayMsgText(m.text))}</span>
+              <span class="msg-time">${messageActionMarksHtml(m._messageId)}${m.time}${deliveryTickHtml(m.from === 'agent' ? 'outbound' : 'inbound', m.deliveryStatus)}</span>
+            </div>
           </div>`; }).join(''); })()}
+      </div>
+      <div id="conv-reply-preview" style="display:none;background:#f1f5f9;border-top:1px solid #e2e8f0;padding:6px 14px;font-size:0.78rem;color:#475569;align-items:center;justify-content:space-between">
+        <span>Replying to: <em id="conv-reply-preview-text"></em></span>
+        <button type="button" onclick="clearReplyTarget()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:0.9rem">✕</button>
       </div>
       <div id="conv-attach-chip" style="display:none"></div>
       <div class="conv-input-bar">
@@ -7985,6 +8103,7 @@ async function openConversation(convId, scope = '') {
     if (leadRes.error) throw leadRes.error;
     const lead = leadRes.data;
     const messages = msgsRes.data || [];
+    await loadMessageActions(messages.map(m => m.id));
     const initials = (lead?.full_name || '?').split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
 
     // WhatsApp only allows free-form replies within 24h of the lead's last
@@ -8031,17 +8150,20 @@ async function openConversation(convId, scope = '') {
         <button type="button" title="Close search" onclick="closeConvMsgSearch()">&times;</button>
       </div>
       <div class="conv-messages" id="conv-msgs-${convId}">
+        ${hiddenMessagesNoticeHtml()}
         ${messages.length
-          ? (() => { let lastDay = ''; return messages.map((m, i) => {
+          ? (() => { let lastDay = ''; return messages.map((m, i) => ({ ...m, _renderIndex:i }))
+            .filter(m => !messageActionState(m.id).is_hidden).map(m => {
               const day = convDayLabel(m.created_at);
               const sep = (day && day !== lastDay) ? `<div class="msg-day-sep">${esc(day)}</div>` : '';
               lastDay = day || lastDay;
               return `${sep}
               <div class="msg-wrapper${m.direction === 'outbound' ? ' outgoing' : ''}"${m.wa_message_id ? ` data-wamid="${esc(m.wa_message_id)}"` : ''}>
                 <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}" style="position:relative">
+                  ${messageActionButtonHtml({ id:m.id, waMessageId:m.wa_message_id || '', text:m.body || '', direction:m.direction, createdAt:m.created_at, status:m.delivery_status || '' })}
                   <span class="msg-body">${esc(displayMsgText(m.body))}</span>
-                  ${m.attachment_path ? `<div class="msg-attachment" id="conv-att-${convId}-${i}" data-path="${esc(m.attachment_path)}" style="margin-top:8px;cursor:pointer;color:inherit">📎 Loading attachment…</div>` : ''}
-                  ${m.wa_message_id ? `<button type="button" title="Reply to this message" data-wamid="${esc(m.wa_message_id)}" data-preview="${esc(truncate(m.body || '', 60))}" onclick="setReplyTarget(this.dataset.wamid, this.dataset.preview)" style="position:absolute;top:-10px;${m.direction === 'outbound' ? 'left' : 'right'}:-10px;width:22px;height:22px;border-radius:50%;border:1px solid #cbd5e1;background:#fff;color:#475569;font-size:0.7rem;cursor:pointer;line-height:1">↩</button>` : ''}<button type="button" class="msg-fwd-btn" title="Forward this message to another conversation" data-fwd="${esc(m.body || '')}" onclick="openForwardPicker(this.dataset.fwd)" style="${m.direction === 'outbound' ? 'left' : 'right'}:14px">↪</button><span class="msg-time">${fmtConvMessageTime(m.created_at)}${deliveryTickHtml(m.direction, m.delivery_status)}</span>
+                  ${m.attachment_path ? `<div class="msg-attachment" id="conv-att-${convId}-${m._renderIndex}" data-path="${esc(m.attachment_path)}" style="margin-top:8px;cursor:pointer;color:inherit">📎 Loading attachment…</div>` : ''}
+                  <span class="msg-time">${messageActionMarksHtml(m.id)}${fmtConvMessageTime(m.created_at)}${deliveryTickHtml(m.direction, m.delivery_status)}</span>
                 </div>
               </div>`; }).join(''); })()
           : '<div style="text-align:center;color:#64748b;font-size:0.85rem;padding:32px">No messages yet.</div>'}
@@ -8269,6 +8391,268 @@ function clearReplyTarget() {
   _replyTarget = null;
   const strip = document.getElementById('conv-reply-preview');
   if (strip) strip.style.display = 'none';
+}
+
+function openMessageActions(event, button) {
+  event.stopPropagation();
+  closeMessageActions();
+  const d = button.dataset;
+  _messageActionTarget = {
+    messageId: d.messageId || '', waMessageId: d.wamid || '', text: d.text || '',
+    direction: d.direction || 'inbound', createdAt: d.createdAt || '',
+    createdLabel: d.createdLabel || '', status: d.status || '',
+    isPinned: d.pinned === 'true', isStarred: d.starred === 'true', reaction: d.reaction || '',
+  };
+  button.setAttribute('aria-expanded', 'true');
+  button.dataset.menuOwner = 'true';
+
+  const menu = document.createElement('div');
+  menu.id = 'msg-action-menu';
+  menu.className = 'msg-action-menu';
+  menu.setAttribute('role', 'menu');
+  menu.onclick = e => e.stopPropagation();
+  menu.innerHTML = `
+    <button class="msg-action-item" role="menuitem" onclick="runMessageAction('info')"><span class="ico">ⓘ</span>Message info</button>
+    <button class="msg-action-item" role="menuitem" onclick="runMessageAction('reply')"><span class="ico">↩</span>Reply</button>
+    <button class="msg-action-item" role="menuitem" onclick="runMessageAction('copy')"><span class="ico">▣</span>Copy</button>
+    <button class="msg-action-item" role="menuitem" onclick="toggleMessageReactionPicker()"><span class="ico">☺</span>React</button>
+    <div class="msg-reaction-picker" id="msg-reaction-picker" style="display:none">
+      ${['👍','❤️','😂','😮','😢','🙏'].map(emoji => `<button type="button" aria-label="React ${emoji}" onclick="reactToMessage('${emoji}')">${emoji}</button>`).join('')}
+      ${_messageActionTarget.reaction ? '<button type="button" aria-label="Remove reaction" title="Remove reaction" onclick="reactToMessage(\'\')">×</button>' : ''}
+    </div>
+    <button class="msg-action-item" role="menuitem" onclick="runMessageAction('forward')"><span class="ico">➜</span>Forward</button>
+    <div class="msg-action-divider"></div>
+    <button class="msg-action-item" role="menuitem" onclick="runMessageAction('pin')"><span class="ico">📌</span>${_messageActionTarget.isPinned ? 'Unpin' : 'Pin'}</button>
+    <button class="msg-action-item" role="menuitem" onclick="runMessageAction('star')"><span class="ico">☆</span>${_messageActionTarget.isStarred ? 'Unstar' : 'Star'}</button>
+    <button class="msg-action-item" role="menuitem" onclick="runMessageAction('note')"><span class="ico">＋</span>Add text to note</button>
+    <div class="msg-action-divider"></div>
+    <button class="msg-action-item danger" role="menuitem" onclick="runMessageAction('delete')"><span class="ico">⌫</span>Delete</button>`;
+  document.body.appendChild(menu);
+
+  const rect = button.getBoundingClientRect();
+  const menuRect = menu.getBoundingClientRect();
+  const left = Math.max(8, Math.min(rect.right - menuRect.width, window.innerWidth - menuRect.width - 8));
+  const top = Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - menuRect.height - 8));
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+  menu.querySelector('.msg-action-item')?.focus();
+  document.addEventListener('click', closeMessageActions, { once:true });
+  document.addEventListener('keydown', messageActionEscHandler);
+}
+
+function messageActionEscHandler(e) {
+  if (e.key === 'Escape') closeMessageActions();
+}
+
+function closeMessageActions() {
+  document.getElementById('msg-action-menu')?.remove();
+  const owner = document.querySelector('.msg-action-btn[data-menu-owner="true"]');
+  if (owner) {
+    owner.setAttribute('aria-expanded', 'false');
+    delete owner.dataset.menuOwner;
+  }
+  document.removeEventListener('keydown', messageActionEscHandler);
+}
+
+function toggleMessageReactionPicker() {
+  const picker = document.getElementById('msg-reaction-picker');
+  if (picker) picker.style.display = picker.style.display === 'none' ? 'flex' : 'none';
+}
+
+async function copyMessageText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const area = document.createElement('textarea');
+    area.value = text; area.style.position = 'fixed'; area.style.opacity = '0';
+    document.body.appendChild(area); area.select(); document.execCommand('copy'); area.remove();
+  }
+  showToast('Message copied.');
+}
+
+function messageStatusLabel(direction, status) {
+  if (direction !== 'outbound') return 'Received';
+  return ({ pending:'Pending', sent:'Sent', delivered:'Delivered', read:'Read', failed:'Failed' })[status] || 'Sent (status unavailable)';
+}
+
+function showMessageInfo(target) {
+  const overlay = document.createElement('div');
+  overlay.className = 'fwd-overlay';
+  overlay.id = 'msg-info-overlay';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  const when = target.createdAt ? fmtDateTime(target.createdAt) : (target.createdLabel || 'Not available');
+  overlay.innerHTML = `<div class="fwd-panel" role="dialog" aria-modal="true" aria-label="Message info" style="padding:18px;max-width:460px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h4 style="margin:0;color:inherit">Message info</h4>
+      <button type="button" onclick="document.getElementById('msg-info-overlay')?.remove()" aria-label="Close" style="border:0;background:none;color:inherit;font-size:1.2rem;cursor:pointer">×</button>
+    </div>
+    <dl class="msg-info-grid">
+      <dt>Direction</dt><dd>${target.direction === 'outbound' ? 'Sent by CRM' : 'Received from customer'}</dd>
+      <dt>Status</dt><dd>${esc(messageStatusLabel(target.direction, target.status))}</dd>
+      <dt>Date and time</dt><dd>${esc(when)}</dd>
+      <dt>CRM message ID</dt><dd>${esc(target.messageId || 'Not available')}</dd>
+      <dt>WhatsApp ID</dt><dd>${esc(target.waMessageId || 'Not available')}</dd>
+      <dt>Text</dt><dd>${esc(target.text || '[attachment or empty message]')}</dd>
+    </dl>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function persistMessageAction(messageId, updates, successMessage) {
+  const current = messageActionState(messageId);
+  const next = { ...current, ...updates, communication_id:messageId };
+  if (demoMode) {
+    _messageActions.set(messageId, next);
+    if (successMessage) showToast(`${successMessage} (demo)`);
+    await openConversation(_activeConvId, _activeConvScope);
+    return true;
+  }
+  if (!currentUser?.id) return false;
+  const payload = {
+    communication_id: messageId,
+    user_id: currentUser.id,
+    is_pinned: !!next.is_pinned,
+    is_starred: !!next.is_starred,
+    is_hidden: !!next.is_hidden,
+    reaction: next.reaction || null,
+    updated_at: new Date().toISOString(),
+  };
+  const { data, error } = await sb.from('communication_message_actions')
+    .upsert(payload, { onConflict:'communication_id,user_id' })
+    .select().single();
+  if (error) {
+    showToast('Message action could not be saved. The message-actions migration must be applied first. ' + error.message, 'err');
+    return false;
+  }
+  _messageActions.set(messageId, data);
+  if (successMessage) showToast(successMessage);
+  await openConversation(_activeConvId, _activeConvScope);
+  return true;
+}
+
+async function restoreHiddenMessages() {
+  closeMessageActions();
+  if (demoMode) {
+    _messageActions.forEach((row, id) => _messageActions.set(id, { ...row, is_hidden:false }));
+    showToast('Hidden messages restored. (demo)');
+    await openConversation(_activeConvId, _activeConvScope);
+    return;
+  }
+  const { error } = await sb.from('communication_message_actions')
+    .update({ is_hidden:false, updated_at:new Date().toISOString() })
+    .eq('user_id', currentUser.id).eq('is_hidden', true);
+  if (error) { showToast('Could not restore hidden messages: ' + error.message, 'err'); return; }
+  showToast('Hidden messages restored.');
+  await openConversation(_activeConvId, _activeConvScope);
+}
+
+function openMessageNoteDialog(target) {
+  document.getElementById('msg-note-overlay')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'fwd-overlay';
+  overlay.id = 'msg-note-overlay';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `<div class="fwd-panel" role="dialog" aria-modal="true" aria-label="Add message to note" style="padding:18px;max-width:460px">
+    <h4 style="margin:0 0 10px;color:inherit">Add text to note</h4>
+    <div class="fwd-preview" style="margin-bottom:12px">${esc(truncate(target.text || '[attachment]', 300))}</div>
+    <label for="msg-note-extra">Your note (optional)</label>
+    <textarea id="msg-note-extra" rows="4" placeholder="Why this message matters or what should happen next…" style="width:100%;resize:vertical"></textarea>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('msg-note-overlay')?.remove()">Cancel</button>
+      <button type="button" class="btn btn-primary btn-sm" onclick="saveMessageNote()">Save note</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('msg-note-extra')?.focus();
+}
+
+async function saveMessageNote() {
+  const target = _messageActionTarget;
+  if (!target) return;
+  const extra = (document.getElementById('msg-note-extra')?.value || '').trim();
+  document.getElementById('msg-note-overlay')?.remove();
+  const summary = `Message note: "${truncate(target.text || '[attachment]', 300)}"`
+    + (extra ? `\n${extra}` : '');
+  if (demoMode) { showToast('Message added to the lead activity notes. (demo)'); return; }
+  const { error } = await sb.from('lead_activity').insert({
+    lead_id:_activeConvId, actor_id:currentUser.id, channel:'note', summary,
+  });
+  if (error) { showToast('Could not add the note: ' + error.message, 'err'); return; }
+  showToast('Message added to the lead activity notes.');
+}
+
+function openMessageDeleteDialog(target) {
+  document.getElementById('msg-delete-overlay')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'fwd-overlay';
+  overlay.id = 'msg-delete-overlay';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `<div class="fwd-panel" role="dialog" aria-modal="true" aria-label="Delete message" style="padding:18px;max-width:440px">
+    <h4 style="margin:0 0 10px;color:inherit">Delete from your CRM view?</h4>
+    <div class="fwd-preview" style="margin-bottom:12px">${esc(truncate(target.text || '[attachment]', 240))}</div>
+    <p style="font-size:.8rem;color:#667781;line-height:1.45;margin:0">This does not delete or unsend the message on WhatsApp. You can restore hidden messages from this conversation.</p>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('msg-delete-overlay')?.remove()">Cancel</button>
+      <button type="button" class="btn btn-danger btn-sm" onclick="confirmHideMessage()">Delete from view</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function confirmHideMessage() {
+  const target = _messageActionTarget;
+  document.getElementById('msg-delete-overlay')?.remove();
+  if (target) await persistMessageAction(target.messageId, { is_hidden:true }, 'Message hidden from your CRM view.');
+}
+
+async function reactToMessage(emoji) {
+  const target = _messageActionTarget;
+  closeMessageActions();
+  if (!target) return;
+  if (demoMode) {
+    await persistMessageAction(target.messageId, { reaction:emoji || null }, emoji ? `Reacted ${emoji}` : 'Reaction removed');
+    return;
+  }
+  if (!target.waMessageId) {
+    showToast('This older CRM record has no WhatsApp message ID, so Meta cannot attach a reaction to it.', 'err');
+    return;
+  }
+  const { data, error } = await sb.functions.invoke('send-wa-message', {
+    body: { lead_id:_activeConvId, reaction_to_wa_message_id:target.waMessageId, reaction_emoji:emoji },
+  });
+  if (error || !data?.ok) {
+    showToast(data?.error || error?.message || 'WhatsApp rejected the reaction.', 'err');
+    return;
+  }
+  await persistMessageAction(target.messageId, { reaction:emoji || null }, emoji ? `Reaction ${emoji} sent.` : 'Reaction removed.');
+  if (data.warning) showToast(data.warning, 'err');
+}
+
+async function runMessageAction(action) {
+  const target = _messageActionTarget;
+  closeMessageActions();
+  if (!target) return;
+  if (action === 'info') { showMessageInfo(target); return; }
+  if (action === 'copy') { await copyMessageText(target.text); return; }
+  if (action === 'forward') { openForwardPicker(target.text); return; }
+  if (action === 'reply') {
+    if (!target.waMessageId && !demoMode) {
+      showToast('This older CRM record has no WhatsApp message ID, so it cannot be quoted in a reply.', 'err');
+      return;
+    }
+    setReplyTarget(target.waMessageId || `demo-${target.messageId}`, truncate(target.text || '[attachment]', 60));
+    return;
+  }
+  if (action === 'pin') {
+    await persistMessageAction(target.messageId, { is_pinned:!target.isPinned }, target.isPinned ? 'Message unpinned.' : 'Message pinned.');
+    return;
+  }
+  if (action === 'star') {
+    await persistMessageAction(target.messageId, { is_starred:!target.isStarred }, target.isStarred ? 'Message unstarred.' : 'Message starred.');
+    return;
+  }
+  if (action === 'note') { openMessageNoteDialog(target); return; }
+  if (action === 'delete') openMessageDeleteDialog(target);
 }
 
 function autoGrowConvInput(el) {
@@ -9110,7 +9494,11 @@ async function sendConvMessage(convId, scope = '') {
     if (msgArea) {
       const div = document.createElement('div');
       div.className = 'msg-wrapper outgoing';
-      div.innerHTML = `<div class="msg-bubble outgoing">${esc(displayMsgText(shown))}<span class="msg-time">${timeStr}</span></div>`;
+      const demoMessageId = `demo-${convId}-${Math.max(0, (conv?.messages.length || 1) - 1)}`;
+      div.innerHTML = `<div class="msg-bubble outgoing">
+        ${messageActionButtonHtml({ id:demoMessageId, waMessageId:`demo-${demoMessageId}`, text:shown, direction:'outbound', createdLabel:`Today ${timeStr}` })}
+        <span class="msg-body">${esc(displayMsgText(shown))}</span><span class="msg-time">${timeStr}</span>
+      </div>`;
       msgArea.appendChild(div);
       msgArea.scrollTop = msgArea.scrollHeight;
     }
@@ -9309,7 +9697,11 @@ function startConvRealtime(scope = '') {
           // Tagged with the wamid so the UPDATE handler below can find this
           // bubble again when its delivery status changes.
           if (payload.new.wa_message_id) div.dataset.wamid = payload.new.wa_message_id;
-          div.innerHTML = `<div class="msg-bubble ${payload.new.direction === 'outbound' ? 'outgoing' : 'incoming'}"><span class="msg-body">${esc(displayMsgText(payload.new.body))}</span><span class="msg-time">${fmtConvMessageTime(payload.new.created_at)}${deliveryTickHtml(payload.new.direction, payload.new.delivery_status)}</span></div>`;
+          div.innerHTML = `<div class="msg-bubble ${payload.new.direction === 'outbound' ? 'outgoing' : 'incoming'}">
+            ${messageActionButtonHtml({ id:payload.new.id, waMessageId:payload.new.wa_message_id || '', text:payload.new.body || '', direction:payload.new.direction, createdAt:payload.new.created_at, status:payload.new.delivery_status || '' })}
+            <span class="msg-body">${esc(displayMsgText(payload.new.body))}</span>
+            <span class="msg-time">${fmtConvMessageTime(payload.new.created_at)}${deliveryTickHtml(payload.new.direction, payload.new.delivery_status)}</span>
+          </div>`;
           msgArea.appendChild(div);
           msgArea.scrollTop = msgArea.scrollHeight;
         }
@@ -10461,12 +10853,8 @@ function syncAccuracyTracker() {
     document.querySelectorAll('.market-ticker iframe').forEach(function (f) { ro.observe(f); });
     syncTickerHeight();
   }
-  // The TradingView embed script injects its iframe asynchronously, and the
-  // dashboards are toggled via style attributes on login - watch both, plus a
-  // low-frequency poll as a backstop (the iframe can resize itself without
-  // triggering either observer reliably).
-  new MutationObserver(watchIframes).observe(document.body,
-    { subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class'] });
+  // The TradingView embed script injects its iframe asynchronously. Polling
+  // also covers iframe resizes and avoids observer errors in embedded previews.
   window.addEventListener('resize', function () { setTimeout(syncTickerHeight, 250); });
   setInterval(syncTickerHeight, 1500);
   watchIframes();
