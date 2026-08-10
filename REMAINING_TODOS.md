@@ -58,6 +58,19 @@ _Add items here._
   finalized ZIP is now reopened and fully validated before loose recovery files
   are removed; restricted-cron temporary-directory behavior and the intentionally
   disabled-Storage path are covered by the integration suite.
+- [ ] **PR #14 final compatibility cleanup required before Muhammad's review;
+  Junaid owns this lane.** Commit `431d6d7` added all five requested same-lead
+  actor-forgery and appointment-creator denial cases, split appointment policies by
+  operation, synchronized the authoritative schema and migration, and reports an
+  80/80 disposable permission matrix. Static review passed, but the new appointment
+  trigger uses deprecated `auth.role()` logic. Replace that condition with
+  `(SELECT auth.uid()) IS NOT NULL` in both SQL copies, preserving service-role
+  maintenance while avoiding anonymous-auth ambiguity, then rerun the 80/80 matrix.
+  Muhammad's laptop cannot independently run the full replay because Docker CLI is
+  absent and Supabase CLI 2.109.1 is below the harness's documented 2.113.0 minimum.
+  Do not merge, apply production SQL, deploy, or touch PR #16 without Muhammad's
+  explicit decision.
+
 - [x] ~~Deploy `whatsapp-webhook` so the Train AI model picker takes effect.~~ DONE 2026-08-06 from Muhammad's laptop with him present. Live function is now **v69**, byte-identical to the repo, `verify_jwt` still false, all reply gates still false. `settings.openai_model` is `gpt-5-mini`, so the picker is now genuinely wired - but `tryAIReply()` still never runs while `AI_REPLIES_ENABLED = false`.
 - [x] ~~Apply `supabase/migrations/20260806000000_ai_agents.sql`.~~ DONE 2026-08-06 from Muhammad's laptop. Applied as a single migration rather than `supabase db push`, because that command reconciles the whole migrations folder against the remote history and many files here are named `applied_via_sql_editor` (applied by hand, possibly not recorded), so a push could have replayed old migrations against the live DB. Verified after: 8 columns, RLS on, 1 admin-only policy, updated_at trigger, 2 indexes, 2 foreign keys. Security advisors show no new warnings from this table.
 - [x] ~~**Payroll persistence.**~~ DONE 2026-08-09 (Junaid). `payroll_settings` and immutable `payroll_runs` snapshots are live in Supabase with admin-only RLS and exact Data API grants. The frontend reads real period-filtered deposits, saves salary settings and runs, reopens run history, validates inputs, and keeps CSV export. Verified in Chrome Demo Mode on desktop and 375px mobile, zero console errors; live schema, policies, grants, indexes and advisors verified after both migrations. No live payroll record was created during testing.
