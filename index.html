@@ -1313,13 +1313,9 @@
         <span class="quick-tile-icon" style="background:var(--tint-success-bg)">📥</span>
         <div><h4>Open Inbox</h4><p>View all conversations</p></div>
       </div>
-      <div class="quick-tile" onclick="adminTab('create-flow')">
-        <span class="quick-tile-icon" style="background:var(--tint-gold-bg)">🧩</span>
-        <div><h4>Create Flow</h4><p>Build automation</p></div>
-      </div>
-      <div class="quick-tile" onclick="adminTab('train-ai')">
+      <div class="quick-tile" onclick="adminTab('bot-manager')">
         <span class="quick-tile-icon" style="background:var(--tint-warn-bg)">🧠</span>
-        <div><h4>Bot Manager</h4><p>Improve AI responses</p></div>
+        <div><h4>Bot Manager</h4><p>Manage automation and AI</p></div>
       </div>
       <div class="quick-tile" onclick="adminTab('meta')">
         <span class="quick-tile-icon" style="background:var(--tint-danger-bg)">🔗</span>
@@ -3679,8 +3675,8 @@ function toggleSidebar(forceOpen) {
 
 // Create Flow, Train AI, Follow-ups and Message Templates are no longer
 // top-level tabs - they live inside Bot Manager now. Anything still asking for
-// them by their old name (dashboard quick-tiles, old bookmarks) lands on the
-// right section of Bot Manager instead of hitting a missing element.
+// them by an old bookmark lands on the right section of Bot Manager instead of
+// hitting a missing element.
 const BM_MOVED_TABS = {
   'create-flow': 'automation', 'templates': 'automation', 'follow-ups': 'automation',
   'train-ai': 'ai'

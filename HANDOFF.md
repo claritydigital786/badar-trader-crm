@@ -14,6 +14,10 @@ prior conversations._
 
 **DONE locally on `junaid/safe-local-staging-20260809`, not deployed.** The final note card in both Admin Guide and Agent Guide had an inline light background, so it stayed white in dark mode and its heading became difficult to read. Replaced the inline backgrounds with a shared `guide-note-card` class that preserves the pale highlight in light mode and uses a navy highlight with readable text in dark mode. Browser verification passed for both themes with zero console errors.
 
+## 2026-08-11 - Duplicate dashboard shortcut removed
+
+**DONE locally on `junaid/safe-local-staging-20260809`, not deployed.** Removed the Create Flow quick tile because it and Bot Manager both entered the consolidated Bot Manager screen. The remaining Bot Manager tile now opens that screen directly and labels its scope as Automation and AI. No Automation or AI feature was removed; legacy bookmark routing remains in place.
+
 ---
 
 ## 2026-08-07 (late) - Account switch handoff (weekly limit approaching on this account)
