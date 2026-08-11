@@ -39,7 +39,7 @@
       min-height: calc(100vh - var(--ticker-h));
       background: #ffffff;
       border-right: 1px solid #e5e8ef;
-      padding: 0 0 46px; /* reserve room for the fixed market ticker, so it never covers the sidebar footer */
+      padding: 0; /* the fixed market ticker is above the sidebar, so no bottom spacer is needed */
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
@@ -102,6 +102,16 @@
       font-size: 13px; width: 26px; height: 26px; border-radius: 8px;
       display: flex; align-items: center; justify-content: center; flex-shrink: 0;
       background: #f1f5f9;
+      color: #334155;
+    }
+    .nav-icon svg {
+      width: 15px;
+      height: 15px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.9;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
     .nav-badge {
       margin-left: auto;
@@ -413,6 +423,7 @@
     [data-theme="dark"] .nav-item { color: #cbd5e1; }
     [data-theme="dark"] .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
     [data-theme="dark"] .nav-item.active { background: rgba(212,168,67,.16); color: #f1f5f9; }
+    [data-theme="dark"] .nav-icon { color: #0f172a; }
     [data-theme="dark"] .nav-section-label { color: #64748b; }
     [data-theme="dark"] .user-info p { color: #f1f5f9; }
     [data-theme="dark"] .user-info span { color: #64748b; }
@@ -791,6 +802,20 @@
       width:34px; height:34px; cursor:pointer; color:#54656f; font-size:0.9rem;
     }
     .conv-list-toggle:hover { background:#f0f2f5; }
+    .conv-list-menu-wrap { position:relative; flex-shrink:0; }
+    .conv-list-menu {
+      display:none; position:absolute; top:39px; left:0; z-index:20;
+      width:210px; padding:6px 0; background:#fff; color:#111b21;
+      border:1px solid #d1d7db; border-radius:8px;
+      box-shadow:0 6px 20px rgba(11,20,26,.2);
+    }
+    .conv-list-menu button {
+      display:block; width:100%; padding:10px 16px; border:0;
+      background:transparent; color:inherit; text-align:left;
+      font:inherit; font-size:0.84rem; cursor:pointer;
+    }
+    .conv-list-menu button:hover { background:#f0f2f5; }
+    .conv-list-menu-separator { height:1px; margin:5px 0; background:#e9edef; }
     .conv-filter-tab {
       flex-shrink: 0; cursor:pointer; border:none; border-radius:14px;
       padding:5px 12px; font-size:0.78rem; font-weight:500;
@@ -865,12 +890,12 @@
     /* Delivery ticks (B3/B4). Outbound only - WhatsApp never shows a tick on
        a message the customer sent. Sizes and colours are WhatsApp's own: grey
        for sent/delivered, #53bdeb blue for read, red for a failure. */
-    .msg-tick { display:inline; margin-left:3px; font-size:0.72rem; letter-spacing:-2px; vertical-align:baseline; }
-    .msg-tick.pending   { color:#8696a0; letter-spacing:0; }
-    .msg-tick.sent      { color:#8696a0; }
+    .msg-tick { display:inline-flex; width:16px; height:11px; margin-left:3px; align-items:center; justify-content:center; vertical-align:-1px; }
+    .msg-tick.sent      { width:12px; color:#8696a0; }
     .msg-tick.delivered { color:#8696a0; }
     .msg-tick.read      { color:#53bdeb; }
-    .msg-tick.failed    { color:#f15c6d; letter-spacing:0; font-weight:700; }
+    .msg-tick-icon      { display:block; width:100%; height:100%; fill:currentColor; }
+    .msg-tick.failed    { width:auto; color:#f15c6d; font-size:0.72rem; font-weight:700; vertical-align:baseline; }
     /* Day divider between messages from different calendar days, like WhatsApp's
        centred "Today / Yesterday / date" pill. */
     /* Notification bell. Anchored so the panel hangs under it. */
@@ -1131,6 +1156,9 @@
     [data-theme="dark"] .conv-filter-tabs   { border-bottom-color:#222d34; }
     [data-theme="dark"] .conv-list-toggle       { color:#aebac1; }
     [data-theme="dark"] .conv-list-toggle:hover { background:#202c33; }
+    [data-theme="dark"] .conv-list-menu         { background:#233138; color:#e9edef; border-color:#34434b; }
+    [data-theme="dark"] .conv-list-menu button:hover { background:#182229; }
+    [data-theme="dark"] .conv-list-menu-separator { background:#34434b; }
     [data-theme="dark"] .conv-list-panel    { border-right-color:#222d34; }
     [data-theme="dark"] .conv-search input  { background:#202c33; color:#d1d7db; }
     [data-theme="dark"] .conv-search input:focus { background:#202c33; border-color:#00a884; }
@@ -1286,33 +1314,34 @@
     </div>
     <div id="admin-tabs" class="sidebar-nav">
       <div class="nav-section-label">MAIN</div>
-      <div class="nav-item active" data-tab="dashboard"><span class="nav-icon" style="background:var(--tint-gold-bg)">🏠</span> Dashboard</div>
-      <div class="nav-item" data-tab="leads"><span class="nav-icon" style="background:var(--tint-sky-bg)">👥</span> All Leads <span class="nav-badge" id="leads-count-badge"></span></div>
-      <div class="nav-item" data-tab="agents"><span class="nav-icon" style="background:var(--tint-success-bg)">🏆</span> My Team</div>
-      <div class="nav-item" data-tab="meta-ads"><span class="nav-icon" style="background:var(--tint-warn-bg)">📈</span> Meta Ads</div>
+      <div class="nav-item active" data-tab="dashboard"><span class="nav-icon" data-nav-icon="dashboard" style="background:var(--tint-gold-bg)"></span> Dashboard</div>
+      <div class="nav-item" data-tab="leads"><span class="nav-icon" data-nav-icon="users" style="background:var(--tint-sky-bg)"></span> All Leads <span class="nav-badge" id="leads-count-badge"></span></div>
+      <div class="nav-item" data-tab="agents"><span class="nav-icon" data-nav-icon="team" style="background:var(--tint-success-bg)"></span> My Team</div>
+      <div class="nav-item" data-tab="meta-ads"><span class="nav-icon" data-nav-icon="chart" style="background:var(--tint-warn-bg)"></span> Meta Ads</div>
       <div class="nav-section-label">BOT MANAGER</div>
-      <div class="nav-item" data-tab="bot-manager"><span class="nav-icon" style="background:var(--tint-sky-bg)">🤖</span> Bot Manager</div>
+      <div class="nav-item" data-tab="bot-manager"><span class="nav-icon" data-nav-icon="bot" style="background:var(--tint-sky-bg)"></span> Bot Manager</div>
       <div class="nav-section-label">TOOLS</div>
-      <div class="nav-item" data-tab="add-lead"><span class="nav-icon" style="background:var(--tint-gold-bg)">➕</span> Add Lead</div>
-      <div class="nav-item" data-tab="conversations"><span class="nav-icon" style="background:var(--tint-sky-bg)">💬</span> Omnichannel Inbox <span id="conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
-      <div class="nav-item" data-tab="comm-log"><span class="nav-icon" style="background:var(--tint-success-bg)">🕐</span> Comm Log</div>
-      <div class="nav-item" data-tab="reports"><span class="nav-icon" style="background:var(--tint-warn-bg)">📋</span> Reports</div>
-      <div class="nav-item" data-tab="automation"><span class="nav-icon" style="background:var(--tint-danger-bg)">⚡</span> Automation</div>
-      <div class="nav-item" data-tab="appointments"><span class="nav-icon" style="background:var(--tint-danger-bg)">📅</span> Appointments</div>
+      <div class="nav-item" data-tab="add-lead"><span class="nav-icon" data-nav-icon="user-plus" style="background:var(--tint-gold-bg)"></span> Add Lead</div>
+      <div class="nav-item" data-tab="conversations"><span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Omnichannel Inbox <span id="conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
+      <div class="nav-item" data-tab="comm-log"><span class="nav-icon" data-nav-icon="history" style="background:var(--tint-success-bg)"></span> Comm Log</div>
+      <div class="nav-item" data-tab="reports"><span class="nav-icon" data-nav-icon="report" style="background:var(--tint-warn-bg)"></span> Reports</div>
+      <div class="nav-item" data-tab="automation"><span class="nav-icon" data-nav-icon="automation" style="background:var(--tint-danger-bg)"></span> Automation</div>
+      <div class="nav-item" data-tab="appointments"><span class="nav-icon" data-nav-icon="calendar" style="background:var(--tint-danger-bg)"></span> Appointments</div>
       <div class="nav-section-label">FINANCE</div>
-      <div class="nav-item" data-tab="payroll"><span class="nav-icon" style="background:var(--tint-gold-bg)">💰</span> Payroll</div>
+      <div class="nav-item" data-tab="payroll"><span class="nav-icon" data-nav-icon="wallet" style="background:var(--tint-gold-bg)"></span> Payroll</div>
       <div class="nav-section-label">WHATSAPP SIGNALS</div>
-      <div class="nav-item" data-tab="signal-broadcast"><span class="nav-icon" style="background:var(--tint-sky-bg)">📡</span> Broadcast Signal</div>
-      <div class="nav-item" data-tab="subscribers"><span class="nav-icon" style="background:var(--tint-success-bg)">👤</span> Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
-      <div class="nav-item" data-tab="ai-signals"><span class="nav-icon" style="background:var(--tint-warn-bg)">🤖</span> AI Signals</div>
+      <div class="nav-item" data-tab="signal-broadcast"><span class="nav-icon" data-nav-icon="broadcast" style="background:var(--tint-sky-bg)"></span> Broadcast Signal</div>
+      <div class="nav-item" data-tab="subscribers"><span class="nav-icon" data-nav-icon="subscriber" style="background:var(--tint-success-bg)"></span> Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
+      <div class="nav-item" data-tab="ai-signals"><span class="nav-icon" data-nav-icon="sparkles" style="background:var(--tint-warn-bg)"></span> AI Signals</div>
       <div class="nav-section-label">SYSTEM</div>
-      <div class="nav-item" data-tab="user-permission"><span class="nav-icon" style="background:var(--tint-danger-bg)">🛡️</span> User Permission</div>
-      <div class="nav-item" data-tab="user-manager"><span class="nav-icon" style="background:var(--tint-sky-bg)">🧑‍💼</span> User Manager</div>
+      <div class="nav-item" data-tab="user-permission"><span class="nav-icon" data-nav-icon="shield" style="background:var(--tint-danger-bg)"></span> User Permission</div>
+      <div class="nav-item" data-tab="user-manager"><span class="nav-icon" data-nav-icon="id-card" style="background:var(--tint-sky-bg)"></span> User Manager</div>
       <div class="nav-section-label">SETTINGS</div>
-      <div class="nav-item" data-tab="meta"><span class="nav-icon" style="background:var(--tint-gold-bg)">🔗</span> Meta Integration</div>
-      <div class="nav-item" data-tab="notifications"><span class="nav-icon" style="background:var(--tint-sky-bg)">🔔</span> Notifications</div>
-      <div class="nav-item" data-tab="sites"><span class="nav-icon" style="background:var(--tint-success-bg)">🌐</span> Sites</div>
-      <div class="nav-item" data-tab="guide"><span class="nav-icon" style="background:var(--tint-warn-bg)">📖</span> Guide</div>
+      <div class="nav-item" data-tab="settings"><span class="nav-icon" data-nav-icon="settings" style="background:var(--tint-gold-bg)"></span> Settings</div>
+      <div class="nav-item" data-tab="meta"><span class="nav-icon" data-nav-icon="link" style="background:var(--tint-gold-bg)"></span> Meta Integration</div>
+      <div class="nav-item" data-tab="notifications"><span class="nav-icon" data-nav-icon="bell" style="background:var(--tint-sky-bg)"></span> Notifications</div>
+      <div class="nav-item" data-tab="sites"><span class="nav-icon" data-nav-icon="globe" style="background:var(--tint-success-bg)"></span> Sites</div>
+      <div class="nav-item" data-tab="guide"><span class="nav-icon" data-nav-icon="book" style="background:var(--tint-warn-bg)"></span> Guide</div>
     </div>
     <div class="sidebar-footer" onclick="toggleAccountMenu(event, 'admin')" style="cursor:pointer;position:relative">
       <div class="user-avatar" id="sidebar-user-initials">BT</div>
@@ -1363,13 +1392,9 @@
         <span class="quick-tile-icon" style="background:var(--tint-success-bg)">📥</span>
         <div><h4>Open Inbox</h4><p>View all conversations</p></div>
       </div>
-      <div class="quick-tile" onclick="adminTab('create-flow')">
-        <span class="quick-tile-icon" style="background:var(--tint-gold-bg)">🧩</span>
-        <div><h4>Create Flow</h4><p>Build automation</p></div>
-      </div>
-      <div class="quick-tile" onclick="adminTab('train-ai')">
+      <div class="quick-tile" onclick="adminTab('bot-manager')">
         <span class="quick-tile-icon" style="background:var(--tint-warn-bg)">🧠</span>
-        <div><h4>Bot Manager</h4><p>Improve AI responses</p></div>
+        <div><h4>Bot Manager</h4><p>Manage automation and AI</p></div>
       </div>
       <div class="quick-tile" onclick="adminTab('meta')">
         <span class="quick-tile-icon" style="background:var(--tint-danger-bg)">🔗</span>
@@ -1398,9 +1423,9 @@
         <div class="stat-trend">On your team</div>
       </div>
       <div class="stat-card" style="border-left:4px solid #10b981">
-        <div class="stat-label" style="color:#10b981">Total Revenue</div>
+        <div class="stat-label" style="color:#10b981">Client Account Balances</div>
         <div class="stat-value" style="color:#10b981" id="dash-revenue">-</div>
-        <div class="stat-trend">Approved deposits</div>
+        <div class="stat-trend">Current recorded balances</div>
         <div class="stat-trend" id="dash-rev-platform" style="margin-top:6px;color:#94a3b8;line-height:1.6"></div>
       </div>
     </div>
@@ -1616,7 +1641,17 @@
       <!-- Left: Lead List -->
       <div class="conv-list-panel" id="conv-list-panel">
         <div class="conv-search">
-          <button type="button" class="conv-list-toggle" title="Hide the lead list" onclick="toggleConvListPanel('')">☰</button>
+          <div class="conv-list-menu-wrap">
+            <button type="button" class="conv-list-toggle" title="Inbox menu" aria-label="Open inbox menu" aria-haspopup="menu" aria-expanded="false" onclick="toggleInboxMenu(event,'')">☰</button>
+            <div class="conv-list-menu" id="conv-list-menu" role="menu">
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('refresh','')">Refresh inbox</button>
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('all','')">All conversations</button>
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('unread','')">Unread conversations</button>
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('clear-search','')">Clear search</button>
+              <div class="conv-list-menu-separator" role="separator"></div>
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('hide-list','')">Hide lead list</button>
+            </div>
+          </div>
           <input type="text" id="conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations()" />
         </div>
         <div class="conv-filter-tabs" id="conv-filter-tabs" >
@@ -2290,6 +2325,99 @@
     </div>
   </div>
 
+  <!-- CRM Settings -->
+  <div id="admin-tab-settings" class="tab-content">
+    <h3>Settings</h3>
+    <div class="info-box">
+      <strong>Central CRM administration.</strong><br>
+      Business defaults are managed here. Sensitive Meta and WhatsApp credentials remain in
+      <strong>Meta Integration</strong>, and access changes remain in <strong>User Manager</strong>.
+    </div>
+
+    <p class="section-h">Workspace</p>
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Business name</label>
+          <input id="settings-business-name" type="text" maxlength="80" value="Badar Trader" />
+        </div>
+        <div class="form-group">
+          <label>Business timezone</label>
+          <select id="settings-timezone">
+            <option value="Asia/Dubai">UAE - Asia/Dubai (GMT+4)</option>
+            <option value="Asia/Karachi">Pakistan - Asia/Karachi (GMT+5)</option>
+            <option value="UTC">UTC</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Default transaction currency</label>
+          <select id="settings-currency">
+            <option value="USD">USD - US Dollar</option>
+            <option value="EUR">EUR - Euro</option>
+            <option value="GBP">GBP - British Pound</option>
+            <option value="USDT">USDT - Tether</option>
+            <option value="BTC">BTC - Bitcoin</option>
+          </select>
+          <p style="color:#64748b;font-size:0.76rem;margin-top:6px">Applied when an Admin records a new deposit or withdrawal. Existing records keep their original currency.</p>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary btn-inline" type="button" onclick="saveGeneralSettings()">Save workspace settings</button>
+        <span class="success-msg" id="general-settings-msg"></span>
+      </div>
+    </div>
+
+    <p class="section-h">Lead operations and security</p>
+    <div class="card">
+      <div class="detail-row">
+        <span class="detail-label" style="min-width:190px">Agent lead visibility</span>
+        <div>
+          <strong>Assigned leads only</strong>
+          <div style="color:#64748b;font-size:0.8rem;margin-top:3px">Enforced by database access policies for leads and their related records.</div>
+        </div>
+        <span class="bm-status-pill on" style="margin-left:auto">Enforced</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label" style="min-width:190px">New-lead status</span>
+        <div>
+          <strong>New</strong>
+          <div style="color:#64748b;font-size:0.8rem;margin-top:3px">Every newly captured lead begins in the New stage.</div>
+        </div>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label" style="min-width:190px">WhatsApp reply window</span>
+        <div>
+          <strong>24-hour customer-service window</strong>
+          <div style="color:#64748b;font-size:0.8rem;margin-top:3px">Free-form replies are blocked outside Meta's window; approved templates are required.</div>
+        </div>
+        <span class="bm-status-pill on" style="margin-left:auto">Protected</span>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary btn-inline btn-sm" type="button" onclick="adminTab('user-permission')">Review permissions</button>
+        <button class="btn btn-secondary btn-inline btn-sm" type="button" onclick="adminTab('user-manager')">Manage team accounts</button>
+      </div>
+    </div>
+
+    <p class="section-h">Connected administration</p>
+    <div class="stat-grid">
+      <div class="card">
+        <div style="font-weight:700;color:#0f172a;margin-bottom:6px">Messaging &amp; Meta</div>
+        <p style="color:#64748b;font-size:0.83rem;margin-bottom:12px">Webhook, phone-number ID and WhatsApp API configuration.</p>
+        <button class="btn btn-secondary btn-sm" type="button" onclick="adminTab('meta')">Open Meta Integration</button>
+      </div>
+      <div class="card">
+        <div style="font-weight:700;color:#0f172a;margin-bottom:6px">Notifications</div>
+        <p style="color:#64748b;font-size:0.83rem;margin-bottom:12px">Choose operational alerts and review notification status.</p>
+        <button class="btn btn-secondary btn-sm" type="button" onclick="adminTab('notifications')">Open Notifications</button>
+      </div>
+      <div class="card">
+        <div style="font-weight:700;color:#0f172a;margin-bottom:6px">Payroll &amp; commissions</div>
+        <p style="color:#64748b;font-size:0.83rem;margin-bottom:12px">Manage salary setup, commission rules and payroll runs.</p>
+        <button class="btn btn-secondary btn-sm" type="button" onclick="adminTab('payroll')">Open Payroll</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Meta Integration -->
   <div id="admin-tab-meta" class="tab-content">
     <h3>Meta Integration</h3>
@@ -2463,9 +2591,9 @@
         <div class="stat-trend">Converted leads</div>
       </div>
       <div class="stat-card" style="border-left:4px solid #d4a843">
-        <div class="stat-label" style="color:#d4a843">Total Revenue</div>
+        <div class="stat-label" style="color:#d4a843">Recorded Deposits</div>
         <div class="stat-value" id="rpt-total-revenue" style="color:#d4a843">-</div>
-        <div class="stat-trend">Approved deposits</div>
+        <div class="stat-trend">From transaction records</div>
       </div>
     </div>
 
@@ -2474,7 +2602,7 @@
     <div class="card" style="padding:0">
       <table>
         <thead><tr>
-          <th>Agent</th><th>Leads Assigned</th><th>Converted</th><th>Conversion %</th><th>Revenue Generated</th>
+          <th>Agent</th><th>Leads Assigned</th><th>Converted</th><th>Conversion %</th><th>Recorded Deposits</th>
         </tr></thead>
         <tbody id="report-agent-tbody">
           <tr><td colspan="5" class="empty-state">Loading…</td></tr>
@@ -2542,7 +2670,7 @@
 
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Dashboard</p>
-      <p style="color:#475569;font-size:0.88rem">Home screen: total leads, new leads, converted count, active agents, total revenue, upcoming follow-ups, and Meta Ads performance at a glance.</p>
+      <p style="color:#475569;font-size:0.88rem">Home screen: total leads, new leads, converted count, active agents, recorded client account balances, upcoming follow-ups, and Meta Ads performance at a glance.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">All Leads</p>
@@ -2734,7 +2862,7 @@
       <div class="card" style="padding:0">
         <table>
           <thead><tr>
-            <th>Agent</th><th>Conversions</th><th>Revenue</th>
+            <th>Agent</th><th>Conversions</th><th>Eligible Deposits (USD)</th>
             <th>Commission</th><th>Base Pay</th><th>Total Pay</th>
           </tr></thead>
           <tbody id="payroll-results-tbody"></tbody>
@@ -2749,7 +2877,7 @@
     <div class="card" style="padding:0">
       <table>
         <thead><tr>
-          <th>Created</th><th>Period</th><th>Agents</th><th>Revenue</th><th>Total Pay</th><th></th>
+          <th>Created</th><th>Period</th><th>Agents</th><th>Eligible Deposits (USD)</th><th>Total Pay</th><th></th>
         </tr></thead>
         <tbody id="payroll-runs-tbody">
           <tr><td colspan="6" class="empty-state">No saved payroll runs yet.</td></tr>
@@ -3170,13 +3298,13 @@
     </div>
     <div id="agent-tabs" class="sidebar-nav">
       <div class="nav-section-label">MAIN</div>
-      <div class="nav-item tab-btn active" data-tab="dashboard" onclick="agentTab('dashboard',this)"><span class="nav-icon" style="background:var(--tint-gold-bg)">🏠</span> Dashboard</div>
-      <div class="nav-item tab-btn" data-tab="my-leads" onclick="agentTab('my-leads',this)"><span class="nav-icon" style="background:var(--tint-sky-bg)">👥</span> My Leads</div>
+      <div class="nav-item tab-btn active" data-tab="dashboard" onclick="agentTab('dashboard',this)"><span class="nav-icon" data-nav-icon="dashboard" style="background:var(--tint-gold-bg)"></span> Dashboard</div>
+      <div class="nav-item tab-btn" data-tab="my-leads" onclick="agentTab('my-leads',this)"><span class="nav-icon" data-nav-icon="users" style="background:var(--tint-sky-bg)"></span> My Leads</div>
       <div class="nav-section-label">TOOLS</div>
-      <div class="nav-item tab-btn" data-tab="conversations" onclick="agentTab('conversations',this)"><span class="nav-icon" style="background:var(--tint-sky-bg)">💬</span> Omnichannel Inbox <span id="agent-conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
-      <div class="nav-item tab-btn" data-tab="comm-log" onclick="agentTab('comm-log',this)"><span class="nav-icon" style="background:var(--tint-success-bg)">🕐</span> Comm Log</div>
-      <div class="nav-item tab-btn" data-tab="log-activity" onclick="agentTab('log-activity',this)"><span class="nav-icon" style="background:var(--tint-danger-bg)">📝</span> Log Activity</div>
-      <div class="nav-item tab-btn" data-tab="guide" onclick="agentTab('guide',this)"><span class="nav-icon" style="background:var(--tint-warn-bg)">📖</span> Guide</div>
+      <div class="nav-item tab-btn" data-tab="conversations" onclick="agentTab('conversations',this)"><span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Omnichannel Inbox <span id="agent-conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
+      <div class="nav-item tab-btn" data-tab="comm-log" onclick="agentTab('comm-log',this)"><span class="nav-icon" data-nav-icon="history" style="background:var(--tint-success-bg)"></span> Comm Log</div>
+      <div class="nav-item tab-btn" data-tab="log-activity" onclick="agentTab('log-activity',this)"><span class="nav-icon" data-nav-icon="note" style="background:var(--tint-danger-bg)"></span> Log Activity</div>
+      <div class="nav-item tab-btn" data-tab="guide" onclick="agentTab('guide',this)"><span class="nav-icon" data-nav-icon="book" style="background:var(--tint-warn-bg)"></span> Guide</div>
     </div>
     <div class="sidebar-footer" onclick="toggleAccountMenu(event, 'agent')" style="cursor:pointer;position:relative">
       <div class="user-avatar" id="agent-sidebar-initials">A</div>
@@ -3283,7 +3411,17 @@
       <!-- Left: Lead List -->
       <div class="conv-list-panel" id="agent-conv-list-panel">
         <div class="conv-search">
-          <button type="button" class="conv-list-toggle" title="Hide the lead list" onclick="toggleConvListPanel('agent-')">☰</button>
+          <div class="conv-list-menu-wrap">
+            <button type="button" class="conv-list-toggle" title="Inbox menu" aria-label="Open inbox menu" aria-haspopup="menu" aria-expanded="false" onclick="toggleInboxMenu(event,'agent-')">☰</button>
+            <div class="conv-list-menu" id="agent-conv-list-menu" role="menu">
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('refresh','agent-')">Refresh inbox</button>
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('all','agent-')">All conversations</button>
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('unread','agent-')">Unread conversations</button>
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('clear-search','agent-')">Clear search</button>
+              <div class="conv-list-menu-separator" role="separator"></div>
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('hide-list','agent-')">Hide lead list</button>
+            </div>
+          </div>
           <input type="text" id="agent-conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations('agent-')" />
         </div>
         <div class="conv-filter-tabs" id="agent-conv-filter-tabs" >
@@ -3556,6 +3694,43 @@ const _DEMO_KEYWORD_REPLIES = [
   { id:'kw3', keyword:'agent', match_type:'exact', reply_message:'Connecting you with a member of our team now.', is_active:false },
 ];
 
+// A small, dependency-free outline icon set keeps the CRM navigation
+// professional and consistent without relying on emoji rendering or a CDN.
+// The paths use the same 24px line-icon convention throughout both roles.
+const CRM_NAV_ICONS = {
+  dashboard: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  team: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0M18 5l1 1 2-2"/>',
+  chart: '<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-7"/>',
+  bot: '<rect x="4" y="7" width="16" height="12" rx="2"/><path d="M9 3h6M12 3v4M8 12h.01M16 12h.01M9 16h6"/>',
+  'user-plus': '<path d="M15 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8" cy="7" r="4"/><path d="M19 8v6M16 11h6"/>',
+  message: '<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/><path d="M8 9h8M8 13h5"/>',
+  history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
+  report: '<path d="M6 3h12a2 2 0 0 1 2 2v16H4V5a2 2 0 0 1 2-2z"/><path d="M8 3v4h8V3M8 12h8M8 16h5"/>',
+  automation: '<path d="m13 2-9 12h8l-1 8 9-12h-8z"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01"/>',
+  wallet: '<path d="M4 5h14a2 2 0 0 1 2 2v12H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12"/><path d="M15 11h7v5h-7a2.5 2.5 0 0 1 0-5z"/>',
+  broadcast: '<circle cx="12" cy="12" r="2"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2"/>',
+  subscriber: '<circle cx="9" cy="7" r="4"/><path d="M2 21v-2a7 7 0 0 1 12-4.9M16 19l2 2 4-5"/>',
+  sparkles: '<path d="m12 3 1.4 4.1L17.5 8.5l-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4zM19 15l.7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7z"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>',
+  'id-card': '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8" cy="11" r="2"/><path d="M5.5 16a3 3 0 0 1 5 0M14 10h4M14 14h4"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.15.36.36.68.6 1 .27.29.62.49 1 .57h.09v4H21a1.7 1.7 0 0 0-1 .43c-.24.32-.45.64-.6 1z"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l2-2a5 5 0 0 0-7.07-7.07l-1.15 1.15"/><path d="M14 11a5 5 0 0 0-7.54-.54l-2 2a5 5 0 0 0 7.07 7.07l1.15-1.15"/>',
+  bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>',
+  book: '<path d="M4 4h6a4 4 0 0 1 4 4v12a4 4 0 0 0-4-4H4z"/><path d="M20 4h-6a4 4 0 0 0-4 4v12a4 4 0 0 1 4-4h6z"/>',
+  note: '<path d="M5 3h10l4 4v14H5z"/><path d="M14 3v5h5M8 13h8M8 17h5"/>'
+};
+
+function renderNavigationIcons() {
+  document.querySelectorAll('[data-nav-icon]').forEach(el => {
+    const paths = CRM_NAV_ICONS[el.dataset.navIcon];
+    if (!paths) return;
+    el.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${paths}</svg>`;
+  });
+}
+
 function enterDemoMode() {
   demoMode         = true;
   demoRrAgentIndex = 0;
@@ -3571,6 +3746,7 @@ function enterDemoMode() {
   const _demoAvatarEl = document.getElementById('sidebar-user-initials');
   if (_demoAvatarEl) _demoAvatarEl.textContent = 'DA';
   populateAgentDropdowns();
+  loadGeneralSettings();
   renderDashboardStats();
   renderAgentsTable();
   // enterDemoMode builds the admin shell by hand rather than going through
@@ -3582,17 +3758,10 @@ function enterDemoMode() {
 
 // ── Boot ──────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  const localDemoPreview =
-    (location.hostname === '127.0.0.1' || location.hostname === 'localhost') &&
-    new URLSearchParams(location.search).get('demo-preview') === '1';
-  if (localDemoPreview) {
-    enterDemoMode();
-    adminTab('conversations');
-    setTimeout(() => openConversation('conv2'), 0);
-    return;
-  }
-
-  // Wire up sidebar nav items via event delegation
+  renderNavigationIcons();
+  // Wire the sidebar before the local demo-preview early return. The preview is
+  // the presentation surface, so its navigation must behave exactly like a
+  // signed-in Admin session.
   const adminTabsEl = document.getElementById('admin-tabs');
   if (adminTabsEl) {
     adminTabsEl.addEventListener('click', function(e) {
@@ -3600,6 +3769,21 @@ window.addEventListener('DOMContentLoaded', () => {
       if (!item) return;
       adminTab(item.dataset.tab, item);
     });
+  }
+
+  const previewParams = new URLSearchParams(location.search);
+  const localDemoPreview =
+    (location.hostname === '127.0.0.1' || location.hostname === 'localhost') &&
+    previewParams.get('demo-preview') === '1';
+  if (localDemoPreview) {
+    enterDemoMode();
+    const requestedStart = previewParams.get('demo-start');
+    const startTab = requestedStart && document.getElementById('admin-tab-' + requestedStart)
+      ? requestedStart
+      : 'conversations';
+    adminTab(startTab);
+    if (startTab === 'conversations') setTimeout(() => openConversation('conv2'), 0);
+    return;
   }
 
   const configured = !SUPABASE_URL.startsWith('YOUR_');
@@ -3720,6 +3904,7 @@ async function initAdmin() {
   if (_adminAvatarEl) _adminAvatarEl.textContent = _adminInitials;
   await loadProfiles();
   await loadAdminLeads();
+  await loadGeneralSettings();
   renderDashboardStats();
   loadNotifications();
 }
@@ -3739,8 +3924,8 @@ function toggleSidebar(forceOpen) {
 
 // Create Flow, Train AI, Follow-ups and Message Templates are no longer
 // top-level tabs - they live inside Bot Manager now. Anything still asking for
-// them by their old name (dashboard quick-tiles, old bookmarks) lands on the
-// right section of Bot Manager instead of hitting a missing element.
+// them by an old bookmark lands on the right section of Bot Manager instead of
+// hitting a missing element.
 const BM_MOVED_TABS = {
   'create-flow': 'automation', 'templates': 'automation', 'follow-ups': 'automation',
   'train-ai': 'ai'
@@ -3765,7 +3950,7 @@ function adminTab(name, el) {
   const titles = {
     dashboard: 'Dashboard', leads: 'All Leads', agents: 'My Team',
     'add-lead': 'Add Lead', conversations: 'Omnichannel Inbox',
-    meta: 'Meta Integration', 'meta-ads': 'Meta Analytics',
+    settings: 'Settings', meta: 'Meta Integration', 'meta-ads': 'Meta Analytics',
     payroll: 'Payroll', automation: 'Automation',
     notifications: 'Notifications', sites: 'Landing Pages', reports: 'Reports',
     'comm-log': 'Communication Log',
@@ -3781,6 +3966,7 @@ function adminTab(name, el) {
   if (name === 'conversations')    { renderConversations(); startConvRealtime(); renderQuickLinks(''); } else { stopConvRealtime(); }
   if (name === 'agents')           { renderAgentsTable(); updateRoundRobinStatus(); }
   if (name === 'user-manager')     renderAgentsTable('user-manager-tbody');
+  if (name === 'settings')         loadGeneralSettings();
   if (name === 'meta')             loadMetaSettings();
   if (name === 'meta-ads')         initMetaAnalytics();
   if (name === 'automation')       { loadAutomationRules(); populateArAgentDropdown(); }
@@ -4483,6 +4669,91 @@ async function addLead() {
   updateRoundRobinStatus();
 }
 
+const GENERAL_SETTINGS_DEFAULTS = {
+  business_name: 'Badar Trader',
+  business_timezone: 'Asia/Dubai',
+  default_transaction_currency: 'USD'
+};
+let workspaceSettings = { ...GENERAL_SETTINGS_DEFAULTS };
+
+function applyWorkspaceIdentity(name) {
+  const safeName = (name || GENERAL_SETTINGS_DEFAULTS.business_name).trim();
+  document.querySelectorAll('.sidebar-brand h1').forEach(el => {
+    el.textContent = safeName.toUpperCase();
+  });
+}
+
+function fillGeneralSettings(values = {}) {
+  const merged = { ...GENERAL_SETTINGS_DEFAULTS, ...values };
+  workspaceSettings = merged;
+  const nameEl = document.getElementById('settings-business-name');
+  const timezoneEl = document.getElementById('settings-timezone');
+  const currencyEl = document.getElementById('settings-currency');
+  if (nameEl) nameEl.value = merged.business_name;
+  if (timezoneEl && [...timezoneEl.options].some(o => o.value === merged.business_timezone)) {
+    timezoneEl.value = merged.business_timezone;
+  }
+  if (currencyEl && [...currencyEl.options].some(o => o.value === merged.default_transaction_currency)) {
+    currencyEl.value = merged.default_transaction_currency;
+  }
+  applyWorkspaceIdentity(merged.business_name);
+}
+
+async function loadGeneralSettings() {
+  if (demoMode) {
+    fillGeneralSettings(workspaceSettings);
+    return;
+  }
+  const keys = Object.keys(GENERAL_SETTINGS_DEFAULTS);
+  const { data, error } = await sb.from('settings').select('key,value').in('key', keys);
+  if (error) {
+    setMsg(document.getElementById('general-settings-msg'), 'Could not load workspace settings.', 'err');
+    return;
+  }
+  const loaded = {};
+  (data || []).forEach(row => { loaded[row.key] = row.value; });
+  fillGeneralSettings(loaded);
+}
+
+async function saveGeneralSettings() {
+  const msgEl = document.getElementById('general-settings-msg');
+  const businessName = v('settings-business-name');
+  const timezone = v('settings-timezone');
+  const currency = v('settings-currency');
+  if (!businessName) {
+    setMsg(msgEl, 'Business name is required.', 'err');
+    return;
+  }
+  if (!['Asia/Dubai', 'Asia/Karachi', 'UTC'].includes(timezone) || !['USD', 'EUR', 'GBP', 'USDT', 'BTC'].includes(currency)) {
+    setMsg(msgEl, 'Choose a supported timezone and transaction currency.', 'err');
+    return;
+  }
+
+  applyWorkspaceIdentity(businessName);
+  workspaceSettings = {
+    business_name: businessName,
+    business_timezone: timezone,
+    default_transaction_currency: currency
+  };
+  if (demoMode) {
+    setMsg(msgEl, 'Preview updated for this session. No production setting was changed.', 'ok');
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const rows = [
+    { key:'business_name', value:businessName, updated_by:currentUser.id, updated_at:now },
+    { key:'business_timezone', value:timezone, updated_by:currentUser.id, updated_at:now },
+    { key:'default_transaction_currency', value:currency, updated_by:currentUser.id, updated_at:now }
+  ];
+  const { error } = await sb.from('settings').upsert(rows, { onConflict:'key' });
+  if (error) {
+    setMsg(msgEl, error.message, 'err');
+    return;
+  }
+  setMsg(msgEl, 'Workspace settings saved.', 'ok');
+}
+
 async function loadMetaSettings() {
   if (demoMode) return; // no settings table in demo
   const keys = ['meta_token','meta_account_id','meta_waba_id','meta_form_id','meta_pixel_id',
@@ -4942,6 +5213,8 @@ async function loadClientTransactions(leadId) {
 }
 
 function buildLedgerTab(lead, leadId, ctx, isAdmin, txRows) {
+  const defaultTxCurrency = workspaceSettings.default_transaction_currency || 'USD';
+  const currencyOption = code => `<option value="${code}"${code === defaultTxCurrency ? ' selected' : ''}>${code}</option>`;
   const balanceBlock = `
     <div style="margin-bottom:20px">
       <div class="detail-label" style="margin-bottom:4px">Account Balance</div>
@@ -4994,11 +5267,7 @@ function buildLedgerTab(lead, leadId, ctx, isAdmin, txRows) {
       <div>
         <label>Currency</label>
         <select id="det-tx-currency">
-          <option value="USD">USD</option>
-          <option value="EUR">EUR</option>
-          <option value="GBP">GBP</option>
-          <option value="USDT">USDT</option>
-          <option value="BTC">BTC</option>
+          ${['USD','EUR','GBP','USDT','BTC'].map(currencyOption).join('')}
         </select>
       </div>
     </div>
@@ -5853,16 +6122,28 @@ function esc(s) {
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function workspaceTimeZone() {
+  return workspaceSettings?.business_timezone || GENERAL_SETTINGS_DEFAULTS.business_timezone;
+}
+
+function zonedDaySerial(date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: workspaceTimeZone(), year:'numeric', month:'2-digit', day:'2-digit'
+  }).formatToParts(date);
+  const get = type => Number(parts.find(part => part.type === type)?.value || 0);
+  return Math.floor(Date.UTC(get('year'), get('month') - 1, get('day')) / 86400000);
+}
+
 function fmtDate(iso) {
   if (!iso) return '-';
   return new Date(iso).toLocaleDateString('en-GB',
-    { day:'2-digit', month:'short', year:'numeric' });
+    { timeZone:workspaceTimeZone(), day:'2-digit', month:'short', year:'numeric' });
 }
 
 function fmtDateTime(iso) {
   if (!iso) return '-';
   return new Date(iso).toLocaleString('en-GB',
-    { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    { timeZone:workspaceTimeZone(), day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
 }
 
 function setMsg(el, msg, type) {
@@ -5888,6 +6169,29 @@ function channelLabel(s) {
 }
 function fmtMoney(n) {
   return Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function transactionTotalsByCurrency(rows, type) {
+  return (rows || []).reduce((totals, row) => {
+    if (type && row.type !== type) return totals;
+    const currency = String(row.currency || 'USD').toUpperCase();
+    totals[currency] = (totals[currency] || 0) + Number(row.amount || 0);
+    return totals;
+  }, {});
+}
+function formatCurrencyTotals(totals, emptyLabel = 'No deposits') {
+  const entries = Object.entries(totals || {}).filter(([, amount]) => Number(amount) !== 0);
+  if (!entries.length) return emptyLabel;
+  return entries
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([currency, amount]) => `${currency} ${fmtMoney(amount)}`)
+    .join(' · ');
+}
+function netCurrencyTotals(deposits, withdrawals) {
+  const result = {};
+  new Set([...Object.keys(deposits || {}), ...Object.keys(withdrawals || {})]).forEach(currency => {
+    result[currency] = Number(deposits?.[currency] || 0) - Number(withdrawals?.[currency] || 0);
+  });
+  return result;
 }
 function txTypeLabel(t) { return t === 'deposit' ? 'Deposit' : 'Withdrawal'; }
 function kycStatusLabel(s) {
@@ -6012,8 +6316,8 @@ function renderAppointmentsTable() {
     return `
     <tr>
       <td style="white-space:nowrap">
-        <strong style="color:${overdue ? '#dc4c40' : '#0f172a'}">${when.toLocaleDateString()}</strong>
-        <br><span style="color:#64748b;font-size:0.78rem">${when.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} &middot; ${Number(a.duration_mins)}m</span>
+        <strong style="color:${overdue ? '#dc4c40' : '#0f172a'}">${when.toLocaleDateString([], {timeZone:workspaceTimeZone()})}</strong>
+        <br><span style="color:#64748b;font-size:0.78rem">${when.toLocaleTimeString([], {timeZone:workspaceTimeZone(), hour:'2-digit', minute:'2-digit'})} &middot; ${Number(a.duration_mins)}m</span>
         ${overdue ? '<br><span style="color:#dc4c40;font-size:0.72rem;font-weight:700">OVERDUE</span>' : ''}
       </td>
       <td><strong style="color:#0f172a">${esc(a.title)}</strong>${a.notes ? `<br><span style="color:#94a3b8;font-size:0.75rem">${esc(truncate(a.notes, 60))}</span>` : ''}</td>
@@ -6999,6 +7303,21 @@ function populateArAgentDropdown() {
 }
 
 // ── REPORTS (admin only) ────────────────────────────────────────
+async function loadAllReportTransactions() {
+  const pageSize = 1000;
+  const rows = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await sb.from('transactions')
+      .select('id,client_id,amount,currency,type,created_at')
+      .order('created_at', { ascending:true })
+      .order('id', { ascending:true })
+      .range(offset, offset + pageSize - 1);
+    if (error) return { data:null, error };
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) return { data:rows, error:null };
+  }
+}
+
 function setElText(id, val) {
   const el = document.getElementById(id);
   if (el) el.textContent = val;
@@ -7010,15 +7329,16 @@ async function loadReports() {
     const totalLeads = leads.length;
     const converted  = leads.filter(l => l.status === 'converted').length;
     const convRate   = totalLeads > 0 ? ((converted / totalLeads) * 100).toFixed(1) : '0.0';
-    const revenue    = _DEMO_TRANSACTIONS.filter(t => t.type === 'deposit').reduce((s, t) => s + t.amount, 0);
+    const depositTotals = transactionTotalsByCurrency(_DEMO_TRANSACTIONS, 'deposit');
+    const withdrawalTotals = transactionTotalsByCurrency(_DEMO_TRANSACTIONS, 'withdrawal');
     setElText('rpt-total-leads',    totalLeads);
     setElText('rpt-conv-rate',      convRate + '%');
     setElText('rpt-active-clients', converted);
-    setElText('rpt-total-revenue',  '$' + fmtMoney(revenue));
+    setElText('rpt-total-revenue',  formatCurrencyTotals(depositTotals));
 
     renderAgentPerformanceReport([
-      { agent_name:'Ahmed Ali', leads_assigned:3, converted:1, revenue:25000 },
-      { agent_name:'Sara Khan', leads_assigned:3, converted:2, revenue:60000 },
+      { agent_name:'Ahmed Ali', leads_assigned:3, converted:1, deposit_totals:{ USD:25000 } },
+      { agent_name:'Sara Khan', leads_assigned:3, converted:2, deposit_totals:{ USD:60000 } },
     ]);
     renderSourceChart([
       { source:'Meta Ads',    count:2, color:'#0ea5e9' },
@@ -7030,31 +7350,50 @@ async function loadReports() {
       ['Feb','Mar','Apr','May','Jun','Jul'],
       [3, 5, 8, 12, 18, 9]
     );
-    renderFinancialSummaryReport({ total_deposits:85000, total_withdrawals:0, net_aum:85000, verified_clients:4 });
+    renderFinancialSummaryReport(
+      { total_deposits:85000, total_withdrawals:0, net_aum:85000, verified_clients:4 },
+      { deposits:depositTotals, withdrawals:withdrawalTotals, net:netCurrencyTotals(depositTotals, withdrawalTotals) }
+    );
     return;
   }
 
-  const [{ data: agentPerf, error: e1 }, { data: sourcePerf, error: e2 }, { data: finSummary, error: e3 }] =
+  const [{ data: agentPerf, error: e1 }, { data: sourcePerf, error: e2 }, { data: finSummary, error: e3 }, { data: reportTransactions, error: e4 }] =
     await Promise.all([
       sb.rpc('report_agent_performance'),
       sb.rpc('report_source_performance'),
       sb.rpc('report_financial_summary'),
+      loadAllReportTransactions(),
     ]);
 
   if (e1) console.error('report_agent_performance:', e1);
   if (e2) console.error('report_source_performance:', e2);
   if (e3) console.error('report_financial_summary:', e3);
+  if (e4) console.error('report transactions:', e4);
 
   const totalLeads = cachedLeads.length;
   const converted  = cachedLeads.filter(l => l.status === 'converted').length;
   const convRate   = totalLeads > 0 ? ((converted / totalLeads) * 100).toFixed(1) : '0.0';
-  const revenue    = cachedLeads.reduce((s, l) => s + (Number(l.account_balance) || 0), 0);
+  const txRows = reportTransactions || [];
+  const depositTotals = transactionTotalsByCurrency(txRows, 'deposit');
+  const withdrawalTotals = transactionTotalsByCurrency(txRows, 'withdrawal');
   setElText('rpt-total-leads',    totalLeads);
   setElText('rpt-conv-rate',      convRate + '%');
   setElText('rpt-active-clients', converted);
-  setElText('rpt-total-revenue',  '$' + fmtMoney(revenue));
+  setElText('rpt-total-revenue',  e4 ? 'Unavailable' : formatCurrencyTotals(depositTotals));
 
-  renderAgentPerformanceReport(agentPerf || []);
+  const leadAgent = new Map(cachedLeads.map(lead => [lead.id, lead.assigned_agent_id]));
+  const depositsByAgent = {};
+  txRows.filter(row => row.type === 'deposit').forEach(row => {
+    const agentId = leadAgent.get(row.client_id);
+    if (!agentId) return;
+    if (!depositsByAgent[agentId]) depositsByAgent[agentId] = {};
+    const currency = String(row.currency || 'USD').toUpperCase();
+    depositsByAgent[agentId][currency] = (depositsByAgent[agentId][currency] || 0) + Number(row.amount || 0);
+  });
+  renderAgentPerformanceReport((agentPerf || []).map(row => ({
+    ...row,
+    deposit_totals: depositsByAgent[row.agent_id] || {}
+  })));
   if (sourcePerf && sourcePerf.length) {
     const tot = sourcePerf.reduce((s, r) => s + r.total_leads, 0);
     const palette = ['#0ea5e9','#d4a843','#10b981','#8b5cf6','#f59e0b'];
@@ -7090,7 +7429,11 @@ async function loadReports() {
   } catch(e) {
     renderMonthlyTrendChart([], []);
   }
-  renderFinancialSummaryReport((finSummary && finSummary[0]) || null);
+  renderFinancialSummaryReport((finSummary && finSummary[0]) || null, e4 ? null : {
+    deposits: depositTotals,
+    withdrawals: withdrawalTotals,
+    net: netCurrencyTotals(depositTotals, withdrawalTotals)
+  });
 }
 
 function renderAgentPerformanceReport(rows) {
@@ -7115,7 +7458,7 @@ function renderAgentPerformanceReport(rows) {
           <span style="font-size:0.8rem;color:#64748b">${rate}%</span>
         </div>
       </td>
-      <td style="font-weight:700;color:#10b981">$${fmtMoney(r.revenue || 0)}</td>
+      <td style="font-weight:700;color:#10b981">${formatCurrencyTotals(r.deposit_totals, 'None')}</td>
     </tr>`;
   }).join('');
 }
@@ -7188,22 +7531,25 @@ function renderMonthlyTrendChart(labels, data) {
   }
 }
 
-function renderFinancialSummaryReport(row) {
+function renderFinancialSummaryReport(row, currencyTotals = null) {
   const el = document.getElementById('report-financial-stats');
   if (!el) return;
   if (!row) { el.innerHTML = '<div class="empty-state">No financial data yet.</div>'; return; }
+  const depositsLabel = currencyTotals ? formatCurrencyTotals(currencyTotals.deposits) : 'Unavailable';
+  const withdrawalsLabel = currencyTotals ? formatCurrencyTotals(currencyTotals.withdrawals, 'No withdrawals') : 'Unavailable';
+  const netLabel = currencyTotals ? formatCurrencyTotals(currencyTotals.net, 'No net balance') : 'Unavailable';
   el.innerHTML = `
     <div class="stat-card">
       <div class="stat-label">Total Deposits</div>
-      <div class="stat-value" style="color:#10b981">$${fmtMoney(row.total_deposits)}</div>
+      <div class="stat-value" style="color:#10b981;font-size:1.25rem">${depositsLabel}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Total Withdrawals</div>
-      <div class="stat-value" style="color:#ef4444">$${fmtMoney(row.total_withdrawals)}</div>
+      <div class="stat-value" style="color:#ef4444;font-size:1.25rem">${withdrawalsLabel}</div>
     </div>
     <div class="stat-card" style="border-left:4px solid #d4a843">
       <div class="stat-label" style="color:#d4a843">Net AUM</div>
-      <div class="stat-value" style="color:#d4a843">$${fmtMoney(row.net_aum)}</div>
+      <div class="stat-value" style="color:#d4a843;font-size:1.25rem">${netLabel}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Verified KYC Clients</div>
@@ -7687,9 +8033,9 @@ function fmtConvTime(isoStr) {
   const days  = Math.floor(diffMs / 86400000);
   if (mins  <  1) return 'Just now';
   if (mins  < 60) return `${mins}m ago`;
-  if (hours < 24) return d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
-  if (days  <  7) return d.toLocaleDateString('en-US', { weekday:'short' });
-  return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  if (hours < 24) return d.toLocaleTimeString('en-US', { timeZone:workspaceTimeZone(), hour:'2-digit', minute:'2-digit' });
+  if (days  <  7) return d.toLocaleDateString('en-US', { timeZone:workspaceTimeZone(), weekday:'short' });
+  return d.toLocaleDateString('en-US', { timeZone:workspaceTimeZone(), month:'short', day:'numeric' });
 }
 
 // Message bubbles always show the actual clock time. Conversation-list rows
@@ -7699,7 +8045,7 @@ function fmtConvMessageTime(isoStr) {
   if (!isoStr) return '';
   const d = new Date(isoStr);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+  return d.toLocaleTimeString('en-US', { timeZone:workspaceTimeZone(), hour:'numeric', minute:'2-digit' });
 }
 
 const AVATAR_PALETTE = ['#f59e0b','#22c55e','#ec4899','#8b5cf6','#14b8a6','#3b82f6','#f97316','#64748b'];
@@ -8326,6 +8672,19 @@ function toggleConvListPanel(scope) {
   const showBtn = shell?.querySelector('.conv-show-list-btn');
   if (!panel) return;
   const nowHiding = panel.style.display !== 'none';
+  // Never strand someone on the empty chat placeholder. The desktop list
+  // toggle previously hid the only usable panel before a conversation was
+  // selected, producing a large blank inbox with no lead to open. Mobile can
+  // still collapse normally because openConversation() establishes the active
+  // thread before collapseConvListOnMobile() reaches this function.
+  const chatPanel = document.getElementById(scope + 'conv-chat-panel');
+  const hasOpenConversation = _activeConvId
+    && _activeConvScope === scope
+    && chatPanel?.querySelector('.conv-chat-header');
+  if (nowHiding && !hasOpenConversation) {
+    showToast('Select a conversation before hiding the lead list.');
+    return;
+  }
   panel.style.display = nowHiding ? 'none' : '';
   if (showBtn) showBtn.style.display = nowHiding ? 'flex' : 'none';
   // Class-based (not inline padding set once) so the reserved space for the
@@ -8333,6 +8692,50 @@ function toggleConvListPanel(scope) {
   // conversation's header gets injected later while the panel is collapsed.
   if (shell) shell.classList.toggle('list-collapsed', nowHiding);
 }
+
+function closeInboxMenus() {
+  document.querySelectorAll('.conv-list-menu').forEach(menu => { menu.style.display = 'none'; });
+  document.querySelectorAll('.conv-list-menu-wrap .conv-list-toggle').forEach(button => {
+    button.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function toggleInboxMenu(event, scope) {
+  event.stopPropagation();
+  const menu = document.getElementById(scope + 'conv-list-menu');
+  const button = event.currentTarget;
+  if (!menu) return;
+  const opening = menu.style.display !== 'block';
+  closeInboxMenus();
+  if (opening) {
+    menu.style.display = 'block';
+    button.setAttribute('aria-expanded', 'true');
+  }
+}
+
+async function runInboxMenuAction(action, scope) {
+  closeInboxMenus();
+  const search = document.getElementById(scope + 'conv-search-input');
+  if (action === 'refresh') {
+    await renderConversations(scope);
+    showToast('Inbox refreshed.');
+    return;
+  }
+  if (action === 'all' || action === 'unread') {
+    if (search) search.value = '';
+    setConvFilter(action, scope);
+    return;
+  }
+  if (action === 'clear-search') {
+    if (search) search.value = '';
+    filterConversations(scope);
+    search?.focus();
+    return;
+  }
+  if (action === 'hide-list') toggleConvListPanel(scope);
+}
+
+document.addEventListener('click', closeInboxMenus);
 
 // On phones, opening a conversation should switch to a single full-width
 // chat view (like any normal messaging app) instead of squeezing both
@@ -9366,17 +9769,25 @@ function convSearchStep(delta) {
 // genuinely waiting on its first callback shows nothing for a second or two,
 // which is a fair trade.
 const CONV_TICK_MARKS = {
-  sent:      { glyph: '✓',  label: 'Sent' },
-  delivered: { glyph: '✓✓', label: 'Delivered' },
-  read:      { glyph: '✓✓', label: 'Read' },
-  failed:    { glyph: '!',  label: 'Failed to deliver' },
+  sent:      { icon: 'single', label: 'Sent' },
+  delivered: { icon: 'double', label: 'Delivered' },
+  read:      { icon: 'double', label: 'Read' },
+  failed:    { icon: 'failed', label: 'Failed to deliver' },
+};
+
+const CONV_TICK_PATHS = {
+  single: 'M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z',
+  double: 'M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41 5.59 5.59L23.66 7 22.24 5.59zM.41 13.41 6 19l1.41-1.41L1.83 12 .41 13.41z',
 };
 
 function deliveryTickHtml(direction, status) {
   if (direction !== 'outbound') return '';        // never on a customer's message
   const mark = CONV_TICK_MARKS[status];
   if (!mark) return '';                            // null, or a status we don't know
-  return `<span class="msg-tick ${status}" title="${mark.label}">${mark.glyph}</span>`;
+  const visual = mark.icon === 'failed'
+    ? '!'
+    : `<svg class="msg-tick-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${CONV_TICK_PATHS[mark.icon]}"></path></svg>`;
+  return `<span class="msg-tick ${status}" title="${mark.label}" aria-label="${mark.label}">${visual}</span>`;
 }
 
 // "Today" / "Yesterday" / "5 June 2026" for a day-divider pill, so a long
@@ -9384,12 +9795,11 @@ function deliveryTickHtml(direction, status) {
 function convDayLabel(iso) {
   if (!iso) return '';
   const d = new Date(iso); const now = new Date();
-  const startOf = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const diff = Math.round((startOf(now) - startOf(d)) / 86400000);
+  const diff = zonedDaySerial(now) - zonedDaySerial(d);
   if (diff === 0) return 'Today';
   if (diff === 1) return 'Yesterday';
-  if (diff > 1 && diff < 7) return d.toLocaleDateString('en-US', { weekday:'long' });
-  return d.toLocaleDateString('en-US', { day:'numeric', month:'long', year:'numeric' });
+  if (diff > 1 && diff < 7) return d.toLocaleDateString('en-US', { timeZone:workspaceTimeZone(), weekday:'long' });
+  return d.toLocaleDateString('en-US', { timeZone:workspaceTimeZone(), day:'numeric', month:'long', year:'numeric' });
 }
 
 // ── Conversation attachments ──────────────────────────────────
@@ -9879,6 +10289,25 @@ function renderPayrollRows(rows) {
   if (resEl) resEl.style.display = 'block';
 }
 
+async function loadPayrollDepositTransactions(start, end) {
+  const pageSize = 1000;
+  const rows = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await sb.from('transactions')
+      .select('id,client_id,amount,currency,created_at')
+      .eq('type', 'deposit')
+      .eq('currency', 'USD')
+      .gte('created_at', start.toISOString())
+      .lte('created_at', end.toISOString())
+      .order('created_at', { ascending:true })
+      .order('id', { ascending:true })
+      .range(offset, offset + pageSize - 1);
+    if (error) return { data:null, error };
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) return { data:rows, error:null };
+  }
+}
+
 async function calculatePayroll() {
   const period = document.getElementById('payroll-period')?.value || 'monthly';
   const mult   = { daily:1/30, weekly:1/4, biweekly:1/2, monthly:1 }[period] || 1;
@@ -9894,12 +10323,10 @@ async function calculatePayroll() {
   if (demoMode) {
     txns = _DEMO_TRANSACTIONS.filter(t => {
       const created = new Date(t.created_at);
-      return created >= start && created <= end;
+      return t.type === 'deposit' && t.currency === 'USD' && created >= start && created <= end;
     });
   } else {
-    const { data, error } = await sb.from('transactions')
-      .select('client_id,amount,created_at').eq('type', 'deposit')
-      .gte('created_at', start.toISOString()).lte('created_at', end.toISOString());
+    const { data, error } = await loadPayrollDepositTransactions(start, end);
     if (error) {
       console.error('calculatePayroll transactions:', error);
       alert('Could not load transactions: ' + error.message);
@@ -10014,7 +10441,7 @@ function exportPayrollCSV() {
   if (!rows.length) { alert('Run Calculate Payroll first.'); return; }
   const period = document.getElementById('payroll-period')?.value || 'monthly';
   const pLabel = { daily:'Daily', weekly:'Weekly', biweekly:'Bi-weekly', monthly:'Monthly' }[period];
-  const headers = ['Agent','Conversions','Revenue (USD)','Commission (USD)','Base Pay (USD)','Total Pay (USD)'];
+  const headers = ['Agent','Conversions','Eligible Deposits (USD)','Commission (USD)','Base Pay (USD)','Total Pay (USD)'];
   const data = [headers, ...rows.map(r => [
     r.name, r.conversions,
     r.revenue.toFixed(2), r.commission.toFixed(2), r.basePay.toFixed(2), r.totalPay.toFixed(2),

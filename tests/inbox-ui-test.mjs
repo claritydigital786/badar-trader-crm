@@ -47,6 +47,79 @@ assert.match(
   /appendConvDaySeparatorIfNeeded\(msgArea, payload\.new\.created_at\)/,
   'Realtime messages must create a new day divider when the calendar day changes.',
 );
+assert.doesNotMatch(
+  html,
+  /glyph:\s*['"]✓✓['"]/,
+  'Delivered and read states must not render as two separated text characters.',
+);
+assert.match(
+  html,
+  /delivered:\s*\{ icon: 'double',[\s\S]*read:\s*\{ icon: 'double'/,
+  'Delivered and read states must share the compact WhatsApp-style double-check icon.',
+);
+assert.match(
+  html,
+  /class="msg-tick-icon"[\s\S]*viewBox="0 0 24 24"[\s\S]*aria-hidden="true"/,
+  'Delivery states must render a single aligned SVG icon rather than loose glyphs.',
+);
+assert.match(
+  html,
+  /class="msg-tick \$\{status\}" title="\$\{mark\.label\}" aria-label="\$\{mark\.label\}"/,
+  'The compact tick must keep an accessible delivery-state label.',
+);
+assert.match(
+  html,
+  /\.msg-tick\.read\s*\{[^}]*color:#53bdeb/,
+  'Read receipts must retain WhatsApp blue.',
+);
+assert.match(
+  html,
+  /\.sidebar\s*\{[^}]*padding:\s*0;/,
+  'The sidebar must not reserve an empty ticker-sized block below the profile footer.',
+);
+assert.doesNotMatch(
+  html,
+  /\.sidebar\s*\{[^}]*padding:\s*0\s+0\s+46px/,
+  'The old 46-pixel bottom spacer must not make the profile area look oversized.',
+);
+assert.match(
+  html,
+  /function toggleConvListPanel\(scope\)[\s\S]*hasOpenConversation[\s\S]*if \(nowHiding && !hasOpenConversation\)[\s\S]*Select a conversation before hiding the lead list\./,
+  'The inbox list toggle must not strand a user on an empty chat before a conversation is selected.',
+);
+assert.match(
+  html,
+  /_activeConvScope === scope[\s\S]{0,140}querySelector\('\.conv-chat-header'\)/,
+  'The list-toggle guard must verify that the open conversation belongs to the current Admin or Agent inbox.',
+);
+for (const menuAction of ['Refresh inbox', 'All conversations', 'Unread conversations', 'Clear search', 'Hide lead list']) {
+  const occurrences = html.match(new RegExp(`>${menuAction}<`, 'g')) || [];
+  assert.equal(occurrences.length, 2, `Admin and Agent inbox menus must both include ${menuAction}.`);
+}
+assert.match(
+  html,
+  /function toggleInboxMenu\(event, scope\)[\s\S]*aria-expanded[\s\S]*function runInboxMenuAction\(action, scope\)/,
+  'The inbox burger must open an accessible action menu instead of directly hiding the list.',
+);
+
+const dashboardQuickTiles = html.match(/<div class="quick-tile" onclick="adminTab\('[^']+'\)">[\s\S]*?<\/div>\s*<\/div>/g) || [];
+assert.equal(
+  dashboardQuickTiles.length,
+  4,
+  'The dashboard must contain four distinct shortcuts after removing the duplicate Create Flow entry.',
+);
+assert.doesNotMatch(
+  dashboardQuickTiles.join('\n'),
+  /<h4>Create Flow<\/h4>/,
+  'The dashboard must not repeat the Automation destination under a Create Flow shortcut.',
+);
+const botManagerQuickTiles = dashboardQuickTiles.filter(tile => tile.includes('<h4>Bot Manager</h4>'));
+assert.equal(botManagerQuickTiles.length, 1, 'The dashboard must contain exactly one Bot Manager shortcut.');
+assert.match(
+  botManagerQuickTiles[0],
+  /onclick="adminTab\('bot-manager'\)"[\s\S]*Manage automation and AI/,
+  'The consolidated Bot Manager shortcut must open Bot Manager directly and describe its full scope.',
+);
 
 for (const label of ['Message info', 'Reply', 'Copy', 'React', 'Forward', 'Pin', 'Star', 'Add text to note', 'Delete']) {
   assert.match(html, new RegExp(`>${label}<|['"]${label}['"]`), `The message menu must include ${label}.`);
@@ -97,16 +170,121 @@ assert.match(
   'A reaction WAMID must belong to the active lead before it is sent.',
 );
 
+const demoPreviewBoot = html.indexOf('if (localDemoPreview)');
+const adminNavigationBinding = html.indexOf("adminTabsEl.addEventListener('click'");
+assert.ok(demoPreviewBoot > -1, 'The local demo-preview boot path must exist.');
+assert.ok(adminNavigationBinding > -1, 'Admin sidebar navigation must be wired.');
+assert.ok(
+  adminNavigationBinding < demoPreviewBoot,
+  'Admin sidebar navigation must be wired before the demo-preview early return.',
+);
+assert.match(
+  html,
+  /previewParams\.get\('demo-start'\)[\s\S]*adminTab\(startTab\)/,
+  'The presentation preview must support starting on a requested CRM section.',
+);
+
+const adminTabsStart = html.indexOf('id="admin-tabs"');
+const adminTabsEnd = html.indexOf('id="sidebar-user', adminTabsStart);
+assert.ok(adminTabsStart > -1 && adminTabsEnd > adminTabsStart, 'Admin sidebar markup must exist.');
+const adminTabsMarkup = html.slice(adminTabsStart, adminTabsEnd);
+const adminTabNames = [...adminTabsMarkup.matchAll(/data-tab="([^"]+)"/g)].map((match) => match[1]);
+assert.equal(adminTabNames.length, 22, 'The presentation sidebar must expose all 22 Admin sections, including Settings.');
+for (const tabName of adminTabNames) {
+  assert.match(
+    html,
+    new RegExp(`id=["']admin-tab-${tabName}["']`),
+    `Admin sidebar section ${tabName} must have a matching page panel.`,
+  );
+}
+
+const functionDefinitions = new Set(
+  [...html.matchAll(/(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g)].map((match) => match[1]),
+);
+const inlineClickHandlers = [
+  ...html.matchAll(/onclick="([A-Za-z_$][\w$]*)\s*\(/g),
+].map((match) => match[1]);
+for (const handler of new Set(inlineClickHandlers)) {
+  if (['alert', 'confirm'].includes(handler)) continue;
+  assert.ok(functionDefinitions.has(handler), `Inline button handler ${handler} must be defined.`);
+}
+
+assert.ok(adminTabNames.includes('settings'), 'The Admin sidebar must include a dedicated Settings section.');
+assert.match(
+  html,
+  /id="admin-tab-settings"[\s\S]*id="settings-business-name"[\s\S]*id="settings-timezone"[\s\S]*id="settings-currency"/,
+  'Settings must include real workspace name, timezone, and default-transaction-currency controls.',
+);
+assert.match(
+  html,
+  /default_transaction_currency[\s\S]*\['USD','EUR','GBP','USDT','BTC'\]\.map\(currencyOption\)/,
+  'The saved default transaction currency must drive the Add Transaction form using schema-supported currencies.',
+);
+assert.match(
+  html,
+  /if \(demoMode\) \{\s*fillGeneralSettings\(workspaceSettings\);\s*return;/,
+  'Reopening Settings in demo mode must retain session-only workspace changes.',
+);
+assert.doesNotMatch(
+  html,
+  /reporting_currency/,
+  'Settings must not claim to convert or report currencies when no exchange-rate conversion exists.',
+);
+assert.doesNotMatch(
+  html,
+  /Total Revenue|Revenue Generated|>Revenue<|Revenue \(USD\)/,
+  'Client deposits and account balances must not be presented as company revenue.',
+);
+assert.match(
+  html,
+  /function loadAllReportTransactions\(\)[\s\S]*\.range\(offset, offset \+ pageSize - 1\)[\s\S]*transactionTotalsByCurrency\(txRows, 'deposit'\)/,
+  'Live reports must paginate transaction records and preserve their currencies.',
+);
+assert.match(
+  html,
+  /function loadPayrollDepositTransactions\(start, end\)[\s\S]*\.eq\('currency', 'USD'\)[\s\S]*\.range\(offset, offset \+ pageSize - 1\)/,
+  'Payroll must paginate eligible USD deposits and never combine non-USD deposits with USD salaries.',
+);
+
+const totalsFunction = html.match(/function transactionTotalsByCurrency\(rows, type\) \{([\s\S]*?)\n\}/);
+assert.ok(totalsFunction, 'Currency-preserving transaction aggregation must exist.');
+const transactionTotalsByCurrency = new Function('rows', 'type', totalsFunction[1]);
+assert.deepEqual(
+  transactionTotalsByCurrency([
+    { type:'deposit', amount:100, currency:'USD' },
+    { type:'deposit', amount:50, currency:'EUR' },
+    { type:'deposit', amount:25, currency:'USD' },
+    { type:'withdrawal', amount:10, currency:'USD' },
+  ], 'deposit'),
+  { USD:125, EUR:50 },
+  'Reports must preserve currency buckets and exclude withdrawals from deposits.',
+);
+assert.match(
+  html,
+  /data-nav-icon="dashboard"[\s\S]*const CRM_NAV_ICONS[\s\S]*function renderNavigationIcons/,
+  'Sidebar sections must use the bundled professional SVG icon system.',
+);
+assert.doesNotMatch(
+  adminTabsMarkup,
+  /[🏠👥🏆📈🤖➕💬🕐📋⚡📅💰📡👤🛡️🧑‍💼🔗🔔🌐📖]/u,
+  'The Admin sidebar must not fall back to platform-dependent emoji icons.',
+);
+
 const formatter = html.match(
   /function fmtConvMessageTime\(isoStr\) \{([\s\S]*?)\n\}/,
 );
 assert.ok(formatter, 'Message timestamp formatter must exist.');
-const formatMessageTime = new Function('isoStr', formatter[1]);
-const oldMessageTime = formatMessageTime('2026-07-27T09:05:00Z');
+const formatMessageTime = new Function('workspaceTimeZone', 'isoStr', formatter[1]);
+const oldMessageTime = formatMessageTime(() => 'UTC', '2026-07-27T09:05:00Z');
 assert.match(
   oldMessageTime,
   /^\d{1,2}:\d{2}\s(?:AM|PM)$/,
   'Even an old message must display a clock time, not Jul 27.',
+);
+assert.match(
+  html,
+  /function workspaceTimeZone\(\)[\s\S]*function zonedDaySerial\(date\)[\s\S]*timeZone:workspaceTimeZone\(\)/,
+  'The saved business timezone must drive CRM dates, message clocks, and day boundaries.',
 );
 
 const inlineScripts = [];

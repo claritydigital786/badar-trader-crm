@@ -193,7 +193,7 @@ try {
     $integrationObjectPath = $integrationManifest['objects'][0]['archive_path'];
     testAssert($integrationZip->getFromName($integrationObjectPath) === "clean storage bytes\n", 'full backup changed object bytes');
     $integrationZip->close();
-    testAssert(str_contains((string) file_get_contents($integrationLog), 'Backup run finished: 22 tables OK, 0 failed'), 'full backup log did not report success');
+    testAssert(str_contains((string) file_get_contents($integrationLog), 'Backup run finished: 23 tables OK, 0 failed'), 'full backup log did not report success');
 
     $schemaSql = (string) file_get_contents(dirname(__DIR__, 2) . '/supabase/schema.sql');
     preg_match_all('/CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+public\.([a-z_][a-z0-9_]*)/i', $schemaSql, $schemaMatches);
