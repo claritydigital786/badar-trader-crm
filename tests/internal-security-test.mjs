@@ -6,6 +6,7 @@ const nudge = read('../supabase/functions/nudge-agents/index.ts');
 const followUps = read('../supabase/functions/send-follow-ups/index.ts');
 const automation = read('../supabase/functions/fire-automation/index.ts');
 const migration = read('../supabase/migrations/20260814170000_protect_internal_edge_calls.sql');
+const rpcClosureMigration = read('../supabase/migrations/20260815100000_close_automation_rpc_surface.sql');
 const retiredNudgeMigration = read('../supabase/migrations/20260814172000_remove_retired_nudge_schedule.sql');
 
 for (const [name, source] of [
@@ -34,9 +35,28 @@ assert.match(migration, /WHERE EXISTS[\s\S]*project_url[\s\S]*internal_function_
 assert.match(migration, /IF pg_trigger_depth\(\) = 0 THEN[\s\S]*may only run from a database trigger/, 'Automation RPC calls must be rejected outside a trigger.');
 assert.match(
   migration,
-  /REVOKE ALL ON FUNCTION public\.fire_automation_event\(TEXT, UUID\) FROM PUBLIC, anon;[\s\S]*GRANT EXECUTE[\s\S]*TO authenticated, service_role;/,
-  'The automation dispatcher must replace default PUBLIC execution with the minimum roles needed by authenticated trigger writes.',
+  /REVOKE ALL ON FUNCTION public\.fire_automation_event\(TEXT, UUID\) FROM PUBLIC, anon, authenticated;[\s\S]*GRANT EXECUTE[\s\S]*TO service_role;/,
+  'The automation dispatcher must not be reachable as an authenticated client RPC.',
 );
+for (const source of [migration, rpcClosureMigration]) {
+  for (const triggerFunction of [
+    'trg_leads_created',
+    'trg_leads_status_changed',
+    'trg_leads_kyc_verified',
+    'trg_transactions_deposit',
+  ]) {
+    assert.match(
+      source,
+      new RegExp(`CREATE OR REPLACE FUNCTION public\\.${triggerFunction}\\(\\)[\\s\\S]*?SECURITY DEFINER[\\s\\S]*?SET search_path = ''`),
+      `${triggerFunction} must run with its owner privilege after client dispatcher access is revoked.`,
+    );
+    assert.match(
+      source,
+      new RegExp(`REVOKE ALL ON FUNCTION public\\.${triggerFunction}\\(\\) FROM PUBLIC, anon, authenticated;`),
+      `${triggerFunction} must not be callable through the Data API.`,
+    );
+  }
+}
 assert.doesNotMatch(migration, /[0-9a-f]{64}/, 'The migration must never contain a generated secret value.');
 assert.match(retiredNudgeMigration, /cron\.unschedule\(jobid\)/, 'The retired nudge scheduler must be removed safely by job ID.');
 assert.match(retiredNudgeMigration, /nudge-agents-every-15-min-business-hours/, 'The recurring nudge job must be retired.');
