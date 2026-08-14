@@ -29,7 +29,7 @@ Supabase, the CRM, or any live conversation.
 
 ## What gets backed up
 
-Every active table in `supabase/schema.sql` as of 2026-08-10 (22 tables - leads,
+Every active table in `supabase/schema.sql` as of 2026-08-10 (23 tables - leads,
 communications, profiles, transactions, kyc_documents, and so on - see the
 `$tables` list at the top of `backup.php` for the exact set). If a new
 table is added to the CRM later, add its name to that list too - it is a
