@@ -7,6 +7,7 @@ const followUps = read('../supabase/functions/send-follow-ups/index.ts');
 const automation = read('../supabase/functions/fire-automation/index.ts');
 const migration = read('../supabase/migrations/20260814170000_protect_internal_edge_calls.sql');
 const rpcClosureMigration = read('../supabase/migrations/20260815100000_close_automation_rpc_surface.sql');
+const coreFunctionMigration = read('../supabase/migrations/20260815101000_harden_core_function_privileges.sql');
 const retiredNudgeMigration = read('../supabase/migrations/20260814172000_remove_retired_nudge_schedule.sql');
 
 for (const [name, source] of [
@@ -58,6 +59,55 @@ for (const source of [migration, rpcClosureMigration]) {
   }
 }
 assert.doesNotMatch(migration, /[0-9a-f]{64}/, 'The migration must never contain a generated secret value.');
+
+for (const triggerFunction of [
+  'handle_new_user',
+  'audit_leads',
+  'set_updated_at',
+  'set_status_changed_at',
+  'guard_leads_admin_only_columns',
+]) {
+  assert.match(
+    coreFunctionMigration,
+    new RegExp(`REVOKE ALL ON FUNCTION public\\.${triggerFunction}\\(\\) FROM PUBLIC, anon, authenticated;`),
+    `${triggerFunction} must not be callable through the Data API.`,
+  );
+}
+assert.match(
+  coreFunctionMigration,
+  /CREATE OR REPLACE FUNCTION public\.handle_new_user\(\)[\s\S]*?NEW\.email,[\s\S]*?'agent'[\s\S]*?ON CONFLICT/,
+  'New accounts must not be able to select their own authorization role through user metadata.',
+);
+assert.doesNotMatch(
+  coreFunctionMigration,
+  /NEW\.raw_user_meta_data->>'role'/,
+  'User-controlled metadata must never determine a profile role.',
+);
+for (const helperFunction of ['is_admin', 'is_active_staff']) {
+  assert.match(
+    coreFunctionMigration,
+    new RegExp(`REVOKE ALL ON FUNCTION public\\.${helperFunction}\\(\\) FROM PUBLIC, anon;[\\s\\S]*?GRANT EXECUTE ON FUNCTION public\\.${helperFunction}\\(\\) TO authenticated, service_role;`),
+    `${helperFunction} must remain available to authenticated RLS policies but not anonymous RPC clients.`,
+  );
+}
+for (const reportFunction of [
+  'report_agent_performance',
+  'report_source_performance',
+  'report_financial_summary',
+]) {
+  assert.match(
+    coreFunctionMigration,
+    new RegExp(`REVOKE ALL ON FUNCTION public\\.${reportFunction}\\(\\) FROM PUBLIC, anon;`),
+    `${reportFunction} must reject anonymous RPC clients.`,
+  );
+  assert.match(
+    coreFunctionMigration,
+    new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${reportFunction}\\(\\) TO authenticated, service_role;`),
+    `${reportFunction} must remain callable by the signed-in Admin reporting UI.`,
+  );
+}
+assert.doesNotMatch(coreFunctionMigration, /SET search_path = public/, 'Security-sensitive functions must not use a writable search path.');
+
 assert.match(retiredNudgeMigration, /cron\.unschedule\(jobid\)/, 'The retired nudge scheduler must be removed safely by job ID.');
 assert.match(retiredNudgeMigration, /nudge-agents-every-15-min-business-hours/, 'The recurring nudge job must be retired.');
 assert.match(retiredNudgeMigration, /nudge-agents-6pm-pkt-close/, 'The close-of-day nudge job must be retired.');

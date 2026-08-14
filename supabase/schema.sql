@@ -75,21 +75,27 @@ CREATE TABLE IF NOT EXISTS public.settings (
 
 -- ── 6. HELPER: role lookup (SECURITY DEFINER bypasses RLS) ───
 CREATE OR REPLACE FUNCTION public.is_admin()
-RETURNS BOOLEAN LANGUAGE SQL SECURITY DEFINER STABLE AS $$
+RETURNS BOOLEAN LANGUAGE SQL SECURITY DEFINER STABLE SET search_path = '' AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.profiles
     WHERE id = auth.uid() AND role = 'admin'
   );
 $$;
 
+REVOKE ALL ON FUNCTION public.is_admin() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, service_role;
+
 -- ── 7. TRIGGER: keep leads.updated_at current ────────────────
 CREATE OR REPLACE FUNCTION public.set_updated_at()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = '' AS $$
 BEGIN
   NEW.updated_at = NOW();
   RETURN NEW;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.set_updated_at() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.set_updated_at() TO service_role;
 
 DROP TRIGGER IF EXISTS leads_updated_at ON public.leads;
 CREATE TRIGGER leads_updated_at
@@ -97,23 +103,25 @@ CREATE TRIGGER leads_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 -- ── 8. TRIGGER: auto-create profile row on signup ─────────────
--- Default role is 'agent'.  To create an admin account pass:
---   User Metadata → {"full_name": "Badar Tanveer", "role": "admin"}
--- in the Supabase Dashboard "Add User" dialog.
+-- User-controlled metadata is never trusted for authorization. Every new
+-- account starts as an agent. A trusted existing Admin can promote it later.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 BEGIN
   INSERT INTO public.profiles (id, full_name, email, role)
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
     NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'role', 'agent')
+    'agent'
   )
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.handle_new_user() TO service_role;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
@@ -122,7 +130,7 @@ CREATE TRIGGER on_auth_user_created
 
 -- ── 9. TRIGGER: audit log for leads table ────────────────────
 CREATE OR REPLACE FUNCTION public.audit_leads()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
     INSERT INTO public.audit_log (actor_id, table_name, record_id, action, new_data)
@@ -137,6 +145,9 @@ BEGIN
   RETURN NULL;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.audit_leads() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.audit_leads() TO service_role;
 
 DROP TRIGGER IF EXISTS leads_audit ON public.leads;
 CREATE TRIGGER leads_audit
@@ -276,7 +287,7 @@ CREATE TABLE IF NOT EXISTS public.kyc_documents (
 -- lets an agent UPDATE any column of their assigned lead. This trigger
 -- closes that gap for the two admin-only fields.
 CREATE OR REPLACE FUNCTION public.guard_leads_admin_only_columns()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = '' AS $$
 BEGIN
   IF NOT public.is_admin() THEN
     IF NEW.account_balance IS DISTINCT FROM OLD.account_balance
@@ -287,6 +298,9 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.guard_leads_admin_only_columns() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.guard_leads_admin_only_columns() TO service_role;
 
 DROP TRIGGER IF EXISTS leads_guard_admin_columns ON public.leads;
 CREATE TRIGGER leads_guard_admin_columns
@@ -409,7 +423,7 @@ CREATE POLICY "automation_rules: admin only" ON public.automation_rules
 
 CREATE OR REPLACE FUNCTION public.report_agent_performance()
 RETURNS TABLE(agent_id UUID, agent_name TEXT, leads_assigned BIGINT, converted BIGINT)
-LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 BEGIN
   IF NOT public.is_admin() THEN
     RAISE EXCEPTION 'Admin access required';
@@ -428,7 +442,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.report_source_performance()
 RETURNS TABLE(source TEXT, total_leads BIGINT, converted BIGINT)
-LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 BEGIN
   IF NOT public.is_admin() THEN
     RAISE EXCEPTION 'Admin access required';
@@ -445,7 +459,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.report_financial_summary()
 RETURNS TABLE(total_deposits NUMERIC, total_withdrawals NUMERIC, net_aum NUMERIC, verified_clients BIGINT)
-LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
   deposits    NUMERIC;
   withdrawals NUMERIC;
@@ -453,13 +467,22 @@ BEGIN
   IF NOT public.is_admin() THEN
     RAISE EXCEPTION 'Admin access required';
   END IF;
-  SELECT COALESCE(SUM(amount), 0) INTO deposits    FROM public.transactions WHERE type = 'deposit';
-  SELECT COALESCE(SUM(amount), 0) INTO withdrawals FROM public.transactions WHERE type = 'withdrawal';
+  SELECT COALESCE(SUM(t.amount), 0) INTO deposits
+    FROM public.transactions AS t WHERE t.type = 'deposit';
+  SELECT COALESCE(SUM(t.amount), 0) INTO withdrawals
+    FROM public.transactions AS t WHERE t.type = 'withdrawal';
   RETURN QUERY
     SELECT deposits, withdrawals, (deposits - withdrawals),
-           (SELECT COUNT(*) FROM public.leads WHERE kyc_status = 'verified');
+           (SELECT COUNT(*) FROM public.leads AS l WHERE l.kyc_status = 'verified');
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.report_agent_performance() FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.report_source_performance() FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.report_financial_summary() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.report_agent_performance() TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.report_source_performance() TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.report_financial_summary() TO authenticated, service_role;
 
 -- ── PENDING SQL (run these if not already applied) ───────────
 -- 1. Agent suspend column (if table was created before this was added):
@@ -856,7 +879,7 @@ ALTER TABLE public.kyc_documents ADD CONSTRAINT kyc_documents_document_type_chec
 -- Confirmed by reproducing it directly against a real test lead before
 -- this fix, and confirming it succeeds after.
 CREATE OR REPLACE FUNCTION public.guard_leads_admin_only_columns()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = '' AS $$
 BEGIN
   IF NOT public.is_admin() AND auth.role() IS DISTINCT FROM 'service_role' THEN
     IF NEW.account_balance IS DISTINCT FROM OLD.account_balance
@@ -867,6 +890,9 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.guard_leads_admin_only_columns() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.guard_leads_admin_only_columns() TO service_role;
 
 -- ── DONE (Phase 10) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
@@ -976,7 +1002,7 @@ ALTER TABLE public.leads ADD CONSTRAINT leads_manual_tier_check
 -- activity, and suspended staff receive no assigned-lead access.
 CREATE OR REPLACE FUNCTION public.is_active_staff()
 RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
 AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.profiles p
@@ -984,6 +1010,9 @@ AS $$
       AND COALESCE(p.is_suspended, false) = false
   );
 $$;
+
+REVOKE ALL ON FUNCTION public.is_active_staff() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.is_active_staff() TO authenticated, service_role;
 
 CREATE INDEX IF NOT EXISTS leads_assigned_agent_id_idx
   ON public.leads (assigned_agent_id)
@@ -1500,7 +1529,7 @@ UPDATE public.leads
   WHERE status_changed_at IS NULL;
 
 CREATE OR REPLACE FUNCTION public.set_status_changed_at()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = '' AS $$
 BEGIN
   IF TG_OP = 'UPDATE' AND NEW.status IS DISTINCT FROM OLD.status THEN
     NEW.status_changed_at = NOW();
@@ -1508,6 +1537,9 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.set_status_changed_at() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.set_status_changed_at() TO service_role;
 
 -- Separate trigger from leads_updated_at (Phase 1, §7) - both BEFORE UPDATE,
 -- Postgres chains them, safe to add alongside rather than merging the logic.
