@@ -1806,7 +1806,7 @@
           <!-- Keyword Replies (was: Create Flow) -->
           <div class="bm-panel active" id="bm-panel-keyword-replies">
             <div class="info-box">
-              Keyword replies: pick a trigger word and the reply to send. Saving here is real and persists to the database. <strong>It does not change live bot behaviour yet</strong> - the WhatsApp webhook does not read these rules. This is the simplest real version on purpose; a visual drag-and-drop flow builder is a much larger, later phase.
+              Keyword replies: pick a trigger word and the reply to send. Saving here is real and persists to the database. <strong>No customer receives these replies today</strong>, but not because the rules are ignored: the deployed <code>whatsapp-webhook</code> function does read this table on every inbound message, in <code>tryKeywordReply()</code>. What stops it replying is <code>KEYWORD_REPLIES_ENABLED</code>, a code constant in that function, currently false. See the live reply gates table under AI Configuration. <strong>That means every active rule below goes live at once the moment that constant is flipped and the function is redeployed</strong>, so treat this list as copy a real customer will eventually read, and review the whole of it before anyone asks for that switch. Flipping it is a deploy, so it happens only on Muhammad's laptop with him present. This is the simplest real version on purpose; a visual drag-and-drop flow builder is a much larger, later phase.
             </div>
 
             <div class="card">
@@ -1933,7 +1933,7 @@
           <!-- Follow-up Sequences -->
           <div class="bm-panel" id="bm-panel-follow-up-sequences">
             <div class="info-box">
-              A follow-up says: when a lead has sat in a given status for this many hours without moving, send them this message. Saving here is real and persists to the database. <strong>Nothing is sent yet</strong> - no scheduled job reads these rules. Turning them into actual sends is a separate step, and the nudge scheduling questions from July need settling first.
+              A follow-up says: when a lead has sat in a given status for this many hours without moving, send them this message. Saving here is real and persists to the database. <strong>Nothing is sent yet</strong>, and the reason is one switch rather than a missing feature: the <code>send-follow-ups</code> function is built and this project schedules a cron job to call it every 30 minutes during business hours, but <code>FOLLOW_UPS_ENABLED</code> inside that function is false, so each run returns immediately without ever reading these rules. <strong>Flip that constant and every active sequence below starts matching real leads on the very next run</strong>, selected by trigger status, with no further deploy needed to begin sending. Review the whole list as messages real customers will receive before anyone asks for that switch, and flip it only on Muhammad's laptop with him present.
             </div>
 
             <div class="card">
