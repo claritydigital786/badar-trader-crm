@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Free Course Enrollment, Badar Trader</title>
 <link rel="icon" type="image/svg+xml" href="/assets/bull.svg">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" defer></script>
 <style>
   :root { color-scheme: light; }
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -26,6 +27,8 @@
   button:disabled { opacity:0.6; cursor:default; }
   .note { font-size:11px; color:#64748b; margin-top:14px; line-height:1.5; text-align:center; }
   .err { color:#ef6b6b; font-size:12.5px; margin-top:12px; text-align:center; min-height:16px; }
+  .security-check { margin-top:18px; min-height:66px; display:flex; justify-content:center; align-items:center; }
+  .security-status { color:#94a3b8; font-size:12px; text-align:center; }
 </style>
 </head>
 <body>
@@ -60,6 +63,7 @@
       <input id="screenshot" type="file" accept="image/*" required />
       <p class="hint"><strong>Must clearly show:</strong> your Account ID and the deposit amount on your Exness or XM dashboard. Screenshots that don't show this will be rejected on review, please don't upload unrelated photos.</p>
 
+      <div class="security-check" id="turnstile-box"><span class="security-status">Loading security check...</span></div>
       <button type="submit" id="btn">Submit for Verification</button>
       <div class="err" id="err"></div>
     </form>
@@ -72,6 +76,39 @@
   var f = document.getElementById('f');
   var btn = document.getElementById('btn');
   var err = document.getElementById('err');
+  var turnstileWidgetId = null;
+
+  function renderSecurityCheck(siteKey, attempt) {
+    if (window.turnstile && typeof window.turnstile.render === 'function') {
+      document.getElementById('turnstile-box').textContent = '';
+      turnstileWidgetId = window.turnstile.render('#turnstile-box', {
+        sitekey: siteKey,
+        action: 'lead_form',
+        theme: 'dark',
+      });
+      return;
+    }
+    if (attempt >= 50) {
+      err.textContent = 'Security check could not load. Please refresh the page.';
+      return;
+    }
+    setTimeout(function () { renderSecurityCheck(siteKey, attempt + 1); }, 100);
+  }
+
+  function resetSecurityCheck() {
+    if (window.turnstile && turnstileWidgetId !== null) window.turnstile.reset(turnstileWidgetId);
+  }
+
+  fetch(ENDPOINT)
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok || !d.turnstile_site_key) throw new Error(d.error || 'Security check is not configured.');
+      renderSecurityCheck(d.turnstile_site_key, 0);
+    })
+    .catch(function (e) {
+      document.getElementById('turnstile-box').innerHTML = '<span class="security-status">Security check unavailable.</span>';
+      err.textContent = e.message || 'Security check could not load. Please refresh the page.';
+    });
 
   f.addEventListener('submit', function (e) {
     e.preventDefault();
@@ -84,11 +121,15 @@
     var brokerId  = document.getElementById('broker_id').value.trim();
     var fileInput = document.getElementById('screenshot');
     var file      = fileInput.files[0];
+    var turnstileToken = window.turnstile && turnstileWidgetId !== null
+      ? window.turnstile.getResponse(turnstileWidgetId)
+      : '';
 
     if (!firstName || !email || !phone || !brokerId) { err.textContent = 'Please fill all required fields.'; return; }
     if (!file) { err.textContent = 'Please upload your deposit screenshot.'; return; }
     if (!/^image\//.test(file.type)) { err.textContent = 'Screenshot must be an image file (JPG, PNG, etc).'; return; }
     if (file.size > MAX_BYTES) { err.textContent = 'Screenshot file is too large (max 10MB).'; return; }
+    if (!turnstileToken) { err.textContent = 'Please complete the security check.'; return; }
 
     btn.disabled = true; btn.textContent = 'Submitting…';
 
@@ -100,16 +141,18 @@
     fd.append('phone', phone);
     fd.append('broker_id', brokerId);
     fd.append('screenshot', file);
+    fd.append('turnstile_token', turnstileToken);
 
     fetch(ENDPOINT, { method: 'POST', body: fd })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (!d.ok) { err.textContent = d.error || 'Something went wrong, please try again.'; btn.disabled = false; btn.textContent = 'Submit for Verification'; return; }
+        if (!d.ok) { err.textContent = d.error || 'Something went wrong, please try again.'; btn.disabled = false; btn.textContent = 'Submit for Verification'; resetSecurityCheck(); return; }
         location.href = 'thankyou.html?src=form&form_type=course';
       })
       .catch(function () {
         err.textContent = 'Network error, please try again or contact us on WhatsApp.';
         btn.disabled = false; btn.textContent = 'Submit for Verification';
+        resetSecurityCheck();
       });
   });
 })();

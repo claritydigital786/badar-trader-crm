@@ -120,6 +120,64 @@ assert.match(
   /onclick="adminTab\('bot-manager'\)"[\s\S]*Manage automation and AI/,
   'The consolidated Bot Manager shortcut must open Bot Manager directly and describe its full scope.',
 );
+assert.match(
+  dashboardQuickTiles.join('\n'),
+  /onclick="adminTab\('meta'\)"[\s\S]*<h4>Meta Integration<\/h4>[\s\S]*Review WhatsApp and Meta setup/,
+  'The Meta shortcut must describe its real integration destination instead of promising a channel-connection wizard.',
+);
+assert.doesNotMatch(
+  dashboardQuickTiles.join('\n'),
+  /Connect Channel|Add new channel/,
+  'The dashboard must not advertise an unbuilt add-channel workflow.',
+);
+assert.match(
+  html,
+  /The deployed WhatsApp webhook reads these rules[\s\S]*KEYWORD_REPLIES_ENABLED[\s\S]*currently <code>false<\/code>/,
+  'Bot Manager must report the deployed keyword integration and its disabled live-send gate accurately.',
+);
+assert.match(
+  html,
+  /production database currently has no cron job[\s\S]*FOLLOW_UPS_ENABLED[\s\S]*<code>false<\/code>/,
+  'Follow-up Sequences must state both verified production gates.',
+);
+assert.doesNotMatch(
+  html,
+  /no scheduled job reads (?:these rules|this table)/i,
+  'Follow-up copy must not claim the built sender is missing.',
+);
+assert.match(
+  html,
+  /The deployed webhook can read the active campaign[\s\S]*AI_REPLIES_ENABLED[\s\S]*remains off/,
+  'The Guide must report the deployed AI integration and its disabled live-send gate accurately.',
+);
+assert.doesNotMatch(
+  html,
+  /WhatsApp webhook does not read these rules|bot does not read them yet|bot does not act on them yet/,
+  'Released webhook integrations must not be described as unwired.',
+);
+for (const [panel, destination] of [
+  ['appointment-booking', 'appointments'],
+  ['set-webhook', 'meta'],
+  ['set-shared-inbox', 'user-permission'],
+]) {
+  assert.match(
+    html,
+    new RegExp(`['"]${panel}['"]\\s*:\\s*\\{[\\s\\S]{0,700}['"]${destination}['"]`),
+    `Bot Manager ${panel} must route to its working CRM destination instead of looking unfinished.`,
+  );
+}
+assert.match(
+  html,
+  /BM_AVAILABLE_ELSEWHERE[\s\S]*Available in CRM[\s\S]*Object\.entries\(BM_PLACEHOLDERS\)/,
+  'Bot Manager must distinguish working features located elsewhere from genuinely unfinished modules.',
+);
+for (const panel of ['store-automation', 'product-catalog']) {
+  assert.match(
+    html,
+    new RegExp(`['"]${panel}['"]\\s*:\\s*\\{[\\s\\S]{0,500}Not planned for Badar Trader`),
+    `Bot Manager ${panel} must be classified as out of scope for this business, not as an unexplained missing feature.`,
+  );
+}
 
 for (const label of ['Message info', 'Reply', 'Copy', 'React', 'Forward', 'Pin', 'Star', 'Add text to note', 'Delete']) {
   assert.match(html, new RegExp(`>${label}<|['"]${label}['"]`), `The message menu must include ${label}.`);

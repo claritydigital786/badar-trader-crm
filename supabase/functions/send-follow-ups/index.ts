@@ -10,9 +10,11 @@
 // Deploy: supabase functions deploy send-follow-ups --no-verify-jwt
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyInternalRequest } from "../_shared/internal_auth.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const INTERNAL_FUNCTION_SECRET = Deno.env.get("INTERNAL_FUNCTION_SECRET") ?? "";
 const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN") ?? "";
 const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? "";
 const GRAPH_VERSION = "v21.0";
@@ -60,7 +62,15 @@ async function sendWhatsAppText(token: string, phoneId: string, to: string, body
   }
 }
 
-Deno.serve(async (): Promise<Response> => {
+Deno.serve(async (req: Request): Promise<Response> => {
+  if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
+  const auth = verifyInternalRequest(req, INTERNAL_FUNCTION_SECRET);
+  if (!auth.authorized) {
+    return new Response(JSON.stringify({ ok: false, error: auth.reason }), {
+      status: auth.status,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   if (!FOLLOW_UPS_ENABLED) {
     return new Response(JSON.stringify({ ok: true, enabled: false, message: "FOLLOW_UPS_ENABLED is false, no-op" }), {
       headers: { "Content-Type": "application/json" },

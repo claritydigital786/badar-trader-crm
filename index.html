@@ -1398,7 +1398,7 @@
       </div>
       <div class="quick-tile" onclick="adminTab('meta')">
         <span class="quick-tile-icon" style="background:var(--tint-danger-bg)">🔗</span>
-        <div><h4>Connect Channel</h4><p>Add new channel</p></div>
+        <div><h4>Meta Integration</h4><p>Review WhatsApp and Meta setup</p></div>
       </div>
     </div>
     <div class="stat-grid">
@@ -1746,7 +1746,7 @@
   <div id="admin-tab-bot-manager" class="tab-content">
     <h3>Bot Manager</h3>
     <div class="info-box">
-      Everything that shapes what the bot says now lives here, grouped the way WhatChimp groups it: pick a bot on the left, then work through Automation, Data Collection, AI, Engagement, Commerce and Integrations. Sections backed by a real feature in this CRM are marked <strong>Built</strong> and save to the database. The rest are marked <strong>Not built yet</strong> and say what they would need, rather than showing an empty screen that looks broken.
+      Everything that shapes what the bot says now lives here, grouped the way WhatChimp groups it: pick a bot on the left, then work through Automation, Data Collection, AI, Engagement, Commerce and Integrations. Sections backed by a real feature in this CRM are marked <strong>Built</strong> and save to the database. Existing CRM destinations are marked <strong>Available in CRM</strong>. Genuine gaps are marked <strong>Not built yet</strong>, while features that do not fit Badar Trader are marked <strong>Not planned</strong> instead of being left as confusing empty screens.
     </div>
 
     <div class="bm-layout">
@@ -1806,7 +1806,7 @@
           <!-- Keyword Replies (was: Create Flow) -->
           <div class="bm-panel active" id="bm-panel-keyword-replies">
             <div class="info-box">
-              Keyword replies: pick a trigger word and the reply to send. Saving here is real and persists to the database. <strong>No customer receives these replies today</strong>, but not because the rules are ignored: the deployed <code>whatsapp-webhook</code> function does read this table on every inbound message, in <code>tryKeywordReply()</code>. What stops it replying is <code>KEYWORD_REPLIES_ENABLED</code>, a code constant in that function, currently false. See the live reply gates table under AI Configuration. <strong>That means every active rule below goes live at once the moment that constant is flipped and the function is redeployed</strong>, so treat this list as copy a real customer will eventually read, and review the whole of it before anyone asks for that switch. Flipping it is a deploy, so it happens only on Muhammad's laptop with him present. This is the simplest real version on purpose; a visual drag-and-drop flow builder is a much larger, later phase.
+              Keyword replies: pick a trigger word and the reply to send. Saving here is real and persists to the database. <strong>The deployed WhatsApp webhook reads these rules, but live keyword replies are paused.</strong> <code>KEYWORD_REPLIES_ENABLED</code> is currently <code>false</code>, so testing or saving a rule here cannot message a customer. Changing that gate requires a reviewed function edit and redeploy, and every active rule would become eligible together. Review the complete list before requesting that change. This is the simplest real version on purpose; a visual drag-and-drop flow builder is a much larger, later phase.
             </div>
 
             <div class="card">
@@ -1933,7 +1933,7 @@
           <!-- Follow-up Sequences -->
           <div class="bm-panel" id="bm-panel-follow-up-sequences">
             <div class="info-box">
-              A follow-up says: when a lead has sat in a given status for this many hours without moving, send them this message. Saving here is real and persists to the database. <strong>Nothing is sent yet</strong>, and the reason is one switch rather than a missing feature: the <code>send-follow-ups</code> function is built and this project schedules a cron job to call it every 30 minutes during business hours, but <code>FOLLOW_UPS_ENABLED</code> inside that function is false, so each run returns immediately without ever reading these rules. <strong>Flip that constant and every active sequence below starts matching real leads on the very next run</strong>, selected by trigger status, with no further deploy needed to begin sending. Review the whole list as messages real customers will receive before anyone asks for that switch, and flip it only on Muhammad's laptop with him present.
+              A follow-up says: when a lead has sat in a given status for this many hours without moving, send them this message. Saving here is real and persists to the database. <strong>Nothing is sent today.</strong> The sender function exists and the repository contains a prepared scheduler definition, but the production database currently has no cron job, and <code>FOLLOW_UPS_ENABLED</code> is also <code>false</code>. Real sending therefore requires two separately reviewed changes: install and activate the intended schedule, then change and redeploy the function gate. Review every active sequence and its audience before requesting either change.
             </div>
 
             <div class="card">
@@ -2694,15 +2694,15 @@
     </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Create Flow</p>
-      <p style="color:#475569;font-size:0.88rem">A simple automation builder: set a trigger keyword and the reply to send. Create, edit, pause and delete rules here; they save to the database for real. Note the bot does not act on them yet, that wiring is a separate step.</p>
+      <p style="color:#475569;font-size:0.88rem">A simple automation builder: set a trigger keyword and the reply to send. Create, edit, pause and delete rules here; they save to the database for real. The deployed webhook reads active rules, but <code>KEYWORD_REPLIES_ENABLED</code> remains off, so no customer reply is sent.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Bot Manager</p>
-      <p style="color:#475569;font-size:0.88rem">Where the bot's system prompt and knowledge notes are managed per number. Create, edit, pause and delete training campaigns here; they save to the database for real. Same caveat as Create Flow: the bot does not read them yet.</p>
+      <p style="color:#475569;font-size:0.88rem">Where the bot's system prompt and knowledge notes are managed per number. Create, edit, pause and delete training campaigns here; they save to the database for real. The deployed webhook can read the active campaign, but <code>AI_REPLIES_ENABLED</code> remains off, so it cannot answer a customer.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Follow-ups</p>
-      <p style="color:#475569;font-size:0.88rem">Rules for nudging leads that go quiet: when a lead has sat in a given status for this many hours without moving, send this message. Create, edit, pause and delete them here; they save for real. Nothing sends them yet, no scheduled job reads this table.</p>
+      <p style="color:#475569;font-size:0.88rem">Rules for nudging leads that go quiet: when a lead has sat in a given status for this many hours without moving, send this message. Create, edit, pause and delete them here; they save for real. The sender is built, but production currently has no cron job and <code>FOLLOW_UPS_ENABLED</code> remains off, so nothing is sent.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Message Templates</p>
@@ -3994,6 +3994,41 @@ const _DEMO_AGENTS = [
   { id:'ag1', agent_name:'Team Badar Support Agent', kb_id:'akb1', system_prompt:'You are the Team Badar assistant. Keep replies short and never promise returns.', is_active:false },
 ];
 
+// Some WhatChimp-style slots already have a complete equivalent elsewhere in
+// this CRM. Present those as working routes instead of incorrectly labelling
+// them "Not built yet" or duplicating the same feature in two places.
+const BM_AVAILABLE_ELSEWHERE = {
+  'appointment-booking': {
+    title: 'Appointment Booking',
+    summary: 'Create, assign, reschedule and track callbacks in the CRM calendar.',
+    location: 'Available in Appointments.',
+    actions: [['Open Appointments', 'appointments']],
+  },
+  'set-webhook': {
+    title: 'Webhook',
+    summary: 'Review the inbound webhook URL, verification token and WhatsApp connection reference.',
+    location: 'Available in Meta Integration.',
+    actions: [['Open Meta Integration', 'meta']],
+  },
+  'set-shared-inbox': {
+    title: 'Shared Inbox',
+    summary: 'Control who can access conversations through staff roles and assigned-lead policies.',
+    location: 'Available in User Permission and User Manager.',
+    actions: [['Review Permissions', 'user-permission'], ['Manage Team', 'user-manager']],
+  },
+};
+
+const BM_NOT_PLANNED = {
+  'store-automation': {
+    title: 'Store Automation',
+    reason: 'Not planned for Badar Trader. Shopify and WooCommerce order events do not belong to the current trading education and lead-management workflow.',
+  },
+  'product-catalog': {
+    title: 'Product Catalog',
+    reason: 'Not planned for Badar Trader. The business currently offers trading onboarding, courses and signal-group access rather than WhatsApp catalog ordering.',
+  },
+};
+
 // What WhatChimp does in each slot we have not built here yet, and what it
 // would actually take. Keeping this as data rather than markup so the copy
 // stays in one place and every placeholder reads the same way.
@@ -4004,22 +4039,48 @@ const BM_PLACEHOLDERS = {
   'webhook-workflows':   ['Webhook Workflows', 'Chains a webhook trigger into a sequence of steps.', 'This CRM already receives webhooks in the whatsapp-webhook function. A workflow builder on top of it is a much larger phase, same category as a visual flow builder.'],
   'user-input-flows':    ['User Input Flows', 'A scripted question-and-answer sequence that collects fields from a customer, one question at a time.', 'The deployed webhook already walks leads through a scripted capture flow in code. Making that editable from this screen means moving the script into a table first, which changes live bot behaviour and needs Muhammad present.'],
   'whatsapp-flows':      ['WhatsApp Flows', 'Meta\'s own native form product, rendered inside WhatsApp rather than as chat messages.', 'Needs Flows to be created and approved in WhatsApp Manager first, then referenced by id. Nothing can be built here until that approval exists.'],
-  'appointment-booking': ['Appointment Booking', 'Lets the bot book a slot directly into the calendar during a conversation.', 'This CRM already has a real Appointments tab with its own table. This slot would connect the bot to it. The Appointments tab in the sidebar is the working version today.'],
   'chat-entry':          ['Chat Entry', 'Generates a chat widget link and embed code so a website visitor can start a WhatsApp conversation.', 'Needs a public embed snippet and a landing route. The Sites tab already hosts this CRM\'s public pages, so that is where it would live.'],
-  'store-automation':    ['Store Automation', 'WooCommerce and Shopify order automations: abandoned cart, order confirmation, shipping updates.', 'Badar\'s business is trading education, not e-commerce. Listed for completeness against WhatChimp, not currently a real need.'],
-  'product-catalog':     ['Product Catalog', 'A product catalog and catalog orders inside WhatsApp.', 'Same as Store Automation: no e-commerce catalog in this business today.'],
   'http-api':            ['HTTP API', 'Outbound HTTP calls that flows and automations can trigger.', 'Needs an APIs table plus a caller in the webhook. Straightforward to build once there is a real use for it.'],
   'google-sheets':       ['Google Sheets', 'Pushes captured lead data into a spreadsheet, or reads live data from one at reply time.', 'Needs a Google service account. Worth weighing against the fact that this CRM is itself the database Sheets would be duplicating.'],
   'autoresponder':       ['Autoresponder', 'Sends an automatic acknowledgement outside business hours or when no agent picks up.', 'Depends on Business Hour settings below, which are also not built. Both are real gaps worth closing together.'],
   'int-email':           ['Email', 'Email delivery for notifications and sequences.', 'Needs an email provider such as Resend or SES and a sender domain. Nothing in this CRM sends email today.'],
   'int-sms':             ['SMS', 'SMS fallback when WhatsApp delivery fails.', 'Needs an SMS provider and per-message billing. Not currently budgeted.'],
   'set-general':         ['General', 'Chat-with-human email, no-match reply, get-started message, and whether the bot replies while an agent is on the mobile app.', 'The no-match and get-started behaviour lives in the deployed webhook as code today. Making it editable here means moving that copy into the settings table, which changes what real customers receive.'],
-  'set-webhook':         ['Webhook', 'The inbound webhook URL and verify token for this number.', 'This CRM already has these, in the Meta Integration tab, which is the working version. This slot exists to mirror WhatChimp\'s layout.'],
   'set-business-hour':   ['Business Hour', 'Opening hours per day, used to decide when the autoresponder speaks instead of an agent.', 'Needs an hours table plus a timezone. Pairs with Autoresponder above.'],
-  'set-shared-inbox':    ['Shared Inbox', 'Which agents can see which conversations.', 'This CRM already enforces this through RLS and the agent role. User Permission and User Manager are the working versions today.'],
 };
 
 function renderBmPlaceholders() {
+  Object.entries(BM_AVAILABLE_ELSEWHERE).forEach(([id, feature]) => {
+    const el = document.getElementById('bm-panel-' + id);
+    if (!el || el.dataset.filled) return;
+    el.dataset.filled = '1';
+    const actions = feature.actions.map(([label, tab]) =>
+      `<button class="btn btn-secondary btn-sm" type="button" onclick="adminTab('${tab}')">${esc(label)}</button>`
+    ).join('');
+    el.innerHTML = `
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+          <h4 style="margin:0">${esc(feature.title)}</h4>
+          <span class="bm-status-pill on">Available in CRM</span>
+        </div>
+        <p style="color:#64748b;font-size:0.85rem;margin-bottom:8px">${esc(feature.summary)}</p>
+        <p style="color:#475569;font-size:0.82rem;margin:0 0 14px">${esc(feature.location)}</p>
+        <div class="form-actions">${actions}</div>
+      </div>`;
+  });
+  Object.entries(BM_NOT_PLANNED).forEach(([id, feature]) => {
+    const el = document.getElementById('bm-panel-' + id);
+    if (!el || el.dataset.filled) return;
+    el.dataset.filled = '1';
+    el.innerHTML = `
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+          <h4 style="margin:0">${esc(feature.title)}</h4>
+          <span class="bm-status-pill off">Not planned</span>
+        </div>
+        <p style="color:#64748b;font-size:0.85rem;margin:0">${esc(feature.reason)}</p>
+      </div>`;
+  });
   Object.entries(BM_PLACEHOLDERS).forEach(([id, [title, what, needs]]) => {
     const el = document.getElementById('bm-panel-' + id);
     if (!el || el.dataset.filled) return;
@@ -6718,8 +6779,8 @@ async function deleteTemplate(id) {
 }
 
 // ── FOLLOW-UPS (follow_up_sequences) ──────────────────────────
-// Storage + UI only. No scheduled job reads this table, so saving a
-// rule here does not send anything to anyone yet.
+// Rules persist for the built send-follow-ups function. Production currently
+// has no cron job and FOLLOW_UPS_ENABLED is false, so saving a rule cannot send.
 const FUS_STATUS_LABELS = {
   new:'New', contacted:'Contacted', qualified:'Qualified', proposal_sent:'Proposal Sent',
   pending_approval:'Pending Approval', converted:'Converted', lost:'Lost'

@@ -227,7 +227,6 @@ CREATE POLICY "settings: admin only" ON public.settings
 -- in Authentication → Users (if you don't pass role in metadata).
 -- ═════════════════════════════════════════════════════════════
 
-
 -- ============================================================
 -- Badar Trader CRM - Phase 2 Schema (Financial Ledger + KYC)
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
@@ -575,49 +574,19 @@ ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS agent_last_pinged_at TIMESTAMP
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS agent_acknowledged_at TIMESTAMPTZ;
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS agent_escalated BOOLEAN NOT NULL DEFAULT false;
 
--- ── 23. Cron: fire nudge-agents every 15 minutes, 9am-6pm PKT ───
--- nudge-agents is deployed with --no-verify-jwt (same as whatsapp-webhook),
--- so this plain POST needs no auth header. cron.schedule upserts by job
--- name, so this is safe to re-run.
---
--- pg_cron runs in UTC. PKT is UTC+5 (no DST), so 9:00am-6:00pm PKT is
--- 4:00am-1:00pm UTC. Two jobs: one every 15 min across 4:00-12:45 UTC
--- (9:00am-5:45pm PKT), plus a single tick at exactly 13:00 UTC (6:00pm
--- PKT) so the window's closing edge is covered without running into 6:15pm+.
---
--- IMPORTANT: this job name was previously 'nudge-agents-every-5-min'. If
--- you're re-running this against a project that still has that old job
--- (or any other rogue nudge-agents cron entries - check with
--- `SELECT jobname FROM cron.job;`), unschedule it explicitly first:
---   SELECT cron.unschedule('nudge-agents-every-5-min');
+-- ── 23. Retired agent-nudge scheduler ───────────────────────────
+-- Muhammad decided that agent nudges are no longer part of this CRM. Remove
+-- every known legacy schedule. nudge-agents also retains a disabled-by-default
+-- function gate as defense in depth.
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS pg_net;
 
-SELECT cron.unschedule('nudge-agents-every-5-min')
-WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'nudge-agents-every-5-min');
-
-SELECT cron.schedule(
+SELECT cron.unschedule(jobid)
+FROM cron.job
+WHERE jobname IN (
+  'nudge-agents-every-5-min',
   'nudge-agents-every-15-min-business-hours',
-  '*/15 4-12 * * *',
-  $$
-  SELECT net.http_post(
-    url     := 'https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/nudge-agents',
-    headers := '{"Content-Type": "application/json"}'::jsonb,
-    body    := '{}'::jsonb
-  );
-  $$
-);
-
-SELECT cron.schedule(
-  'nudge-agents-6pm-pkt-close',
-  '0 13 * * *',
-  $$
-  SELECT net.http_post(
-    url     := 'https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/nudge-agents',
-    headers := '{"Content-Type": "application/json"}'::jsonb,
-    body    := '{}'::jsonb
-  );
-  $$
+  'nudge-agents-6pm-pkt-close'
 );
 
 -- ── Cron: fire send-follow-ups every 30 minutes, 9am-6pm PKT (Phase 24) ──
@@ -629,10 +598,18 @@ SELECT cron.schedule(
   '*/30 4-12 * * *',
   $$
   SELECT net.http_post(
-    url     := 'https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/send-follow-ups',
-    headers := '{"Content-Type": "application/json"}'::jsonb,
+    url     := rtrim((SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'project_url' LIMIT 1), '/') || '/functions/v1/send-follow-ups',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-internal-function-secret', COALESCE(
+        (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'internal_function_secret' LIMIT 1),
+        ''
+      )
+    ),
     body    := '{}'::jsonb
-  );
+  )
+  WHERE EXISTS (SELECT 1 FROM vault.decrypted_secrets WHERE name = 'project_url')
+    AND EXISTS (SELECT 1 FROM vault.decrypted_secrets WHERE name = 'internal_function_secret');
   $$
 );
 
@@ -743,15 +720,41 @@ ALTER TABLE public.automation_rules ALTER COLUMN template_body DROP NOT NULL;
 ALTER TABLE public.automation_rules ADD COLUMN IF NOT EXISTS condition_filter TEXT;
 
 CREATE OR REPLACE FUNCTION public.fire_automation_event(p_trigger_event TEXT, p_lead_id UUID)
-RETURNS VOID LANGUAGE plpgsql AS $$
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_project_url TEXT;
+  v_internal_secret TEXT;
 BEGIN
+  IF pg_trigger_depth() = 0 THEN
+    RAISE EXCEPTION 'fire_automation_event may only run from a database trigger';
+  END IF;
+
+  SELECT decrypted_secret INTO v_project_url
+  FROM vault.decrypted_secrets WHERE name = 'project_url' LIMIT 1;
+  SELECT decrypted_secret INTO v_internal_secret
+  FROM vault.decrypted_secrets WHERE name = 'internal_function_secret' LIMIT 1;
+  IF NULLIF(v_project_url, '') IS NULL OR NULLIF(v_internal_secret, '') IS NULL THEN
+    RAISE WARNING 'fire_automation_event skipped because project_url or internal_function_secret is absent from Vault';
+    RETURN;
+  END IF;
+
   PERFORM net.http_post(
-    url     := 'https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/fire-automation',
-    headers := '{"Content-Type": "application/json"}'::jsonb,
+    url     := rtrim(v_project_url, '/') || '/functions/v1/fire-automation',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-internal-function-secret', v_internal_secret
+    ),
     body    := jsonb_build_object('trigger_event', p_trigger_event, 'lead_id', p_lead_id)
   );
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.fire_automation_event(TEXT, UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.fire_automation_event(TEXT, UUID) TO authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.trg_leads_created()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
@@ -1903,4 +1906,85 @@ COMMENT ON TABLE public.communication_message_actions IS
   'Per-user CRM preferences for WhatsApp communication rows; does not delete or mutate messages at Meta.';
 
 -- DONE (Phase 31)
+-- =============================================================
+
+-- =============================================================
+-- Phase 32 - Public-form abuse protection (2026-08-14)
+-- Mirrors migration 20260814171000_public_form_rate_limits.sql.
+-- =============================================================
+
+CREATE TABLE IF NOT EXISTS public.public_form_rate_limits (
+  key_hash TEXT PRIMARY KEY,
+  window_started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  submission_count INTEGER NOT NULL DEFAULT 1 CHECK (submission_count > 0),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS public_form_rate_limits_updated_at_idx
+ON public.public_form_rate_limits (updated_at);
+
+ALTER TABLE public.public_form_rate_limits ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.public_form_rate_limits FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.consume_public_form_rate_limit(
+  p_key_hash TEXT,
+  p_limit INTEGER,
+  p_window_seconds INTEGER
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_now TIMESTAMPTZ := clock_timestamp();
+  v_window_started_at TIMESTAMPTZ;
+  v_submission_count INTEGER;
+BEGIN
+  IF p_key_hash IS NULL OR length(p_key_hash) <> 64 THEN
+    RAISE EXCEPTION 'p_key_hash must be a SHA-256 hex digest';
+  END IF;
+  IF p_limit < 1 OR p_window_seconds < 1 THEN
+    RAISE EXCEPTION 'rate limit and window must be positive';
+  END IF;
+
+  DELETE FROM public.public_form_rate_limits
+  WHERE updated_at < v_now - make_interval(secs => GREATEST(p_window_seconds * 4, 86400));
+
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_key_hash, 0));
+
+  SELECT window_started_at, submission_count
+  INTO v_window_started_at, v_submission_count
+  FROM public.public_form_rate_limits
+  WHERE key_hash = p_key_hash
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    INSERT INTO public.public_form_rate_limits (key_hash, window_started_at, submission_count, updated_at)
+    VALUES (p_key_hash, v_now, 1, v_now);
+    RETURN true;
+  END IF;
+
+  IF v_window_started_at <= v_now - make_interval(secs => p_window_seconds) THEN
+    UPDATE public.public_form_rate_limits
+    SET window_started_at = v_now, submission_count = 1, updated_at = v_now
+    WHERE key_hash = p_key_hash;
+    RETURN true;
+  END IF;
+
+  IF v_submission_count >= p_limit THEN
+    RETURN false;
+  END IF;
+
+  UPDATE public.public_form_rate_limits
+  SET submission_count = submission_count + 1, updated_at = v_now
+  WHERE key_hash = p_key_hash;
+  RETURN true;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.consume_public_form_rate_limit(TEXT, INTEGER, INTEGER) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.consume_public_form_rate_limit(TEXT, INTEGER, INTEGER) TO service_role;
+
+-- DONE (Phase 32)
 -- =============================================================
