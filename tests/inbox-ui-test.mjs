@@ -151,6 +151,11 @@ assert.match(
 );
 assert.match(
   messageActionsMigration,
+  /REVOKE ALL ON public\.communication_message_actions FROM anon, authenticated/,
+  'The new table must explicitly remove legacy anonymous Data API privileges.',
+);
+assert.match(
+  messageActionsMigration,
   /GRANT SELECT, INSERT, UPDATE, DELETE[\s\S]*TO authenticated/,
   'The new table must be explicitly exposed to authenticated Data API clients.',
 );

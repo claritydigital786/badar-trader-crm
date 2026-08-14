@@ -76,6 +76,9 @@ CREATE POLICY "message actions: owner delete accessible message"
 
 -- New projects no longer expose public-schema tables to the Data API by
 -- default. Grant authenticated explicitly; RLS above remains the row gate.
+-- Revoke first because projects with legacy default privileges can otherwise
+-- grant anon access automatically when the table is created.
+REVOKE ALL ON public.communication_message_actions FROM anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE
   ON public.communication_message_actions TO authenticated;
 
