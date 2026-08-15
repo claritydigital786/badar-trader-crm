@@ -1386,7 +1386,7 @@
     <div class="quick-tile-row">
       <div class="quick-tile" onclick="adminTab('signal-broadcast')">
         <span class="quick-tile-icon" style="background:var(--tint-sky-bg)">📣</span>
-        <div><h4>New Broadcast</h4><p>Send to your audience</p></div>
+        <div><h4>Broadcast Review</h4><p>Parked · sending disabled</p></div>
       </div>
       <div class="quick-tile" onclick="adminTab('conversations')">
         <span class="quick-tile-icon" style="background:var(--tint-success-bg)">📥</span>
@@ -1398,7 +1398,7 @@
       </div>
       <div class="quick-tile" onclick="adminTab('meta')">
         <span class="quick-tile-icon" style="background:var(--tint-danger-bg)">🔗</span>
-        <div><h4>Connect Channel</h4><p>Add new channel</p></div>
+        <div><h4>Meta Integration</h4><p>Review WhatsApp and Meta setup</p></div>
       </div>
     </div>
     <div class="stat-grid">
@@ -1933,7 +1933,7 @@
           <!-- Follow-up Sequences -->
           <div class="bm-panel" id="bm-panel-follow-up-sequences">
             <div class="info-box">
-              A follow-up says: when a lead has sat in a given status for this many hours without moving, send them this message. Saving here is real and persists to the database. <strong>Nothing is sent yet</strong>, and the reason is one switch rather than a missing feature: the <code>send-follow-ups</code> function is built and this project schedules a cron job to call it every 30 minutes during business hours, but <code>FOLLOW_UPS_ENABLED</code> inside that function is false, so each run returns immediately without ever reading these rules. <strong>Flip that constant and every active sequence below starts matching real leads on the very next run</strong>, selected by trigger status, with no further deploy needed to begin sending. Review the whole list as messages real customers will receive before anyone asks for that switch, and flip it only on Muhammad's laptop with him present.
+              A follow-up says: when a lead has sat in a given status for this many hours without moving, send them this message. Saving here is real and persists to the database. <strong>Nothing is sent today.</strong> The sender function exists and the repository contains a prepared scheduler definition, but the production database currently has no cron job, and <code>FOLLOW_UPS_ENABLED</code> is also <code>false</code>. Real sending therefore requires two separately reviewed changes: install and activate the intended schedule, then change and redeploy the function gate. Review every active sequence and its audience before requesting either change.
             </div>
 
             <div class="card">
