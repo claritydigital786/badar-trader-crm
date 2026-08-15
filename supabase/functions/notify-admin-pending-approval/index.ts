@@ -70,9 +70,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error: "Not signed in" }, 401);
   }
 
+  const contentLength = Number(req.headers.get("content-length") ?? "0");
+  if (Number.isFinite(contentLength) && contentLength > 2048) {
+    return json({ ok: false, error: "Request body is too large" }, 413);
+  }
+
   let leadId = "";
   try {
-    const body = await req.json();
+    const rawBody = await req.text();
+    if (rawBody.length > 2048) {
+      return json({ ok: false, error: "Request body is too large" }, 413);
+    }
+    const body = JSON.parse(rawBody);
     leadId = String(body?.lead_id ?? "").trim();
   } catch {
     return json({ ok: false, error: "Invalid request body" }, 400);
@@ -93,7 +102,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error: "Lead not found" }, 404);
   }
 
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = profile?.role === "admin" && !profile?.is_suspended;
   const isAssignedAgent = profile?.role === "agent" && !profile?.is_suspended
     && lead.assigned_agent_id === user.id;
   if (!isAdmin && !isAssignedAgent) {
@@ -138,7 +147,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       })
       .eq("lead_id", leadId)
       .eq("status_changed_at", statusChangedAt)
-      .neq("state", "sent")
+      .eq("state", existing?.state ?? "")
+      .eq("claimed_at", existing?.claimed_at ?? "")
       .select("lead_id")
       .maybeSingle();
     if (reclaimError || !reclaimed) {
@@ -182,12 +192,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const payload = await response.json().catch(() => ({}));
       const error = payload?.error?.message || `WhatsApp API error ${response.status}`;
       await markFailed(sb, leadId, statusChangedAt, error);
-      return json({ ok: false, error }, 502);
+      console.error("Admin pending-approval notification failed:", error);
+      return json({ ok: false, error: "Admin notification could not be sent" }, 502);
     }
   } catch (error) {
     const message = safeError(error);
     await markFailed(sb, leadId, statusChangedAt, message);
-    return json({ ok: false, error: message }, 502);
+    console.error("Admin pending-approval notification failed:", message);
+    return json({ ok: false, error: "Admin notification could not be sent" }, 502);
   }
 
   const { error: sentError } = await sb.from("pending_approval_notifications")

@@ -59,6 +59,16 @@ for (const source of [schema, migration]) {
 assert.match(notificationFunction, /authClient\.auth\.getUser\(\)/, 'The notification function must validate the caller JWT.');
 assert.match(
   notificationFunction,
+  /contentLength > 2048[\s\S]{0,250}rawBody\.length > 2048/,
+  'The authenticated endpoint must still cap its request body before parsing.',
+);
+assert.match(
+  notificationFunction,
+  /profile\?\.role === "admin" && !profile\?\.is_suspended/,
+  'A suspended Admin must not be allowed to send a pending-approval alert.',
+);
+assert.match(
+  notificationFunction,
   /isAssignedAgent[\s\S]{0,180}lead\.assigned_agent_id === user\.id/,
   'An Agent may notify only for an assigned lead.',
 );
@@ -76,6 +86,16 @@ assert.match(
   notificationFunction,
   /existing\?\.state === "sent"[\s\S]{0,120}already_notified: true/,
   'A completed notification must be deduplicated.',
+);
+assert.match(
+  notificationFunction,
+  /\.eq\("state", existing\?\.state[\s\S]{0,160}\.eq\("claimed_at", existing\?\.claimed_at/,
+  'A retry must use an optimistic claim so concurrent callers cannot both send.',
+);
+assert.doesNotMatch(
+  notificationFunction,
+  /return json\(\{ ok: false, error \}, 502\)|return json\(\{ ok: false, error: message \}, 502\)/,
+  'Raw provider and network errors must not be returned to the browser.',
 );
 assert.doesNotMatch(
   notificationFunction,
