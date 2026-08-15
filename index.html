@@ -5767,32 +5767,24 @@ async function saveLeadDetail(leadId, ctx) {
 
   // Notify Badar on WhatsApp when any lead moves to Pending Approval
   if (status === 'pending_approval' && prevStatus !== 'pending_approval') {
-    notifyAdminPendingApproval(leadId, prevLead?.full_name || 'Unknown Lead', currentUser?.email || 'An agent');
+    notifyAdminPendingApproval(leadId);
   }
 }
 
-async function notifyAdminPendingApproval(leadId, leadName, agentName) {
+async function notifyAdminPendingApproval(leadId) {
   try {
-    const { data: settingsData } = await sb.from('settings')
-      .select('key, value').in('key', ['wa_phone_number_id', 'wa_access_token', 'admin_whatsapp_number']);
-    const getS = k => (settingsData?.find(r => r.key === k) || {}).value || '';
-    const phoneNumberId  = getS('wa_phone_number_id');
-    const accessToken    = getS('wa_access_token');
-    const adminPhone     = getS('admin_whatsapp_number');
-    if (!phoneNumberId || !accessToken || !adminPhone) return; // silently skip if not configured
-
-    const msg = `🔔 *Pending Approval*\n\n*${agentName}* has marked *${leadName}* as closed and is awaiting your approval.\n\nReview and approve at: crm.badartrader.com`;
-    await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to: adminPhone.replace(/\D/g, ''),
-        type: 'text',
-        text: { body: msg }
-      })
+    const { data, error } = await sb.functions.invoke('notify-admin-pending-approval', {
+      body: { lead_id: leadId }
     });
-  } catch(e) { console.warn('Admin WA notification failed:', e); }
+    if (error || !data?.ok) {
+      const reason = data?.error || error?.message || 'Unknown notification error';
+      console.warn('Admin pending-approval notification failed:', reason);
+      showToast('Status saved, but Badar was not alerted. Ask an Admin to check Pending Approval.', 'err');
+    }
+  } catch (error) {
+    console.warn('Admin pending-approval notification failed:', error);
+    showToast('Status saved, but Badar was not alerted. Ask an Admin to check Pending Approval.', 'err');
+  }
 }
 
 async function approveConversion(leadId, ctx) {
@@ -5892,7 +5884,7 @@ async function agentSaveStatus(leadId, ctx) {
 
   // Notify Badar when agent marks a lead as Pending Approval
   if (status === 'pending_approval' && prevStatus !== 'pending_approval') {
-    notifyAdminPendingApproval(leadId, lead?.full_name || 'Unknown Lead', currentUser?.email || 'Your agent');
+    notifyAdminPendingApproval(leadId);
   }
 }
 
@@ -9451,13 +9443,6 @@ async function doSendTemplate(t, params, rendered) {
     const res = await sendWaViaFunction(target.convId, '', null, null, {
       meta_name: t.meta_name, language: t.language || 'en', params, rendered,
     });
-    if (res === 'unavailable') {
-      // The legacy in-browser path only knows how to send plain text, and a
-      // template is the one case where plain text is exactly what WhatsApp
-      // will refuse. Saying so beats sending something that bounces.
-      showToast('Templates need the send-wa-message function deployed. Nothing was sent.', 'err');
-      return;
-    }
     if (res.warning) showToast(res.warning, 'err');
     showToast('Template sent ✓');
   } catch (err) {
@@ -9704,10 +9689,7 @@ async function doForwardMessage(targetId, targetName) {
 
   try {
     const viaFunction = await sendWaViaFunction(targetId, text, null);
-    if (viaFunction === 'unavailable') {
-      const sent = await sendWaViaBrowser(targetId, text, null);
-      if (!sent) return; // legacy path already explained why
-    } else if (viaFunction.warning) {
+    if (viaFunction.warning) {
       showToast(viaFunction.warning, 'err');
     }
     showToast(`Forwarded to ${targetName} ✓`);
@@ -9979,10 +9961,8 @@ async function sendConvMessage(convId, scope = '') {
     return;
   }
 
-  // Live mode - prefer the server-side send (supabase/functions/send-wa-message
-  // keeps the WhatsApp token in the backend); fall back to the legacy in-browser
-  // send until that function is deployed. Once it's deployed and confirmed, the
-  // fallback and the schema §30 settings-read policy can both be removed.
+  // Live mode uses only the server-side sender. The WhatsApp access token must
+  // never be exposed to an Agent browser as a fallback credential.
   const sendBtn = document.getElementById('conv-send-btn');
   if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending…'; }
   if (input) input.disabled = true;
@@ -10002,16 +9982,7 @@ async function sendConvMessage(convId, scope = '') {
     }
 
     const viaFunction = await sendWaViaFunction(convId, text, replyToWaMessageId, attachmentPayload);
-    if (viaFunction === 'unavailable') {
-      // The legacy in-browser path can only send text. Silently dropping the
-      // file here would tell the agent the attachment went when it did not.
-      if (attachmentPayload) {
-        showToast('Attachments need the send-wa-message function deployed. Nothing was sent.', 'err');
-        return;
-      }
-      const sent = await sendWaViaBrowser(convId, text, replyToWaMessageId);
-      if (!sent) return; // credentials toast already shown by the legacy path
-    } else if (viaFunction.warning) {
+    if (viaFunction.warning) {
       showToast(viaFunction.warning, 'err');
     }
     clearReplyTarget();
@@ -10045,10 +10016,9 @@ async function sendConvMessage(convId, scope = '') {
   }
 }
 
-// Server-side send. Returns { warning? } on success, the string 'unavailable'
-// if the Edge Function can't be reached (not deployed yet, or the functions
-// endpoint is down → caller uses the legacy path), and throws on real
-// failures with the server's error message.
+// Server-side send. Returns { warning? } on success and throws on every
+// failure. There is deliberately no browser fallback because that would put
+// the raw WhatsApp token in every Agent session.
 async function sendWaViaFunction(convId, text, replyToWaMessageId, attachment = null, template = null) {
   let data, error;
   try {
@@ -10062,14 +10032,9 @@ async function sendWaViaFunction(convId, text, replyToWaMessageId, attachment = 
       }
     }));
   } catch (_) {
-    return 'unavailable';
+    throw new Error('Secure messaging service is unavailable. Nothing was sent.');
   }
   if (error) {
-    // An undeployed function never produces an HTTP response in the browser:
-    // its CORS preflight 404s without CORS headers, so invoke reports a
-    // fetch failure with no status (verified live before first deploy).
-    const status = error.context?.status;
-    if (typeof status !== 'number' || status === 404) return 'unavailable';
     let msg = error.message || 'Send failed';
     try {
       const body = await error.context.json();
@@ -10079,71 +10044,6 @@ async function sendWaViaFunction(convId, text, replyToWaMessageId, attachment = 
   }
   if (!data?.ok) throw new Error(data?.error || 'Send failed');
   return { warning: data.warning };
-}
-
-// Legacy in-browser send - requires the schema §30 policy so agents can read
-// the two WhatsApp credential settings. Returns false if credentials are
-// unreadable/unset (after showing the toast), true once sent and logged.
-async function sendWaViaBrowser(convId, text, replyToWaMessageId) {
-  const [leadRes, settingsRes] = await Promise.all([
-    sb.from('leads').select('phone').eq('id', convId).maybeSingle(),
-    sb.from('settings').select('key, value').in('key', ['wa_phone_number_id', 'wa_access_token'])
-  ]);
-  if (leadRes.error) throw leadRes.error;
-
-  const getS = k => (settingsRes.data?.find(r => r.key === k) || {}).value || '';
-  const phoneNumberId = getS('wa_phone_number_id');
-  const accessToken   = getS('wa_access_token');
-
-  if (!phoneNumberId || !accessToken) {
-    showToast('WhatsApp token not set - go to Meta Integration and save your credentials first.', 'err');
-    return false;
-  }
-
-  const phoneDigits = (leadRes.data?.phone || '').replace(/\D/g, '');
-  const waResp = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      to: phoneDigits,
-      type: 'text',
-      text: { body: text },
-      ...(replyToWaMessageId ? { context: { message_id: replyToWaMessageId } } : {})
-    })
-  });
-  if (!waResp.ok) {
-    const errData = await waResp.json().catch(() => ({}));
-    throw new Error(errData?.error?.message || `WhatsApp API error ${waResp.status}`);
-  }
-  const waData = await waResp.json().catch(() => ({}));
-  const sentWaMessageId = waData?.messages?.[0]?.id || null;
-
-  // Save outbound message to communications table
-  await sb.from('communications').insert({
-    lead_id:   convId,
-    type:      'whatsapp',
-    direction: 'outbound',
-    body:      text,
-    logged_by: currentUser?.id || null,
-    wa_message_id: sentWaMessageId
-  });
-  // Same takeover flag send-wa-message sets on the primary path - an agent
-  // manually messaging a lead here means a human has taken over, the bot
-  // must stop treating the lead's replies as answers to its own flow.
-  // Result was previously discarded, making a failure here silent - see the
-  // matching fix in send-wa-message. If this write fails the bot keeps
-  // treating the lead's replies as answers to its own flow, which is how a
-  // lead was lost on 21 July. Tell the agent so they can set Needs Human by
-  // hand; the message itself did go out, so this is a warning, not a failure.
-  const { error: takeoverError } = await sb.from('leads').update({
-    needs_human: true,
-    handoff_reason: 'requested human agent, an agent manually took over this conversation',
-  }).eq('id', convId);
-  if (takeoverError) {
-    showToast('Sent, but the bot was not handed over - it may still reply to this lead. Set Needs Human manually.', 'err');
-  }
-  return true;
 }
 
 function startConvRealtime(scope = '') {

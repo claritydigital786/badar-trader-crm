@@ -932,24 +932,36 @@ WHERE NOT EXISTS (
 -- Paste this entire section into: Supabase Dashboard → SQL Editor → Run
 -- ============================================================
 
--- ── 30. Let agents read the two WhatsApp send credentials ──────
--- Incident (2026-07-14): every agent hitting Send in Conversations got
--- "WhatsApp token not set" even though the credentials WERE saved.
--- sendConvMessage (index.html) reads wa_phone_number_id/wa_access_token
--- from public.settings in the agent's own browser session, but §"settings:
--- admin only" RLS hides all settings rows from non-admins - the select
--- returns zero rows (not an error), so agents saw the misleading toast
--- while admin sends worked fine.
--- This policy exposes ONLY those two keys to logged-in users; every other
--- settings row stays admin-only. Trade-off, accepted for now: any agent's
--- browser can technically read the raw access token. The cleaner design is
--- an Edge Function proxy that keeps the token server-side - see HANDOFF.md.
+-- ── 30. Keep WhatsApp credentials server-side ─────────────────
+-- The original browser fallback required every Agent to read the raw access
+-- token. send-wa-message is now the only Inbox sender, and the pending-
+-- approval alert also uses an authenticated Edge Function. Remove the client
+-- credential policy and keep a private ledger so retries cannot notify Badar
+-- twice for the same status transition.
 DROP POLICY IF EXISTS "settings: agents read wa send creds" ON public.settings;
-CREATE POLICY "settings: agents read wa send creds" ON public.settings
-  FOR SELECT USING (
-    auth.uid() IS NOT NULL
-    AND key IN ('wa_phone_number_id', 'wa_access_token')
-  );
+
+CREATE TABLE IF NOT EXISTS public.pending_approval_notifications (
+  lead_id UUID NOT NULL REFERENCES public.leads(id) ON DELETE CASCADE,
+  status_changed_at TIMESTAMPTZ NOT NULL,
+  requested_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  state TEXT NOT NULL DEFAULT 'pending'
+    CHECK (state IN ('pending', 'sent', 'failed')),
+  claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  sent_at TIMESTAMPTZ,
+  last_error TEXT,
+  PRIMARY KEY (lead_id, status_changed_at)
+);
+
+ALTER TABLE public.pending_approval_notifications ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.pending_approval_notifications FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.pending_approval_notifications TO service_role;
+
+CREATE INDEX IF NOT EXISTS pending_approval_notifications_state_idx
+  ON public.pending_approval_notifications (state, claimed_at);
+
+CREATE INDEX IF NOT EXISTS pending_approval_notifications_requested_by_idx
+  ON public.pending_approval_notifications (requested_by)
+  WHERE requested_by IS NOT NULL;
 
 -- ── DONE (Phase 12) ───────────────────────────────────────────
 -- ═════════════════════════════════════════════════════════════
