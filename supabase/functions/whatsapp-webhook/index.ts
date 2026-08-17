@@ -10,6 +10,7 @@ import {
   isMetaSignatureEnforced,
   readAndVerifyMetaRequest,
 } from "../_shared/meta_signature.mjs";
+import { isAllowedPhoneNumberId } from "../_shared/whatsapp_phone_scope.mjs";
 
 const WHATSAPP_VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
 const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN") ?? "";
@@ -206,6 +207,22 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
     const changes = entry?.changes ?? [];
 
     for (const change of changes) {
+      // This webhook is subscribed per WABA, not per number, so an event for
+      // 3903 (which shares a WABA with this CRM's number) can physically
+      // arrive here. Reject anything that is not explicitly the configured
+      // CRM number before reading a single field out of it - no DB read, no
+      // DB write, no reply attempt for a mismatched or unconfigured id.
+      const incomingPhoneNumberId: string = change?.value?.metadata?.phone_number_id ?? "";
+      const { phoneId: expectedPhoneNumberId } = await getWaCredentials();
+
+      if (!isAllowedPhoneNumberId(incomingPhoneNumberId, expectedPhoneNumberId)) {
+        console.error(
+          `WhatsApp webhook: rejected event for phone_number_id "${incomingPhoneNumberId || "(missing)"}" - ` +
+            `does not match the configured CRM number "${expectedPhoneNumberId || "(not configured)"}". No data was read or written.`,
+        );
+        continue;
+      }
+
       const messages: any[] = change?.value?.messages ?? [];
       const contacts: any[] = change?.value?.contacts ?? [];
       const statuses: any[] = change?.value?.statuses ?? [];

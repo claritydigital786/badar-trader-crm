@@ -28,6 +28,7 @@ function crmBackupTableMap(): array {
         'payroll_settings' => 'agent_id',
         'payroll_runs' => 'id',
         'communication_logs' => 'id',
+        'communication_message_actions' => 'id',
     ];
 }
 

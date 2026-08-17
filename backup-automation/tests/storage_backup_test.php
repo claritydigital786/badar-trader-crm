@@ -204,7 +204,7 @@ try {
     testAssert($backupManifest['format_version'] === 3, 'backup manifest version did not require table checksums');
     testAssert($backupManifest['secret_values_included'] === false, 'backup manifest did not record secret exclusion');
     testAssert($backupManifest['excluded_secret_setting_keys'] === crmBackupSecretSettingKeys(), 'backup manifest secret-key list was wrong');
-    testAssert(count($backupManifest['tables']) === 22, 'backup manifest did not cover all 22 tables');
+    testAssert(count($backupManifest['tables']) === 23, 'backup manifest did not cover all 23 tables');
     foreach ($backupManifest['tables'] as $table => $metadata) {
         $databaseJson = $integrationZip->getFromName($table . '.json');
         testAssert(is_string($databaseJson), "backup manifest references missing $table.json");
@@ -219,7 +219,7 @@ try {
     $integrationObjectPath = $integrationManifest['objects'][0]['archive_path'];
     testAssert($integrationZip->getFromName($integrationObjectPath) === "clean storage bytes\n", 'full backup changed object bytes');
     $integrationZip->close();
-    testAssert(str_contains((string) file_get_contents($integrationLog), 'Backup run finished: 22 tables OK, 0 failed'), 'full backup log did not report success');
+    testAssert(str_contains((string) file_get_contents($integrationLog), 'Backup run finished: 23 tables OK, 0 failed'), 'full backup log did not report success');
     testAssert(str_contains((string) file_get_contents($integrationLog), 'Validated the finalized archive'), 'full backup did not validate the finalized ZIP');
 
     $noStorageDir = $tempDir . '/no-storage-backups';

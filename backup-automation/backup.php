@@ -96,6 +96,9 @@ if (!$supabaseUrl || !$serviceKey) {
 // added later, add its name here too - this list is not auto-discovered,
 // on purpose, so a backup run's scope is always exactly what's reviewed
 // and committed, not whatever happens to exist live at run time.
+// notifications is deliberately excluded while its migration remains parked
+// by Muhammad's instruction. Add it to crmBackupTableMap() only if that
+// module is revived.
 $tableMap = crmBackupTableMap();
 $tables = array_keys($tableMap);
 $secretSettingKeys = crmBackupSecretSettingKeys();
