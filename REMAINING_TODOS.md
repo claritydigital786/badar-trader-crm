@@ -48,8 +48,8 @@ draft PRs (#16, #18) existed on GitHub without a line in any doc until this pass
 - [ ] Confirm which cron jobs are actually scheduled on the live database - read-only `select jobname, schedule, active from cron.job`. `schema.sql` declares three (two `nudge-agents`, one `send-follow-ups`); PR #18 claims to retire the `nudge-agents` ones in staging, so recheck once #18 is settled.
 - [ ] "Connect Channel" dashboard tile opens Meta Integration but isn't a real add-channel workflow - decide rename vs. build it for real.
 - [ ] Refine the CRM's own AI bot training copy (`docs/CRM_BOT_TRAINING.md`, drafted 2026-08-08) to Muhammad's voice. Training alone does not make it reply - still needs `AI_REPLIES_ENABLED=true` + redeploy, a billed `openai_api_key`, and 6541 routing clean of WhatChimp first.
-- [ ] `PROJECT_BLUEPRINT.md`'s Progress Board is stale (last updated 2026-08-10) - doesn't reflect PRs #16/#18 or the PR #19 dashboard/Bot Manager release. Needs a refresh pass.
-- [ ] `HANDOFF.md` was never updated for the PR #19 release (2026-08-15, "Focus dashboard and Bot Manager release") - real documentation gap, found 2026-08-17.
+- [x] ~~`PROJECT_BLUEPRINT.md`'s Progress Board is stale~~ - refreshed 2026-08-17 (Junaid), see `HANDOFF.md`'s Active Work Claims section.
+- [x] ~~`HANDOFF.md` was never updated for the PR #19 release~~ - entry added 2026-08-17 (Junaid).
 
 ### Flagged, not yet actioned
 

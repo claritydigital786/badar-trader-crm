@@ -5,14 +5,14 @@ deployed, committed, sent, or mutated. Every claim is grounded in repository cod
 committed schema, or safe read-only Supabase CLI metadata. Anything that could not
 be proven from those sources is marked UNVERIFIED with the reason._
 
-_Progress Board below refreshed 2026-08-10, on top of the day's newer work
-(template-from-inbox, backup script, the deployed bot-takeover fix). The board is
-the at-a-glance layer; sections 1-20 are the evidence behind it. When they disagree,
-trust the board's date and re-check the code._
+_Progress Board below refreshed 2026-08-17, on top of PR #19 (merged to `main`
+2026-08-15), PR #16's restore-rehearsal clearance, and PR #18's browser-QA
+clearance. The board is the at-a-glance layer; sections 1-20 are the evidence
+behind it. When they disagree, trust the board's date and re-check the code._
 
 ---
 
-## Progress Board - live status (updated 2026-08-10)
+## Progress Board - live status (updated 2026-08-17)
 
 The one-screen answer to "what is done and what is left", grouped by what each item
 is actually waiting on - so nothing sits here looking unfinished when it is really
@@ -43,6 +43,7 @@ live; **TO BUILD** = safe code work, no live send; **BLOCKED (human/3rd-party)**
 | Reports (stat cards, agent perf, source, monthly trend, financial summary) | Live via RPCs. QA-passed 2026-08-07 |
 | Payroll persistence | Live DB tables + admin-only RLS applied 2026-08-09. Reads period-filtered deposits, saves salary settings and immutable run snapshots, reopens history, exports CSV. Chrome demo verified desktop + 375px mobile, zero console errors |
 | Subscribers, Appointments, Meta Ads read-only analytics | Live |
+| Focus dashboard + Bot Manager copy fix (PR [#19](https://github.com/claritydigital786/badar-trader-crm/pull/19)) | Merged 2026-08-15 (`db587eb`, merge `4874a2a`), on `main`. Three `index.html` copy lines: "New Broadcast" tile relabelled "Broadcast Review - Parked, sending disabled", "Connect Channel" tile relabelled "Meta Integration", and the Follow-up Sequences info-box corrected to say the production database currently has no cron job (not just `FOLLOW_UPS_ENABLED=false`) - narrower and more honest than the previous claim that a schedule was already firing every 30 minutes. Ships via Vercel's auto-deploy from `main`; not independently re-verified in production during this doc pass |
 
 **Live but not yet proven with a real message.** Four deploys (delivery ticks v73,
 inbound media v74, attachment sending, and the Box 3 restructure 2026-08-08) are all
@@ -79,8 +80,10 @@ present, since it is live traffic.
 | --- | --- | --- |
 | Disposable local staging and full CRM QA | PR [#14](https://github.com/claritydigital786/badar-trader-crm/pull/14) was reviewed and merged on 2026-08-10 at merge commit `2013d81`. The outbound-safe preparer, assigned-lead and assigned-appointment RLS corrections, actor-audit protections, fake-data matrix, browser evidence, and mobile evidence are now part of `main` | Complete |
 | Send an approved template from the inbox | Frontend + `template` branch in `send-wa-message` built, deliberately one commit behind live (can't send until Meta approves a template anyway). Deploy when a template is approved | Deploy `send-wa-message` + Meta approval |
-| Meta webhook signature protection | Both public webhook handlers now share exact-byte HMAC-SHA256 verification and dependency-free tests pass. Production remains unchanged until the staged rollout | Muhammad - deploy both with `--no-verify-jwt`, set `META_APP_SECRET` in audit mode, confirm real `signature valid` logs, then set `META_SIGNATURE_ENFORCED=true` |
+| Meta webhook signature protection | Both public webhook handlers now share exact-byte HMAC-SHA256 verification and dependency-free tests pass. Production remains unchanged until the staged rollout. PR [#18](https://github.com/claritydigital786/badar-trader-crm/pull/18) (below) carries a newer version of this same rollout - decide which is authoritative before doing either twice | Muhammad - deploy both with `--no-verify-jwt`, set `META_APP_SECRET` in audit mode, confirm real `signature valid` logs, then set `META_SIGNATURE_ENFORCED=true` |
 | Supabase backup script (4x/day to Hostinger) | Files uploaded to Hostinger (`orange-moose-457260.hostingersite.com`, account root, not `public_html`) and all 4 cron jobs created (`0 0/6/12/18 * * *`). Only `config.php` (real project URL + service role key) is left, and only Muhammad can create it | Muhammad - create `config.php` |
+| PR [#16](https://github.com/claritydigital786/badar-trader-crm/pull/16) - safe backup restore verification | Draft since 2026-08-09: ZIP-traversal defenses, checksum verification, secret-stripping, disposable-staging-only apply gate for the Hostinger backups. Restore rehearsal CLEARED 2026-08-17 against a local disposable Supabase staging (colima) - full apply-restore proved across 22 tables, checksums verified, zero production contact | Muhammad - merge decision, since it touches the real backup/restore path for Hostinger credentials |
+| PR [#18](https://github.com/claritydigital786/badar-trader-crm/pull/18) - harden CRM staging, correct automation status copy | Draft since 2026-08-14: closes anonymous RPC access to the automation dispatcher, blocks new-user role escalation, removes raw WhatsApp credentials from Agent browsers, adds Meta webhook signature verification (audit + enforcement modes), adds Turnstile + rate limiting to public forms, retires the `nudge-agents` cron schedules. Staging advisor findings drop 23 to 8. Browser QA gate CLEARED 2026-08-17 (isolated worktree, local static server - the branch's own sandbox can't bind a preview port): Dashboard and both Bot Manager sub-tabs render the corrected gate copy, zero console errors, no 375px overflow | Muhammad - merge decision, plus staging-only secret tests (authenticated no-op, wrong-secret, public-form QA against the disposable project) still open per the PR body |
 
 **B3/B4 (Muhammad asked directly) - deployed.** These are the WhatsApp delivery ticks
 on messages you send (one grey ✓ = sent, two grey ✓✓ = delivered, two blue = read,
@@ -104,6 +107,7 @@ protection moved to READY, WAITING after local verification on 2026-08-09.
 | Meta Lead Ads intake | Meta token needs `leads_retrieval` scope |
 | Any bot/keyword/AI reply going live | Muhammad's decision + WhatChimp automation confirmed OFF + flag flip on his laptop |
 | Syed Hamza | Stays suspended until Muhammad decides (post-CRM) |
+| Confirm live `cron.job` contents | `schema.sql` declares three jobs (two `nudge-agents`, one `send-follow-ups`); PR #19's shipped copy now says production has none scheduled, PR #18 claims to retire the `nudge-agents` ones in staging. Needs a read-only `select jobname, schedule, active from cron.job` from a laptop with production access to settle which of these is currently true |
 
 ### E. OFF BY DESIGN - built and deliberately switched off
 
