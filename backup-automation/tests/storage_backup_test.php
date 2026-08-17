@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/storage_backup.php';
+require_once dirname(__DIR__) . '/backup_scope.php';
+require_once dirname(__DIR__) . '/backup_config.php';
 
 function testAssert(bool $condition, string $message): void {
     if (!$condition) {
@@ -62,6 +64,9 @@ try {
     testAssert(!crmStoragePathIsSafe('docs/../../escape.bin'), 'nested traversal path was accepted');
     testAssert(!crmStoragePathIsSafe('docs\\escape.bin'), 'backslash path was accepted');
     testAssert(!crmStoragePathIsSafe("bad\0name.bin"), 'NUL path was accepted');
+    testAssert(crmBackupPathUsesCommonWebRoot('/home/account/public_html/config.php'), 'public_html config path was not detected');
+    testAssert(crmBackupPathUsesCommonWebRoot('/srv/htdocs/backups'), 'htdocs output path was not detected');
+    testAssert(!crmBackupPathUsesCommonWebRoot('/home/account/backup-automation/config.php'), 'private config path was rejected');
 
     $listed = crmStorageListObjects($baseUrl, 'test-service-key', 'attachments', 1, 20);
     testAssert($listed['errors'] === [], 'recursive list returned errors: ' . implode('; ', $listed['errors']));
@@ -147,6 +152,12 @@ try {
 
     $integrationDir = $tempDir . '/integration-backups';
     $integrationLog = $tempDir . '/integration.log';
+    $integrationConfig = $tempDir . '/private-config.php';
+    file_put_contents(
+        $integrationConfig,
+        "<?php\ndefine('SUPABASE_URL', " . var_export($baseUrl, true) . ");\n"
+        . "define('SUPABASE_SERVICE_ROLE_KEY', 'test-service-key');\n"
+    );
     $backupScript = dirname(__DIR__) . '/backup.php';
     $integrationPipes = [];
     $integrationProcess = proc_open(
@@ -159,8 +170,7 @@ try {
         $integrationPipes,
         dirname(__DIR__),
         [
-            'SUPABASE_URL' => $baseUrl,
-            'SUPABASE_SERVICE_ROLE_KEY' => 'test-service-key',
+            'BACKUP_CONFIG_FILE' => $integrationConfig,
             'BACKUP_OUTPUT_DIR' => $integrationDir,
             'BACKUP_LOG_FILE' => $integrationLog,
             'BACKUP_RETAIN_COUNT' => '3',
@@ -186,7 +196,23 @@ try {
     $integrationZip = new ZipArchive();
     testAssert($integrationZip->open($integrationArchives[0]) === true, 'full backup archive could not be opened');
     testAssert($integrationZip->locateName('profiles.json') !== false, 'full backup archive omitted database JSON');
+    testAssert($integrationZip->locateName('backup_manifest.json') !== false, 'full backup archive omitted its manifest');
     testAssert($integrationZip->locateName('storage/manifest.json') !== false, 'full backup archive omitted Storage manifest');
+    $settingsRows = json_decode((string) $integrationZip->getFromName('settings.json'), true);
+    testAssert($settingsRows === [['key' => 'openai_model', 'value' => 'test-safe-model']], 'secret settings were not excluded from the archive');
+    $backupManifest = json_decode((string) $integrationZip->getFromName('backup_manifest.json'), true);
+    testAssert($backupManifest['format_version'] === 3, 'backup manifest version did not require table checksums');
+    testAssert($backupManifest['secret_values_included'] === false, 'backup manifest did not record secret exclusion');
+    testAssert($backupManifest['excluded_secret_setting_keys'] === crmBackupSecretSettingKeys(), 'backup manifest secret-key list was wrong');
+    testAssert(count($backupManifest['tables']) === 23, 'backup manifest did not cover all 23 tables');
+    foreach ($backupManifest['tables'] as $table => $metadata) {
+        $databaseJson = $integrationZip->getFromName($table . '.json');
+        testAssert(is_string($databaseJson), "backup manifest references missing $table.json");
+        $databaseRows = json_decode($databaseJson, true, 512, JSON_THROW_ON_ERROR);
+        testAssert($metadata['rows'] === count($databaseRows), "backup manifest row count was wrong for $table");
+        testAssert($metadata['bytes'] === strlen($databaseJson), "backup manifest byte count was wrong for $table");
+        testAssert($metadata['sha256'] === hash('sha256', $databaseJson), "backup manifest checksum was wrong for $table");
+    }
     $integrationManifest = json_decode((string) $integrationZip->getFromName('storage/manifest.json'), true);
     testAssert($integrationManifest['objects'][0]['bucket'] === 'clean', 'full backup used the wrong bucket');
     testAssert($integrationManifest['objects'][0]['path'] === 'clean.txt', 'full backup lost the original object path');
@@ -194,16 +220,54 @@ try {
     testAssert($integrationZip->getFromName($integrationObjectPath) === "clean storage bytes\n", 'full backup changed object bytes');
     $integrationZip->close();
     testAssert(str_contains((string) file_get_contents($integrationLog), 'Backup run finished: 23 tables OK, 0 failed'), 'full backup log did not report success');
+    testAssert(str_contains((string) file_get_contents($integrationLog), 'Validated the finalized archive'), 'full backup did not validate the finalized ZIP');
+
+    $noStorageDir = $tempDir . '/no-storage-backups';
+    $noStorageLog = $tempDir . '/no-storage.log';
+    $noStoragePipes = [];
+    $noStorageProcess = proc_open(
+        [PHP_BINARY, $backupScript],
+        [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ],
+        $noStoragePipes,
+        dirname(__DIR__),
+        [
+            'BACKUP_CONFIG_FILE' => $integrationConfig,
+            'BACKUP_OUTPUT_DIR' => $noStorageDir,
+            'BACKUP_LOG_FILE' => $noStorageLog,
+            'BACKUP_RETAIN_COUNT' => '1',
+            'BACKUP_STORAGE_ENABLED' => 'false',
+        ]
+    );
+    testAssert(is_resource($noStorageProcess), 'could not start disabled-Storage backup test');
+    fclose($noStoragePipes[0]);
+    $noStorageStdout = stream_get_contents($noStoragePipes[1]);
+    $noStorageStderr = stream_get_contents($noStoragePipes[2]);
+    fclose($noStoragePipes[1]);
+    fclose($noStoragePipes[2]);
+    $noStorageExit = proc_close($noStorageProcess);
+    testAssert(
+        $noStorageExit === 0,
+        "disabled-Storage backup failed with exit $noStorageExit\n$noStorageStdout\n$noStorageStderr"
+    );
+    $noStorageArchives = glob($noStorageDir . '/*.zip');
+    testAssert(count($noStorageArchives) === 1, 'disabled-Storage run did not retain a validated ZIP');
+    $noStorageZip = new ZipArchive();
+    testAssert($noStorageZip->open($noStorageArchives[0]) === true, 'disabled-Storage ZIP could not be opened');
+    $noStorageManifest = json_decode((string) $noStorageZip->getFromName('storage/manifest.json'), true);
+    testAssert($noStorageManifest['buckets'] === [] && $noStorageManifest['objects'] === [], 'disabled-Storage manifest was not empty');
+    $noStorageZip->close();
+    testAssert(str_contains((string) file_get_contents($noStorageLog), 'Validated the finalized archive'), 'disabled-Storage ZIP was not self-validated');
 
     $schemaSql = (string) file_get_contents(dirname(__DIR__, 2) . '/supabase/schema.sql');
     preg_match_all('/CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+public\.([a-z_][a-z0-9_]*)/i', $schemaSql, $schemaMatches);
     $activeSchemaTables = array_values(array_diff(array_unique($schemaMatches[1]), ['notifications']));
     sort($activeSchemaTables);
 
-    $backupPhp = (string) file_get_contents($backupScript);
-    preg_match('/\$tables\s*=\s*\[(.*?)\];/s', $backupPhp, $tableBlock);
-    preg_match_all("/'([a-z_][a-z0-9_]*)'/", $tableBlock[1] ?? '', $backupMatches);
-    $configuredTables = array_values(array_unique($backupMatches[1]));
+    $configuredTables = array_keys(crmBackupTableMap());
     sort($configuredTables);
     $missingTables = array_values(array_diff($activeSchemaTables, $configuredTables));
     testAssert($missingTables === [], 'active schema tables missing from backup: ' . implode(', ', $missingTables));

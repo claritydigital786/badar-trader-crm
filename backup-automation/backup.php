@@ -12,23 +12,37 @@
  * files on this same hosting account - it cannot alter anything in
  * Supabase or in the CRM.
  *
- * Credentials are never hardcoded here. Copy config.example.php to
- * config.php (gitignored) and fill in the real project URL and service
- * role key - or export them as environment variables (SUPABASE_URL,
- * SUPABASE_SERVICE_ROLE_KEY) via the hosting's cron job command instead,
- * whichever Hostinger's control panel makes easier.
+ * Credentials are never hardcoded here. Keep config.php outside every web
+ * root, either beside this script when the whole backup-automation folder is
+ * outside public_html or at the absolute BACKUP_CONFIG_FILE path.
  */
 
 declare(strict_types=1);
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit(1);
+}
+
 $scriptDir = __DIR__;
+$scopeHelpers = $scriptDir . '/backup_scope.php';
 $storageHelpers = $scriptDir . '/storage_backup.php';
+$configHelpers = $scriptDir . '/backup_config.php';
+$restoreHelpers = $scriptDir . '/restore_backup.php';
+require_once $scopeHelpers;
 require_once $storageHelpers;
-$configFile = $scriptDir . '/config.php';
-if (is_file($configFile)) {
-    require $configFile;
+require_once $configHelpers;
+require_once $restoreHelpers;
+try {
+    $configFile = crmBackupResolveConfigFile($scriptDir);
+    if ($configFile !== null) {
+        require $configFile;
+    }
+} catch (Throwable $error) {
+    fwrite(STDERR, 'FATAL: ' . $error->getMessage() . PHP_EOL);
+    exit(1);
 }
 
 $supabaseUrl = getenv('SUPABASE_URL') ?: (defined('SUPABASE_URL') ? SUPABASE_URL : null);
@@ -59,6 +73,13 @@ $storageMaxObjects = (int) (getenv('BACKUP_STORAGE_MAX_OBJECTS') ?: (defined('BA
 
 $backupsDir = getenv('BACKUP_OUTPUT_DIR') ?: $scriptDir . '/backups';
 $logFile    = getenv('BACKUP_LOG_FILE') ?: $scriptDir . '/backup.log';
+try {
+    crmBackupAssertPrivateDataPath($backupsDir, 'backup output directory');
+    crmBackupAssertPrivateDataPath($logFile, 'backup log file');
+} catch (Throwable $error) {
+    fwrite(STDERR, 'FATAL: ' . $error->getMessage() . PHP_EOL);
+    exit(1);
+}
 
 function backupLog(string $logFile, string $message): void {
     $line = '[' . date('Y-m-d H:i:s') . '] ' . $message . PHP_EOL;
@@ -67,7 +88,7 @@ function backupLog(string $logFile, string $message): void {
 }
 
 if (!$supabaseUrl || !$serviceKey) {
-    backupLog($logFile, 'FATAL: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set. Copy config.example.php to config.php and fill it in, or set the two environment variables in the cron job command.');
+    backupLog($logFile, 'FATAL: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set. Put a private config.php beside the out-of-web-root script, set BACKUP_CONFIG_FILE to a private absolute path, or set the two environment variables in the cron job command.');
     exit(1);
 }
 
@@ -75,33 +96,12 @@ if (!$supabaseUrl || !$serviceKey) {
 // added later, add its name here too - this list is not auto-discovered,
 // on purpose, so a backup run's scope is always exactly what's reviewed
 // and committed, not whatever happens to exist live at run time.
-$tables = [
-    'profiles',
-    'leads',
-    'lead_activity',
-    'audit_log',
-    'settings',
-    'transactions',
-    'kyc_documents',
-    'communications',
-    'automation_rules',
-    'signals',
-    'ai_knowledge_base',
-    'keyword_replies',
-    'follow_up_sequences',
-    'message_templates',
-    'subscribers',
-    'appointments',
-    'follow_up_sends',
-    'signal_broadcasts',
-    'ai_agents',
-    'payroll_settings',
-    'payroll_runs',
-    // notifications is deliberately excluded while its migration remains
-    // parked by Muhammad's instruction. Add it only if that module is revived.
-    'communication_logs',
-    'communication_message_actions',
-];
+// notifications is deliberately excluded while its migration remains parked
+// by Muhammad's instruction. Add it to crmBackupTableMap() only if that
+// module is revived.
+$tableMap = crmBackupTableMap();
+$tables = array_keys($tableMap);
+$secretSettingKeys = crmBackupSecretSettingKeys();
 
 /**
  * Fetches every row of one table via PostgREST, paginating with the Range
@@ -109,14 +109,14 @@ $tables = [
  * Returns null (not an empty array) on a real failure, so the caller can
  * tell "table has zero rows" apart from "the request failed".
  */
-function fetchAllRows(string $supabaseUrl, string $serviceKey, string $table, string $logFile): ?array {
+function fetchAllRows(string $supabaseUrl, string $serviceKey, string $table, string $orderColumn, string $logFile): ?array {
     $pageSize = 1000;
     $offset = 0;
     $all = [];
 
     while (true) {
         $url = rtrim($supabaseUrl, '/') . '/rest/v1/' . rawurlencode($table)
-            . '?select=*&order=' . rawurlencode('id.asc');
+            . '?select=*&order=' . rawurlencode($orderColumn . '.asc');
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
@@ -181,19 +181,35 @@ backupLog($logFile, "Backup run started: $runStamp");
 $okCount = 0;
 $failCount = 0;
 $totalRows = 0;
+$tableMetadata = [];
+$redactedSettingKeys = [];
 
 foreach ($tables as $table) {
-    $rows = fetchAllRows($supabaseUrl, $serviceKey, $table, $logFile);
+    $rows = fetchAllRows($supabaseUrl, $serviceKey, $table, $tableMap[$table], $logFile);
 
     if ($rows === null) {
         $failCount++;
         continue;
     }
 
-    $written = file_put_contents(
-        $runDir . '/' . $table . '.json',
-        json_encode($rows, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
-    );
+    if ($table === 'settings') {
+        $safeRows = [];
+        foreach ($rows as $row) {
+            $key = is_array($row) ? (string) ($row['key'] ?? '') : '';
+            if (in_array($key, $secretSettingKeys, true)) {
+                $redactedSettingKeys[] = $key;
+                continue;
+            }
+            $safeRows[] = $row;
+        }
+        $rows = $safeRows;
+        sort($redactedSettingKeys);
+        backupLog($logFile, '  NOTE: excluded ' . count($redactedSettingKeys) . ' secret settings from the archive.');
+    }
+
+    $tablePath = $runDir . '/' . $table . '.json';
+    $tableJson = json_encode($rows, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $written = $tableJson === false ? false : file_put_contents($tablePath, $tableJson);
 
     if ($written === false) {
         backupLog($logFile, "  ERROR writing $table.json to disk");
@@ -201,10 +217,36 @@ foreach ($tables as $table) {
         continue;
     }
 
+    $tableHash = hash_file('sha256', $tablePath);
+    $tableBytes = filesize($tablePath);
+    if ($tableHash === false || $tableBytes === false) {
+        backupLog($logFile, "  ERROR hashing $table.json after writing it");
+        $failCount++;
+        continue;
+    }
+
     $rowCount = count($rows);
     $totalRows += $rowCount;
+    $tableMetadata[$table] = [
+        'rows' => $rowCount,
+        'bytes' => $tableBytes,
+        'sha256' => $tableHash,
+    ];
     $okCount++;
     backupLog($logFile, "  OK: $table ($rowCount rows)");
+}
+
+$backupManifest = [
+    'format_version' => 3,
+    'created_at' => gmdate('c'),
+    'tables' => $tableMetadata,
+    'excluded_secret_setting_keys' => array_values(array_unique($redactedSettingKeys)),
+    'secret_values_included' => false,
+];
+$backupManifestJson = json_encode($backupManifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+if ($backupManifestJson === false || file_put_contents($runDir . '/backup_manifest.json', $backupManifestJson) === false) {
+    $failCount++;
+    backupLog($logFile, '  ERROR writing backup_manifest.json to disk');
 }
 
 if ($storageEnabled) {
@@ -231,7 +273,23 @@ if ($storageEnabled) {
         backupLog($logFile, '  ERROR backing up Storage: ' . $error->getMessage());
     }
 } else {
-    backupLog($logFile, '  NOTE: Storage backup disabled by BACKUP_STORAGE_ENABLED.');
+    $storageDirectory = $runDir . '/storage';
+    if (!is_dir($storageDirectory) && !mkdir($storageDirectory, 0755, true) && !is_dir($storageDirectory)) {
+        $failCount++;
+        backupLog($logFile, '  ERROR creating the disabled-Storage manifest directory.');
+    } else {
+        $emptyStorageManifest = json_encode([
+            'format_version' => 1,
+            'created_at' => gmdate('c'),
+            'buckets' => [],
+            'objects' => [],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        if (file_put_contents($storageDirectory . '/manifest.json', $emptyStorageManifest) === false) {
+            $failCount++;
+            backupLog($logFile, '  ERROR writing the disabled-Storage manifest.');
+        }
+    }
+    backupLog($logFile, '  NOTE: Storage backup disabled by BACKUP_STORAGE_ENABLED; wrote an empty restore manifest.');
 }
 
 // Zip the run's folder into one file if PHP's zip extension is available -
@@ -250,6 +308,27 @@ if (class_exists('ZipArchive')) {
         if (!$zip->close()) {
             $zipOk = false;
             backupLog($logFile, '  ERROR finalizing zip archive');
+        }
+
+        if ($zipOk) {
+            try {
+                crmRestoreArchive(
+                    $zipPath,
+                    'http://127.0.0.1',
+                    '',
+                    false,
+                    '',
+                    false,
+                    null,
+                    static function (string $message): void {
+                    },
+                    $backupsDir
+                );
+                backupLog($logFile, 'Validated the finalized archive before removing loose files.');
+            } catch (Throwable $error) {
+                $zipOk = false;
+                backupLog($logFile, '  ERROR validating the finalized archive: ' . $error->getMessage());
+            }
         }
 
         if ($zipOk) {

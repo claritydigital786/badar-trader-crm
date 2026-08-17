@@ -189,6 +189,38 @@ _Empty right now - nothing outstanding._
 - "check if any new work has been assignned" - checked the latest handoff and all three open PRs. One new Junaid correction is assigned on PR #14: replace the two synchronized `auth.role()` checks with `auth.uid() IS NOT NULL`, rerun the disposable 80/80 matrix, and push without merge, deployment, or production SQL. PR #16 remains Muhammad's lane and PR #17 has no Junaid assignment.
 - "Is anything remaining within To Dos" - reconciled the unchecked To-Dos against the latest main and active claims. The immediate Junaid item is PR #14's two-line compatibility correction plus the 80/80 rerun. Later local packages remain sequenced behind Muhammad's PR #14 review. The other unchecked entries are Muhammad-only, external approval, live-system, parked, safety-rule, or record-keeping items rather than immediately executable Junaid coding.
 - "Push the completed PR #14 correction now to junaid/safe-local-staging-20260809. Confirm both SQL files use (SELECT auth.uid()) IS NOT NULL, rerun the 80/80 permission matrix, and report the new Git commit SHA. Do not merge or deploy anything." - synchronized both SQL sources to the requested `auth.uid()` condition, replayed all 32 disposable local migrations, passed schema lint and the 80/80 fake-data permission matrix, and prepared the correction for push without merge, deployment, production SQL, credentials, or live data.
+- "what else remaining? Let's execute whatever is remaining to be executed. Also,
+  can you please show me the progress on the right side of this tool?" - enabled
+  the live Codex task plan and resumed safe work. PR #15 was merged, PR #13 was
+  closed as superseded, and Junaid's active PR #14 assigned-lead correction claim
+  was respected. Muhammad's separate session claimed backup restore-readiness so
+  both people can continue without touching the same task or files.
+- "ok, just move on. don't stop, please" - continued Muhammad's separate PR #16
+  backup and recovery lane without overlapping Junaid. The refresh caught that PR
+  #14 still copied production URLs into staging, still included the parked
+  Notifications module, and still pooled appointment access, so it was not merged.
+  PR #16 then added database-file checksums and the staging Auth-ID preflight and
+  passed both loopback suites without touching Supabase, Hostinger, Meta,
+  WhatChimp, WhatsApp, or a live conversation.
+- "Why can Junaid see the CRM's left control panel but I cannot?" - live browser
+  inspection confirmed Muhammad is signed in as `syedbadartk`, `Admin · Owner`,
+  and the complete 232-pixel sidebar is rendered. The docked Codex browser shows a
+  narrower visible pane while retaining a 1280-pixel CRM viewport, cropping the
+  page's left edge. Junaid's local PR preview is fitted differently. This is a
+  browser-pane layout issue, not an account permission or missing-sidebar issue.
+- "Please don't just let the work stop. Please set it to be continued on both
+  laptops" - renewed the non-overlapping two-laptop split. Junaid continues only
+  PR #14's final actor-forgery and appointment-creator permission corrections;
+  Muhammad continues PR #16 backup/restore readiness and read-only review of the
+  newest questions. No merge, production deployment, migration, live messaging,
+  credential, or billing action is implied by this continuation.
+- "Junaid is busy somewhere else. I am alone today. Please help me. Do not stop.
+  Continue please." - resumed Muhammad's isolated PR #16 lane after confirming
+  PR #14 is merged, PR #17 is mergeable and PR #16 alone is conflicting. Reconciled
+  the draft backup branch with current `main` without force-push, then passed PHP
+  syntax, both loopback backup / restore suites, disposable baseline sanitization,
+  Python compilation, shell syntax and diff checks. No merge, deployment,
+  production access, credential, live archive, WhatsApp, Meta or WhatChimp action.
 - Screenshot of WhatsApp's per-message dropdown: "can't we add such drop down to each of the messages?... can you do what's in the screenshot?" - implemented and browser-tested in draft PR #17. Message info, Reply, Copy, React, Forward, Pin, Star, Add text to note, and recoverable CRM-only Delete-from-view now cover all message render paths. The new per-user RLS migration and reaction function remain unapplied and undeployed. The disposable database replay is still required on a Docker-equipped laptop before production review.
 
 ## 2026-08-11

@@ -86,7 +86,29 @@ if ($method === 'GET' && $path === '/storage/v1/object/clean/clean.txt') {
 
 if ($method === 'GET' && str_starts_with($path, '/rest/v1/')) {
     header('Content-Type: application/json');
-    echo '[]';
+    if ($path === '/rest/v1/settings') {
+        if (($_GET['order'] ?? '') !== 'key.asc') {
+            http_response_code(400);
+            echo json_encode(['message' => 'settings backup used the wrong order column']);
+            return;
+        }
+        echo json_encode([
+            ['key' => 'meta_token', 'value' => 'test-meta-secret'],
+            ['key' => 'wa_verify_token', 'value' => 'test-webhook-secret'],
+            ['key' => 'wa_access_token', 'value' => 'test-whatsapp-secret'],
+            ['key' => 'openai_api_key', 'value' => 'test-openai-secret'],
+            ['key' => 'openai_model', 'value' => 'test-safe-model'],
+        ]);
+    } elseif ($path === '/rest/v1/payroll_settings') {
+        if (($_GET['order'] ?? '') !== 'agent_id.asc') {
+            http_response_code(400);
+            echo json_encode(['message' => 'payroll settings backup used the wrong order column']);
+            return;
+        }
+        echo '[]';
+    } else {
+        echo '[]';
+    }
     return;
 }
 

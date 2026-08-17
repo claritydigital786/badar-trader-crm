@@ -11,12 +11,16 @@ Supabase, the CRM, or any live conversation.
 
 ## One-time setup on Hostinger
 
-1. Upload this whole `backup-automation/` folder to the hosting account
-   (File Manager, or however the rest of the site is deployed).
-2. Copy `config.example.php` to `config.php` in the same folder, and fill
+1. Upload this whole `backup-automation/` folder to the hosting account as a
+   sibling of `public_html`, never inside `public_html`, `htdocs`, or `wwwroot`.
+   This keeps the credentials, CRM archives, and logs outside the web root.
+2. Copy `config.example.php` to `config.php` in that private folder and fill
    in the real `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (Supabase
-   Dashboard -> Project Settings -> API). `config.php` is gitignored - it
-   only needs to exist on the server, never in this git repo.
+   Dashboard -> Project Settings -> API). `config.php` is gitignored and only
+   exists on the server. If the script and private config must use separate
+   folders, set `BACKUP_CONFIG_FILE` to the config file's absolute path in the
+   cron command. The script refuses a relative config path or any config,
+   archive, or log path under the three common web-root names.
 3. In Hostinger's hPanel: **Advanced -> Cron Jobs -> Create a new cron job**.
    - Command: `php /home/YOUR_USERNAME/backup-automation/backup.php`
      (hPanel usually shows the full path for you - use that, not a guess).
@@ -25,17 +29,31 @@ Supabase, the CRM, or any live conversation.
      expression; otherwise pick the closest preset ("Every 6 hours").
 4. Trigger it once by hand (hPanel usually has a "Run now" button, or SSH
    in and run `php backup.php` directly) to confirm it works before
-   trusting the schedule.
+trusting the schedule.
+
+The backup entry point also refuses non-CLI execution. An HTTP request cannot run
+the backup even if somebody accidentally places the PHP files under a routed
+folder. The files still belong outside the web root because a server
+misconfiguration could expose source or archive bytes without executing PHP.
 
 ## What gets backed up
 
 Every active table in `supabase/schema.sql` as of 2026-08-10 (23 tables - leads,
 communications, profiles, transactions, kyc_documents, and so on - see the
-`$tables` list at the top of `backup.php` for the exact set). If a new
-table is added to the CRM later, add its name to that list too - it is a
+table map in `backup_scope.php` for the exact set). If a new
+table is added to the CRM later, add its name to that map too - it is a
 deliberate, reviewed list, not auto-discovered from whatever exists live.
 The parked Notifications migration remains excluded until Muhammad revives
 that module.
+
+The `settings` table is filtered before it reaches disk. `meta_token`,
+`wa_verify_token`, `wa_access_token`, and `openai_api_key` are excluded because
+the archive is stored on separate hosting and is not an appropriate secret
+vault. `backup_manifest.json` records only the excluded key names. It also records
+the row count, byte size, and SHA-256 checksum for every table JSON file, so a
+changed or incomplete database export is rejected before any staging write.
+Restore credentials through the approved secret or configuration screens after
+recovery.
 
 ## Where backups land
 
@@ -44,6 +62,14 @@ table, a Storage manifest, and the exact binary bytes of every downloaded
 Storage object. Storage objects use hash-based archive names so an unsafe
 remote filename cannot escape the backup directory. The manifest maps each
 hash back to its original bucket and path and records size and SHA-256.
+
+After finalizing a ZIP, the cron reopens it through the same validation path used
+by `restore.php`. Loose table and Storage files are removed only after that full
+check passes. If finalization or validation fails, the bad ZIP is removed, the
+loose recovery files stay available, the log records the exact failure, and the
+cron exits non-zero. The validation workspace is created inside the private
+backup directory so restricted hosting cron processes do not depend on system
+temporary-directory permissions.
 
 Old backups are pruned automatically, keeping the most recent 28
 (a week of history at 4 runs/day) - change `BACKUP_RETAIN_COUNT` in
@@ -65,7 +91,9 @@ database export. Normally no extra configuration is required.
 - Set `BACKUP_STORAGE_BUCKETS` to a comma-separated allowlist only if you want
   to restrict the backup to named buckets.
 - Set `BACKUP_STORAGE_MAX_OBJECTS` to cap one run. The default is 50,000.
-- Set `BACKUP_STORAGE_ENABLED=false` only for a temporary diagnostic run.
+- Set `BACKUP_STORAGE_ENABLED=false` only for a temporary diagnostic run. The
+  archive will contain an empty Storage manifest so it remains self-validating
+  and restore-compatible.
 
 If one object cannot be downloaded, the archive still contains all successful
 tables and objects, the manifest marks the failed object, the log names it, and
@@ -75,6 +103,59 @@ the process exits non-zero so cron monitoring can alert you.
 
 - Does not touch WhatsApp, Meta, or any live customer conversation - it
   only reads already-stored Supabase data.
-- Does not restore anything. This is one-directional: Supabase -> JSON
-  and binary files on Hostinger. A restore remains a separately reviewed,
-  disposable-staging operation because it writes records and objects.
+- The scheduled backup remains one-directional and cannot write to Supabase.
+- `restore.php` is a separate, manually-invoked recovery tool. It validates an
+  archive by default and makes no target request in that mode. Apply mode needs
+  `RESTORE_APPLY=true` and the exact confirmation
+  `RESTORE_CONFIRMATION=DISPOSABLE_STAGING_ONLY`.
+- The live CRM project ref is permanently refused. A remote target also needs
+  `RESTORE_ALLOW_REMOTE_DISPOSABLE=true` and a matching
+  `RESTORE_TARGET_PROJECT_REF`, which must identify a different Supabase project.
+
+## Validate and restore-test
+
+Validate an archive without credentials or writes:
+
+```sh
+php restore.php /absolute/path/to/backup.zip
+```
+
+Before a real disposable-staging restore, rebuild the schema and create staging
+Auth users whose IDs match the archived `profiles` rows. Supabase Auth password
+hashes are not part of this public-schema backup, so staff passwords must be set
+again in staging. The staging safety SQL installs a service-role-only preflight,
+and the restore verifies all archived profile IDs against `auth.users` before its
+first table write.
+
+Build disposable staging with `qa/local-staging/prepare.sh`. That preparer strips
+production cron schedules and replaces the production automation callback with a
+local no-op before the database starts. Apply `disposable_staging_safety.sql` to
+the disposable target immediately after its schema is built as a second,
+restore-specific guard. The restore calls its verification function before the
+first write and refuses the target if any protected trigger, production cron
+command, or production callback remains enabled.
+
+Then set the staging values outside the repository and run:
+
+```sh
+RESTORE_TARGET_URL=https://STAGING_PROJECT_REF.supabase.co \
+RESTORE_TARGET_PROJECT_REF=STAGING_PROJECT_REF \
+RESTORE_SERVICE_ROLE_KEY=STAGING_SERVICE_ROLE_KEY \
+RESTORE_ALLOW_REMOTE_DISPOSABLE=true \
+RESTORE_APPLY=true \
+RESTORE_CONFIRMATION=DISPOSABLE_STAGING_ONLY \
+php restore.php /absolute/path/to/backup.zip
+```
+
+The restore upserts archived public-schema rows, recreates standard Storage
+buckets when absent, and uploads objects after validating every recorded database
+and Storage size and SHA-256 checksum. It never deletes target rows. Validation
+can still inspect older archives with an explicit warning, but apply mode refuses
+archives without the version 3 checksum manifest. Run it only against an empty or
+disposable staging project. Table writes are separate API operations, so a failed
+run can leave a partial staging restore and should be rerun only after the failure
+is understood. The automated test uses a loopback mock server, never Supabase:
+
+```sh
+php tests/restore_test.php
+```
