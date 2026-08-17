@@ -227,6 +227,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let leadId = "";
   let text = "";
   let replyToWaMessageId = "";
+  let reactionToWaMessageId = "";
+  let reactionEmoji = "";
   let attachment: Attachment | null = null;
   let template: TemplateSend | null = null;
   try {
@@ -234,6 +236,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     leadId = String(body?.lead_id ?? "").trim();
     text = String(body?.text ?? "").trim();
     replyToWaMessageId = String(body?.reply_to_wa_message_id ?? "").trim();
+    reactionToWaMessageId = String(body?.reaction_to_wa_message_id ?? "").trim();
+    reactionEmoji = String(body?.reaction_emoji ?? "").trim();
     if (body?.template) {
       template = {
         metaName: String(body.template.meta_name ?? "").trim(),
@@ -252,10 +256,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
   } catch {
     return json({ ok: false, error: "Invalid request body" });
   }
-  // Text alone is fine, an attachment alone is fine (the caption is optional,
-  // exactly like WhatsApp), but an empty request is not.
-  if (!leadId || (!text && !attachment && !template)) {
-    return json({ ok: false, error: "lead_id and either text, an attachment or a template are required" });
+  const isReaction = !!reactionToWaMessageId;
+  // Text alone is fine, an attachment alone is fine (the caption is optional),
+  // and a reaction targets an existing WAMID. Mixed reaction/send payloads are
+  // rejected so the endpoint can never accidentally send both.
+  if (!leadId || (!text && !attachment && !template && !isReaction)) {
+    return json({ ok: false, error: "lead_id and a message, attachment, template or reaction are required" });
+  }
+  if (isReaction && (text || attachment || template || replyToWaMessageId)) {
+    return json({ ok: false, error: "A reaction cannot be combined with another message type" });
+  }
+  // Meta uses an empty emoji to remove the existing reaction.
+  if (isReaction && reactionEmoji.length > 16) {
+    return json({ ok: false, error: "A reaction must contain one supported emoji, or be empty to remove it" });
   }
   if (attachment) {
     const problem = validateAttachment(attachment);
@@ -270,11 +283,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const sb = makeServiceClient();
 
-  // Caller must be an admin or any active (non-suspended) staff member - the
-  // same rule the leads/communications RLS policies enforce (schema.sql
-  // Phase 15). Was previously "must be the exact assigned agent", which was
-  // never updated when that policy changed, leaving agents able to see a
-  // lead in the CRM but unable to actually send to it. Fixed 21 July 2026.
+  // The service-role client bypasses RLS, so the assigned-lead rule must be
+  // repeated here explicitly. Otherwise an agent who guessed a lead UUID
+  // could send through this function even though PR #14 hides that lead in
+  // the browser and database API.
   const [{ data: profile }, { data: lead, error: leadError }] = await Promise.all([
     sb.from("profiles").select("role, is_suspended").eq("id", user.id).maybeSingle(),
     sb.from("leads").select("id, phone, assigned_agent_id").eq("id", leadId).maybeSingle(),
@@ -283,9 +295,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error: "Lead not found" });
   }
   const isAdmin = profile?.role === "admin";
-  const isActiveStaff = !!profile && !profile.is_suspended;
-  if (!isAdmin && !isActiveStaff) {
+  const isAssignedAgent = profile?.role === "agent" && !profile.is_suspended
+    && lead.assigned_agent_id === user.id;
+  if (!isAdmin && !isAssignedAgent) {
     return json({ ok: false, error: "Your account does not have access to send messages" }, 403);
+  }
+
+  if (isReaction) {
+    // A WAMID supplied by the browser must belong to this exact lead. This
+    // prevents reacting to an unrelated message by guessing or copying an ID.
+    const { data: targetMessage } = await sb.from("communications")
+      .select("id")
+      .eq("lead_id", leadId)
+      .eq("wa_message_id", reactionToWaMessageId)
+      .maybeSingle();
+    if (!targetMessage) {
+      return json({ ok: false, error: "The message to react to was not found in this conversation" });
+    }
   }
 
   const { token, phoneId } = await getWaCredentials();
@@ -335,7 +361,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     body: JSON.stringify({
       messaging_product: "whatsapp",
       to: phoneDigits,
-      ...(template
+      ...(isReaction
+        ? {
+            type: "reaction",
+            reaction: { message_id: reactionToWaMessageId, emoji: reactionEmoji },
+          }
+        : template
         ? {
             type: "template",
             template: {
@@ -353,7 +384,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // Deliberately no reply context on a template send: a template is used
       // precisely when the window has closed, so there is no live thread to
       // quote into and Meta rejects the combination in some cases.
-      ...(replyToWaMessageId && !template ? { context: { message_id: replyToWaMessageId } } : {}),
+      ...(replyToWaMessageId && !template && !isReaction ? { context: { message_id: replyToWaMessageId } } : {}),
     }),
   });
 
@@ -366,6 +397,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const waData = await waResp.json().catch(() => ({}));
   const sentWaMessageId: string | undefined = waData?.messages?.[0]?.id;
+
+  // Reactions attach to an existing message and should not appear as a new
+  // chat bubble. The browser stores the per-user visual marker after this
+  // succeeds. We still record the human takeover below.
+  if (isReaction) {
+    const { error: takeoverError } = await sb.from("leads").update({
+      needs_human: true,
+      handoff_reason: "requested human agent, an agent manually took over this conversation",
+    }).eq("id", leadId);
+    return json({
+      ok: true,
+      ...(takeoverError ? { warning: `Reaction sent, but the bot may still reply: ${takeoverError.message}` } : {}),
+    });
+  }
 
   // An attachment sent with no caption still needs a readable body, or the
   // conversation and the Comm Log show an empty row. Same bracket convention

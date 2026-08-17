@@ -1835,3 +1835,72 @@ GRANT SELECT, INSERT ON TABLE public.payroll_runs TO authenticated;
 
 -- DONE (Phase 30)
 -- =============================================================
+
+-- =============================================================
+-- Phase 31 - Per-user message actions (2026-08-10)
+-- Mirrors migration 20260810005621_message_actions.sql.
+-- =============================================================
+
+CREATE TABLE IF NOT EXISTS public.communication_message_actions (
+  id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  communication_id UUID        NOT NULL REFERENCES public.communications(id) ON DELETE CASCADE,
+  user_id           UUID        NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  is_pinned         BOOLEAN     NOT NULL DEFAULT false,
+  is_starred        BOOLEAN     NOT NULL DEFAULT false,
+  is_hidden         BOOLEAN     NOT NULL DEFAULT false,
+  reaction          TEXT        CHECK (reaction IS NULL OR char_length(reaction) <= 16),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (communication_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS communication_message_actions_user_idx
+  ON public.communication_message_actions (user_id, communication_id);
+
+ALTER TABLE public.communication_message_actions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "message actions: owner select accessible message" ON public.communication_message_actions;
+CREATE POLICY "message actions: owner select accessible message"
+  ON public.communication_message_actions FOR SELECT TO authenticated
+  USING (
+    user_id = (SELECT auth.uid())
+    AND EXISTS (SELECT 1 FROM public.communications c WHERE c.id = communication_id)
+  );
+
+DROP POLICY IF EXISTS "message actions: owner insert accessible message" ON public.communication_message_actions;
+CREATE POLICY "message actions: owner insert accessible message"
+  ON public.communication_message_actions FOR INSERT TO authenticated
+  WITH CHECK (
+    user_id = (SELECT auth.uid())
+    AND EXISTS (SELECT 1 FROM public.communications c WHERE c.id = communication_id)
+  );
+
+DROP POLICY IF EXISTS "message actions: owner update accessible message" ON public.communication_message_actions;
+CREATE POLICY "message actions: owner update accessible message"
+  ON public.communication_message_actions FOR UPDATE TO authenticated
+  USING (
+    user_id = (SELECT auth.uid())
+    AND EXISTS (SELECT 1 FROM public.communications c WHERE c.id = communication_id)
+  )
+  WITH CHECK (
+    user_id = (SELECT auth.uid())
+    AND EXISTS (SELECT 1 FROM public.communications c WHERE c.id = communication_id)
+  );
+
+DROP POLICY IF EXISTS "message actions: owner delete accessible message" ON public.communication_message_actions;
+CREATE POLICY "message actions: owner delete accessible message"
+  ON public.communication_message_actions FOR DELETE TO authenticated
+  USING (
+    user_id = (SELECT auth.uid())
+    AND EXISTS (SELECT 1 FROM public.communications c WHERE c.id = communication_id)
+  );
+
+REVOKE ALL ON TABLE public.communication_message_actions FROM anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE
+  ON public.communication_message_actions TO authenticated;
+
+COMMENT ON TABLE public.communication_message_actions IS
+  'Per-user CRM preferences for WhatsApp communication rows; does not delete or mutate messages at Meta.';
+
+-- DONE (Phase 31)
+-- =============================================================

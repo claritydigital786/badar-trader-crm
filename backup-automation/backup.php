@@ -100,6 +100,7 @@ $tables = [
     // notifications is deliberately excluded while its migration remains
     // parked by Muhammad's instruction. Add it only if that module is revived.
     'communication_logs',
+    'communication_message_actions',
 ];
 
 /**
