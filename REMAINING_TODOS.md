@@ -57,6 +57,19 @@ draft PRs (#16, #18) existed on GitHub without a line in any doc until this pass
 
 ---
 
+## Muhammad's Raw Notes - capture first, triage later
+
+Anything Muhammad says gets appended here immediately, as-is, the moment it's said -
+including reactions to watching a session work, half-formed thoughts, anything that
+would otherwise get lost mid-task. Nothing here is acted on just by being written down.
+A session picks items off this list, turns them into a real dated entry under
+"To-Dos" or the Questions Log above once actually understood/actioned, and removes
+them from here - so this section should usually be short or empty, not a growing pile.
+
+_Empty right now - nothing outstanding._
+
+---
+
 ## Questions Log
 
 ## 2026-08-04
