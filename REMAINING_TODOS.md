@@ -68,7 +68,7 @@ A session picks items off this list, turns them into a real dated entry under
 "To-Dos" or the Questions Log above once actually understood/actioned, and removes
 them from here - so this section should usually be short or empty, not a growing pile.
 
-_Empty right now - nothing outstanding._
+- "Remember the Ad Account's name with Badar Tanveer, falling under the umbrella of Trade Campers Business Manager. That is the one on which we will be going to advertise the Ads again." - the real ad account is **"Badar Tanveer"** (under Trade Campus Business Manager), not "Badar Ads UAE DUBAI" - both were visible in a Connect Assets dialog while wiring 6541 on 2026-08-18. Since this ad account and 6541's WABA are both under Trade Campus, click-to-WhatsApp ads should reach 6541 natively - the still-open question is whether replies land in the CRM's webhook once they do.
 
 ---
 
