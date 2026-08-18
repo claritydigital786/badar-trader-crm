@@ -8,5 +8,6 @@ supabase/.temp/
 # Backup script's real credentials (service role key) and its output -
 # never committed. See backup-automation/README.md.
 backup-automation/config.php
+badar-crm-backup-config.php
 backup-automation/backups/
 backup-automation/backup.log
