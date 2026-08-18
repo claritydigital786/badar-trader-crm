@@ -103,9 +103,11 @@ async function getWaCredentials(): Promise<{ token: string; phoneId: string }> {
   const sb = makeSupabase();
   const { data } = await sb.from("settings").select("key, value").in("key", ["wa_access_token", "wa_phone_number_id"]);
   const row = (key: string) => data?.find((r: any) => r.key === key)?.value?.trim() ?? "";
-  cachedWaToken = WHATSAPP_ACCESS_TOKEN || row("wa_access_token");
-  cachedWaPhoneId = WHATSAPP_PHONE_NUMBER_ID || row("wa_phone_number_id");
-  return { token: cachedWaToken, phoneId: cachedWaPhoneId };
+  const token = WHATSAPP_ACCESS_TOKEN || row("wa_access_token");
+  const phoneId = WHATSAPP_PHONE_NUMBER_ID || row("wa_phone_number_id");
+  cachedWaToken = token;
+  cachedWaPhoneId = phoneId;
+  return { token, phoneId };
 }
 
 const LINKS = {
@@ -469,7 +471,8 @@ async function upsertLead(
       ({ error }) => { if (error) console.error("Error marking lead unread:", error.message); },
     );
     const waitUntil = (globalThis as any).EdgeRuntime?.waitUntil;
-    if (waitUntil) waitUntil(markUnread); else markUnread.catch((err: unknown) => console.error("markUnread failed:", err));
+    if (waitUntil) waitUntil(markUnread);
+    else Promise.resolve(markUnread).catch((err: unknown) => console.error("markUnread failed:", err));
     return { lead: existing, wasCreated: false };
   }
 
@@ -1807,6 +1810,7 @@ async function sendList(
 // be a placeholder description. See combineSendLog below, used everywhere
 // this used to be replaced with a hand-typed "[thing sent]" bracket note.
 type SendResult = { ok: boolean; error?: string; text: string };
+type GraphApiResult = { ok: boolean; error?: string };
 
 // Builds one log line from one or more send attempts, real content always,
 // never a description of the content. Fixed 21 July 2026 - every outbound
@@ -1829,7 +1833,7 @@ async function markAsRead(messageId: string): Promise<void> {
   });
 }
 
-async function callGraphApi(payload: unknown): Promise<SendResult> {
+async function callGraphApi(payload: unknown): Promise<GraphApiResult> {
   const { token, phoneId } = await getWaCredentials();
   if (!token || !phoneId) {
     const msg = "No WhatsApp access token / phone number ID available (checked env vars and settings table)";

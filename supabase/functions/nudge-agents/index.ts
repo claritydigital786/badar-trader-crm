@@ -11,10 +11,16 @@
 // Deploy: supabase functions deploy nudge-agents --no-verify-jwt
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyInternalRequest } from "../_shared/internal_auth.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const INTERNAL_FUNCTION_SECRET = Deno.env.get("INTERNAL_FUNCTION_SECRET") ?? "";
 const GRAPH_VERSION = "v21.0";
+
+// Defense in depth. Authentication controls who can invoke the function;
+// this gate separately controls whether it may send agent reminders at all.
+const NUDGE_AGENTS_ENABLED = false;
 
 // Kept in sync with AGENT_ROTATION in supabase/functions/whatsapp-webhook/index.ts.
 const AGENT_ROTATION = [
@@ -77,7 +83,20 @@ async function logComm(sb: SupabaseClient, leadId: string, body: string): Promis
   });
 }
 
-Deno.serve(async (): Promise<Response> => {
+Deno.serve(async (req: Request): Promise<Response> => {
+  if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
+  const auth = verifyInternalRequest(req, INTERNAL_FUNCTION_SECRET);
+  if (!auth.authorized) {
+    return new Response(JSON.stringify({ ok: false, error: auth.reason }), {
+      status: auth.status,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (!NUDGE_AGENTS_ENABLED) {
+    return new Response(JSON.stringify({ ok: true, enabled: false, message: "NUDGE_AGENTS_ENABLED is false, no-op" }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   const report: Record<string, any> = {};
   try {
     const sb = makeSupabase();

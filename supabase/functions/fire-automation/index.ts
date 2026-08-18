@@ -12,9 +12,11 @@
 // Deploy: supabase functions deploy fire-automation --no-verify-jwt
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyInternalRequest } from "../_shared/internal_auth.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const INTERNAL_FUNCTION_SECRET = Deno.env.get("INTERNAL_FUNCTION_SECRET") ?? "";
 const GRAPH_VERSION = "v21.0";
 
 // OFF by default, on purpose - matches BOT_REPLIES_ENABLED / KEYWORD_REPLIES_ENABLED
@@ -78,6 +80,14 @@ function conditionMatches(conditionFilter: string | null, lead: any): boolean {
 
 Deno.serve(async (req: Request): Promise<Response> => {
   try {
+    if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
+    const auth = verifyInternalRequest(req, INTERNAL_FUNCTION_SECRET);
+    if (!auth.authorized) {
+      return new Response(JSON.stringify({ ok: false, error: auth.reason }), {
+        status: auth.status,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     if (!AUTOMATION_ENABLED) {
       return new Response(JSON.stringify({ ok: false, error: "Automation is disabled (AUTOMATION_ENABLED = false). Nothing was sent, nothing was changed." }), { headers: { "Content-Type": "application/json" } });
     }

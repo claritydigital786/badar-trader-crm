@@ -1746,7 +1746,7 @@
   <div id="admin-tab-bot-manager" class="tab-content">
     <h3>Bot Manager</h3>
     <div class="info-box">
-      Everything that shapes what the bot says now lives here, grouped the way WhatChimp groups it: pick a bot on the left, then work through Automation, Data Collection, AI, Engagement, Commerce and Integrations. Sections backed by a real feature in this CRM are marked <strong>Built</strong> and save to the database. The rest are marked <strong>Not built yet</strong> and say what they would need, rather than showing an empty screen that looks broken.
+      Everything that shapes what the bot says now lives here, grouped the way WhatChimp groups it: pick a bot on the left, then work through Automation, Data Collection, AI, Engagement, Commerce and Integrations. Sections backed by a real feature in this CRM are marked <strong>Built</strong> and save to the database. Existing CRM destinations are marked <strong>Available in CRM</strong>. Genuine gaps are marked <strong>Not built yet</strong>, while features that do not fit Badar Trader are marked <strong>Not planned</strong> instead of being left as confusing empty screens.
     </div>
 
     <div class="bm-layout">
@@ -1806,7 +1806,7 @@
           <!-- Keyword Replies (was: Create Flow) -->
           <div class="bm-panel active" id="bm-panel-keyword-replies">
             <div class="info-box">
-              Keyword replies: pick a trigger word and the reply to send. Saving here is real and persists to the database. <strong>No customer receives these replies today</strong>, but not because the rules are ignored: the deployed <code>whatsapp-webhook</code> function does read this table on every inbound message, in <code>tryKeywordReply()</code>. What stops it replying is <code>KEYWORD_REPLIES_ENABLED</code>, a code constant in that function, currently false. See the live reply gates table under AI Configuration. <strong>That means every active rule below goes live at once the moment that constant is flipped and the function is redeployed</strong>, so treat this list as copy a real customer will eventually read, and review the whole of it before anyone asks for that switch. Flipping it is a deploy, so it happens only on Muhammad's laptop with him present. This is the simplest real version on purpose; a visual drag-and-drop flow builder is a much larger, later phase.
+              Keyword replies: pick a trigger word and the reply to send. Saving here is real and persists to the database. <strong>The deployed WhatsApp webhook reads these rules, but live keyword replies are paused.</strong> <code>KEYWORD_REPLIES_ENABLED</code> is currently <code>false</code>, so testing or saving a rule here cannot message a customer. Changing that gate requires a reviewed function edit and redeploy, and every active rule would become eligible together. Review the complete list before requesting that change. This is the simplest real version on purpose; a visual drag-and-drop flow builder is a much larger, later phase.
             </div>
 
             <div class="card">
@@ -2694,15 +2694,15 @@
     </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Create Flow</p>
-      <p style="color:#475569;font-size:0.88rem">A simple automation builder: set a trigger keyword and the reply to send. Create, edit, pause and delete rules here; they save to the database for real. Note the bot does not act on them yet, that wiring is a separate step.</p>
+      <p style="color:#475569;font-size:0.88rem">A simple automation builder: set a trigger keyword and the reply to send. Create, edit, pause and delete rules here; they save to the database for real. The deployed webhook reads active rules, but <code>KEYWORD_REPLIES_ENABLED</code> remains off, so no customer reply is sent.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Bot Manager</p>
-      <p style="color:#475569;font-size:0.88rem">Where the bot's system prompt and knowledge notes are managed per number. Create, edit, pause and delete training campaigns here; they save to the database for real. Same caveat as Create Flow: the bot does not read them yet.</p>
+      <p style="color:#475569;font-size:0.88rem">Where the bot's system prompt and knowledge notes are managed per number. Create, edit, pause and delete training campaigns here; they save to the database for real. The deployed webhook can read the active campaign, but <code>AI_REPLIES_ENABLED</code> remains off, so it cannot answer a customer.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Follow-ups</p>
-      <p style="color:#475569;font-size:0.88rem">Rules for nudging leads that go quiet: when a lead has sat in a given status for this many hours without moving, send this message. Create, edit, pause and delete them here; they save for real. Nothing sends them yet, no scheduled job reads this table.</p>
+      <p style="color:#475569;font-size:0.88rem">Rules for nudging leads that go quiet: when a lead has sat in a given status for this many hours without moving, send this message. Create, edit, pause and delete them here; they save for real. The sender is built, but production currently has no cron job and <code>FOLLOW_UPS_ENABLED</code> remains off, so nothing is sent.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Message Templates</p>
@@ -3994,6 +3994,41 @@ const _DEMO_AGENTS = [
   { id:'ag1', agent_name:'Team Badar Support Agent', kb_id:'akb1', system_prompt:'You are the Team Badar assistant. Keep replies short and never promise returns.', is_active:false },
 ];
 
+// Some WhatChimp-style slots already have a complete equivalent elsewhere in
+// this CRM. Present those as working routes instead of incorrectly labelling
+// them "Not built yet" or duplicating the same feature in two places.
+const BM_AVAILABLE_ELSEWHERE = {
+  'appointment-booking': {
+    title: 'Appointment Booking',
+    summary: 'Create, assign, reschedule and track callbacks in the CRM calendar.',
+    location: 'Available in Appointments.',
+    actions: [['Open Appointments', 'appointments']],
+  },
+  'set-webhook': {
+    title: 'Webhook',
+    summary: 'Review the inbound webhook URL, verification token and WhatsApp connection reference.',
+    location: 'Available in Meta Integration.',
+    actions: [['Open Meta Integration', 'meta']],
+  },
+  'set-shared-inbox': {
+    title: 'Shared Inbox',
+    summary: 'Control who can access conversations through staff roles and assigned-lead policies.',
+    location: 'Available in User Permission and User Manager.',
+    actions: [['Review Permissions', 'user-permission'], ['Manage Team', 'user-manager']],
+  },
+};
+
+const BM_NOT_PLANNED = {
+  'store-automation': {
+    title: 'Store Automation',
+    reason: 'Not planned for Badar Trader. Shopify and WooCommerce order events do not belong to the current trading education and lead-management workflow.',
+  },
+  'product-catalog': {
+    title: 'Product Catalog',
+    reason: 'Not planned for Badar Trader. The business currently offers trading onboarding, courses and signal-group access rather than WhatsApp catalog ordering.',
+  },
+};
+
 // What WhatChimp does in each slot we have not built here yet, and what it
 // would actually take. Keeping this as data rather than markup so the copy
 // stays in one place and every placeholder reads the same way.
@@ -4004,22 +4039,48 @@ const BM_PLACEHOLDERS = {
   'webhook-workflows':   ['Webhook Workflows', 'Chains a webhook trigger into a sequence of steps.', 'This CRM already receives webhooks in the whatsapp-webhook function. A workflow builder on top of it is a much larger phase, same category as a visual flow builder.'],
   'user-input-flows':    ['User Input Flows', 'A scripted question-and-answer sequence that collects fields from a customer, one question at a time.', 'The deployed webhook already walks leads through a scripted capture flow in code. Making that editable from this screen means moving the script into a table first, which changes live bot behaviour and needs Muhammad present.'],
   'whatsapp-flows':      ['WhatsApp Flows', 'Meta\'s own native form product, rendered inside WhatsApp rather than as chat messages.', 'Needs Flows to be created and approved in WhatsApp Manager first, then referenced by id. Nothing can be built here until that approval exists.'],
-  'appointment-booking': ['Appointment Booking', 'Lets the bot book a slot directly into the calendar during a conversation.', 'This CRM already has a real Appointments tab with its own table. This slot would connect the bot to it. The Appointments tab in the sidebar is the working version today.'],
   'chat-entry':          ['Chat Entry', 'Generates a chat widget link and embed code so a website visitor can start a WhatsApp conversation.', 'Needs a public embed snippet and a landing route. The Sites tab already hosts this CRM\'s public pages, so that is where it would live.'],
-  'store-automation':    ['Store Automation', 'WooCommerce and Shopify order automations: abandoned cart, order confirmation, shipping updates.', 'Badar\'s business is trading education, not e-commerce. Listed for completeness against WhatChimp, not currently a real need.'],
-  'product-catalog':     ['Product Catalog', 'A product catalog and catalog orders inside WhatsApp.', 'Same as Store Automation: no e-commerce catalog in this business today.'],
   'http-api':            ['HTTP API', 'Outbound HTTP calls that flows and automations can trigger.', 'Needs an APIs table plus a caller in the webhook. Straightforward to build once there is a real use for it.'],
   'google-sheets':       ['Google Sheets', 'Pushes captured lead data into a spreadsheet, or reads live data from one at reply time.', 'Needs a Google service account. Worth weighing against the fact that this CRM is itself the database Sheets would be duplicating.'],
   'autoresponder':       ['Autoresponder', 'Sends an automatic acknowledgement outside business hours or when no agent picks up.', 'Depends on Business Hour settings below, which are also not built. Both are real gaps worth closing together.'],
   'int-email':           ['Email', 'Email delivery for notifications and sequences.', 'Needs an email provider such as Resend or SES and a sender domain. Nothing in this CRM sends email today.'],
   'int-sms':             ['SMS', 'SMS fallback when WhatsApp delivery fails.', 'Needs an SMS provider and per-message billing. Not currently budgeted.'],
   'set-general':         ['General', 'Chat-with-human email, no-match reply, get-started message, and whether the bot replies while an agent is on the mobile app.', 'The no-match and get-started behaviour lives in the deployed webhook as code today. Making it editable here means moving that copy into the settings table, which changes what real customers receive.'],
-  'set-webhook':         ['Webhook', 'The inbound webhook URL and verify token for this number.', 'This CRM already has these, in the Meta Integration tab, which is the working version. This slot exists to mirror WhatChimp\'s layout.'],
   'set-business-hour':   ['Business Hour', 'Opening hours per day, used to decide when the autoresponder speaks instead of an agent.', 'Needs an hours table plus a timezone. Pairs with Autoresponder above.'],
-  'set-shared-inbox':    ['Shared Inbox', 'Which agents can see which conversations.', 'This CRM already enforces this through RLS and the agent role. User Permission and User Manager are the working versions today.'],
 };
 
 function renderBmPlaceholders() {
+  Object.entries(BM_AVAILABLE_ELSEWHERE).forEach(([id, feature]) => {
+    const el = document.getElementById('bm-panel-' + id);
+    if (!el || el.dataset.filled) return;
+    el.dataset.filled = '1';
+    const actions = feature.actions.map(([label, tab]) =>
+      `<button class="btn btn-secondary btn-sm" type="button" onclick="adminTab('${tab}')">${esc(label)}</button>`
+    ).join('');
+    el.innerHTML = `
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+          <h4 style="margin:0">${esc(feature.title)}</h4>
+          <span class="bm-status-pill on">Available in CRM</span>
+        </div>
+        <p style="color:#64748b;font-size:0.85rem;margin-bottom:8px">${esc(feature.summary)}</p>
+        <p style="color:#475569;font-size:0.82rem;margin:0 0 14px">${esc(feature.location)}</p>
+        <div class="form-actions">${actions}</div>
+      </div>`;
+  });
+  Object.entries(BM_NOT_PLANNED).forEach(([id, feature]) => {
+    const el = document.getElementById('bm-panel-' + id);
+    if (!el || el.dataset.filled) return;
+    el.dataset.filled = '1';
+    el.innerHTML = `
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+          <h4 style="margin:0">${esc(feature.title)}</h4>
+          <span class="bm-status-pill off">Not planned</span>
+        </div>
+        <p style="color:#64748b;font-size:0.85rem;margin:0">${esc(feature.reason)}</p>
+      </div>`;
+  });
   Object.entries(BM_PLACEHOLDERS).forEach(([id, [title, what, needs]]) => {
     const el = document.getElementById('bm-panel-' + id);
     if (!el || el.dataset.filled) return;
@@ -5706,32 +5767,24 @@ async function saveLeadDetail(leadId, ctx) {
 
   // Notify Badar on WhatsApp when any lead moves to Pending Approval
   if (status === 'pending_approval' && prevStatus !== 'pending_approval') {
-    notifyAdminPendingApproval(leadId, prevLead?.full_name || 'Unknown Lead', currentUser?.email || 'An agent');
+    notifyAdminPendingApproval(leadId);
   }
 }
 
-async function notifyAdminPendingApproval(leadId, leadName, agentName) {
+async function notifyAdminPendingApproval(leadId) {
   try {
-    const { data: settingsData } = await sb.from('settings')
-      .select('key, value').in('key', ['wa_phone_number_id', 'wa_access_token', 'admin_whatsapp_number']);
-    const getS = k => (settingsData?.find(r => r.key === k) || {}).value || '';
-    const phoneNumberId  = getS('wa_phone_number_id');
-    const accessToken    = getS('wa_access_token');
-    const adminPhone     = getS('admin_whatsapp_number');
-    if (!phoneNumberId || !accessToken || !adminPhone) return; // silently skip if not configured
-
-    const msg = `🔔 *Pending Approval*\n\n*${agentName}* has marked *${leadName}* as closed and is awaiting your approval.\n\nReview and approve at: crm.badartrader.com`;
-    await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to: adminPhone.replace(/\D/g, ''),
-        type: 'text',
-        text: { body: msg }
-      })
+    const { data, error } = await sb.functions.invoke('notify-admin-pending-approval', {
+      body: { lead_id: leadId }
     });
-  } catch(e) { console.warn('Admin WA notification failed:', e); }
+    if (error || !data?.ok) {
+      const reason = data?.error || error?.message || 'Unknown notification error';
+      console.warn('Admin pending-approval notification failed:', reason);
+      showToast('Status saved, but Badar was not alerted. Ask an Admin to check Pending Approval.', 'err');
+    }
+  } catch (error) {
+    console.warn('Admin pending-approval notification failed:', error);
+    showToast('Status saved, but Badar was not alerted. Ask an Admin to check Pending Approval.', 'err');
+  }
 }
 
 async function approveConversion(leadId, ctx) {
@@ -5831,7 +5884,7 @@ async function agentSaveStatus(leadId, ctx) {
 
   // Notify Badar when agent marks a lead as Pending Approval
   if (status === 'pending_approval' && prevStatus !== 'pending_approval') {
-    notifyAdminPendingApproval(leadId, lead?.full_name || 'Unknown Lead', currentUser?.email || 'Your agent');
+    notifyAdminPendingApproval(leadId);
   }
 }
 
@@ -6718,8 +6771,8 @@ async function deleteTemplate(id) {
 }
 
 // ── FOLLOW-UPS (follow_up_sequences) ──────────────────────────
-// Storage + UI only. No scheduled job reads this table, so saving a
-// rule here does not send anything to anyone yet.
+// Rules persist for the built send-follow-ups function. Production currently
+// has no cron job and FOLLOW_UPS_ENABLED is false, so saving a rule cannot send.
 const FUS_STATUS_LABELS = {
   new:'New', contacted:'Contacted', qualified:'Qualified', proposal_sent:'Proposal Sent',
   pending_approval:'Pending Approval', converted:'Converted', lost:'Lost'
@@ -9390,13 +9443,6 @@ async function doSendTemplate(t, params, rendered) {
     const res = await sendWaViaFunction(target.convId, '', null, null, {
       meta_name: t.meta_name, language: t.language || 'en', params, rendered,
     });
-    if (res === 'unavailable') {
-      // The legacy in-browser path only knows how to send plain text, and a
-      // template is the one case where plain text is exactly what WhatsApp
-      // will refuse. Saying so beats sending something that bounces.
-      showToast('Templates need the send-wa-message function deployed. Nothing was sent.', 'err');
-      return;
-    }
     if (res.warning) showToast(res.warning, 'err');
     showToast('Template sent ✓');
   } catch (err) {
@@ -9643,10 +9689,7 @@ async function doForwardMessage(targetId, targetName) {
 
   try {
     const viaFunction = await sendWaViaFunction(targetId, text, null);
-    if (viaFunction === 'unavailable') {
-      const sent = await sendWaViaBrowser(targetId, text, null);
-      if (!sent) return; // legacy path already explained why
-    } else if (viaFunction.warning) {
+    if (viaFunction.warning) {
       showToast(viaFunction.warning, 'err');
     }
     showToast(`Forwarded to ${targetName} ✓`);
@@ -9918,10 +9961,8 @@ async function sendConvMessage(convId, scope = '') {
     return;
   }
 
-  // Live mode - prefer the server-side send (supabase/functions/send-wa-message
-  // keeps the WhatsApp token in the backend); fall back to the legacy in-browser
-  // send until that function is deployed. Once it's deployed and confirmed, the
-  // fallback and the schema §30 settings-read policy can both be removed.
+  // Live mode uses only the server-side sender. The WhatsApp access token must
+  // never be exposed to an Agent browser as a fallback credential.
   const sendBtn = document.getElementById('conv-send-btn');
   if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending…'; }
   if (input) input.disabled = true;
@@ -9941,16 +9982,7 @@ async function sendConvMessage(convId, scope = '') {
     }
 
     const viaFunction = await sendWaViaFunction(convId, text, replyToWaMessageId, attachmentPayload);
-    if (viaFunction === 'unavailable') {
-      // The legacy in-browser path can only send text. Silently dropping the
-      // file here would tell the agent the attachment went when it did not.
-      if (attachmentPayload) {
-        showToast('Attachments need the send-wa-message function deployed. Nothing was sent.', 'err');
-        return;
-      }
-      const sent = await sendWaViaBrowser(convId, text, replyToWaMessageId);
-      if (!sent) return; // credentials toast already shown by the legacy path
-    } else if (viaFunction.warning) {
+    if (viaFunction.warning) {
       showToast(viaFunction.warning, 'err');
     }
     clearReplyTarget();
@@ -9984,10 +10016,9 @@ async function sendConvMessage(convId, scope = '') {
   }
 }
 
-// Server-side send. Returns { warning? } on success, the string 'unavailable'
-// if the Edge Function can't be reached (not deployed yet, or the functions
-// endpoint is down → caller uses the legacy path), and throws on real
-// failures with the server's error message.
+// Server-side send. Returns { warning? } on success and throws on every
+// failure. There is deliberately no browser fallback because that would put
+// the raw WhatsApp token in every Agent session.
 async function sendWaViaFunction(convId, text, replyToWaMessageId, attachment = null, template = null) {
   let data, error;
   try {
@@ -10001,14 +10032,9 @@ async function sendWaViaFunction(convId, text, replyToWaMessageId, attachment = 
       }
     }));
   } catch (_) {
-    return 'unavailable';
+    throw new Error('Secure messaging service is unavailable. Nothing was sent.');
   }
   if (error) {
-    // An undeployed function never produces an HTTP response in the browser:
-    // its CORS preflight 404s without CORS headers, so invoke reports a
-    // fetch failure with no status (verified live before first deploy).
-    const status = error.context?.status;
-    if (typeof status !== 'number' || status === 404) return 'unavailable';
     let msg = error.message || 'Send failed';
     try {
       const body = await error.context.json();
@@ -10018,71 +10044,6 @@ async function sendWaViaFunction(convId, text, replyToWaMessageId, attachment = 
   }
   if (!data?.ok) throw new Error(data?.error || 'Send failed');
   return { warning: data.warning };
-}
-
-// Legacy in-browser send - requires the schema §30 policy so agents can read
-// the two WhatsApp credential settings. Returns false if credentials are
-// unreadable/unset (after showing the toast), true once sent and logged.
-async function sendWaViaBrowser(convId, text, replyToWaMessageId) {
-  const [leadRes, settingsRes] = await Promise.all([
-    sb.from('leads').select('phone').eq('id', convId).maybeSingle(),
-    sb.from('settings').select('key, value').in('key', ['wa_phone_number_id', 'wa_access_token'])
-  ]);
-  if (leadRes.error) throw leadRes.error;
-
-  const getS = k => (settingsRes.data?.find(r => r.key === k) || {}).value || '';
-  const phoneNumberId = getS('wa_phone_number_id');
-  const accessToken   = getS('wa_access_token');
-
-  if (!phoneNumberId || !accessToken) {
-    showToast('WhatsApp token not set - go to Meta Integration and save your credentials first.', 'err');
-    return false;
-  }
-
-  const phoneDigits = (leadRes.data?.phone || '').replace(/\D/g, '');
-  const waResp = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      to: phoneDigits,
-      type: 'text',
-      text: { body: text },
-      ...(replyToWaMessageId ? { context: { message_id: replyToWaMessageId } } : {})
-    })
-  });
-  if (!waResp.ok) {
-    const errData = await waResp.json().catch(() => ({}));
-    throw new Error(errData?.error?.message || `WhatsApp API error ${waResp.status}`);
-  }
-  const waData = await waResp.json().catch(() => ({}));
-  const sentWaMessageId = waData?.messages?.[0]?.id || null;
-
-  // Save outbound message to communications table
-  await sb.from('communications').insert({
-    lead_id:   convId,
-    type:      'whatsapp',
-    direction: 'outbound',
-    body:      text,
-    logged_by: currentUser?.id || null,
-    wa_message_id: sentWaMessageId
-  });
-  // Same takeover flag send-wa-message sets on the primary path - an agent
-  // manually messaging a lead here means a human has taken over, the bot
-  // must stop treating the lead's replies as answers to its own flow.
-  // Result was previously discarded, making a failure here silent - see the
-  // matching fix in send-wa-message. If this write fails the bot keeps
-  // treating the lead's replies as answers to its own flow, which is how a
-  // lead was lost on 21 July. Tell the agent so they can set Needs Human by
-  // hand; the message itself did go out, so this is a warning, not a failure.
-  const { error: takeoverError } = await sb.from('leads').update({
-    needs_human: true,
-    handoff_reason: 'requested human agent, an agent manually took over this conversation',
-  }).eq('id', convId);
-  if (takeoverError) {
-    showToast('Sent, but the bot was not handed over - it may still reply to this lead. Set Needs Human manually.', 'err');
-  }
-  return true;
 }
 
 function startConvRealtime(scope = '') {
