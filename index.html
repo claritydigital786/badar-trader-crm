@@ -1331,7 +1331,7 @@
       <div class="nav-item" data-tab="payroll"><span class="nav-icon" data-nav-icon="wallet" style="background:var(--tint-gold-bg)"></span> Payroll</div>
       <div class="nav-section-label">WHATSAPP SIGNALS</div>
       <div class="nav-item" data-tab="signal-broadcast"><span class="nav-icon" data-nav-icon="broadcast" style="background:var(--tint-sky-bg)"></span> Broadcast Signal</div>
-      <div class="nav-item" data-tab="subscribers"><span class="nav-icon" data-nav-icon="subscriber" style="background:var(--tint-success-bg)"></span> Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
+      <div class="nav-item" data-tab="subscribers"><span class="nav-icon" data-nav-icon="subscriber" style="background:var(--tint-success-bg)"></span> Manage Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
       <div class="nav-item" data-tab="ai-signals"><span class="nav-icon" data-nav-icon="sparkles" style="background:var(--tint-warn-bg)"></span> AI Signals</div>
       <div class="nav-section-label">SYSTEM</div>
       <div class="nav-item" data-tab="user-permission"><span class="nav-icon" data-nav-icon="shield" style="background:var(--tint-danger-bg)"></span> User Permission</div>
@@ -3102,7 +3102,7 @@
       Subscribers are members of the signalling communities. Everything here saves to the database for real: adds, edits, removals and CSV imports all persist. A subscriber starts as <strong>Pending</strong> when they come from the signup form, and becomes <strong>Active</strong> once you confirm they are actually in the community. Note WhatsApp's Cloud API cannot post into Communities, so this list is a record of membership, not a send list.
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-      <h3 style="margin:0">👤 Subscribers</h3>
+      <h3 style="margin:0">👤 Manage Subscribers</h3>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-secondary btn-sm" onclick="document.getElementById('sub-csv-input').click()">📥 Import CSV</button>
         <input type="file" id="sub-csv-input" accept=".csv" style="display:none" onchange="importSubscribersCSV(event)" />
@@ -3117,34 +3117,7 @@
       <div class="stat-card"><div class="stat-value" id="sub-communities">0</div><div class="stat-label">Communities</div></div>
     </div>
 
-    <div class="filter-bar" style="margin-bottom:14px">
-      <input type="text" id="sub-search" placeholder="🔍 Search name or phone…" oninput="renderSubscribersTable()"
-        style="flex:1;min-width:180px;max-width:280px" />
-      <select id="sub-status-filter" onchange="renderSubscribersTable()">
-        <option value="all">All statuses</option>
-        <option value="active">Active</option>
-        <option value="pending">Pending</option>
-        <option value="inactive">Inactive</option>
-        <option value="removed">Removed</option>
-      </select>
-      <select id="sub-community-filter" onchange="renderSubscribersTable()">
-        <option value="all">All communities</option>
-      </select>
-    </div>
-
-    <div class="card" style="padding:0">
-      <table>
-        <thead><tr>
-          <th>#</th><th>Name</th><th>Phone</th><th>Community</th>
-          <th>Source</th><th>Added</th><th>Status</th><th></th>
-        </tr></thead>
-        <tbody id="sub-tbody">
-          <tr><td colspan="8" class="empty-state">Loading subscribers…</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div id="add-sub-form" class="card" style="display:none;margin-top:16px">
+    <div id="add-sub-form" class="card" style="display:none;margin-bottom:16px">
       <h4 style="margin-bottom:12px">Add Subscriber</h4>
       <div class="form-row">
         <div><label>Name</label><input type="text" id="new-sub-name" placeholder="Full name" style="width:100%" /></div>
@@ -3157,6 +3130,42 @@
       <div class="form-actions">
         <button class="btn btn-primary btn-inline" onclick="addSubscriber()">Add</button>
         <button class="btn btn-secondary btn-inline" onclick="document.getElementById('add-sub-form').style.display='none'">Cancel</button>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;align-items:start">
+      <div>
+        <div class="filter-bar" style="margin-bottom:14px">
+          <input type="text" id="sub-search" placeholder="🔍 Search name or phone…" oninput="renderSubscribersTable()"
+            style="flex:1;min-width:180px;max-width:280px" />
+          <select id="sub-status-filter" onchange="renderSubscribersTable()">
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="pending">Pending</option>
+            <option value="inactive">Inactive</option>
+            <option value="removed">Removed</option>
+          </select>
+          <select id="sub-community-filter" onchange="renderSubscribersTable()">
+            <option value="all">All communities</option>
+          </select>
+        </div>
+
+        <div class="card" style="padding:0">
+          <table>
+            <thead><tr>
+              <th>#</th><th>Name</th><th>Phone</th><th>Community</th>
+              <th>Source</th><th>Added</th><th>Status</th><th></th>
+            </tr></thead>
+            <tbody id="sub-tbody">
+              <tr><td colspan="8" class="empty-state">Loading subscribers…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" id="sub-detail-panel" style="position:sticky;top:12px;min-height:220px">
+        <div class="empty-state" id="sub-detail-empty">👤<br>Select a subscriber<br><span style="font-size:0.8rem;color:#94a3b8">Click a row to view and edit their details</span></div>
+        <div id="sub-detail-body" style="display:none"></div>
       </div>
     </div>
   </div>
@@ -3954,7 +3963,7 @@ function adminTab(name, el) {
     payroll: 'Payroll', automation: 'Automation',
     notifications: 'Notifications', sites: 'Landing Pages', reports: 'Reports',
     'comm-log': 'Communication Log',
-    'signal-broadcast': 'Broadcast Signal', subscribers: 'Subscribers', 'ai-signals': 'AI Signals',
+    'signal-broadcast': 'Broadcast Signal', subscribers: 'Manage Subscribers', 'ai-signals': 'AI Signals',
     guide: 'Guide', 'user-manager': 'User Manager', 'user-permission': 'User Permission',
     'bot-manager': 'Bot Manager', appointments: 'Appointments'
   };
@@ -10673,7 +10682,7 @@ function renderSubscribersTable() {
     return;
   }
   tbody.innerHTML = rows.map((x, i) => `
-    <tr>
+    <tr onclick="selectSubscriber('${x.id}')" style="cursor:pointer;${String(_selectedSubscriberId)===String(x.id)?'background:#f0f9ff':''}">
       <td style="color:#64748b;font-size:0.78rem">${i+1}</td>
       <td style="font-weight:600;color:#0f172a">${esc(x.name || '-')}</td>
       <td style="font-family:monospace;font-size:0.82rem">${esc(x.phone)}</td>
@@ -10681,8 +10690,108 @@ function renderSubscribersTable() {
       <td><span style="color:#64748b;font-size:0.76rem">${esc((x.source || '').replace('_',' '))}</span></td>
       <td><span style="color:#64748b;font-size:0.76rem">${x.created_at ? new Date(x.created_at).toLocaleDateString() : '-'}</span></td>
       <td><span style="font-size:0.75rem;font-weight:700;color:${SUB_STATUS_COLOURS[x.status] || '#64748b'}">${esc(x.status)}</span></td>
-      <td><button onclick="removeSubscriber('${x.id}')" style="background:none;border:none;cursor:pointer;color:#64748b;font-size:0.78rem" title="Remove">✕</button></td>
+      <td><button onclick="event.stopPropagation();removeSubscriber('${x.id}')" style="background:none;border:none;cursor:pointer;color:#64748b;font-size:0.78rem" title="Remove">✕</button></td>
     </tr>`).join('');
+
+  // Keep the open detail panel in sync if its subscriber is still in view
+  // (e.g. after a save changes their status and the filtered list re-renders).
+  if (_selectedSubscriberId) {
+    const still = rows.find(x => String(x.id) === String(_selectedSubscriberId));
+    if (still) renderSubscriberDetail(still); else closeSubscriberDetail();
+  }
+}
+
+let _selectedSubscriberId = null;
+
+function selectSubscriber(id) {
+  _selectedSubscriberId = id;
+  const sub = _subscribers.find(x => String(x.id) === String(id));
+  if (!sub) return;
+  renderSubscribersTable();
+  renderSubscriberDetail(sub);
+}
+
+function closeSubscriberDetail() {
+  _selectedSubscriberId = null;
+  const empty = document.getElementById('sub-detail-empty');
+  const body  = document.getElementById('sub-detail-body');
+  if (empty) empty.style.display = 'block';
+  if (body)  { body.style.display = 'none'; body.innerHTML = ''; }
+}
+
+function renderSubscriberDetail(sub) {
+  const empty = document.getElementById('sub-detail-empty');
+  const body  = document.getElementById('sub-detail-body');
+  if (!empty || !body) return;
+  empty.style.display = 'none';
+  body.style.display = 'block';
+  const initials = (sub.name || sub.phone || '?').trim().split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+  const statusOptions = ['pending','active','inactive','removed']
+    .map(s => `<option value="${s}" ${sub.status===s?'selected':''}>${s[0].toUpperCase()+s.slice(1)}</option>`).join('');
+
+  body.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      <div style="width:44px;height:44px;border-radius:50%;background:${avatarColor(sub.id)};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700">${esc(initials)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:1.02rem;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(sub.name || 'Unnamed subscriber')}</div>
+        <div style="font-family:monospace;font-size:0.82rem;color:#64748b">${esc(sub.phone)}</div>
+      </div>
+      <span style="font-size:0.72rem;font-weight:700;color:${SUB_STATUS_COLOURS[sub.status] || '#64748b'};background:${SUB_STATUS_COLOURS[sub.status] || '#64748b'}1a;padding:3px 9px;border-radius:10px">${esc(sub.status)}</span>
+    </div>
+
+    <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-bottom:12px">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:8px;font-size:0.85rem">About</p>
+      <div style="display:grid;gap:8px;font-size:0.85rem">
+        <div><span style="color:#64748b">Phone</span><br>${esc(sub.phone)}</div>
+        <div><span style="color:#64748b">Email</span><br>${esc(sub.email || '-')}</div>
+        <div><span style="color:#64748b">Source</span><br>${esc((sub.source || '-').replace('_',' '))}</div>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-bottom:12px">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:8px;font-size:0.85rem">Engagement</p>
+      <div style="display:grid;gap:8px;font-size:0.85rem">
+        <div><span style="color:#64748b">Subscribed at</span><br>${sub.created_at ? new Date(sub.created_at).toLocaleString() : '-'}</div>
+        <div><span style="color:#64748b">Joined community</span><br>${sub.joined_at ? new Date(sub.joined_at).toLocaleString() : 'Not confirmed yet'}</div>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid #e2e8f0;padding-top:12px">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:8px;font-size:0.85rem">Edit</p>
+      <div style="display:grid;gap:10px">
+        <div><label style="font-size:0.78rem;color:#64748b">Community</label>
+          <input type="text" id="sd-community" value="${esc(sub.community || '')}" list="sub-community-list" style="width:100%" /></div>
+        <div><label style="font-size:0.78rem;color:#64748b">Status</label>
+          <select id="sd-status" style="width:100%">${statusOptions}</select></div>
+        <div><label style="font-size:0.78rem;color:#64748b">Notes</label>
+          <textarea id="sd-notes" rows="3" style="width:100%">${esc(sub.notes || '')}</textarea></div>
+      </div>
+      <div class="form-actions" style="margin-top:10px">
+        <button class="btn btn-primary btn-inline" onclick="saveSubscriberDetail('${sub.id}')">Save Changes</button>
+        <button class="btn btn-secondary btn-inline" onclick="closeSubscriberDetail()">Close</button>
+      </div>
+    </div>`;
+}
+
+async function saveSubscriberDetail(id) {
+  const community = document.getElementById('sd-community')?.value.trim() || null;
+  const status     = document.getElementById('sd-status')?.value || 'pending';
+  const notes      = document.getElementById('sd-notes')?.value.trim() || null;
+  const existing   = _subscribers.find(x => String(x.id) === String(id));
+  const patch = { community, status, notes };
+  if (status === 'active' && !existing?.joined_at) patch.joined_at = new Date().toISOString();
+
+  if (demoMode) {
+    const sub = _subscribers.find(x => String(x.id) === String(id));
+    if (sub) Object.assign(sub, patch);
+    renderSubscribersTable();
+    if (sub) renderSubscriberDetail(sub);
+    return;
+  }
+  const { error } = await sb.from('subscribers').update(patch).eq('id', id);
+  if (error) { alert(error.message); return; }
+  await loadSubscribers();
+  selectSubscriber(id);
 }
 
 function showAddSubscriberForm() {
