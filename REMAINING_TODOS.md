@@ -26,7 +26,7 @@ draft PRs (#16, #18) existed on GitHub without a line in any doc until this pass
 
 ### Muhammad-only (human step, no session can do these)
 
-- [ ] **Contact Meta developer support about the send-permission bug, using the drafted message below** (or try the same repro again fresh tomorrow in case something resolves on its own overnight - worth one quick retest before escalating). Full diagnostic detail in HANDOFF.md's 2026-08-19 "PAUSED" entry.
+- [ ] **Check back on the Meta Developer Community Forum post for a reply.** Posted 2026-08-20 ~01:54 AM: https://developers.facebook.com/community/threads/1701333927622579/?post_id=1701333930955912 - direct 1:1 developer support turned out to be unavailable for this category (Meta's own message redirected to the Community Forum instead), so this is the only channel available. Also worth trying: the same repro fresh, in case anything resolves on its own overnight. Full diagnostic detail in HANDOFF.md's 2026-08-19 "PAUSED" entry.
 
   Drafted message to submit via developers.facebook.com/support (or the Meta Business Help Center):
 
