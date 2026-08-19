@@ -4645,13 +4645,23 @@ async function confirmImportCSV() {
   if (!_csvImportRows.length) return;
   if (demoMode) { msgEl.textContent = 'Import works in live mode only.'; return; }
   btn.disabled = true; btn.textContent = 'Importing...';
-  var inserted = 0; var errors = 0;
+  var inserted = 0; var errors = 0; var assigned = 0;
   for (var i = 0; i < _csvImportRows.length; i++) {
-    var { error } = await sb.from('leads').insert(_csvImportRows[i]);
+    // Single Add Lead has always round-robin'd unassigned rows (see addLead
+    // above); bulk CSV import silently skipped that same call, so every
+    // imported lead landed unassigned regardless of how many agents existed.
+    // Same round-robin call here closes that gap - a 2,000-lead import now
+    // distributes across active agents exactly like adding them one at a time.
+    var row = _csvImportRows[i];
+    if (!row.assigned_agent_id) {
+      var rrAgent = await getNextRoundRobinAgent();
+      if (rrAgent) { row.assigned_agent_id = rrAgent.id; assigned++; }
+    }
+    var { error } = await sb.from('leads').insert(row);
     if (error) errors++; else inserted++;
   }
   btn.disabled = false; btn.textContent = 'Confirm Import';
-  msgEl.textContent = inserted + ' imported' + (errors ? ', ' + errors + ' failed' : '') + '.';
+  msgEl.textContent = inserted + ' imported' + (assigned ? ', ' + assigned + ' auto-assigned round-robin' : '') + (errors ? ', ' + errors + ' failed' : '') + '.';
   if (inserted) { await loadAdminLeads(); cancelImportCSV(); }
 }
 
