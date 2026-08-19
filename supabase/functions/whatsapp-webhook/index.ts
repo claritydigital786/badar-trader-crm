@@ -72,16 +72,15 @@ const KEYWORD_REPLIES_ENABLED = false;
 // Agent for this same number - reusing that provider means the prompt is
 // portable if WhatChimp is ever dropped, not a guess.
 //
-// Needs, in order, before this can ever be set true:
-//   1. settings.openai_api_key saved (Meta Integration pattern - key/value
-//      in the settings table, nothing in this file).
-//   2. An active row in ai_knowledge_base with a real system_prompt.
-//   3. The exact same WhatChimp double-reply check KEYWORD_REPLIES_ENABLED
-//      requires - AI Agent / keyword replies off on the same WABA.
-//   4. Someone has actually read the assembled prompt (Train AI tab's own
-//      preview shows the exact text) and is comfortable with a live AI
-//      answering real customers with it.
-const AI_REPLIES_ENABLED = false;
+// Enabled 2026-08-19 (Muhammad, his laptop, him present) after all four
+// gates below were actually met, not assumed:
+//   1. settings.openai_api_key saved via Bot Manager -> AI Configuration.
+//   2. Active ai_knowledge_base row for +971 52 558 6541 with Muhammad's
+//      own written system prompt (old placeholder campaign deactivated).
+//   3. Two real test messages to 6541 produced zero WhatChimp auto-reply,
+//      the best signal available without logging into WhatChimp itself.
+//   4. Muhammad read the assembled prompt before this was flipped.
+const AI_REPLIES_ENABLED = true;
 
 // Muhammad, 22 July 2026: a real lead (Izza) explicitly asked for a human
 // agent and sat unanswered for 10+ days - escalating a lead set needs_human
