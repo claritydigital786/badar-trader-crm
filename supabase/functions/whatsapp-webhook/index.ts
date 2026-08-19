@@ -46,8 +46,16 @@ const NEW_LEAD_NOTIFICATIONS_ENABLED = false;
 // replying to the same customer at once. Paused as a precaution while that
 // gets sorted out. Inbound messages/leads still get logged normally (nothing
 // here touches ingestion); every place the bot would send something back to
-// a customer or ping an agent just no-ops instead. Flip to true when told to.
-const BOT_REPLIES_ENABLED = false;
+// a customer or ping an agent just no-ops instead.
+//
+// Enabled 2026-08-19 (Muhammad, his laptop, him present), same night and
+// same evidence as AI_REPLIES_ENABLED above: two real test messages to
+// +971 52 558 6541 after this WABA's webhook was actually fixed produced
+// zero WhatChimp auto-reply. This is the specific precaution that comment
+// was waiting on. If WhatChimp turns out to still be listening despite
+// that, a real customer could get answered twice - watch the first few
+// live replies closely.
+const BOT_REPLIES_ENABLED = true;
 
 // Keyword replies are DELIBERATELY on their own switch, not BOT_REPLIES_ENABLED.
 // The point is to be able to answer simple factual questions ("price", "course")
