@@ -26,6 +26,23 @@ draft PRs (#16, #18) existed on GitHub without a line in any doc until this pass
 
 ### Muhammad-only (human step, no session can do these)
 
+- [ ] **Contact Meta developer support about the send-permission bug, using the drafted message below** (or try the same repro again fresh tomorrow in case something resolves on its own overnight - worth one quick retest before escalating). Full diagnostic detail in HANDOFF.md's 2026-08-19 "PAUSED" entry.
+
+  Drafted message to submit via developers.facebook.com/support (or the Meta Business Help Center):
+
+  > Subject: Identical WhatsApp Cloud API send request succeeds via Graph API Explorer, fails via server call - "(#200) permissions" error
+  >
+  > App: Badar Trader CRM (App ID 4639983159657359)
+  > WABA: Trade Campus (1342908727797643)
+  > Phone number ID: 1181979858336353
+  >
+  > A POST to `https://graph.facebook.com/v20.0/1181979858336353/messages` with a System User access token (scopes: whatsapp_business_management, whatsapp_business_messaging; System User has Full access assigned to the WhatsApp Business Account asset) fails with:
+  > `{"error":{"message":"(#200) You do not have the necessary permissions to send messages on behalf of this WhatsApp Business Account","code":200,"type":"OAuthException"}}`
+  >
+  > The exact same token, endpoint, and JSON body succeeds when run through Graph API Explorer (returns a real wamid and the message is genuinely delivered) but fails identically every time when called from an external server (tested via direct curl and via a deployed Supabase Edge Function). App is in Live mode, Business Verification is Approved, Server IP allowlist is empty. What server-side restriction would cause this Explorer-vs-external-call discrepancy for an otherwise fully-permissioned token?
+
+- [ ] Fill in the real `SUPABASE_SERVICE_ROLE_KEY` in `config.php` on Hostinger - Project URL is already in, this is the last line before the backup cron actually runs.
+
 - [ ] **Generate a fresh `WHATSAPP_ACCESS_TOKEN` scoped to 6541's real WABA and give it to Claude to set as a secret.** Found 2026-08-19: the currently-stored token (last set 2026-08-06) fails with a Graph API "Object does not exist" error when sending from phone number ID `1181979858336353` (6541) - almost certainly scoped to the old, wrong WABA relationship fixed earlier tonight. This is the one remaining blocker before the now-live AI bot can actually deliver a reply. Durable fix: Business Settings -> Users -> System Users -> generate a token with `whatsapp_business_messaging` + `whatsapp_business_management`, expiration Never. Quick fix for one test only: a fresh Graph API Explorer User Access Token (expires in hours). Either way, paste the value in chat and it gets set via `supabase secrets set`, never typed into any live UI.
 - [ ] Fill in the real `SUPABASE_SERVICE_ROLE_KEY` in `config.php` on Hostinger - Project URL is already in, this is the last line before the backup cron actually runs.
 - [ ] Create two real Supabase Auth accounts - human-only step (needs a real password set). Supabase Dashboard -> Authentication -> Users -> Add User, then set the number with the Set Number button in My Team:
