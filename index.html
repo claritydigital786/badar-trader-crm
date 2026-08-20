@@ -1047,6 +1047,8 @@
     [data-theme="dark"] .msg-day-sep { background:#182229; color:#8696a0; box-shadow:none; }
     .msg-bubble.incoming { background:#fff; color:#111b21; border-top-left-radius:0; }
     .msg-bubble.outgoing { background:#d9fdd3; color:#111b21; border-top-right-radius:0; }
+    .msg-bubble.outgoing.send-failed { background:var(--tint-danger-bg); border:1px solid var(--tint-danger-fg); }
+    .send-failed-badge { display:block; color:var(--tint-danger-fg); font-weight:700; font-size:0.76rem; margin-bottom:3px; }
     /* The little pointer WhatsApp puts on the first bubble of each side. */
     .msg-bubble.incoming::before,
     .msg-bubble.outgoing::before {
@@ -1186,6 +1188,7 @@
     }
     [data-theme="dark"] .msg-bubble.incoming { background:#202c33; color:#e9edef; }
     [data-theme="dark"] .msg-bubble.outgoing { background:#005c4b; color:#e9edef; }
+    [data-theme="dark"] .msg-bubble.outgoing.send-failed { background:#3a1210; border:1px solid #dc4c40; color:#fecaca; }
     [data-theme="dark"] .msg-bubble.incoming::before { background:#202c33; }
     [data-theme="dark"] .msg-bubble.outgoing::before { background:#005c4b; }
     [data-theme="dark"] .msg-time           { color:rgba(233,237,239,.5); }
@@ -6296,7 +6299,17 @@ function truncate(s, n) {
 // staring at empty space for a two-word reply. Collapses any run of 2+
 // newlines down to one, and drops leading/trailing blank lines entirely.
 function displayMsgText(text) {
-  return String(text ?? '').replace(/\n{2,}/g, '\n').replace(/^\n+|\n+$/g, '');
+  const stripped = String(text ?? '').replace(/^\[DELIVERY FAILED:[\s\S]*?\]\n?/, '');
+  return stripped.replace(/\n{2,}/g, '\n').replace(/^\n+|\n+$/g, '');
+}
+
+// True when the stored body is combineSendLog()'s failure form (webhook
+// index.ts) - the WhatsApp send failed but the log still records the text
+// that was attempted, so agents could otherwise mistake a failed send for a
+// delivered one. Found 2026-08-20: a genuine (#200) permission failure on
+// 6541 read, at a glance, exactly like the bot's normal welcome reply.
+function isFailedSend(text) {
+  return /^\[DELIVERY FAILED:/.test(String(text ?? ''));
 }
 
 // ── AUTOMATION RULES (admin only) ──────────────────────────────
@@ -8461,10 +8474,12 @@ async function openConversation(convId, scope = '') {
           .filter(m => !messageActionState(m._messageId).is_hidden).map(m => {
           const sep = (m.dayLabel && m.dayLabel !== lastDay) ? `<div class="msg-day-sep">${esc(m.dayLabel)}</div>` : '';
           lastDay = m.dayLabel || lastDay;
+          const failedSend = m.from === 'agent' && isFailedSend(m.text);
           return `${sep}
           <div class="msg-wrapper${m.from === 'agent' ? ' outgoing' : ''}">
-            <div class="msg-bubble ${m.from === 'agent' ? 'outgoing' : 'incoming'}">
+            <div class="msg-bubble ${m.from === 'agent' ? 'outgoing' : 'incoming'}${failedSend ? ' send-failed' : ''}">
               ${messageActionButtonHtml({ id:m._messageId, waMessageId:`demo-${m._messageId}`, text:m.text, direction:m.from === 'agent' ? 'outbound' : 'inbound', createdLabel:`${m.dayLabel || ''} ${m.time || ''}`.trim(), status:m.deliveryStatus || '' })}
+              ${failedSend ? '<span class="send-failed-badge">⚠ Not delivered - customer never received this</span>' : ''}
               <span class="msg-body">${esc(displayMsgText(m.text))}</span>
               <span class="msg-time">${messageActionMarksHtml(m._messageId)}${m.time}${deliveryTickHtml(m.from === 'agent' ? 'outbound' : 'inbound', m.deliveryStatus)}</span>
             </div>
@@ -8575,10 +8590,12 @@ async function openConversation(convId, scope = '') {
               const day = convDayLabel(m.created_at);
               const sep = (day && day !== lastDay) ? `<div class="msg-day-sep">${esc(day)}</div>` : '';
               lastDay = day || lastDay;
+              const failedSend = m.direction === 'outbound' && isFailedSend(m.body);
               return `${sep}
               <div class="msg-wrapper${m.direction === 'outbound' ? ' outgoing' : ''}"${m.wa_message_id ? ` data-wamid="${esc(m.wa_message_id)}"` : ''}>
-                <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}" style="position:relative">
+                <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}${failedSend ? ' send-failed' : ''}" style="position:relative">
                   ${messageActionButtonHtml({ id:m.id, waMessageId:m.wa_message_id || '', text:m.body || '', direction:m.direction, createdAt:m.created_at, status:m.delivery_status || '' })}
+                  ${failedSend ? '<span class="send-failed-badge">⚠ Not delivered - customer never received this</span>' : ''}
                   <span class="msg-body">${esc(displayMsgText(m.body))}</span>
                   ${m.attachment_path ? `<div class="msg-attachment" id="conv-att-${convId}-${m._renderIndex}" data-path="${esc(m.attachment_path)}" style="margin-top:8px;cursor:pointer;color:inherit">📎 Loading attachment…</div>` : ''}
                   <span class="msg-time">${messageActionMarksHtml(m.id)}${fmtConvMessageTime(m.created_at)}${deliveryTickHtml(m.direction, m.delivery_status)}</span>
@@ -10115,8 +10132,10 @@ function startConvRealtime(scope = '') {
           // Tagged with the wamid so the UPDATE handler below can find this
           // bubble again when its delivery status changes.
           if (payload.new.wa_message_id) div.dataset.wamid = payload.new.wa_message_id;
-          div.innerHTML = `<div class="msg-bubble ${payload.new.direction === 'outbound' ? 'outgoing' : 'incoming'}">
+          const failedSend = payload.new.direction === 'outbound' && isFailedSend(payload.new.body);
+          div.innerHTML = `<div class="msg-bubble ${payload.new.direction === 'outbound' ? 'outgoing' : 'incoming'}${failedSend ? ' send-failed' : ''}">
             ${messageActionButtonHtml({ id:payload.new.id, waMessageId:payload.new.wa_message_id || '', text:payload.new.body || '', direction:payload.new.direction, createdAt:payload.new.created_at, status:payload.new.delivery_status || '' })}
+            ${failedSend ? '<span class="send-failed-badge">⚠ Not delivered - customer never received this</span>' : ''}
             <span class="msg-body">${esc(displayMsgText(payload.new.body))}</span>
             <span class="msg-time">${fmtConvMessageTime(payload.new.created_at)}${deliveryTickHtml(payload.new.direction, payload.new.delivery_status)}</span>
           </div>`;
