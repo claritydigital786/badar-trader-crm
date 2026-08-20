@@ -11,6 +11,7 @@ import {
   readAndVerifyMetaRequest,
 } from "../_shared/meta_signature.mjs";
 import { isAllowedPhoneNumberId } from "../_shared/whatsapp_phone_scope.mjs";
+import { isPermanentHandoff } from "../_shared/handoff_permanence.mjs";
 
 const WHATSAPP_VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
 const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN") ?? "";
@@ -746,25 +747,23 @@ async function handleImageMessage(
     message.id,
   );
 
-  const ackResult = await sendText(
+  // Handed over through escalate() rather than a bare ack plus a conditional
+  // ping, fixed 2026-08-20 (Junaid). The ping used to fire only when the lead
+  // already had an assigned agent, so an unassigned lead sending the one
+  // signal that actually means "I have closed" produced no notification, no
+  // needs_human flag and no assignment: exactly the hole escalate()'s own
+  // comment records as having left Izza invisible for 10+ days. escalate()
+  // assigns round-robin when nobody owns the lead, flags it, notifies the
+  // owner and writes the context line, all in one path. The customer-facing
+  // text is unchanged, passed as the message override so this stays one
+  // outbound message.
+  await escalate(
+    sb,
+    lead,
     to,
+    "sent a deposit screenshot",
     "Got it. Your deposit screenshot has been received, our team will confirm it shortly.",
   );
-  await logOutbound(sb, lead.id, combineSendLog(ackResult));
-
-  if (lead.assigned_agent_id) {
-    const assignedAgent = (await getAgentRotation(sb)).find((a) => a.id === lead.assigned_agent_id);
-    if (assignedAgent) {
-      const pingResult = await sendText(assignedAgent.phone, "A deposit screenshot just came in from a lead in the CRM. Please review.");
-      await insertCommunication(
-        sb,
-        lead.id,
-        "outbound",
-        pingResult.ok ? `[agent ${assignedAgent.name} notified of screenshot]` : `[SEND FAILED: agent screenshot notification - ${pingResult.error}]`,
-        new Date().toISOString(),
-      );
-    }
-  }
 }
 
 // WhatsApp permits documents up to 100MB. This function buffers the whole
@@ -992,8 +991,7 @@ async function runBotStep(
   const returningAfterGap = (Date.now() - lastTouch) / 3600000 >= HANDOFF_STALE_HOURS;
 
   if (lead.needs_human) {
-    const explicitRequest = /requested human agent/i.test(lead.handoff_reason ?? "");
-    if (explicitRequest || !returningAfterGap) return;
+    if (isPermanentHandoff(lead.handoff_reason) || !returningAfterGap) return;
     await sb.from("leads").update({ needs_human: false, handoff_reason: null, retry_count: 0 }).eq("id", lead.id);
     lead.needs_human = false;
     lead.retry_count = 0;
@@ -1254,11 +1252,22 @@ async function runBotStep(
         // deposit or an existing $500+ balance both count, the screenshot is
         // what actually matters (it's the real signal a lead has closed, see
         // handleImageMessage).
-        const rQualified = await sendText(
+        // Handed over through escalate() rather than a plain sendText, fixed
+        // 2026-08-20 (Junaid). This branch used to promise the customer "a
+        // team member will follow up" and then just return: needs_human was
+        // never set, no agent was assigned when the lead had none, and nobody
+        // was notified. The single highest-intent moment in the whole funnel
+        // was the one place with no handoff at all, while every failure path
+        // (confused, declined, low-deposit question) escalated correctly.
+        // Passing the qualified copy as escalate()'s message override keeps
+        // this to exactly one outbound message, the same text as before.
+        await escalate(
+          sb,
+          lead,
           to,
+          "qualified, ready for the $500 deposit",
           `Perfect! Deposit $500 in your own ${brokerName} account using the link below:\n${linkSection}\n\nAlready trading with ${brokerName} and have $500 or more deposited? Even better, that counts too. Either way, send your account screenshot showing the deposit here and our team will confirm and unlock your free $250 mentorship course. A team member will follow up with you shortly!`,
         );
-        await logOutbound(sb, lead.id, combineSendLog(rQualified));
         return;
       }
 
