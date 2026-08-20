@@ -8165,7 +8165,7 @@ async function renderConversations(scope = '') {
   try {
     const { data: comms, error } = await sb
       .from('communications')
-      .select('lead_id, body, direction, created_at, leads(full_name, phone, status, is_unread, bot_stage, needs_human, handoff_reason, manual_tier)')
+      .select('lead_id, body, direction, created_at, leads(full_name, phone, status, is_unread, bot_stage, needs_human, handoff_reason, manual_tier, language)')
       .eq('type', 'whatsapp')
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -9315,19 +9315,43 @@ function renderTemplateBody(body, params) {
   });
 }
 
-function sendableTemplates() {
+// Templates whose meta_name marks them as a post-close access check (e.g.
+// "lead_closed_access_v1") only make sense once a lead has actually
+// converted - offering "did you get your access" to someone still deciding
+// reads as broken. Matched by substring rather than an exact name so this
+// keeps working if the template gets a v2/v3 later.
+function isClosedOnlyTemplate(t) {
+  return (t.meta_name || t.name || '').toLowerCase().includes('closed_access');
+}
+
+function sendableTemplates(ctx) {
   const all = demoMode ? (_DEMO_TEMPLATES || []) : (cachedTemplates || []);
   // Approved, active, and actually nameable to Meta. Anything else cannot be
   // sent, so offering it would only produce a failure at the Graph API.
-  return all.filter(t => t.status === 'approved' && t.is_active !== false && (t.meta_name || '').trim());
+  let list = all.filter(t => t.status === 'approved' && t.is_active !== false && (t.meta_name || '').trim());
+  const leadStatus = ctx?.leadStatus || '';
+  list = list.filter(t => !isClosedOnlyTemplate(t) || leadStatus === 'converted');
+
+  // Prefer the template matching the lead's own language (set by the bot's
+  // own language-choice step), not just whichever was created first - a
+  // Roman Urdu speaker should see their language's template at the top.
+  const leadLanguage = ctx?.leadLanguage || 'en';
+  return list.slice().sort((a, b) => {
+    const aMatch = (a.language || 'en') === leadLanguage ? 0 : 1;
+    const bMatch = (b.language || 'en') === leadLanguage ? 0 : 1;
+    return aMatch - bMatch;
+  });
 }
 
 function openTemplatePicker() {
   if (!_activeConvId) { showToast('Open a conversation first.', 'err'); return; }
-  const leadName = (demoMode
-    ? (_DEMO_CONVERSATIONS.find(c => c.id === _activeConvId)?.name)
-    : (_lastConvs || []).find(c => c.lead_id === _activeConvId)?.leads?.full_name) || '';
-  _tplTarget = { convId: _activeConvId, leadName };
+  const leadRow = demoMode
+    ? _DEMO_CONVERSATIONS.find(c => c.id === _activeConvId)
+    : (_lastConvs || []).find(c => c.lead_id === _activeConvId)?.leads;
+  const leadName     = (demoMode ? leadRow?.name : leadRow?.full_name) || '';
+  const leadLanguage = leadRow?.language || 'en';
+  const leadStatus   = leadRow?.status   || '';
+  _tplTarget = { convId: _activeConvId, leadName, leadLanguage, leadStatus };
 
   closeTemplatePicker();
   const overlay = document.createElement('div');
@@ -9360,7 +9384,7 @@ function closeTemplatePicker() {
 function renderTemplateChoices() {
   const listEl = document.getElementById('tpl-list');
   if (!listEl) return;
-  const list = sendableTemplates();
+  const list = sendableTemplates(_tplTarget);
 
   if (!list.length) {
     // The empty state carries the reason, because "no templates" on its own
@@ -9374,13 +9398,17 @@ function renderTemplateChoices() {
     return;
   }
 
-  listEl.innerHTML = list.map(t => `
+  const leadLanguage = _tplTarget?.leadLanguage || 'en';
+  listEl.innerHTML = list.map(t => {
+    const isMatch = (t.language || 'en') === leadLanguage;
+    return `
     <div class="fwd-item" data-id="${esc(t.id)}" onclick="openTemplateCompose(this.dataset.id)">
       <div>
-        <div class="nm">${esc(t.name)}</div>
+        <div class="nm">${esc(t.name)}${isMatch ? ' <span style="font-size:0.7rem;font-weight:700;color:#16a34a">· matches lead\'s language</span>' : ''}</div>
         <div class="ph">${esc(truncate(t.body, 80))}</div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function openTemplateCompose(templateId) {
