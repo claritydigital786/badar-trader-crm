@@ -25,7 +25,7 @@ live; **TO BUILD** = safe code work, no live send; **BLOCKED (human/3rd-party)**
 
 | Area | Notes |
 | --- | --- |
-| Lead pipeline (All/My Leads, Add Lead, CSV import) | Full CRUD, RLS-scoped |
+| Lead pipeline (All/My Leads, Add Lead, CSV import) | Full CRUD, RLS-scoped. All Leads filter bar rebuilt 2026-08-21: result count, per-filter chips, filter-aware empty state, Unassigned and date-added filters, and Export CSV now matching the visible rows |
 | Lead detail (profile, ledger, KYC, activity, comms) | Live |
 | Omnichannel Inbox / Conversations | Real threads, 24h window timer, contact panel, agent assignment, realtime, agent replies via `send-wa-message`. QA-passed 2026-08-07 |
 | 24-hour window countdown pill (C2) | Live; shows agents the window closing |

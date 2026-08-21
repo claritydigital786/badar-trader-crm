@@ -1,8 +1,34 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-08-21 (cut short by usage limit approaching, written fast - verify
-claims before trusting them further). For a fresh Claude Code session with zero memory of
-prior conversations._
+_Last updated: 2026-08-21 (later). The entry directly below is this session's, written
+with its verification actually run. The account-switch entry after it was written fast as
+a usage limit approached - verify its claims before trusting them further. For a fresh
+Claude Code session with zero memory of prior conversations._
+
+## 2026-08-21 (later) - All Leads filters rebuilt so an empty table is never ambiguous
+
+**DONE, frontend only, browser-verified in demo preview, committed and pushed. Nothing deployed, nothing touching live data.** Picked up from a bare "continue" - `HANDOFF.md` read, Active Work Claims checked (nothing open and unreleased), git log read, and the newest open safe-code item taken: Muhammad's 2026-08-21 "make the All Leads filters make complete sense." That to-do left one ambiguity open (did he mean Supabase's own Table Editor, which he had just been fighting, or the CRM's own filter bar). Resolved toward the CRM's own, because that is the only one this repo can change, and said so rather than blocking on a confirmation - if he actually meant the Table Editor, that is a separate, non-code conversation.
+
+Six real problems, all found by reading the code rather than assumed, all in `index.html`:
+
+1. **An empty filtered table claimed there were no leads at all.** `renderLeadsTable`'s empty state was the flat string "No leads yet. Use \"Add Lead\" to create one." regardless of why the table was empty - so filtering 2,400 leads down to zero matches produced a message saying the CRM held nothing. This is exactly the 2026-08-04 screenshot complaint ("please update this section" on a filtered no-results view) that had been open since. It now names the filters that matched nothing and carries a Clear filters button.
+2. **Nothing said how many leads were being shown, or out of how many.** A summary line under the bar now reads "Showing 3 of 2,400 leads" plus a chip per active filter.
+3. **The sidebar badge showed the filtered count as if it were the total** - filter to one lead and the CRM appeared to hold one lead. It now shows the true unfiltered total, from a `count: exact, head: true` query issued in parallel with the rows (so filtering costs no extra round-trip), and updates in demo mode, which the live-only code path skipped entirely.
+4. **Inline edits re-rendered around the filter, not through it.** `saveLeadDetail`, `approveConversion`, `rejectConversion` and `deleteLeadRecord` all called `renderLeadsTable(..., cachedLeads, ...)` directly: change a lead to Converted while filtered to New and the row stayed on screen under a filter it no longer matched, and any typed search silently disappeared. All eight admin sites, and the three equivalent agent-side ones, now go back through `filterLeadsLocal()` / `filterAgentLeadsLocal()`.
+5. **Export CSV exported rows that were not on screen.** It read `cachedLeads` (server-filtered only), so a search term - or a row an edit had just pushed out of the filter - still landed in the file. It now exports exactly the visible rows, and says so when the filter matched nothing.
+6. **Two filters that could not be expressed at all.** No way to find leads nobody owns (Unassigned option added, `.is('assigned_agent_id', null)` server-side) and no way to filter by arrival date despite an "Added" column (Any time / today / 7d / 30d / 90d). The handoff dropdown labelled "All (bot + human)" also only ever offered the human half; "Bot handling (no handoff)" is now selectable, which is what makes that label honest.
+
+**The structural change underneath all of it:** every filter now runs through one shared predicate, `leadMatchesFilters(lead, filters)`, used by the Supabase query builder, the demo-mode path and the local re-render alike. Those three used to be three separate hand-written copies of the same logic, which is how #4 happened. The summary chips, the empty-state text and the CSV export all read from the same `leadFilters()` state, so they cannot describe a different filter than the one actually applied.
+
+Styling follows this file's existing convention (light base, `[data-theme="dark"]` override) rather than the hardcoded dark hex values it was first written with - which rendered a near-white bold count on a white background in light mode, caught in the browser pass, not in review.
+
+**Verification actually run, not assumed:** new `tests/leads-filter-test.mjs` lifts the pure helpers out of `index.html` and exercises the predicate for real (it caught a genuine cross-realm/vm-scope bug while being written, so it is testing behaviour rather than grepping for source); all 10 dependency-free suites pass, including the pre-existing `inbox-ui-test.mjs`. Browser pass against local demo preview: dark and light theme, 1280px and 375px, the agent My Leads view driven by hand as well as admin, a nine-tab navigation sweep, and a direct check that Export CSV's row count matches the table's. Zero console errors beyond this sandbox's blocked external CDN fetches (`net::ERR_TUNNEL_CONNECTION_FAILED`), which predate the change.
+
+**What is NOT verified, honestly:** the live-mode Supabase branch. Demo mode never touches `sb`, so the new `.is('assigned_agent_id', null)`, `.gte('created_at', ...)`, `.eq('needs_human', false)` and the count query are confirmed correct by reading the supabase-js API, not by running them against real data. Worth one spot-check in live All Leads next time someone is on Muhammad's laptop - it is a read-only query path, so the check itself is safe from anywhere with live credentials.
+
+**Left deliberately alone:** the agent-side My Leads view still has only a search box, no status/date filters. It got the same honest empty state and the same keep-the-search-applied fix, but adding a filter bar there was not what was asked for and is worth a decision rather than an assumption.
+
+---
 
 ## 2026-08-21 - Account switch handoff (usage limit approaching)
 
@@ -902,7 +928,7 @@ not product code - ignore it or commit it, doesn't matter). There's also an old 
 
 **index.html has a known, not-yet-fixed bug right now**: `saveLeadNotes` is defined twice
 (lines 3304 and 3315), byte-identical, so it's harmless dead code - but it was found
-mid-audit and never actually removed. Trivial fix, just delete lines 3315–3324.
+mid-audit and never actually removed. Trivial fix, just delete lines 3315-3324.
 
 ## What the last session (this one, cut short) actually did
 

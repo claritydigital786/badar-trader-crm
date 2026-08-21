@@ -503,6 +503,17 @@
     /* ── Filter bar ── */
     .filter-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
     .filter-bar select { width: auto; min-width: 140px; }
+    /* Says what the filter bar above is currently doing, so an empty table is
+       never ambiguous. Light is the base here, dark is the override, same as
+       every other rule in this file. */
+    .leads-filter-summary { font-size: 0.8rem; color: #64748b; margin: -4px 0 12px;
+                            display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .leads-filter-summary strong { color: #0f172a; }
+    .leads-filter-chip { background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569;
+                         border-radius: 8px; padding: 1px 8px; }
+    [data-theme="dark"] .leads-filter-summary { color: #94a3b8; }
+    [data-theme="dark"] .leads-filter-summary strong { color: #e2e8f0; }
+    [data-theme="dark"] .leads-filter-chip { background: #0f172a; border-color: #1e293b; color: #cbd5e1; }
 
     /* ── Form layout ── */
     .form-row { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -1501,7 +1512,7 @@
       <input type="text" id="lead-search" placeholder="🔍 Search name, phone, email…"
              oninput="filterLeadsLocal()"
              style="flex:1;min-width:180px;max-width:280px" />
-      <select id="filter-status" onchange="loadAdminLeads()">
+      <select id="filter-status" onchange="loadAdminLeads()" title="Lead status">
         <option value="">All Statuses</option>
         <option value="new">New</option>
         <option value="contacted">Contacted</option>
@@ -1511,10 +1522,10 @@
         <option value="converted">Converted</option>
         <option value="lost">Lost</option>
       </select>
-      <select id="filter-agent" onchange="loadAdminLeads()">
+      <select id="filter-agent" onchange="loadAdminLeads()" title="Assigned agent">
         <option value="">All Agents</option>
       </select>
-      <select id="filter-source" onchange="loadAdminLeads()">
+      <select id="filter-source" onchange="loadAdminLeads()" title="Where the lead came from">
         <option value="">All Sources</option>
         <option value="meta">Meta Ads</option>
         <option value="referral">Referral</option>
@@ -1522,11 +1533,22 @@
         <option value="manual">Manual</option>
         <option value="other">Other</option>
       </select>
-      <select id="filter-human" onchange="loadAdminLeads()">
+      <select id="filter-human" onchange="loadAdminLeads()" title="Whether the lead is waiting on a person">
         <option value="">All (bot + human)</option>
         <option value="1">⚠ Needs Human</option>
+        <option value="0">Bot handling (no handoff)</option>
       </select>
+      <select id="filter-date" onchange="loadAdminLeads()" title="When the lead was added">
+        <option value="">Any time</option>
+        <option value="today">Added today</option>
+        <option value="7d">Added last 7 days</option>
+        <option value="30d">Added last 30 days</option>
+        <option value="90d">Added last 90 days</option>
+      </select>
+      <button id="leads-clear-filters" class="btn btn-secondary btn-sm" onclick="clearLeadFilters()"
+              style="display:none">Clear filters</button>
     </div>
+    <div id="leads-filter-summary" class="leads-filter-summary"></div>
     <div class="card" style="padding:0">
       <table>
         <thead><tr>
@@ -4413,6 +4435,15 @@ function populateAgentDropdowns() {
     if (!sel) return;
     const firstHtml = sel.options[0].outerHTML;
     sel.innerHTML = firstHtml;
+    // "Unassigned" only makes sense as a filter, not as an Add Lead target
+    // (that one round-robins instead). It has to be re-added here because this
+    // function rebuilds the option list from scratch on every profile refresh.
+    if (id === 'filter-agent') {
+      const u = document.createElement('option');
+      u.value = LEAD_FILTER_UNASSIGNED;
+      u.textContent = 'Unassigned';
+      sel.appendChild(u);
+    }
     agents.forEach(a => {
       const o = document.createElement('option');
       o.value = a.id;
@@ -4564,36 +4595,142 @@ async function suspendAgent(id, suspend) {
   await loadProfiles();
 }
 
+// The All Leads filter bar, in one place. Every filter reads from here so the
+// server query, the demo-mode filter and the local re-render after an inline
+// edit can never disagree about what is currently being filtered - they used to,
+// which is how a lead edited to "Converted" stayed visible under a "New" filter.
+const LEAD_FILTER_UNASSIGNED = '__unassigned__';
+const LEAD_DATE_PRESET_DAYS  = { today: 0, '7d': 7, '30d': 30, '90d': 90 };
+
+// True total of leads in the system, ignoring every filter. Needed so the
+// summary line can honestly say "Showing 12 of 2,400" rather than making the
+// filtered count look like the total (which is what the nav badge used to do).
+let _leadsTotalCount = 0;
+
+function leadFilters() {
+  return {
+    status: document.getElementById('filter-status')?.value || '',
+    agent:  document.getElementById('filter-agent')?.value  || '',
+    source: document.getElementById('filter-source')?.value || '',
+    human:  document.getElementById('filter-human')?.value  || '',
+    date:   document.getElementById('filter-date')?.value   || '',
+    search: (document.getElementById('lead-search')?.value || '').toLowerCase().trim(),
+  };
+}
+
+function leadFiltersActive(f) {
+  return !!(f.status || f.agent || f.source || f.human || f.date || f.search);
+}
+
+// Start-of-day boundary for a date preset, in the browser's own timezone, so
+// "Added today" means today for whoever is looking at the screen.
+function leadDateSince(preset) {
+  if (!(preset in LEAD_DATE_PRESET_DAYS)) return null;
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - LEAD_DATE_PRESET_DAYS[preset]);
+  return d;
+}
+
+function leadMatchesFilters(l, f) {
+  if (f.status && l.status !== f.status) return false;
+  if (f.agent === LEAD_FILTER_UNASSIGNED) { if (l.assigned_agent_id) return false; }
+  else if (f.agent && l.assigned_agent_id !== f.agent) return false;
+  if (f.source && l.source !== f.source) return false;
+  if (f.human === '1' && !l.needs_human) return false;
+  if (f.human === '0' && l.needs_human)  return false;
+  const since = leadDateSince(f.date);
+  if (since && !(new Date(l.created_at) >= since)) return false;
+  if (f.search) {
+    const hay = ((l.full_name || '') + ' ' + (l.phone || '') + ' ' + (l.email || '')).toLowerCase();
+    if (!hay.includes(f.search)) return false;
+  }
+  return true;
+}
+
+function clearLeadFilters() {
+  ['filter-status', 'filter-agent', 'filter-source', 'filter-human', 'filter-date']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const search = document.getElementById('lead-search');
+  if (search) search.value = '';
+  loadAdminLeads();
+}
+
+function leadFilterChips(f) {
+  const chips = [];
+  const agentName = id => (cachedProfiles.find(p => p.id === id)?.full_name) || 'that agent';
+  if (f.status) chips.push('Status: ' + statusLabel(f.status));
+  if (f.agent === LEAD_FILTER_UNASSIGNED) chips.push('Unassigned');
+  else if (f.agent) chips.push('Agent: ' + agentName(f.agent));
+  if (f.source) chips.push('Source: ' + sourceLabel(f.source));
+  if (f.human === '1') chips.push('Needs Human');
+  if (f.human === '0') chips.push('Bot handling');
+  if (f.date)   chips.push({ today: 'Added today', '7d': 'Added last 7 days',
+                             '30d': 'Added last 30 days', '90d': 'Added last 90 days' }[f.date]);
+  if (f.search) chips.push('Search: "' + f.search + '"');
+  return chips;
+}
+
+function updateLeadsFilterSummary(shown, f) {
+  const el = document.getElementById('leads-filter-summary');
+  const btn = document.getElementById('leads-clear-filters');
+  const active = leadFiltersActive(f);
+  if (btn) btn.style.display = active ? '' : 'none';
+  if (!el) return;
+  const total = Math.max(_leadsTotalCount, shown);
+  const chips = leadFilterChips(f).map(c =>
+    `<span class="leads-filter-chip">${esc(c)}</span>`
+  ).join('');
+  el.innerHTML = active
+    ? `<span>Showing <strong>${shown}</strong> of ${total} leads</span>${chips}`
+    : `<span>Showing all <strong>${shown}</strong> leads</span>`;
+}
+
 async function loadAdminLeads() {
-  const status = document.getElementById('filter-status')?.value || '';
-  const agent  = document.getElementById('filter-agent')?.value  || '';
-  const source = document.getElementById('filter-source')?.value || '';
-  const human  = document.getElementById('filter-human')?.value  || '';
+  const f = leadFilters();
 
   if (demoMode) {
-    let leads = _DEMO_LEADS.slice();
-    if (status) leads = leads.filter(l => l.status === status);
-    if (agent)  leads = leads.filter(l => l.assigned_agent_id === agent);
-    if (source) leads = leads.filter(l => l.source === source);
-    if (human)  leads = leads.filter(l => l.needs_human);
-    cachedLeads = leads;
-    filterLeadsLocal(); // re-apply any text still sitting in the search box
+    _leadsTotalCount = _DEMO_LEADS.length;
+    cachedLeads = _DEMO_LEADS.slice();
+    filterLeadsLocal(); // one filter pass, same predicate the live path uses
+    updateLeadsCountBadge();
     return;
   }
 
   let q = sb.from('leads').select('*').order('created_at', { ascending: false });
-  if (status) q = q.eq('status', status);
-  if (agent)  q = q.eq('assigned_agent_id', agent);
-  if (source) q = q.eq('source', source);
-  if (human)  q = q.eq('needs_human', true);
+  if (f.status) q = q.eq('status', f.status);
+  if (f.agent === LEAD_FILTER_UNASSIGNED) q = q.is('assigned_agent_id', null);
+  else if (f.agent) q = q.eq('assigned_agent_id', f.agent);
+  if (f.source) q = q.eq('source', f.source);
+  if (f.human === '1') q = q.eq('needs_human', true);
+  if (f.human === '0') q = q.eq('needs_human', false);
+  const since = leadDateSince(f.date);
+  if (since) q = q.gte('created_at', since.toISOString());
 
-  const { data, error } = await q;
+  // The filtered rows and the unfiltered head count are independent, so they go
+  // out together rather than one after the other - the count is only there to
+  // say "of N" honestly and should not add a round-trip to every filter change.
+  const [{ data, error }, { count, error: countError }] = await Promise.all([
+    q,
+    sb.from('leads').select('id', { count: 'exact', head: true }),
+  ]);
   if (error) { console.error('loadAdminLeads:', error); return; }
   cachedLeads = data || [];
+  if (countError) console.warn('loadAdminLeads count:', countError);
+  _leadsTotalCount = (typeof count === 'number') ? count : cachedLeads.length;
+
   filterLeadsLocal(); // re-apply any text still sitting in the search box
-  // Update nav badge
+  updateLeadsCountBadge();
+}
+
+// The nav badge shows the unfiltered total. It used to show the filtered count,
+// so filtering to one lead made the sidebar claim the CRM held one lead. Demo
+// mode never updated it at all - the live-only branch returned before this ran.
+function updateLeadsCountBadge() {
   const badge = document.getElementById('leads-count-badge');
-  if (badge) { badge.textContent = cachedLeads.length || ''; badge.style.display = cachedLeads.length ? '' : 'none'; }
+  if (!badge) return;
+  badge.textContent = _leadsTotalCount || '';
+  badge.style.display = _leadsTotalCount ? '' : 'none';
 }
 
 // ── CSV IMPORT ─────────────────────────────────────────────────
@@ -4676,15 +4813,26 @@ function cancelImportCSV() {
   document.getElementById('csv-confirm-msg').textContent = '';
 }
 
+// Applies the whole filter bar - dropdowns and search box - locally over
+// cachedLeads. The dropdowns already ran server-side in loadAdminLeads, so
+// re-applying them here is normally a no-op; it matters after an inline edit
+// (status change, reassignment, delete), where a row that no longer matches
+// the filter used to stay on screen contradicting the filter above it.
 function filterLeadsLocal() {
-  const q = (document.getElementById('lead-search')?.value || '').toLowerCase().trim();
-  if (!q) { renderLeadsTable('admin-leads-tbody', cachedLeads, true); return; }
-  const filtered = cachedLeads.filter(l =>
-    (l.full_name  || '').toLowerCase().includes(q) ||
-    (l.phone      || '').toLowerCase().includes(q) ||
-    (l.email      || '').toLowerCase().includes(q)
-  );
-  renderLeadsTable('admin-leads-tbody', filtered, true);
+  const f = leadFilters();
+  const filtered = cachedLeads.filter(l => leadMatchesFilters(l, f));
+  renderLeadsTable('admin-leads-tbody', filtered, true, adminLeadsEmptyHtml(f));
+  updateLeadsFilterSummary(filtered.length, f);
+}
+
+// An empty table means two very different things and used to say the same
+// thing for both: "No leads yet. Use Add Lead to create one." was shown even
+// when thousands of leads existed and the filter simply matched none of them.
+function adminLeadsEmptyHtml(f) {
+  if (!leadFiltersActive(f)) return 'No leads yet. Use "Add Lead" to create one.';
+  const chips = leadFilterChips(f).map(esc).join(' + ');
+  return `No leads match ${chips ? '<strong>' + chips + '</strong>' : 'these filters'}.
+    <br><button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="clearLeadFilters()">Clear filters</button>`;
 }
 
 async function addLead() {
@@ -5028,7 +5176,7 @@ async function loadAgentLeads() {
     if (error) { console.error('loadAgentLeads:', error); return; }
     cachedLeads = data || [];
   }
-  renderLeadsTable('agent-leads-tbody', cachedLeads, false);
+  filterAgentLeadsLocal(); // keep any active search applied after an inline edit
 
   // Update quick stats bar
   const total = cachedLeads.length;
@@ -5060,7 +5208,10 @@ function filterAgentLeadsLocal() {
     (l.phone      || '').toLowerCase().includes(q) ||
     (l.email      || '').toLowerCase().includes(q)
   );
-  renderLeadsTable('agent-leads-tbody', filtered, false);
+  // Same distinction the admin table now makes: no search matches is not the
+  // same as having no leads at all.
+  renderLeadsTable('agent-leads-tbody', filtered, false,
+    `No leads match "${esc(q)}".`);
 }
 
 async function logActivityStandalone() {
@@ -5734,8 +5885,10 @@ async function deleteLeadRecord(leadId, ctx) {
 
   if (demoMode) {
     cachedLeads = cachedLeads.filter(l => l.id !== leadId);
+    if (_leadsTotalCount > 0) _leadsTotalCount--;
     closeDetail(ctx);
-    renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+    filterLeadsLocal(); // keep the active filter + search applied after an inline edit
+    updateLeadsCountBadge();
     showToast(`${name} deleted. (demo)`);
     return;
   }
@@ -5748,8 +5901,11 @@ async function deleteLeadRecord(leadId, ctx) {
   if (error) { showToast('Error deleting: ' + error.message, 'err'); return; }
 
   cachedLeads = cachedLeads.filter(l => l.id !== leadId);
+  // Keep the "of N" total honest without re-querying - the row is gone.
+  if (_leadsTotalCount > 0) _leadsTotalCount--;
   closeDetail(ctx);
-  renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+  filterLeadsLocal(); // keep the active filter + search applied after an inline edit
+  updateLeadsCountBadge();
   showToast(`${name} deleted.`);
 }
 
@@ -5766,7 +5922,7 @@ async function saveLeadDetail(leadId, ctx) {
       if (status === 'converted' && !prevLead.converted_at) prevLead.converted_at = new Date().toISOString();
     }
     setMsg(msgEl, 'Saved. (demo)', 'ok');
-    renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+    filterLeadsLocal(); // keep the active filter + search applied after an inline edit
     await openDetail(leadId, ctx);
     return;
   }
@@ -5784,7 +5940,7 @@ async function saveLeadDetail(leadId, ctx) {
     prevLead.status = status; prevLead.assigned_agent_id = agentId;
     if (update.converted_at) prevLead.converted_at = update.converted_at;
   }
-  renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+  filterLeadsLocal(); // keep the active filter + search applied after an inline edit
   await openDetail(leadId, ctx);
 
   // Notify Badar on WhatsApp when any lead moves to Pending Approval
@@ -5816,7 +5972,7 @@ async function approveConversion(leadId, ctx) {
   if (demoMode) {
     if (lead) lead.status = 'converted';
     showToast('✅ Conversion approved - lead marked as Converted! (demo)');
-    renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+    filterLeadsLocal(); // keep the active filter + search applied after an inline edit
     await openDetail(leadId, ctx);
     return;
   }
@@ -5826,7 +5982,7 @@ async function approveConversion(leadId, ctx) {
   if (error) { showToast('Error approving: ' + error.message, 'err'); return; }
   if (lead) lead.status = 'converted';
   showToast('✅ Conversion approved - lead marked as Converted!');
-  renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+  filterLeadsLocal(); // keep the active filter + search applied after an inline edit
   await openDetail(leadId, ctx);
   // Notify the assigned agent via WA (optional - fires same helper with a different message)
 }
@@ -5838,7 +5994,7 @@ async function rejectConversion(leadId, ctx) {
   if (demoMode) {
     if (lead) lead.status = 'contacted';
     showToast('❌ Conversion rejected - lead returned to Contacted. (demo)');
-    renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+    filterLeadsLocal(); // keep the active filter + search applied after an inline edit
     await openDetail(leadId, ctx);
     return;
   }
@@ -5855,7 +6011,7 @@ async function rejectConversion(leadId, ctx) {
     });
   }
   showToast('❌ Conversion rejected - lead returned to Contacted.');
-  renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+  filterLeadsLocal(); // keep the active filter + search applied after an inline edit
   await openDetail(leadId, ctx);
 }
 
@@ -5886,7 +6042,7 @@ async function agentSaveStatus(leadId, ctx) {
       if (status === 'converted' && !lead.converted_at) lead.converted_at = new Date().toISOString();
     }
     setMsg(msgEl, 'Status updated. (demo)', 'ok');
-    renderLeadsTable('agent-leads-tbody', cachedLeads, false);
+    filterAgentLeadsLocal(); // keep any active search applied after an inline edit
     await openDetail(leadId, ctx);
     return;
   }
@@ -5901,7 +6057,7 @@ async function agentSaveStatus(leadId, ctx) {
     lead.status = status;
     if (update.converted_at) lead.converted_at = update.converted_at;
   }
-  renderLeadsTable('agent-leads-tbody', cachedLeads, false);
+  filterAgentLeadsLocal(); // keep any active search applied after an inline edit
   await openDetail(leadId, ctx);
 
   // Notify Badar when agent marks a lead as Pending Approval
@@ -5930,11 +6086,18 @@ async function logFromDetail(leadId, ctx) {
 }
 
 // ── Render helpers ────────────────────────────────────────────
-function renderLeadsTable(tbodyId, leads, isAdmin) {
+function renderLeadsTable(tbodyId, leads, isAdmin, emptyHtml) {
   const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
   if (!leads.length) {
+    // The cell spans a table wider than a phone screen, so its centred text
+    // scrolls off to the right on mobile. Sticking the content to the left
+    // edge of the scroll container keeps the message (and its Clear filters
+    // button) on screen at 375px without changing the desktop layout.
     tbody.innerHTML = `<tr><td colspan="7" class="empty-state">
-      ${isAdmin ? 'No leads yet. Use "Add Lead" to create one.' : 'No leads assigned to you yet.'}
+      <div style="position:sticky;left:0;display:block;max-width:100vw">
+      ${emptyHtml || (isAdmin ? 'No leads yet. Use "Add Lead" to create one.' : 'No leads assigned to you yet.')}
+      </div>
     </td></tr>`;
     return;
   }
@@ -10452,9 +10615,19 @@ function openPayrollRun(id) {
   })));
 }
 
+// Exports exactly the rows the table is currently showing. It used to export
+// cachedLeads, which is the server-filtered set - so a search term (or an
+// inline edit that pushed a row out of the filter) left the CSV holding leads
+// that were not on screen when the button was pressed.
 function exportLeadsCSV() {
-  const leads = cachedLeads || [];
-  if (!leads.length) { alert('No leads to export.'); return; }
+  const f = leadFilters();
+  const leads = (cachedLeads || []).filter(l => leadMatchesFilters(l, f));
+  if (!leads.length) {
+    alert(leadFiltersActive(f)
+      ? 'No leads match the current filters, so there is nothing to export. Clear the filters to export everything.'
+      : 'No leads to export.');
+    return;
+  }
   const headers = ['First Name','Last Name','Name','Phone','Email','Broker ID','Source','Campaign','Status','Instrument','Agent','Deposit ($)','Date Added'];
   const rows = leads.map(l => {
     const agent = cachedProfiles.find(p => p.id === l.assigned_agent_id);
