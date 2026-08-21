@@ -8180,6 +8180,10 @@ async function renderConversations(scope = '') {
       .from('communications')
       .select('lead_id, body, direction, created_at, leads(full_name, phone, status, is_unread, bot_stage, needs_human, handoff_reason, manual_tier, language)')
       .eq('type', 'whatsapp')
+      // Excludes the internal "Qualified lead summary" note the webhook logs
+      // for itself (whatsapp-webhook/index.ts) - never sent to the customer,
+      // so it must never appear as a conversation's preview text either.
+      .neq('subject', 'Qualified lead summary')
       .order('created_at', { ascending: false });
     if (error) throw error;
     if (!comms || !comms.length) {
@@ -8531,7 +8535,11 @@ async function openConversation(convId, scope = '') {
       // the column is simply absent until the migration runs, and the ticks
       // render nothing rather than the page breaking.
       sb.from('communications').select('*')
-        .eq('lead_id', convId).eq('type', 'whatsapp').order('created_at', { ascending: true })
+        .eq('lead_id', convId).eq('type', 'whatsapp')
+        // Same exclusion as renderConversations() above - this is an internal
+        // note, never actually sent to the customer over WhatsApp.
+        .neq('subject', 'Qualified lead summary')
+        .order('created_at', { ascending: true })
     ]);
     if (leadRes.error) throw leadRes.error;
     const lead = leadRes.data;
@@ -10119,6 +10127,10 @@ function startConvRealtime(scope = '') {
       event: 'INSERT', schema: 'public', table: 'communications',
       filter: 'type=eq.whatsapp'
     }, payload => {
+      // Same internal-note exclusion as the two queries above - Postgres
+      // Realtime's own filter only supports one simple equality, so this one
+      // has to be checked here instead of in the subscription filter itself.
+      if (payload.new.subject === 'Qualified lead summary') return;
       // Refresh sidebar list. RLS on the underlying subscription already
       // restricts which INSERTs an agent receives to their own leads.
       renderConversations(_convRealtimeScope);
