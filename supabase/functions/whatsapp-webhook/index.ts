@@ -4,6 +4,11 @@
 // Handoff behaviour (v28): confusion/inactivity handoffs auto-expire so a lead
 // who returns after a gap resumes the bot flow from where they left off; only
 // explicit "talk to an agent" requests keep the bot silent for a human.
+//
+// 2026-08-19: forced redeploy to guarantee a fresh instance re-reads
+// WHATSAPP_ACCESS_TOKEN after several secret rotations tonight - a plain
+// `supabase secrets set` does not necessarily recycle an already-warm
+// instance's module-level constant, only new instances see it immediately.
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
