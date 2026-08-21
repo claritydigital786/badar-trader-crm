@@ -1,8 +1,20 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-07-14 (mid-session, cut short by usage limit - written fast, verify
+_Last updated: 2026-08-21 (cut short by usage limit approaching, written fast - verify
 claims before trusting them further). For a fresh Claude Code session with zero memory of
 prior conversations._
+
+## 2026-08-21 - Account switch handoff (usage limit approaching)
+
+**The bot is genuinely live on 6541 as of this morning - biggest news, see the full trace in Active Work Claims below, do not re-derive it.** The `(#200)` Meta send-permission bug that blocked all of last night's testing is fixed: root cause was the app being a Partner rather than owner on Trade Campus's WABA. Fixed by moving "Badar Trader CRM"'s app ownership from Badar Trader's Business Manager to Trade Campus's own (same real owner, Badar, admin of both - approved instantly), re-homing the already-correct `Crmbot` System User there, fresh `WHATSAPP_ACCESS_TOKEN`, redeploying `whatsapp-webhook` (now **v85**), and re-subscribing the app to the WABA's webhook (the ownership move silently dropped it). A genuinely stuck piece after that turned out to be stale `needs_human` flags on old test leads from unrelated months-old escalations, not a new bug - cleared via SQL Editor, then a real "Hi" got a real reply four minutes later, screenshot-confirmed, first genuine Cloud API reply this number has ever sent.
+
+**Also merged and deployed today:** Junaid's handoff-inversion fix (`feature/qualified-lead-handoff`, now in `main`, same v85 deploy) - leads who actually say yes to the $500 deposit, or send a deposit screenshot, now get a real agent handoff instead of silently falling through. This is the direct answer to Badar's 2,400-leads-45-conversions complaint; every failure path escalated correctly before, only the paths where someone was about to convert didn't.
+
+**Small fix also shipped:** the internal "Qualified lead summary" note no longer renders as a fake message in the customer's own chat thread (display-only, `index.html`, three call sites).
+
+**Open, not yet settled:** whether WhatChimp is still double-subscribed on 6541. Today's own real reply was confirmed, by reading the code, to be genuinely our own bot's text (not WhatChimp's very differently-worded error message from the 2026-08-08 finding) - a good sign, not full proof. Muhammad still needs to personally check WhatChimp's own dashboard (Keyword Replies / AI Agent settings for the 6541 bot) to close this out for certain - no session can do that check, per the standing never-touch-WhatChimp rule.
+
+**Everything from today is committed and pushed to `main`.** Full blow-by-blow (including the earlier failed-send display fix, the Tech Provider path that was tried and superseded, and today's Questions Log entries) is in this file's Active Work Claims section below and in `REMAINING_TODOS.md`. Read both before assuming anything is still open that this note says is done.
 
 **Two parallel tracks are active - say the right phrase to resume the right one:**
 - **"continue the Supabase CRM coding"** → resume the badar-trader-crm codebase (index.html, Supabase edge functions, schema, deploys).
