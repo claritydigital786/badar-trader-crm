@@ -161,7 +161,7 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 ### Active Work Claims
 
-**BUILT, NOT MERGED, NOT DEPLOYED 2026-08-20 (Junaid) - handoff inversion found and fixed on branch `feature/qualified-lead-handoff` (commit `c0c0329`). Claim held open until Muhammad merges and deploys.** Three findings, all verified by reading the deployed source and the live `communications` rows. No live system touched, no secret, no deploy.
+**MERGED AND DEPLOYED 2026-08-21 (Muhammad, him present) - handoff inversion fix from Junaid's branch `feature/qualified-lead-handoff` (commit `c0c0329`) is now live. Claim released.** Held open exactly as Junaid intended, until the bot's own send-permission fix was confirmed working - then merged into `main` via an isolated worktree (clean auto-merge, no conflicts), re-verified on this laptop before deploying: `deno check` clean, all 5 dependency-free suites pass (including the new `handoff-permanence-test.mjs`), the actual diff read line by line against its own documentation and confirmed correct. Deployed as `whatsapp-webhook` **v85**, confirmed ACTIVE, downloaded and diffed byte-identical against committed `main`. Three findings, all originally verified by reading the deployed source and the live `communications` rows.
 
 1. **A lead who says yes to the $500 deposit gets no handoff at all.** `whatsapp-webhook/index.ts:1236` sets `bot_stage='qualified'` and `status='qualified'`, writes a summary row, sends the broker links and tells the customer "A team member will follow up with you shortly!", then returns. It never calls `escalate()`. So `needs_human` stays `false`, no agent is assigned when none already is, and no agent is notified. The customer is promised a person and nobody is told. The lead also never surfaces in the "Needs Human" filter (`index.html:4588`).
 
@@ -179,7 +179,7 @@ Whoever finishes their piece first should update this section (mark it done, sam
 
 **Verification, honestly scoped.** All 9 suites pass (`internal-auth`, `meta-signature`, `public-form-body-limit`, `whatsapp-phone-scope`, the new `handoff-permanence`, plus the 4 under `tests/`). **`deno check` was NOT run - deno is not installed on this laptop.** Substituted a real parse check via Node 24's TypeScript stripper, which catches syntax and brace errors but not type errors, so treat this as untyped-checked in the same sense as Izza's laptop changes. Whoever picks this up on a machine with deno should run `deno check` before it goes near a deploy.
 
-**Deliberately NOT merged to `main`.** The normal workflow would merge and let the deploy follow, but Muhammad is mid-verification on the live webhook today and is relying on `functions download` being byte-identical to local `main`. Landing an undeployed webhook change on `main` right now would break exactly that check during the one live bot test still outstanding. The branch is pushed and waiting. Merge it after the live reply test passes, then deploy from Muhammad's laptop with him present.
+**Held exactly as planned, then merged and deployed once the live bot test passed - see the release note at the top of this entry.**
 
 **ASSIGNED TO JUNAID 2026-08-20 (Muhammad, remotely, him away from his own laptop) - pick up on "Continue."** Two things, in order:
 
