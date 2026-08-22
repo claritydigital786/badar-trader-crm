@@ -17,6 +17,7 @@ import {
 } from "../_shared/meta_signature.mjs";
 import { isAllowedPhoneNumberId } from "../_shared/whatsapp_phone_scope.mjs";
 import { isPermanentHandoff } from "../_shared/handoff_permanence.mjs";
+import { shouldNotifyAgent, DEFAULT_COOLDOWN_MINUTES } from "../_shared/agent_notify_policy.mjs";
 
 const WHATSAPP_VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
 const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN") ?? "";
@@ -102,6 +103,20 @@ const AI_REPLIES_ENABLED = true;
 // even see it. Separate toggle from the one above (that's about routine new
 // leads; this is specifically "someone needs help right now").
 const ESCALATION_NOTIFICATIONS_ENABLED = true;
+
+// ── AGENT NOTIFICATION SAFETY ────────────────────────────────────────────────
+// July 2026: agents got four or five WhatsApp pings inside a minute because
+// escalate() sent one every time it ran, with no check for having just told
+// that same agent about that same lead. They were frustrated enough to phone
+// Muhammad, and there was no quick way to stop it. That is why
+// NEW_LEAD_NOTIFICATIONS_ENABLED was switched off on 2026-07-21.
+//
+// AGENT_NOTIFY_TEST_NUMBERS is the way back on safely. While it holds any
+// number, those are the ONLY phones that can be notified - every real agent is
+// unreachable no matter what else happens. Empty it only once the rhythm has
+// been watched on test phones and judged right.
+const AGENT_NOTIFY_TEST_NUMBERS: string[] = [];
+const AGENT_NOTIFY_COOLDOWN_MINUTES = DEFAULT_COOLDOWN_MINUTES;
 
 let cachedWaToken: string | null = null;
 let cachedWaPhoneId: string | null = null;
@@ -420,7 +435,7 @@ async function getAgentRotation(sb: SupabaseClient): Promise<RotationAgent[]> {
 
   const { data, error } = await sb
     .from("profiles")
-    .select("id, full_name, phone")
+    .select("id, full_name, phone, last_notified_at")
     .eq("role", "agent")
     .eq("is_active", true)
     .eq("is_suspended", false)
@@ -1494,17 +1509,47 @@ async function escalate(
   await logOutbound(sb, lead.id, `[escalated to human: ${reason}]\n${combineSendLog(result)}`);
 
   if (ESCALATION_NOTIFICATIONS_ENABLED && assignedAgent) {
-    const pingResult = await sendText(
-      assignedAgent.phone,
-      `A lead needs a human right now: ${lead.full_name || "Unknown"} (${lead.phone}). Reason: ${reason}. Please check the CRM.`,
-    );
-    await insertCommunication(
-      sb,
-      lead.id,
-      "outbound",
-      pingResult.ok ? `[agent ${assignedAgent.name} notified of escalation]` : `[SEND FAILED: agent escalation notification - ${pingResult.error}]`,
-      new Date().toISOString(),
-    );
+    // Every block is written to the lead's own log with its reason, so a quiet
+    // phone is always explainable rather than looking like a broken feature.
+    const decision = shouldNotifyAgent({
+      agentPhone: assignedAgent.phone,
+      leadAlreadyNotified: (lead.agent_ping_count ?? 0) > 0,
+      agentLastNotifiedAt: assignedAgent.last_notified_at ?? null,
+      cooldownMinutes: AGENT_NOTIFY_COOLDOWN_MINUTES,
+      testNumbers: AGENT_NOTIFY_TEST_NUMBERS,
+    });
+
+    if (!decision.notify) {
+      await insertCommunication(
+        sb,
+        lead.id,
+        "outbound",
+        `[agent ${assignedAgent.name} NOT notified - ${decision.reason}]`,
+        new Date().toISOString(),
+      );
+    } else {
+      const pingResult = await sendText(
+        assignedAgent.phone,
+        `A lead needs a human right now: ${lead.full_name || "Unknown"} (${lead.phone}). Reason: ${reason}. Please check the CRM.`,
+      );
+      const nowIso = new Date().toISOString();
+      // Recorded even on a failed send: a Meta outage must not become a retry
+      // loop that floods the agent the moment delivery recovers.
+      await Promise.all([
+        sb.from("leads").update({
+          agent_ping_count: (lead.agent_ping_count ?? 0) + 1,
+          agent_last_pinged_at: nowIso,
+        }).eq("id", lead.id),
+        sb.from("profiles").update({ last_notified_at: nowIso }).eq("id", assignedAgentId),
+      ]);
+      await insertCommunication(
+        sb,
+        lead.id,
+        "outbound",
+        pingResult.ok ? `[agent ${assignedAgent.name} notified of escalation]` : `[SEND FAILED: agent escalation notification - ${pingResult.error}]`,
+        nowIso,
+      );
+    }
   }
 }
 
