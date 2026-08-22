@@ -4520,10 +4520,15 @@ function renderAgentsTable(tbodyId) {
         ? (p.is_suspended
             ? '<span style="color:#ef4444;font-size:0.8rem;font-weight:600">Suspended</span>'
             : '<span style="color:#22c55e;font-size:0.8rem;font-weight:600">Active</span>')
-        : '<span style="color:#94a3b8;font-size:0.8rem">You</span>'}</td>
+        : '<span style="color:#94a3b8;font-size:0.8rem">You</span>'}
+        ${p.role === 'agent' && p.receives_leads === false && !p.is_suspended
+          ? '<br><span class="team-hint" title="Has full access but is skipped by round-robin lead assignment">observer, no leads</span>' : ''}</td>
       <td class="team-actions">
         <button class="btn btn-secondary btn-sm" data-id="${esc(p.id)}" data-name="${esc(p.full_name || '')}" onclick="renameProfile(this.dataset.id, this.dataset.name)">Rename</button>
         <button class="btn btn-secondary btn-sm" onclick="setProfilePhone('${p.id}','${esc(p.phone || '')}')">${p.phone ? 'Number' : 'Set number'}</button>
+        ${p.role === 'agent'
+        ? `<button class="btn btn-secondary btn-sm" title="${p.receives_leads === false ? 'Put this person back into round-robin lead assignment' : 'Keep this person out of round-robin without suspending their access'}"
+             onclick="toggleReceivesLeads('${p.id}',${p.receives_leads === false})">${p.receives_leads === false ? 'Give leads' : 'No leads'}</button>` : ''}
         ${!isSelf
         ? `<button class="btn btn-secondary btn-sm" onclick="toggleRole('${p.id}','${p.role}')">Make ${p.role === 'admin' ? 'agent' : 'admin'}</button>
            <button class="btn btn-sm team-danger" style="background:${p.is_suspended ? '#16a34a' : '#dc2626'};color:#fff"
@@ -4621,6 +4626,27 @@ async function toggleRole(id, current) {
     const { error } = await sb.from('profiles').update({ role: next }).eq('id', id);
     if (error) { alert(error.message); return; }
   }
+  await loadProfiles();
+}
+
+// An observer keeps their login and sees everything; they are simply not in the
+// sales rotation. Distinct from suspending, which locks the account outright.
+async function toggleReceivesLeads(id, enable) {
+  const person = cachedProfiles.find(p => p.id === id);
+  const name = person?.full_name || person?.email || 'this person';
+  if (!confirm(enable
+      ? `Put ${name} back into round-robin lead assignment?`
+      : `Stop assigning new leads to ${name}? They keep full access and their existing leads.`)) return;
+
+  if (demoMode) {
+    if (person) person.receives_leads = enable;
+    refreshAgentTables();
+    showToast(enable ? `${name} will receive leads again. (demo)` : `${name} is now an observer. (demo)`);
+    return;
+  }
+  const { error } = await sb.from('profiles').update({ receives_leads: enable }).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'err'); return; }
+  showToast(enable ? `${name} will receive leads again.` : `${name} is now an observer and will not be assigned new leads.`);
   await loadProfiles();
 }
 
@@ -7877,7 +7903,10 @@ function showToast(msg, type = 'ok') {
 
 // ── ROUND-ROBIN ASSIGNMENT ─────────────────────────────────────
 async function getNextRoundRobinAgent() {
-  const agents = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended);
+  // receives_leads === false marks someone who has a login and full visibility
+  // but is not part of the sales rotation. Suspending them was the only lever
+  // before, and that locks the account entirely - the wrong tool for an observer.
+  const agents = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended && p.receives_leads !== false);
   if (!agents.length) return null;
 
   if (demoMode) {

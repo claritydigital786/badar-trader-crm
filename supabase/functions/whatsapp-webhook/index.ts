@@ -424,6 +424,10 @@ async function getAgentRotation(sb: SupabaseClient): Promise<RotationAgent[]> {
     .eq("role", "agent")
     .eq("is_active", true)
     .eq("is_suspended", false)
+    // Observers keep full access but are not in the sales rotation, so the bot
+    // must not hand them escalated leads either - otherwise the frontend and
+    // the webhook would disagree about who is on rotation.
+    .eq("receives_leads", true)
     .not("phone", "is", null)
     .order("created_at", { ascending: true });
 
