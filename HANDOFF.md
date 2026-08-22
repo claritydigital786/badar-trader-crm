@@ -4,6 +4,27 @@ _Last updated: 2026-08-22. The entry directly below is this session's, written
 with its verification actually run. For a fresh Claude Code session with zero
 memory of prior conversations._
 
+## 2026-08-22 (evening) - Agent notifications rebuilt so they can be turned back on
+
+**BUILT AND PUSHED, NOTHING ENABLED.** `NEW_LEAD_NOTIFICATIONS_ENABLED` is still `false`, neither new migration is applied, and the webhook is not deployed. No message can be sent by any of this yet.
+
+**The bug, found by reading `escalate()`.** It had no guard of any kind. All nine of its call sites messaged the assigned agent every single time they ran, with no check for having told that same agent about that same lead seconds earlier. A customer sending four messages in twenty seconds produced four WhatsApp pings. Muhammad's account: agents were heavily frustrated, all of them phoned him, and he had no way to stop it. That is why `NEW_LEAD_NOTIFICATIONS_ENABLED` was set to `false` on 2026-07-21 and never turned back on. It was never a policy decision, it was damage control.
+
+**The fix: `supabase/functions/_shared/agent_notify_policy.mjs`, three rules in front of every ping.**
+1. **Test mode.** While `AGENT_NOTIFY_TEST_NUMBERS` holds any number, those are the ONLY phones reachable. Currently set to Muhammad `923006960632` and Junaid `923362391119`; all five real agent numbers verified blocked.
+2. **One ping per lead.** Further escalations on a lead whose agent was already told are silent. This is the rule whose absence caused the flood.
+3. **Per-agent cooldown, 30 minutes.** Ten leads at once is one message, not ten.
+
+Every block writes its own reason into the lead's comm log (`[agent X NOT notified - <reason>]`), so a quiet phone is explainable rather than looking broken. The ping timestamp is written even when the send fails, so a Meta outage cannot become a retry loop that floods the moment delivery recovers. Pure and dependency-free so it is tested without a network: `tests/agent-notify-policy-test.mjs` reproduces the exact four-messages-in-twenty-seconds scenario and asserts exactly one notification. All 12 suites pass.
+
+**New migration:** `20260822010000_profiles_last_notified_at.sql` adds `profiles.last_notified_at` for the cooldown to measure against. Not applied.
+
+**The test design, and the trap in it.** Being on the allowlist does NOT make someone an agent - the list only decides who may RECEIVE, not who gets PICKED. Round-robin picks from real agent profiles, and `profiles.id` references `auth.users(id)`, so no test agent can be created from a Claude session. Enabling notifications as things stand would pick a real agent, block the message, and deliver nothing to either test phone. **Junaid is therefore the customer and Muhammad the agent:** create a throwaway agent account via Supabase Auth, set its number to Muhammad's via My Team's Set Number, use the observer toggle to take the five real agents out of rotation, then apply/deploy/enable. Junaid texts the bot; Muhammad should get exactly one message, and nothing more when Junaid fires four in a row.
+
+**Not verified:** `deno check` has not been run on this - no Deno in the cloud session. Run it before deploying. **Kill switch:** set the flag back to `false` and redeploy; that is the stop button that did not exist in July.
+
+---
+
 ## 2026-08-22 - receives_leads webhook verified (not deployed - needs Muhammad's go-ahead), backup script's table gap fixed, Settings sidebar made collapsible
 
 Picked up from a bare "continue" on Muhammad's own laptop. Pulled `main` first (brought in a cloud session's already-merged My Team/Inbox-priority/lead-filter work), read `HANDOFF.md`, and took the one loose end its own Active Work Claims flagged: `ecaaaf3`'s `receives_leads` filter in `getAgentRotation()` was committed but never `deno check`ed or deployed.
