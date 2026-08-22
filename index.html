@@ -500,6 +500,22 @@
     [data-theme="dark"] tr:hover td { background: #16223a; }
     .empty-state { color: #94a3b8; text-align: center; padding: 32px 0; font-size: 0.875rem; }
 
+    /* ── Team roster ── */
+    /* The actions cell was display:flex with flex-wrap, so four buttons stacked
+       into four lines and every row grew to roughly 180px tall. One nowrap line
+       keeps a person to a single readable row. */
+    .team-actions{white-space:nowrap; text-align:right}
+    .team-actions .btn{display:inline-block; margin-left:5px; padding:4px 9px; font-size:0.74rem}
+    .team-actions .btn:first-child{margin-left:0}
+    .team-row td{padding-top:9px; padding-bottom:9px; vertical-align:middle}
+    .team-row.is-suspended{opacity:.55}
+    .team-name{color:#0f172a; font-weight:600}
+    .team-email{font-size:0.83rem; color:#64748b}
+    .team-hint{font-size:0.7rem; color:#b45309; font-weight:600}
+    [data-theme="dark"] .team-name{color:#e2e8f0}
+    [data-theme="dark"] .team-email{color:#94a3b8}
+    [data-theme="dark"] .team-hint{color:#e0a955}
+
     /* ── Filter bar ── */
     .filter-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
     .filter-bar select { width: auto; min-width: 140px; }
@@ -4465,6 +4481,18 @@ function populateAgentDropdowns() {
   });
 }
 
+// Owners and admins first, then agents; within each, active before suspended,
+// then alphabetical. The roster used to render in whatever order the query
+// returned, which put admins in the middle of the agent list and made the
+// table hard to read at a glance.
+const TEAM_ROLE_ORDER = { admin: 0, agent: 1 };
+function sortedTeamProfiles() {
+  return cachedProfiles.slice().sort((a, b) =>
+    ((TEAM_ROLE_ORDER[a.role] ?? 9) - (TEAM_ROLE_ORDER[b.role] ?? 9)) ||
+    ((a.is_suspended ? 1 : 0) - (b.is_suspended ? 1 : 0)) ||
+    (a.full_name || a.email || '').localeCompare(b.full_name || b.email || ''));
+}
+
 function renderAgentsTable(tbodyId) {
   const tbody = document.getElementById(tbodyId || 'agents-tbody');
   if (!tbody) return;
@@ -4472,36 +4500,38 @@ function renderAgentsTable(tbodyId) {
     tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No profiles yet.</td></tr>';
     return;
   }
-  tbody.innerHTML = cachedProfiles.map(p => `
-    <tr style="${p.is_suspended ? 'opacity:0.5' : ''}">
-      <td><strong style="color:#0f172a">${esc(p.full_name || '(no name set)')}</strong></td>
-      <td>${esc(p.email)}</td>
+  tbody.innerHTML = sortedTeamProfiles().map(p => {
+    const isSelf = p.id === currentUser.id;
+    return `
+    <tr class="team-row${p.is_suspended ? ' is-suspended' : ''}">
+      <td>
+        <strong class="team-name">${esc(p.full_name || '(no name set)')}</strong>
+        ${!p.full_name ? '<br><span class="team-hint" title="This account has no display name, so the raw email shows across the app">name not set</span>' : ''}
+      </td>
+      <td class="team-email">${esc(p.email)}</td>
       <td style="white-space:nowrap">${p.phone
         ? `<span style="font-size:0.82rem">+${esc(p.phone)}</span>`
         : (p.role === 'agent'
             ? '<span style="color:#ef4444;font-size:0.78rem;font-weight:600" title="Without a number this agent cannot be recognised by the WhatsApp webhook, cannot receive escalation pings, and is skipped by round-robin">not set</span>'
             : '<span style="color:#94a3b8;font-size:0.78rem">-</span>')}</td>
       <td><span class="badge badge-${p.role}">${p.role}</span></td>
-      <td style="color:#666;font-size:0.8rem">${fmtDate(p.created_at)}</td>
-      <td>${p.id !== currentUser.id
+      <td style="color:#666;font-size:0.8rem;white-space:nowrap">${fmtDate(p.created_at)}</td>
+      <td style="white-space:nowrap">${!isSelf
         ? (p.is_suspended
-            ? '<span style="color:#ef4444;font-size:0.8rem;font-weight:600">🚫 Suspended</span>'
-            : '<span style="color:#22c55e;font-size:0.8rem;font-weight:600">✓ Active</span>')
-        : '<span style="color:#555;font-size:0.8rem">(you)</span>'}</td>
-      <td style="display:flex;gap:6px;flex-wrap:wrap">
+            ? '<span style="color:#ef4444;font-size:0.8rem;font-weight:600">Suspended</span>'
+            : '<span style="color:#22c55e;font-size:0.8rem;font-weight:600">Active</span>')
+        : '<span style="color:#94a3b8;font-size:0.8rem">You</span>'}</td>
+      <td class="team-actions">
         <button class="btn btn-secondary btn-sm" data-id="${esc(p.id)}" data-name="${esc(p.full_name || '')}" onclick="renameProfile(this.dataset.id, this.dataset.name)">Rename</button>
-        <button class="btn btn-secondary btn-sm" onclick="setProfilePhone('${p.id}','${esc(p.phone || '')}')">${p.phone ? 'Edit Number' : 'Set Number'}</button>
-        ${p.id !== currentUser.id
-        ? `<button class="btn btn-secondary btn-sm"
-               onclick="toggleRole('${p.id}','${p.role}')">
-               Make ${p.role === 'admin' ? 'Agent' : 'Admin'}
-             </button>
-             <button class="btn btn-sm" style="background:${p.is_suspended ? '#16a34a' : '#dc2626'};color:#fff"
-               onclick="suspendAgent('${p.id}',${!p.is_suspended})">
-               ${p.is_suspended ? 'Unsuspend' : 'Suspend'}
-             </button>`
-        : ''}</td>
-    </tr>`).join('');
+        <button class="btn btn-secondary btn-sm" onclick="setProfilePhone('${p.id}','${esc(p.phone || '')}')">${p.phone ? 'Number' : 'Set number'}</button>
+        ${!isSelf
+        ? `<button class="btn btn-secondary btn-sm" onclick="toggleRole('${p.id}','${p.role}')">Make ${p.role === 'admin' ? 'agent' : 'admin'}</button>
+           <button class="btn btn-sm team-danger" style="background:${p.is_suspended ? '#16a34a' : '#dc2626'};color:#fff"
+             onclick="suspendAgent('${p.id}',${!p.is_suspended})">${p.is_suspended ? 'Unsuspend' : 'Suspend'}</button>`
+        : ''}
+      </td>
+    </tr>`;
+  }).join('');
 }
 
 // Every account created via the Supabase Dashboard "Add User" flow starts
