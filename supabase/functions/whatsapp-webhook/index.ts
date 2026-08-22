@@ -552,15 +552,39 @@ async function upsertLead(
       );
       return;
     }
+    // This is the path that flooded agents in July, and it is the one being
+    // switched back on - so it goes through the same rules, with the test
+    // allowlist applied so a trial cannot reach a real agent's phone.
+    const decision = shouldNotifyAgent({
+      agentPhone: agent.phone,
+      leadAlreadyNotified: false, // brand new lead, nobody has been told yet
+      agentLastNotifiedAt: agent.last_notified_at ?? null,
+      cooldownMinutes: AGENT_NOTIFY_COOLDOWN_MINUTES,
+      testNumbers: AGENT_NOTIFY_TEST_NUMBERS,
+    });
+    if (!decision.notify) {
+      await insertCommunication(
+        sb,
+        newLead.id,
+        "outbound",
+        `[assigned to ${agent.name}, NOT notified - ${decision.reason}]`,
+        new Date().toISOString(),
+      );
+      return;
+    }
     const pingResult = await sendButtons(
       agent.phone,
       `A new lead is waiting for you in the CRM. Please follow up.`,
       [{ id: `ack_${newLead.id}`, title: "I've got this" }],
     );
-    await sb.from("leads").update({
-      agent_ping_count: 1,
-      agent_last_pinged_at: new Date().toISOString(),
-    }).eq("id", newLead.id);
+    const nowIso = new Date().toISOString();
+    await Promise.all([
+      sb.from("leads").update({
+        agent_ping_count: 1,
+        agent_last_pinged_at: nowIso,
+      }).eq("id", newLead.id),
+      sb.from("profiles").update({ last_notified_at: nowIso }).eq("id", agent.id),
+    ]);
     await insertCommunication(
       sb,
       newLead.id,
@@ -568,7 +592,7 @@ async function upsertLead(
       pingResult.ok
         ? `[assigned to ${agent.name}, notified]`
         : `[assigned to ${agent.name}, notification SEND FAILED - ${pingResult.error}]`,
-      new Date().toISOString(),
+      nowIso,
     );
   })();
   const waitUntil = (globalThis as any).EdgeRuntime?.waitUntil;
@@ -1516,12 +1540,17 @@ async function escalate(
   if (ESCALATION_NOTIFICATIONS_ENABLED && assignedAgent) {
     // Every block is written to the lead's own log with its reason, so a quiet
     // phone is always explainable rather than looking like a broken feature.
+    // No testNumbers here on purpose. Escalation alerts already reach real
+    // agents today and are wanted - the allowlist exists to trial the NEW-LEAD
+    // notification safely, not to switch off a working alert. Passing it here
+    // would silently stop every real agent being told a lead needs a human,
+    // which is a worse outcome than the flood it was meant to prevent. The
+    // one-per-lead and cooldown rules below still apply to everyone, always.
     const decision = shouldNotifyAgent({
       agentPhone: assignedAgent.phone,
       leadAlreadyNotified: (lead.agent_ping_count ?? 0) > 0,
       agentLastNotifiedAt: assignedAgent.last_notified_at ?? null,
       cooldownMinutes: AGENT_NOTIFY_COOLDOWN_MINUTES,
-      testNumbers: AGENT_NOTIFY_TEST_NUMBERS,
     });
 
     if (!decision.notify) {
