@@ -1410,10 +1410,6 @@
           <button type="button" class="notif-btn" id="notif-btn" title="Notifications" onclick="toggleNotifPanel('')">🔔<span class="notif-badge" id="notif-badge" style="display:none">0</span></button>
           <div class="notif-panel" id="notif-panel" style="display:none"></div>
         </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-secondary btn-sm header-btn-pair" onclick="exportLeadsCSV()">📥 Export CSV</button>
-          <button class="btn btn-primary btn-inline btn-sm header-btn-pair" onclick="adminTab('add-lead')">+ Add Lead</button>
-        </div>
       </div>
     </div>
     <div class="content-body">
@@ -1573,6 +1569,11 @@
       </select>
       <button id="leads-clear-filters" class="btn btn-secondary btn-sm" onclick="clearLeadFilters()"
               style="display:none">Clear filters</button>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" onclick="exportLeadsCSV()"
+                title="Downloads exactly the rows shown below, with the filters above applied">Export CSV</button>
+        <button class="btn btn-primary btn-inline btn-sm" onclick="adminTab('add-lead')">+ Add Lead</button>
+      </div>
     </div>
     <div id="leads-filter-summary" class="leads-filter-summary"></div>
     <div class="card" style="padding:0">
