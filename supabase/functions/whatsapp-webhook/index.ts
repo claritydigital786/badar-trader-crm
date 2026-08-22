@@ -115,7 +115,12 @@ const ESCALATION_NOTIFICATIONS_ENABLED = true;
 // number, those are the ONLY phones that can be notified - every real agent is
 // unreachable no matter what else happens. Empty it only once the rhythm has
 // been watched on test phones and judged right.
-const AGENT_NOTIFY_TEST_NUMBERS: string[] = [];
+// Muhammad (+92 300 6960632) and Junaid (+92 336 2391119), 2026-08-22.
+// While these two are listed, NO other phone on earth can receive an agent
+// notification from this webhook - real agents included. Emptying this array is
+// what makes notifications live for the whole team, and that is a deliberate
+// decision to take only after watching the rhythm on these two phones.
+const AGENT_NOTIFY_TEST_NUMBERS: string[] = ["923006960632", "923362391119"];
 const AGENT_NOTIFY_COOLDOWN_MINUTES = DEFAULT_COOLDOWN_MINUTES;
 
 let cachedWaToken: string | null = null;
