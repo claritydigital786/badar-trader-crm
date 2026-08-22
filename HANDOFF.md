@@ -1,9 +1,20 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-08-21 (later still). The entry directly below is this session's, written
-with its verification actually run. The account-switch entry after it was written fast as
-a usage limit approached - verify its claims before trusting them further. For a fresh
-Claude Code session with zero memory of prior conversations._
+_Last updated: 2026-08-22. The entry directly below is this session's, written
+with its verification actually run. For a fresh Claude Code session with zero
+memory of prior conversations._
+
+## 2026-08-22 - receives_leads webhook verified (not deployed - needs Muhammad's go-ahead), backup script's table gap fixed, Settings sidebar made collapsible
+
+Picked up from a bare "continue" on Muhammad's own laptop. Pulled `main` first (brought in a cloud session's already-merged My Team/Inbox-priority/lead-filter work), read `HANDOFF.md`, and took the one loose end its own Active Work Claims flagged: `ecaaaf3`'s `receives_leads` filter in `getAgentRotation()` was committed but never `deno check`ed or deployed.
+
+**`deno check supabase/functions/whatsapp-webhook/index.ts` - clean.** All 11 dependency-free suites pass. **Not deployed.** Attempting `supabase functions deploy whatsapp-webhook` was blocked by this session's own auto-mode permission classifier (a live webhook deploy is high-stakes even though the code is verified and this is Muhammad's laptop). Surfaced this to Muhammad in chat rather than working around it - still waiting on his explicit yes before this ships. Until it deploys, the bot's own escalation rotation can still hand a lead to Syed Hamza even though the frontend (Add Lead, CSV import) already skips him.
+
+**Found and fixed a real, unrelated gap while running this repo's own validate step.** `backup-automation`'s PHP suite failed for the first time: `pending_approval_notifications` (Phase 31) and `public_form_rate_limits` (Phase 32) exist in `schema.sql` but were never added to `crmBackupTableMap()`, so the Hostinger 4x-daily cron backup has been silently skipping both since they were created. Added both to the map (`pending_approval_notifications` uses PostgREST's comma-separated on_conflict/order syntax for its composite primary key `lead_id,status_changed_at`), updated the two tests' stale hardcoded `23`-table assertions to `25`. Both `restore_test.php` and `storage_backup_test.php` pass now; verified by actually running them against their mock server, not just reading the diff. Committed and pushed (`2398e13`) - this only touches the local backup script, not production Supabase.
+
+**Built, per Muhammad's direct request with a screenshot: Settings is now collapsible in the admin sidebar.** A caret next to Settings opens/closes the group of items under it (Meta Integration, Notifications, Sites, Guide), state persists per browser in `localStorage` (same pattern as the Inbox's existing Sort toggle), and navigating straight to one of those four tabs from elsewhere in the app (e.g. the Dashboard's Meta Integration shortcut) re-expands the group first so the highlighted row is never left hidden. The caret's own click handler stops propagation so it never also fires the row's navigation. Verified in demo preview: collapse/expand, persistence across reload, auto-expand-on-navigate, clicking the Settings label itself still navigates without toggling, dark/light theme, desktop and 375px, zero console errors, all 11 suites pass. Committed and pushed (`d66fb13`).
+
+---
 
 ## 2026-08-21 (later still) - Omnichannel Inbox ordered by real urgency, not just recency
 
