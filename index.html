@@ -500,9 +500,36 @@
     [data-theme="dark"] tr:hover td { background: #16223a; }
     .empty-state { color: #94a3b8; text-align: center; padding: 32px 0; font-size: 0.875rem; }
 
+    /* ── Team roster ── */
+    /* The actions cell was display:flex with flex-wrap, so four buttons stacked
+       into four lines and every row grew to roughly 180px tall. One nowrap line
+       keeps a person to a single readable row. */
+    .team-actions{white-space:nowrap; text-align:right}
+    .team-actions .btn{display:inline-block; margin-left:5px; padding:4px 9px; font-size:0.74rem}
+    .team-actions .btn:first-child{margin-left:0}
+    .team-row td{padding-top:9px; padding-bottom:9px; vertical-align:middle}
+    .team-row.is-suspended{opacity:.55}
+    .team-name{color:#0f172a; font-weight:600}
+    .team-email{font-size:0.83rem; color:#64748b}
+    .team-hint{font-size:0.7rem; color:#b45309; font-weight:600}
+    [data-theme="dark"] .team-name{color:#e2e8f0}
+    [data-theme="dark"] .team-email{color:#94a3b8}
+    [data-theme="dark"] .team-hint{color:#e0a955}
+
     /* ── Filter bar ── */
     .filter-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
     .filter-bar select { width: auto; min-width: 140px; }
+    /* Says what the filter bar above is currently doing, so an empty table is
+       never ambiguous. Light is the base here, dark is the override, same as
+       every other rule in this file. */
+    .leads-filter-summary { font-size: 0.8rem; color: #64748b; margin: -4px 0 12px;
+                            display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .leads-filter-summary strong { color: #0f172a; }
+    .leads-filter-chip { background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569;
+                         border-radius: 8px; padding: 1px 8px; }
+    [data-theme="dark"] .leads-filter-summary { color: #94a3b8; }
+    [data-theme="dark"] .leads-filter-summary strong { color: #e2e8f0; }
+    [data-theme="dark"] .leads-filter-chip { background: #0f172a; border-color: #1e293b; color: #cbd5e1; }
 
     /* ── Form layout ── */
     .form-row { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -835,6 +862,16 @@
     .conv-name { color:#111b21; font-size:1rem; font-weight:400; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .conv-preview { color:#667781; font-size:0.875rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .conv-time { color:#667781; font-size:0.75rem; margin-bottom:4px; }
+    /* Why a conversation is where it is in the list. Sits inline at the start
+       of the preview line so the 72px row height is untouched. */
+    .conv-prio-chip { display:inline-block; font-size:0.65rem; font-weight:700; border-radius:8px;
+                      padding:1px 6px; vertical-align:1px; white-space:nowrap; }
+    .conv-prio-urgent        { background:#fee2e2; color:#b91c1c; }
+    .conv-prio-wait          { background:#e0e7ff; color:#4338ca; }
+    .conv-prio-closed-window { background:#e2e8f0; color:#475569; }
+    [data-theme="dark"] .conv-prio-urgent        { background:#3f1d1d; color:#fca5a5; }
+    [data-theme="dark"] .conv-prio-wait          { background:#1e2547; color:#a5b4fc; }
+    [data-theme="dark"] .conv-prio-closed-window { background:#222d34; color:#aebac1; }
     .conv-chat-panel { flex:1; display:flex; flex-direction:column; min-width:0; }
     .conv-chat-header { padding:10px 16px; border-bottom:1px solid #d1d7db; display:flex; align-items:center; gap:12px; background:#f0f2f5; min-height:59px; }
     /* The header now carries a countdown pill and an info button as well as
@@ -1501,7 +1538,7 @@
       <input type="text" id="lead-search" placeholder="🔍 Search name, phone, email…"
              oninput="filterLeadsLocal()"
              style="flex:1;min-width:180px;max-width:280px" />
-      <select id="filter-status" onchange="loadAdminLeads()">
+      <select id="filter-status" onchange="loadAdminLeads()" title="Lead status">
         <option value="">All Statuses</option>
         <option value="new">New</option>
         <option value="contacted">Contacted</option>
@@ -1511,10 +1548,10 @@
         <option value="converted">Converted</option>
         <option value="lost">Lost</option>
       </select>
-      <select id="filter-agent" onchange="loadAdminLeads()">
+      <select id="filter-agent" onchange="loadAdminLeads()" title="Assigned agent">
         <option value="">All Agents</option>
       </select>
-      <select id="filter-source" onchange="loadAdminLeads()">
+      <select id="filter-source" onchange="loadAdminLeads()" title="Where the lead came from">
         <option value="">All Sources</option>
         <option value="meta">Meta Ads</option>
         <option value="referral">Referral</option>
@@ -1522,11 +1559,22 @@
         <option value="manual">Manual</option>
         <option value="other">Other</option>
       </select>
-      <select id="filter-human" onchange="loadAdminLeads()">
+      <select id="filter-human" onchange="loadAdminLeads()" title="Whether the lead is waiting on a person">
         <option value="">All (bot + human)</option>
         <option value="1">⚠ Needs Human</option>
+        <option value="0">Bot handling (no handoff)</option>
       </select>
+      <select id="filter-date" onchange="loadAdminLeads()" title="When the lead was added">
+        <option value="">Any time</option>
+        <option value="today">Added today</option>
+        <option value="7d">Added last 7 days</option>
+        <option value="30d">Added last 30 days</option>
+        <option value="90d">Added last 90 days</option>
+      </select>
+      <button id="leads-clear-filters" class="btn btn-secondary btn-sm" onclick="clearLeadFilters()"
+              style="display:none">Clear filters</button>
     </div>
+    <div id="leads-filter-summary" class="leads-filter-summary"></div>
     <div class="card" style="padding:0">
       <table>
         <thead><tr>
@@ -1648,6 +1696,7 @@
             <button type="button" class="conv-list-toggle" title="Inbox menu" aria-label="Open inbox menu" aria-haspopup="menu" aria-expanded="false" onclick="toggleInboxMenu(event,'')">☰</button>
             <div class="conv-list-menu" id="conv-list-menu" role="menu">
               <button type="button" role="menuitem" onclick="runInboxMenuAction('refresh','')">Refresh inbox</button>
+              <button type="button" role="menuitem" data-conv-sort-label onclick="runInboxMenuAction('toggle-sort','')">Sort: priority (change to newest)</button>
               <button type="button" role="menuitem" onclick="runInboxMenuAction('all','')">All conversations</button>
               <button type="button" role="menuitem" onclick="runInboxMenuAction('unread','')">Unread conversations</button>
               <button type="button" role="menuitem" onclick="runInboxMenuAction('clear-search','')">Clear search</button>
@@ -3427,6 +3476,7 @@
             <button type="button" class="conv-list-toggle" title="Inbox menu" aria-label="Open inbox menu" aria-haspopup="menu" aria-expanded="false" onclick="toggleInboxMenu(event,'agent-')">☰</button>
             <div class="conv-list-menu" id="agent-conv-list-menu" role="menu">
               <button type="button" role="menuitem" onclick="runInboxMenuAction('refresh','agent-')">Refresh inbox</button>
+              <button type="button" role="menuitem" data-conv-sort-label onclick="runInboxMenuAction('toggle-sort','agent-')">Sort: priority (change to newest)</button>
               <button type="button" role="menuitem" onclick="runInboxMenuAction('all','agent-')">All conversations</button>
               <button type="button" role="menuitem" onclick="runInboxMenuAction('unread','agent-')">Unread conversations</button>
               <button type="button" role="menuitem" onclick="runInboxMenuAction('clear-search','agent-')">Clear search</button>
@@ -4413,6 +4463,15 @@ function populateAgentDropdowns() {
     if (!sel) return;
     const firstHtml = sel.options[0].outerHTML;
     sel.innerHTML = firstHtml;
+    // "Unassigned" only makes sense as a filter, not as an Add Lead target
+    // (that one round-robins instead). It has to be re-added here because this
+    // function rebuilds the option list from scratch on every profile refresh.
+    if (id === 'filter-agent') {
+      const u = document.createElement('option');
+      u.value = LEAD_FILTER_UNASSIGNED;
+      u.textContent = 'Unassigned';
+      sel.appendChild(u);
+    }
     agents.forEach(a => {
       const o = document.createElement('option');
       o.value = a.id;
@@ -4422,6 +4481,18 @@ function populateAgentDropdowns() {
   });
 }
 
+// Owners and admins first, then agents; within each, active before suspended,
+// then alphabetical. The roster used to render in whatever order the query
+// returned, which put admins in the middle of the agent list and made the
+// table hard to read at a glance.
+const TEAM_ROLE_ORDER = { admin: 0, agent: 1 };
+function sortedTeamProfiles() {
+  return cachedProfiles.slice().sort((a, b) =>
+    ((TEAM_ROLE_ORDER[a.role] ?? 9) - (TEAM_ROLE_ORDER[b.role] ?? 9)) ||
+    ((a.is_suspended ? 1 : 0) - (b.is_suspended ? 1 : 0)) ||
+    (a.full_name || a.email || '').localeCompare(b.full_name || b.email || ''));
+}
+
 function renderAgentsTable(tbodyId) {
   const tbody = document.getElementById(tbodyId || 'agents-tbody');
   if (!tbody) return;
@@ -4429,36 +4500,43 @@ function renderAgentsTable(tbodyId) {
     tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No profiles yet.</td></tr>';
     return;
   }
-  tbody.innerHTML = cachedProfiles.map(p => `
-    <tr style="${p.is_suspended ? 'opacity:0.5' : ''}">
-      <td><strong style="color:#0f172a">${esc(p.full_name || '(no name set)')}</strong></td>
-      <td>${esc(p.email)}</td>
+  tbody.innerHTML = sortedTeamProfiles().map(p => {
+    const isSelf = p.id === currentUser.id;
+    return `
+    <tr class="team-row${p.is_suspended ? ' is-suspended' : ''}">
+      <td>
+        <strong class="team-name">${esc(p.full_name || '(no name set)')}</strong>
+        ${!p.full_name ? '<br><span class="team-hint" title="This account has no display name, so the raw email shows across the app">name not set</span>' : ''}
+      </td>
+      <td class="team-email">${esc(p.email)}</td>
       <td style="white-space:nowrap">${p.phone
         ? `<span style="font-size:0.82rem">+${esc(p.phone)}</span>`
         : (p.role === 'agent'
             ? '<span style="color:#ef4444;font-size:0.78rem;font-weight:600" title="Without a number this agent cannot be recognised by the WhatsApp webhook, cannot receive escalation pings, and is skipped by round-robin">not set</span>'
             : '<span style="color:#94a3b8;font-size:0.78rem">-</span>')}</td>
       <td><span class="badge badge-${p.role}">${p.role}</span></td>
-      <td style="color:#666;font-size:0.8rem">${fmtDate(p.created_at)}</td>
-      <td>${p.id !== currentUser.id
+      <td style="color:#666;font-size:0.8rem;white-space:nowrap">${fmtDate(p.created_at)}</td>
+      <td style="white-space:nowrap">${!isSelf
         ? (p.is_suspended
-            ? '<span style="color:#ef4444;font-size:0.8rem;font-weight:600">🚫 Suspended</span>'
-            : '<span style="color:#22c55e;font-size:0.8rem;font-weight:600">✓ Active</span>')
-        : '<span style="color:#555;font-size:0.8rem">(you)</span>'}</td>
-      <td style="display:flex;gap:6px;flex-wrap:wrap">
+            ? '<span style="color:#ef4444;font-size:0.8rem;font-weight:600">Suspended</span>'
+            : '<span style="color:#22c55e;font-size:0.8rem;font-weight:600">Active</span>')
+        : '<span style="color:#94a3b8;font-size:0.8rem">You</span>'}
+        ${p.role === 'agent' && p.receives_leads === false && !p.is_suspended
+          ? '<br><span class="team-hint" title="Has full access but is skipped by round-robin lead assignment">observer, no leads</span>' : ''}</td>
+      <td class="team-actions">
         <button class="btn btn-secondary btn-sm" data-id="${esc(p.id)}" data-name="${esc(p.full_name || '')}" onclick="renameProfile(this.dataset.id, this.dataset.name)">Rename</button>
-        <button class="btn btn-secondary btn-sm" onclick="setProfilePhone('${p.id}','${esc(p.phone || '')}')">${p.phone ? 'Edit Number' : 'Set Number'}</button>
-        ${p.id !== currentUser.id
-        ? `<button class="btn btn-secondary btn-sm"
-               onclick="toggleRole('${p.id}','${p.role}')">
-               Make ${p.role === 'admin' ? 'Agent' : 'Admin'}
-             </button>
-             <button class="btn btn-sm" style="background:${p.is_suspended ? '#16a34a' : '#dc2626'};color:#fff"
-               onclick="suspendAgent('${p.id}',${!p.is_suspended})">
-               ${p.is_suspended ? 'Unsuspend' : 'Suspend'}
-             </button>`
-        : ''}</td>
-    </tr>`).join('');
+        <button class="btn btn-secondary btn-sm" onclick="setProfilePhone('${p.id}','${esc(p.phone || '')}')">${p.phone ? 'Number' : 'Set number'}</button>
+        ${p.role === 'agent'
+        ? `<button class="btn btn-secondary btn-sm" title="${p.receives_leads === false ? 'Put this person back into round-robin lead assignment' : 'Keep this person out of round-robin without suspending their access'}"
+             onclick="toggleReceivesLeads('${p.id}',${p.receives_leads === false})">${p.receives_leads === false ? 'Give leads' : 'No leads'}</button>` : ''}
+        ${!isSelf
+        ? `<button class="btn btn-secondary btn-sm" onclick="toggleRole('${p.id}','${p.role}')">Make ${p.role === 'admin' ? 'agent' : 'admin'}</button>
+           <button class="btn btn-sm team-danger" style="background:${p.is_suspended ? '#16a34a' : '#dc2626'};color:#fff"
+             onclick="suspendAgent('${p.id}',${!p.is_suspended})">${p.is_suspended ? 'Unsuspend' : 'Suspend'}</button>`
+        : ''}
+      </td>
+    </tr>`;
+  }).join('');
 }
 
 // Every account created via the Supabase Dashboard "Add User" flow starts
@@ -4551,6 +4629,27 @@ async function toggleRole(id, current) {
   await loadProfiles();
 }
 
+// An observer keeps their login and sees everything; they are simply not in the
+// sales rotation. Distinct from suspending, which locks the account outright.
+async function toggleReceivesLeads(id, enable) {
+  const person = cachedProfiles.find(p => p.id === id);
+  const name = person?.full_name || person?.email || 'this person';
+  if (!confirm(enable
+      ? `Put ${name} back into round-robin lead assignment?`
+      : `Stop assigning new leads to ${name}? They keep full access and their existing leads.`)) return;
+
+  if (demoMode) {
+    if (person) person.receives_leads = enable;
+    refreshAgentTables();
+    showToast(enable ? `${name} will receive leads again. (demo)` : `${name} is now an observer. (demo)`);
+    return;
+  }
+  const { error } = await sb.from('profiles').update({ receives_leads: enable }).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'err'); return; }
+  showToast(enable ? `${name} will receive leads again.` : `${name} is now an observer and will not be assigned new leads.`);
+  await loadProfiles();
+}
+
 async function suspendAgent(id, suspend) {
   const action = suspend ? 'suspend' : 'unsuspend';
   if (!confirm(`Are you sure you want to ${action} this user? ${suspend ? 'They will not be able to log in.' : 'They will regain access.'}`)) return;
@@ -4564,36 +4663,142 @@ async function suspendAgent(id, suspend) {
   await loadProfiles();
 }
 
+// The All Leads filter bar, in one place. Every filter reads from here so the
+// server query, the demo-mode filter and the local re-render after an inline
+// edit can never disagree about what is currently being filtered - they used to,
+// which is how a lead edited to "Converted" stayed visible under a "New" filter.
+const LEAD_FILTER_UNASSIGNED = '__unassigned__';
+const LEAD_DATE_PRESET_DAYS  = { today: 0, '7d': 7, '30d': 30, '90d': 90 };
+
+// True total of leads in the system, ignoring every filter. Needed so the
+// summary line can honestly say "Showing 12 of 2,400" rather than making the
+// filtered count look like the total (which is what the nav badge used to do).
+let _leadsTotalCount = 0;
+
+function leadFilters() {
+  return {
+    status: document.getElementById('filter-status')?.value || '',
+    agent:  document.getElementById('filter-agent')?.value  || '',
+    source: document.getElementById('filter-source')?.value || '',
+    human:  document.getElementById('filter-human')?.value  || '',
+    date:   document.getElementById('filter-date')?.value   || '',
+    search: (document.getElementById('lead-search')?.value || '').toLowerCase().trim(),
+  };
+}
+
+function leadFiltersActive(f) {
+  return !!(f.status || f.agent || f.source || f.human || f.date || f.search);
+}
+
+// Start-of-day boundary for a date preset, in the browser's own timezone, so
+// "Added today" means today for whoever is looking at the screen.
+function leadDateSince(preset) {
+  if (!(preset in LEAD_DATE_PRESET_DAYS)) return null;
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - LEAD_DATE_PRESET_DAYS[preset]);
+  return d;
+}
+
+function leadMatchesFilters(l, f) {
+  if (f.status && l.status !== f.status) return false;
+  if (f.agent === LEAD_FILTER_UNASSIGNED) { if (l.assigned_agent_id) return false; }
+  else if (f.agent && l.assigned_agent_id !== f.agent) return false;
+  if (f.source && l.source !== f.source) return false;
+  if (f.human === '1' && !l.needs_human) return false;
+  if (f.human === '0' && l.needs_human)  return false;
+  const since = leadDateSince(f.date);
+  if (since && !(new Date(l.created_at) >= since)) return false;
+  if (f.search) {
+    const hay = ((l.full_name || '') + ' ' + (l.phone || '') + ' ' + (l.email || '')).toLowerCase();
+    if (!hay.includes(f.search)) return false;
+  }
+  return true;
+}
+
+function clearLeadFilters() {
+  ['filter-status', 'filter-agent', 'filter-source', 'filter-human', 'filter-date']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const search = document.getElementById('lead-search');
+  if (search) search.value = '';
+  loadAdminLeads();
+}
+
+function leadFilterChips(f) {
+  const chips = [];
+  const agentName = id => (cachedProfiles.find(p => p.id === id)?.full_name) || 'that agent';
+  if (f.status) chips.push('Status: ' + statusLabel(f.status));
+  if (f.agent === LEAD_FILTER_UNASSIGNED) chips.push('Unassigned');
+  else if (f.agent) chips.push('Agent: ' + agentName(f.agent));
+  if (f.source) chips.push('Source: ' + sourceLabel(f.source));
+  if (f.human === '1') chips.push('Needs Human');
+  if (f.human === '0') chips.push('Bot handling');
+  if (f.date)   chips.push({ today: 'Added today', '7d': 'Added last 7 days',
+                             '30d': 'Added last 30 days', '90d': 'Added last 90 days' }[f.date]);
+  if (f.search) chips.push('Search: "' + f.search + '"');
+  return chips;
+}
+
+function updateLeadsFilterSummary(shown, f) {
+  const el = document.getElementById('leads-filter-summary');
+  const btn = document.getElementById('leads-clear-filters');
+  const active = leadFiltersActive(f);
+  if (btn) btn.style.display = active ? '' : 'none';
+  if (!el) return;
+  const total = Math.max(_leadsTotalCount, shown);
+  const chips = leadFilterChips(f).map(c =>
+    `<span class="leads-filter-chip">${esc(c)}</span>`
+  ).join('');
+  el.innerHTML = active
+    ? `<span>Showing <strong>${shown}</strong> of ${total} leads</span>${chips}`
+    : `<span>Showing all <strong>${shown}</strong> leads</span>`;
+}
+
 async function loadAdminLeads() {
-  const status = document.getElementById('filter-status')?.value || '';
-  const agent  = document.getElementById('filter-agent')?.value  || '';
-  const source = document.getElementById('filter-source')?.value || '';
-  const human  = document.getElementById('filter-human')?.value  || '';
+  const f = leadFilters();
 
   if (demoMode) {
-    let leads = _DEMO_LEADS.slice();
-    if (status) leads = leads.filter(l => l.status === status);
-    if (agent)  leads = leads.filter(l => l.assigned_agent_id === agent);
-    if (source) leads = leads.filter(l => l.source === source);
-    if (human)  leads = leads.filter(l => l.needs_human);
-    cachedLeads = leads;
-    filterLeadsLocal(); // re-apply any text still sitting in the search box
+    _leadsTotalCount = _DEMO_LEADS.length;
+    cachedLeads = _DEMO_LEADS.slice();
+    filterLeadsLocal(); // one filter pass, same predicate the live path uses
+    updateLeadsCountBadge();
     return;
   }
 
   let q = sb.from('leads').select('*').order('created_at', { ascending: false });
-  if (status) q = q.eq('status', status);
-  if (agent)  q = q.eq('assigned_agent_id', agent);
-  if (source) q = q.eq('source', source);
-  if (human)  q = q.eq('needs_human', true);
+  if (f.status) q = q.eq('status', f.status);
+  if (f.agent === LEAD_FILTER_UNASSIGNED) q = q.is('assigned_agent_id', null);
+  else if (f.agent) q = q.eq('assigned_agent_id', f.agent);
+  if (f.source) q = q.eq('source', f.source);
+  if (f.human === '1') q = q.eq('needs_human', true);
+  if (f.human === '0') q = q.eq('needs_human', false);
+  const since = leadDateSince(f.date);
+  if (since) q = q.gte('created_at', since.toISOString());
 
-  const { data, error } = await q;
+  // The filtered rows and the unfiltered head count are independent, so they go
+  // out together rather than one after the other - the count is only there to
+  // say "of N" honestly and should not add a round-trip to every filter change.
+  const [{ data, error }, { count, error: countError }] = await Promise.all([
+    q,
+    sb.from('leads').select('id', { count: 'exact', head: true }),
+  ]);
   if (error) { console.error('loadAdminLeads:', error); return; }
   cachedLeads = data || [];
+  if (countError) console.warn('loadAdminLeads count:', countError);
+  _leadsTotalCount = (typeof count === 'number') ? count : cachedLeads.length;
+
   filterLeadsLocal(); // re-apply any text still sitting in the search box
-  // Update nav badge
+  updateLeadsCountBadge();
+}
+
+// The nav badge shows the unfiltered total. It used to show the filtered count,
+// so filtering to one lead made the sidebar claim the CRM held one lead. Demo
+// mode never updated it at all - the live-only branch returned before this ran.
+function updateLeadsCountBadge() {
   const badge = document.getElementById('leads-count-badge');
-  if (badge) { badge.textContent = cachedLeads.length || ''; badge.style.display = cachedLeads.length ? '' : 'none'; }
+  if (!badge) return;
+  badge.textContent = _leadsTotalCount || '';
+  badge.style.display = _leadsTotalCount ? '' : 'none';
 }
 
 // ── CSV IMPORT ─────────────────────────────────────────────────
@@ -4676,15 +4881,26 @@ function cancelImportCSV() {
   document.getElementById('csv-confirm-msg').textContent = '';
 }
 
+// Applies the whole filter bar - dropdowns and search box - locally over
+// cachedLeads. The dropdowns already ran server-side in loadAdminLeads, so
+// re-applying them here is normally a no-op; it matters after an inline edit
+// (status change, reassignment, delete), where a row that no longer matches
+// the filter used to stay on screen contradicting the filter above it.
 function filterLeadsLocal() {
-  const q = (document.getElementById('lead-search')?.value || '').toLowerCase().trim();
-  if (!q) { renderLeadsTable('admin-leads-tbody', cachedLeads, true); return; }
-  const filtered = cachedLeads.filter(l =>
-    (l.full_name  || '').toLowerCase().includes(q) ||
-    (l.phone      || '').toLowerCase().includes(q) ||
-    (l.email      || '').toLowerCase().includes(q)
-  );
-  renderLeadsTable('admin-leads-tbody', filtered, true);
+  const f = leadFilters();
+  const filtered = cachedLeads.filter(l => leadMatchesFilters(l, f));
+  renderLeadsTable('admin-leads-tbody', filtered, true, adminLeadsEmptyHtml(f));
+  updateLeadsFilterSummary(filtered.length, f);
+}
+
+// An empty table means two very different things and used to say the same
+// thing for both: "No leads yet. Use Add Lead to create one." was shown even
+// when thousands of leads existed and the filter simply matched none of them.
+function adminLeadsEmptyHtml(f) {
+  if (!leadFiltersActive(f)) return 'No leads yet. Use "Add Lead" to create one.';
+  const chips = leadFilterChips(f).map(esc).join(' + ');
+  return `No leads match ${chips ? '<strong>' + chips + '</strong>' : 'these filters'}.
+    <br><button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="clearLeadFilters()">Clear filters</button>`;
 }
 
 async function addLead() {
@@ -5028,7 +5244,7 @@ async function loadAgentLeads() {
     if (error) { console.error('loadAgentLeads:', error); return; }
     cachedLeads = data || [];
   }
-  renderLeadsTable('agent-leads-tbody', cachedLeads, false);
+  filterAgentLeadsLocal(); // keep any active search applied after an inline edit
 
   // Update quick stats bar
   const total = cachedLeads.length;
@@ -5060,7 +5276,10 @@ function filterAgentLeadsLocal() {
     (l.phone      || '').toLowerCase().includes(q) ||
     (l.email      || '').toLowerCase().includes(q)
   );
-  renderLeadsTable('agent-leads-tbody', filtered, false);
+  // Same distinction the admin table now makes: no search matches is not the
+  // same as having no leads at all.
+  renderLeadsTable('agent-leads-tbody', filtered, false,
+    `No leads match "${esc(q)}".`);
 }
 
 async function logActivityStandalone() {
@@ -5734,8 +5953,10 @@ async function deleteLeadRecord(leadId, ctx) {
 
   if (demoMode) {
     cachedLeads = cachedLeads.filter(l => l.id !== leadId);
+    if (_leadsTotalCount > 0) _leadsTotalCount--;
     closeDetail(ctx);
-    renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+    filterLeadsLocal(); // keep the active filter + search applied after an inline edit
+    updateLeadsCountBadge();
     showToast(`${name} deleted. (demo)`);
     return;
   }
@@ -5748,8 +5969,11 @@ async function deleteLeadRecord(leadId, ctx) {
   if (error) { showToast('Error deleting: ' + error.message, 'err'); return; }
 
   cachedLeads = cachedLeads.filter(l => l.id !== leadId);
+  // Keep the "of N" total honest without re-querying - the row is gone.
+  if (_leadsTotalCount > 0) _leadsTotalCount--;
   closeDetail(ctx);
-  renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+  filterLeadsLocal(); // keep the active filter + search applied after an inline edit
+  updateLeadsCountBadge();
   showToast(`${name} deleted.`);
 }
 
@@ -5766,7 +5990,7 @@ async function saveLeadDetail(leadId, ctx) {
       if (status === 'converted' && !prevLead.converted_at) prevLead.converted_at = new Date().toISOString();
     }
     setMsg(msgEl, 'Saved. (demo)', 'ok');
-    renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+    filterLeadsLocal(); // keep the active filter + search applied after an inline edit
     await openDetail(leadId, ctx);
     return;
   }
@@ -5784,7 +6008,7 @@ async function saveLeadDetail(leadId, ctx) {
     prevLead.status = status; prevLead.assigned_agent_id = agentId;
     if (update.converted_at) prevLead.converted_at = update.converted_at;
   }
-  renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+  filterLeadsLocal(); // keep the active filter + search applied after an inline edit
   await openDetail(leadId, ctx);
 
   // Notify Badar on WhatsApp when any lead moves to Pending Approval
@@ -5816,7 +6040,7 @@ async function approveConversion(leadId, ctx) {
   if (demoMode) {
     if (lead) lead.status = 'converted';
     showToast('✅ Conversion approved - lead marked as Converted! (demo)');
-    renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+    filterLeadsLocal(); // keep the active filter + search applied after an inline edit
     await openDetail(leadId, ctx);
     return;
   }
@@ -5826,7 +6050,7 @@ async function approveConversion(leadId, ctx) {
   if (error) { showToast('Error approving: ' + error.message, 'err'); return; }
   if (lead) lead.status = 'converted';
   showToast('✅ Conversion approved - lead marked as Converted!');
-  renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+  filterLeadsLocal(); // keep the active filter + search applied after an inline edit
   await openDetail(leadId, ctx);
   // Notify the assigned agent via WA (optional - fires same helper with a different message)
 }
@@ -5838,7 +6062,7 @@ async function rejectConversion(leadId, ctx) {
   if (demoMode) {
     if (lead) lead.status = 'contacted';
     showToast('❌ Conversion rejected - lead returned to Contacted. (demo)');
-    renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+    filterLeadsLocal(); // keep the active filter + search applied after an inline edit
     await openDetail(leadId, ctx);
     return;
   }
@@ -5855,7 +6079,7 @@ async function rejectConversion(leadId, ctx) {
     });
   }
   showToast('❌ Conversion rejected - lead returned to Contacted.');
-  renderLeadsTable('admin-leads-tbody', cachedLeads, true);
+  filterLeadsLocal(); // keep the active filter + search applied after an inline edit
   await openDetail(leadId, ctx);
 }
 
@@ -5886,7 +6110,7 @@ async function agentSaveStatus(leadId, ctx) {
       if (status === 'converted' && !lead.converted_at) lead.converted_at = new Date().toISOString();
     }
     setMsg(msgEl, 'Status updated. (demo)', 'ok');
-    renderLeadsTable('agent-leads-tbody', cachedLeads, false);
+    filterAgentLeadsLocal(); // keep any active search applied after an inline edit
     await openDetail(leadId, ctx);
     return;
   }
@@ -5901,7 +6125,7 @@ async function agentSaveStatus(leadId, ctx) {
     lead.status = status;
     if (update.converted_at) lead.converted_at = update.converted_at;
   }
-  renderLeadsTable('agent-leads-tbody', cachedLeads, false);
+  filterAgentLeadsLocal(); // keep any active search applied after an inline edit
   await openDetail(leadId, ctx);
 
   // Notify Badar when agent marks a lead as Pending Approval
@@ -5930,11 +6154,18 @@ async function logFromDetail(leadId, ctx) {
 }
 
 // ── Render helpers ────────────────────────────────────────────
-function renderLeadsTable(tbodyId, leads, isAdmin) {
+function renderLeadsTable(tbodyId, leads, isAdmin, emptyHtml) {
   const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
   if (!leads.length) {
+    // The cell spans a table wider than a phone screen, so its centred text
+    // scrolls off to the right on mobile. Sticking the content to the left
+    // edge of the scroll container keeps the message (and its Clear filters
+    // button) on screen at 375px without changing the desktop layout.
     tbody.innerHTML = `<tr><td colspan="7" class="empty-state">
-      ${isAdmin ? 'No leads yet. Use "Add Lead" to create one.' : 'No leads assigned to you yet.'}
+      <div style="position:sticky;left:0;display:block;max-width:100vw">
+      ${emptyHtml || (isAdmin ? 'No leads yet. Use "Add Lead" to create one.' : 'No leads assigned to you yet.')}
+      </div>
     </td></tr>`;
     return;
   }
@@ -7672,7 +7903,10 @@ function showToast(msg, type = 'ok') {
 
 // ── ROUND-ROBIN ASSIGNMENT ─────────────────────────────────────
 async function getNextRoundRobinAgent() {
-  const agents = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended);
+  // receives_leads === false marks someone who has a login and full visibility
+  // but is not part of the sales rotation. Suspending them was the only lever
+  // before, and that locks the account entirely - the wrong tool for an observer.
+  const agents = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended && p.receives_leads !== false);
   if (!agents.length) return null;
 
   if (demoMode) {
@@ -8088,6 +8322,152 @@ function computeLeadTier(lead) {
   return 'warm';
 }
 
+// ── INBOX PRIORITY (agent worklist ordering) ──────────────────
+//
+// Badar's 2026-08-19 complaint, in one sentence: ~2,400 leads, 45 conversions,
+// because the Inbox is one long list ordered purely by whoever messaged most
+// recently. A lead who just sent a deposit screenshot sits below a converted
+// customer saying "thanks", and an agent scrolling 2,400 rows has no way to see
+// where any conversation actually left off without opening it.
+//
+// This scores each row from signals the list query already returns - no new
+// column, no migration, no write of any kind. It is presentation only: it
+// changes the ORDER rows are shown in and adds a short reason chip. It never
+// edits a lead, a tier, a handoff flag or a message.
+//
+// Deliberately NOT done here (both need Muhammad's call, both change behaviour
+// rather than display): tightening the bot's own escalation rules in
+// whatsapp-webhook, and auto-writing manual_tier from these signals. Agents own
+// the tier by Badar's own 2026-07-14 decision, so this must not overwrite it.
+
+// Handoff reasons, most urgent first. The bot writes these as free text, so
+// these match on substance rather than an enum that does not exist.
+// Labels are kept short on purpose: the chip shares a narrow row with the
+// message preview, and the bot's full reason text is on the chip's tooltip.
+const CONV_PRIORITY_REASONS = [
+  { test: /deposit|screenshot|payment|paid|transfer|receipt/i, bonus: 40, label: 'Deposit' },
+  { test: /complain|angry|upset|refund|scam|objection/i,       bonus: 30, label: 'Complaint' },
+  { test: /human|agent|person|talk|speak|call me/i,            bonus: 25, label: 'Wants agent' },
+];
+const CONV_TIER_WEIGHT = { hot: 40, warm: 15, new: 10, closed: -100 };
+
+// Escalation is a band, not a bonus: anything the bot handed to a human sorts
+// above everything it did not, whatever the other signals say. The reason is
+// the promise attached to it - the handoff fix of 2026-08-21 exists precisely
+// because leads were told "a team member will follow up" and then nobody was.
+// A lead that has been promised a person must not sink below one that merely
+// looks hot. Within each band the finer signals below still decide the order.
+// This is a tuning decision, not a law: lowering it to a plain bonus is a
+// one-line change if Muhammad wants stale escalations to fall behind live ones.
+const CONV_ESCALATED_BAND = 1000;
+
+// Everything the scorer needs, gathered from one conversation row. Kept
+// separate from the scoring so the demo path and the live path can each build
+// it from their own shapes and then share one set of rules.
+function convPrioritySignals(lead, lastMsg) {
+  const hoursWaiting = (lastMsg?.hoursAgo != null && lastMsg.hoursAgo >= 0) ? lastMsg.hoursAgo : null;
+  return {
+    tier:         computeLeadTier(lead),
+    needsHuman:   !!lead?.needs_human,
+    handoffReason: lead?.handoff_reason || '',
+    isUnread:     !!lead?.is_unread,
+    // "Waiting on us" is the honest reading of an inbound last message: the
+    // customer said something and nobody has answered it.
+    awaitingReply: lastMsg?.direction === 'inbound',
+    hoursWaiting,
+  };
+}
+
+function convPriority(sig) {
+  let score = CONV_TIER_WEIGHT[sig.tier] ?? 0;
+  let label = '', tone = 'wait';
+
+  if (sig.needsHuman) {
+    score += CONV_ESCALATED_BAND;
+    const matched = CONV_PRIORITY_REASONS.find(r => r.test.test(sig.handoffReason));
+    score += matched ? matched.bonus : 0;
+    label = matched ? matched.label : 'Escalated';
+    tone  = 'urgent';
+  }
+  // No chip for a plain hot lead: the row already carries a HOT tier badge and
+  // repeating it would only cost preview width.
+
+  if (sig.isUnread) score += 20;
+
+  if (sig.awaitingReply) {
+    score += 15;
+    const h = sig.hoursWaiting;
+    if (h != null) {
+      // Longer waits rank higher, but capped - a three-day-old unanswered
+      // question must not outrank a deposit screenshot from ten minutes ago.
+      score += Math.min(15, h);
+      // Past 24h the free-reply window has closed and only an approved
+      // template can reach them. Worth surfacing, not worth ranking above
+      // someone an agent can still just reply to.
+      if (h >= 24) {
+        score += 5;
+        if (!label) { label = 'Window closed'; tone = 'closed-window'; }
+      } else if (!label) {
+        label = 'Waiting ' + convWaitLabel(h);
+        tone  = 'wait';
+      }
+    } else if (!label) {
+      label = 'Waiting on a reply';
+      tone  = 'wait';
+    }
+  }
+
+  // A converted customer chatting is not a worklist item.
+  if (sig.tier === 'closed' && !sig.needsHuman) { label = ''; }
+
+  return { score, label, tone };
+}
+
+function convWaitLabel(hours) {
+  if (hours < 1) return Math.max(1, Math.round(hours * 60)) + 'm';
+  if (hours < 48) return Math.round(hours) + 'h';
+  return Math.round(hours / 24) + 'd';
+}
+
+function convPriorityChip(p, sig) {
+  if (!p.label) return '';
+  // The raw handoff reason the bot actually wrote, on hover - the chip is a
+  // summary and must never be mistaken for the record itself.
+  const title = sig?.handoffReason ? ' title="' + esc(sig.handoffReason) + '"' : '';
+  return `<span class="conv-prio-chip conv-prio-${p.tone}"${title}>${esc(p.label)}</span> `;
+}
+
+// Priority first, then most recent - so within one urgency band the list still
+// behaves like the message list agents already know.
+function sortConvsByPriority(rows) {
+  return rows.slice().sort((a, b) =>
+    (b._prio.score - a._prio.score) || (b._sortTime - a._sortTime));
+}
+
+const CONV_SORT_KEY = 'bt-conv-sort';
+let _convSort = 'priority';
+try {
+  const saved = localStorage.getItem(CONV_SORT_KEY);
+  if (saved === 'recent' || saved === 'priority') _convSort = saved;
+} catch (_) { /* private mode / storage blocked - the default is fine */ }
+
+function setConvSort(mode, scope = '') {
+  _convSort = (mode === 'recent') ? 'recent' : 'priority';
+  try { localStorage.setItem(CONV_SORT_KEY, _convSort); } catch (_) {}
+  renderConversations(scope);
+  showToast(_convSort === 'priority'
+    ? 'Inbox sorted by priority - who needs you most is at the top.'
+    : 'Inbox sorted by most recent message.');
+}
+
+function updateConvSortLabels() {
+  document.querySelectorAll('[data-conv-sort-label]').forEach(el => {
+    el.textContent = _convSort === 'priority'
+      ? 'Sort: priority (change to newest)'
+      : 'Sort: newest (change to priority)';
+  });
+}
+
 function tierBadge(tier) {
   const map = {
     new:    '<span style="background:#e0e7ff;color:#4338ca;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">NEW</span>',
@@ -8150,17 +8530,29 @@ async function renderConversations(scope = '') {
       listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:0.85rem">No conversations yet.</div>';
       return;
     }
-    listEl.innerHTML = convs.map(c => {
-      const initials = c.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
-      // Demo rows only carry a simple status, so map that to the closest tier for preview purposes.
+    // Demo rows carry a simple status, so the tier mapping stays as it was -
+    // but the escalation signals come from the matching demo lead, so this path
+    // exercises the same scorer the live path uses rather than a stub of it.
+    const scored = convs.map(c => {
       const tier = c.status === 'converted' ? 'closed' : c.status === 'contacted' ? 'warm' : 'new';
+      const demoLead = _DEMO_LEADS.find(l => l.id === c.leadId) || {};
+      const lastFrom = c.messages?.length ? c.messages[c.messages.length - 1].from : null;
+      const sig = convPrioritySignals(
+        { manual_tier: tier, needs_human: demoLead.needs_human, handoff_reason: demoLead.handoff_reason, is_unread: !!c.unread },
+        { direction: lastFrom === 'lead' ? 'inbound' : 'outbound', hoursAgo: c.inboundHoursAgo },
+      );
+      return { c, tier, sig, _prio: convPriority(sig), _sortTime: -(c.inboundHoursAgo ?? 0) };
+    });
+    const ordered = _convSort === 'priority' ? sortConvsByPriority(scored) : scored;
+    listEl.innerHTML = ordered.map(({ c, tier, sig, _prio }) => {
+      const initials = c.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
       return `
-        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${!!c.unread}" onclick="openConversation('${c.id}','${scope}')">
+        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${!!c.unread}" data-priority="${_prio.score}" onclick="openConversation('${c.id}','${scope}')">
           <div class="conv-avatar" style="background:${avatarColor(c.id)}">${initials}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(c.name)}${c.unread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
             <div class="conv-phone" style="font-size:0.72rem;color:#94a3b8">${esc(c.phone || '')}</div>
-            <div class="conv-preview">${esc(c.lastMsg)}</div>
+            <div class="conv-preview">${convPriorityChip(_prio, sig)}${esc(c.lastMsg)}</div>
           </div>
           <div style="flex-shrink:0;text-align:right">
             <div class="conv-time">${c.lastTime}</div>
@@ -8168,6 +8560,7 @@ async function renderConversations(scope = '') {
           </div>
         </div>`;
     }).join('');
+    updateConvSortLabels();
     filterConversations(scope);
     return;
   }
@@ -8197,20 +8590,32 @@ async function renderConversations(scope = '') {
     // Update sidebar badge - counts unread conversations, not total conversations
     const navBadge = document.getElementById(scope + 'conv-nav-badge');
     if (navBadge) { navBadge.textContent = unreadCount; navBadge.style.display = unreadCount ? 'inline-block' : 'none'; }
-    listEl.innerHTML = convs.map(c => {
+    const now = Date.now();
+    const scored = convs.map(c => {
+      const ts  = new Date(c.created_at).getTime();
+      const sig = convPrioritySignals(c.leads, {
+        direction: c.direction,
+        hoursAgo: Number.isFinite(ts) ? (now - ts) / 3600000 : null,
+      });
+      return { c, sig, _prio: convPriority(sig), _sortTime: Number.isFinite(ts) ? ts : 0 };
+    });
+    // The query already returns newest-first, so "recent" is the untouched
+    // order and priority is an explicit, reversible re-sort on top of it.
+    const ordered = _convSort === 'priority' ? sortConvsByPriority(scored) : scored;
+    listEl.innerHTML = ordered.map(({ c, sig, _prio }) => {
       const name = c.leads?.full_name || 'Unknown';
       const initials = name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
       const preview = (c.direction === 'inbound' ? '↩ ' : '↪ ') + c.body;
-      const tier = computeLeadTier(c.leads);
-      const isUnread = !!c.leads?.is_unread;
+      const tier = sig.tier;
+      const isUnread = sig.isUnread;
       const phone = c.leads?.phone || '';
       return `
-        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" onclick="openConversation('${c.lead_id}','${scope}')">
+        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" data-priority="${_prio.score}" onclick="openConversation('${c.lead_id}','${scope}')">
           <div class="conv-avatar" style="background:${avatarColor(c.lead_id)}">${initials}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(name)}${isUnread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
             <div class="conv-phone" style="font-size:0.72rem;color:#94a3b8">${esc(phone)}</div>
-            <div class="conv-preview">${esc(preview.slice(0,60))}</div>
+            <div class="conv-preview">${convPriorityChip(_prio, sig)}${esc(preview.slice(0,60))}</div>
           </div>
           <div style="flex-shrink:0;text-align:right">
             <div class="conv-time">${fmtConvTime(c.created_at)}</div>
@@ -8218,6 +8623,7 @@ async function renderConversations(scope = '') {
           </div>
         </div>`;
     }).join('');
+    updateConvSortLabels();
     filterConversations(scope);
   } catch(err) {
     listEl.innerHTML = `<div style="padding:24px;text-align:center;color:#ef4444;font-size:0.85rem">Error: ${esc(err.message)}</div>`;
@@ -8816,6 +9222,13 @@ async function runInboxMenuAction(action, scope) {
   if (action === 'refresh') {
     await renderConversations(scope);
     showToast('Inbox refreshed.');
+    return;
+  }
+  // Priority ordering is the default, but it is a view preference, not a rule -
+  // an agent who wants the plain newest-first list back gets it in one click,
+  // and the choice sticks per browser.
+  if (action === 'toggle-sort') {
+    setConvSort(_convSort === 'priority' ? 'recent' : 'priority', scope);
     return;
   }
   if (action === 'all' || action === 'unread') {
@@ -10452,9 +10865,19 @@ function openPayrollRun(id) {
   })));
 }
 
+// Exports exactly the rows the table is currently showing. It used to export
+// cachedLeads, which is the server-filtered set - so a search term (or an
+// inline edit that pushed a row out of the filter) left the CSV holding leads
+// that were not on screen when the button was pressed.
 function exportLeadsCSV() {
-  const leads = cachedLeads || [];
-  if (!leads.length) { alert('No leads to export.'); return; }
+  const f = leadFilters();
+  const leads = (cachedLeads || []).filter(l => leadMatchesFilters(l, f));
+  if (!leads.length) {
+    alert(leadFiltersActive(f)
+      ? 'No leads match the current filters, so there is nothing to export. Clear the filters to export everything.'
+      : 'No leads to export.');
+    return;
+  }
   const headers = ['First Name','Last Name','Name','Phone','Email','Broker ID','Source','Campaign','Status','Instrument','Agent','Deposit ($)','Date Added'];
   const rows = leads.map(l => {
     const agent = cachedProfiles.find(p => p.id === l.assigned_agent_id);

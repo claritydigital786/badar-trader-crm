@@ -1,8 +1,59 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-08-21 (cut short by usage limit approaching, written fast - verify
-claims before trusting them further). For a fresh Claude Code session with zero memory of
-prior conversations._
+_Last updated: 2026-08-21 (later still). The entry directly below is this session's, written
+with its verification actually run. The account-switch entry after it was written fast as
+a usage limit approached - verify its claims before trusting them further. For a fresh
+Claude Code session with zero memory of prior conversations._
+
+## 2026-08-21 (later still) - Omnichannel Inbox ordered by real urgency, not just recency
+
+**DONE, frontend only, browser-verified in demo preview, committed and pushed. No migration, no webhook change, no deploy, and no write of any kind against live data.** This is part (3) of the "AI-driven lead sifting + prioritized agent worklist" to-do. The other three parts are deliberately still open - see below, they need Muhammad's decision rather than a build.
+
+**The problem, in Badar's own terms (2026-08-19):** ~2,400 leads, 45 conversions, because the Inbox is one long list ordered purely by whoever messaged most recently, with no way to see where any conversation left off without opening it. A lead who just sent a deposit screenshot sits below a converted customer saying "thanks".
+
+**What was built.** Each conversation row is now scored from signals the list query already returned - `needs_human`, `handoff_reason`, tier, `is_unread`, and whether the last message was inbound and how long ago. The list sorts by that score, then by recency within it. Each row carries a short chip saying why it is where it is (`Deposit`, `Complaint`, `Wants agent`, `Escalated`, `Waiting 23h`, `Window closed`), with the bot's full raw `handoff_reason` on hover so the chip can never be mistaken for the record itself.
+
+**The one design decision worth knowing about:** escalation is a *band*, not a bonus (`CONV_ESCALATED_BAND`). Anything the bot handed to a human sorts above everything it did not, whatever the other signals say. The reason is the promise attached to it - the handoff-inversion fix merged earlier the same day exists precisely because leads were told "a team member will follow up" and then nobody was. A promised handoff must not be buried under a lead that merely looks hot. **The honest cost:** a stale three-day-old "bot could not understand" escalation currently outranks a red-hot lead who just asked about deposits but was never escalated. That is intentional, but it is a judgement call, and dropping it back to a plain bonus is a one-line change if Muhammad disagrees.
+
+**It is reversible and it is not hidden.** Priority is the default, but the inbox menu carries a "Sort: priority / newest" item that flips back to the plain newest-first list in one click, persisted per browser in `localStorage`. Nothing about the underlying query changed - "newest" is the untouched original order.
+
+**Verified, actually run:** demo preview with deliberately out-of-order injected rows proved the reorder rather than assuming it - newest-first put a converted customer saying "thank you" at position 1 with two deposit screenshots and a complaint below; priority order put the deposits and complaint at 1-2-3 and dropped the converted chatter to last. Dark and light theme, 1440px and 375px, admin and agent scopes, WhatsApp's 72px row height confirmed unchanged (the chip is inline in the preview line, not a new row), search and all six tier filter tabs still work on top of the new order, plus a nine-tab navigation sweep. Zero console errors beyond this sandbox's blocked external CDN fetches. New `tests/inbox-priority-test.mjs` lifts the scorer out and runs it - it **caught a real weighting flaw while being written** (a generic escalation could fall below a merely-hot lead, which is what produced the band decision above). All 11 dependency-free suites pass. The test also statically asserts the block contains no `sb.from` / `.update(` / `.insert(` / `.delete(`, so this can never quietly become a write.
+
+**Not verified:** the live path. Demo mode never touches `sb`, so scoring against real `needs_human` / `handoff_reason` / `is_unread` values is correct by reading, not by running. It is read-and-render only, so a spot-check is safe from anywhere - open the live Inbox and confirm the top rows are the ones that actually deserve attention. **This is the one thing worth eyeballing before showing it to Badar**, since real handoff-reason text is free-form and the reason matching is regex-based; if real reasons do not match the patterns they fall back to the generic "Escalated" chip, which is correct but less useful.
+
+**Deliberately NOT done, and why - do not treat these as forgotten:**
+- **(2) Tightening the bot's own escalation rules** so `needs_human` fires only on real intent signals. That changes live bot behaviour in `whatsapp-webhook`, not display. The ordering above already surfaces the good escalations without changing which ones fire, and a few days of real traffic under the new ordering will actually show whether over-escalation is the problem.
+- **(4) Auto-tiering leads from signals.** Agents own `manual_tier` by Badar's own 2026-07-14 decision ("they know the exact situation"), so auto-writing it would overwrite a human judgement. The priority score reads the same signals without ever writing them. If auto-tiering is still wanted it should be a separate suggested-tier field, never an overwrite.
+- **The scheduled morning digest** ("3 hot leads waiting"). Still undecided. The ordering above deliberately does the same job inside the list agents already open, which is what the original item argued for.
+
+**Standing rule respected throughout:** nothing here sends, replies, edits, deletes, reassigns or bulk-changes anything in Conversations. It changes which order existing rows render in and adds a label. No live conversation data was read or written from this session.
+
+---
+
+## 2026-08-21 (later) - All Leads filters rebuilt so an empty table is never ambiguous
+
+**DONE, frontend only, browser-verified in demo preview, committed and pushed. Nothing deployed, nothing touching live data.** Picked up from a bare "continue" - `HANDOFF.md` read, Active Work Claims checked (nothing open and unreleased), git log read, and the newest open safe-code item taken: Muhammad's 2026-08-21 "make the All Leads filters make complete sense." That to-do left one ambiguity open (did he mean Supabase's own Table Editor, which he had just been fighting, or the CRM's own filter bar). Resolved toward the CRM's own, because that is the only one this repo can change, and said so rather than blocking on a confirmation - if he actually meant the Table Editor, that is a separate, non-code conversation.
+
+Six real problems, all found by reading the code rather than assumed, all in `index.html`:
+
+1. **An empty filtered table claimed there were no leads at all.** `renderLeadsTable`'s empty state was the flat string "No leads yet. Use \"Add Lead\" to create one." regardless of why the table was empty - so filtering 2,400 leads down to zero matches produced a message saying the CRM held nothing. This is exactly the 2026-08-04 screenshot complaint ("please update this section" on a filtered no-results view) that had been open since. It now names the filters that matched nothing and carries a Clear filters button.
+2. **Nothing said how many leads were being shown, or out of how many.** A summary line under the bar now reads "Showing 3 of 2,400 leads" plus a chip per active filter.
+3. **The sidebar badge showed the filtered count as if it were the total** - filter to one lead and the CRM appeared to hold one lead. It now shows the true unfiltered total, from a `count: exact, head: true` query issued in parallel with the rows (so filtering costs no extra round-trip), and updates in demo mode, which the live-only code path skipped entirely.
+4. **Inline edits re-rendered around the filter, not through it.** `saveLeadDetail`, `approveConversion`, `rejectConversion` and `deleteLeadRecord` all called `renderLeadsTable(..., cachedLeads, ...)` directly: change a lead to Converted while filtered to New and the row stayed on screen under a filter it no longer matched, and any typed search silently disappeared. All eight admin sites, and the three equivalent agent-side ones, now go back through `filterLeadsLocal()` / `filterAgentLeadsLocal()`.
+5. **Export CSV exported rows that were not on screen.** It read `cachedLeads` (server-filtered only), so a search term - or a row an edit had just pushed out of the filter - still landed in the file. It now exports exactly the visible rows, and says so when the filter matched nothing.
+6. **Two filters that could not be expressed at all.** No way to find leads nobody owns (Unassigned option added, `.is('assigned_agent_id', null)` server-side) and no way to filter by arrival date despite an "Added" column (Any time / today / 7d / 30d / 90d). The handoff dropdown labelled "All (bot + human)" also only ever offered the human half; "Bot handling (no handoff)" is now selectable, which is what makes that label honest.
+
+**The structural change underneath all of it:** every filter now runs through one shared predicate, `leadMatchesFilters(lead, filters)`, used by the Supabase query builder, the demo-mode path and the local re-render alike. Those three used to be three separate hand-written copies of the same logic, which is how #4 happened. The summary chips, the empty-state text and the CSV export all read from the same `leadFilters()` state, so they cannot describe a different filter than the one actually applied.
+
+Styling follows this file's existing convention (light base, `[data-theme="dark"]` override) rather than the hardcoded dark hex values it was first written with - which rendered a near-white bold count on a white background in light mode, caught in the browser pass, not in review.
+
+**Verification actually run, not assumed:** new `tests/leads-filter-test.mjs` lifts the pure helpers out of `index.html` and exercises the predicate for real (it caught a genuine cross-realm/vm-scope bug while being written, so it is testing behaviour rather than grepping for source); all 10 dependency-free suites pass, including the pre-existing `inbox-ui-test.mjs`. Browser pass against local demo preview: dark and light theme, 1280px and 375px, the agent My Leads view driven by hand as well as admin, a nine-tab navigation sweep, and a direct check that Export CSV's row count matches the table's. Zero console errors beyond this sandbox's blocked external CDN fetches (`net::ERR_TUNNEL_CONNECTION_FAILED`), which predate the change.
+
+**What is NOT verified, honestly:** the live-mode Supabase branch. Demo mode never touches `sb`, so the new `.is('assigned_agent_id', null)`, `.gte('created_at', ...)`, `.eq('needs_human', false)` and the count query are confirmed correct by reading the supabase-js API, not by running them against real data. Worth one spot-check in live All Leads next time someone is on Muhammad's laptop - it is a read-only query path, so the check itself is safe from anywhere with live credentials.
+
+**Left deliberately alone:** the agent-side My Leads view still has only a search box, no status/date filters. It got the same honest empty state and the same keep-the-search-applied fix, but adding a filter bar there was not what was asked for and is worth a decision rather than an assumption.
+
+---
 
 ## 2026-08-21 - Account switch handoff (usage limit approaching)
 
@@ -902,7 +953,7 @@ not product code - ignore it or commit it, doesn't matter). There's also an old 
 
 **index.html has a known, not-yet-fixed bug right now**: `saveLeadNotes` is defined twice
 (lines 3304 and 3315), byte-identical, so it's harmless dead code - but it was found
-mid-audit and never actually removed. Trivial fix, just delete lines 3315–3324.
+mid-audit and never actually removed. Trivial fix, just delete lines 3315-3324.
 
 ## What the last session (this one, cut short) actually did
 
