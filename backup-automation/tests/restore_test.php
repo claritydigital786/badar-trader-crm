@@ -117,8 +117,8 @@ try {
     $validated = crmRestoreArchive($archivePath, $target, '', false, '', false, null, function (string $message) use (&$messages): void {
         $messages[] = $message;
     });
-    restoreTestAssert($validated['tables'] === 23, 'validation did not cover all 23 tables');
-    restoreTestAssert($validated['rows'] === 23, 'validation row count was wrong');
+    restoreTestAssert($validated['tables'] === 25, 'validation did not cover all 25 tables');
+    restoreTestAssert($validated['rows'] === 25, 'validation row count was wrong');
     restoreTestAssert($validated['objects'] === 1 && $validated['bytes'] === 18, 'Storage validation totals were wrong');
     restoreTestAssert(!$validated['applied'], 'validation-only mode reported an apply');
     restoreTestAssert(!is_file($requestLog), 'validation-only mode wrote to the target');
@@ -210,9 +210,9 @@ try {
     );
     restoreTestAssert($applied['applied'], 'mock disposable restore did not complete');
     $requests = array_values(array_filter(explode("\n", trim((string) file_get_contents($requestLog)))));
-    restoreTestAssert(count($requests) === 25, 'restore did not issue 23 table, 1 bucket and 1 object writes');
+    restoreTestAssert(count($requests) === 27, 'restore did not issue 25 table, 1 bucket and 1 object writes');
     $decodedRequests = array_map(fn(string $line): array => json_decode($line, true, 512, JSON_THROW_ON_ERROR), $requests);
-    restoreTestAssert(count(array_filter($decodedRequests, fn(array $row): bool => str_starts_with($row['uri'], '/rest/v1/'))) === 23, 'not every table was restored');
+    restoreTestAssert(count(array_filter($decodedRequests, fn(array $row): bool => str_starts_with($row['uri'], '/rest/v1/'))) === 25, 'not every table was restored');
     $objectRequests = array_values(array_filter($decodedRequests, fn(array $row): bool => str_starts_with($row['uri'], '/storage/v1/object/')));
     restoreTestAssert(count($objectRequests) === 1, 'Storage object restore request was missing');
     restoreTestAssert($objectRequests[0]['sha256'] === hash('sha256', "restore-test\0bytes"), 'Storage bytes changed during restore');

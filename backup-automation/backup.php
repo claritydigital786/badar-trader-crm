@@ -92,7 +92,7 @@ if (!$supabaseUrl || !$serviceKey) {
     exit(1);
 }
 
-// Every active table in supabase/schema.sql as of 2026-08-10. If a new table is
+// Every active table in supabase/schema.sql as of 2026-08-22. If a new table is
 // added later, add its name here too - this list is not auto-discovered,
 // on purpose, so a backup run's scope is always exactly what's reviewed
 // and committed, not whatever happens to exist live at run time.

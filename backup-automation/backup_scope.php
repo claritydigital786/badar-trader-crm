@@ -29,6 +29,8 @@ function crmBackupTableMap(): array {
         'payroll_runs' => 'id',
         'communication_logs' => 'id',
         'communication_message_actions' => 'id',
+        'pending_approval_notifications' => 'lead_id,status_changed_at',
+        'public_form_rate_limits' => 'key_hash',
     ];
 }
 
