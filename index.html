@@ -846,6 +846,16 @@
     .conv-name { color:#111b21; font-size:1rem; font-weight:400; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .conv-preview { color:#667781; font-size:0.875rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .conv-time { color:#667781; font-size:0.75rem; margin-bottom:4px; }
+    /* Why a conversation is where it is in the list. Sits inline at the start
+       of the preview line so the 72px row height is untouched. */
+    .conv-prio-chip { display:inline-block; font-size:0.65rem; font-weight:700; border-radius:8px;
+                      padding:1px 6px; vertical-align:1px; white-space:nowrap; }
+    .conv-prio-urgent        { background:#fee2e2; color:#b91c1c; }
+    .conv-prio-wait          { background:#e0e7ff; color:#4338ca; }
+    .conv-prio-closed-window { background:#e2e8f0; color:#475569; }
+    [data-theme="dark"] .conv-prio-urgent        { background:#3f1d1d; color:#fca5a5; }
+    [data-theme="dark"] .conv-prio-wait          { background:#1e2547; color:#a5b4fc; }
+    [data-theme="dark"] .conv-prio-closed-window { background:#222d34; color:#aebac1; }
     .conv-chat-panel { flex:1; display:flex; flex-direction:column; min-width:0; }
     .conv-chat-header { padding:10px 16px; border-bottom:1px solid #d1d7db; display:flex; align-items:center; gap:12px; background:#f0f2f5; min-height:59px; }
     /* The header now carries a countdown pill and an info button as well as
@@ -1670,6 +1680,7 @@
             <button type="button" class="conv-list-toggle" title="Inbox menu" aria-label="Open inbox menu" aria-haspopup="menu" aria-expanded="false" onclick="toggleInboxMenu(event,'')">☰</button>
             <div class="conv-list-menu" id="conv-list-menu" role="menu">
               <button type="button" role="menuitem" onclick="runInboxMenuAction('refresh','')">Refresh inbox</button>
+              <button type="button" role="menuitem" data-conv-sort-label onclick="runInboxMenuAction('toggle-sort','')">Sort: priority (change to newest)</button>
               <button type="button" role="menuitem" onclick="runInboxMenuAction('all','')">All conversations</button>
               <button type="button" role="menuitem" onclick="runInboxMenuAction('unread','')">Unread conversations</button>
               <button type="button" role="menuitem" onclick="runInboxMenuAction('clear-search','')">Clear search</button>
@@ -3449,6 +3460,7 @@
             <button type="button" class="conv-list-toggle" title="Inbox menu" aria-label="Open inbox menu" aria-haspopup="menu" aria-expanded="false" onclick="toggleInboxMenu(event,'agent-')">☰</button>
             <div class="conv-list-menu" id="agent-conv-list-menu" role="menu">
               <button type="button" role="menuitem" onclick="runInboxMenuAction('refresh','agent-')">Refresh inbox</button>
+              <button type="button" role="menuitem" data-conv-sort-label onclick="runInboxMenuAction('toggle-sort','agent-')">Sort: priority (change to newest)</button>
               <button type="button" role="menuitem" onclick="runInboxMenuAction('all','agent-')">All conversations</button>
               <button type="button" role="menuitem" onclick="runInboxMenuAction('unread','agent-')">Unread conversations</button>
               <button type="button" role="menuitem" onclick="runInboxMenuAction('clear-search','agent-')">Clear search</button>
@@ -8251,6 +8263,152 @@ function computeLeadTier(lead) {
   return 'warm';
 }
 
+// ── INBOX PRIORITY (agent worklist ordering) ──────────────────
+//
+// Badar's 2026-08-19 complaint, in one sentence: ~2,400 leads, 45 conversions,
+// because the Inbox is one long list ordered purely by whoever messaged most
+// recently. A lead who just sent a deposit screenshot sits below a converted
+// customer saying "thanks", and an agent scrolling 2,400 rows has no way to see
+// where any conversation actually left off without opening it.
+//
+// This scores each row from signals the list query already returns - no new
+// column, no migration, no write of any kind. It is presentation only: it
+// changes the ORDER rows are shown in and adds a short reason chip. It never
+// edits a lead, a tier, a handoff flag or a message.
+//
+// Deliberately NOT done here (both need Muhammad's call, both change behaviour
+// rather than display): tightening the bot's own escalation rules in
+// whatsapp-webhook, and auto-writing manual_tier from these signals. Agents own
+// the tier by Badar's own 2026-07-14 decision, so this must not overwrite it.
+
+// Handoff reasons, most urgent first. The bot writes these as free text, so
+// these match on substance rather than an enum that does not exist.
+// Labels are kept short on purpose: the chip shares a narrow row with the
+// message preview, and the bot's full reason text is on the chip's tooltip.
+const CONV_PRIORITY_REASONS = [
+  { test: /deposit|screenshot|payment|paid|transfer|receipt/i, bonus: 40, label: 'Deposit' },
+  { test: /complain|angry|upset|refund|scam|objection/i,       bonus: 30, label: 'Complaint' },
+  { test: /human|agent|person|talk|speak|call me/i,            bonus: 25, label: 'Wants agent' },
+];
+const CONV_TIER_WEIGHT = { hot: 40, warm: 15, new: 10, closed: -100 };
+
+// Escalation is a band, not a bonus: anything the bot handed to a human sorts
+// above everything it did not, whatever the other signals say. The reason is
+// the promise attached to it - the handoff fix of 2026-08-21 exists precisely
+// because leads were told "a team member will follow up" and then nobody was.
+// A lead that has been promised a person must not sink below one that merely
+// looks hot. Within each band the finer signals below still decide the order.
+// This is a tuning decision, not a law: lowering it to a plain bonus is a
+// one-line change if Muhammad wants stale escalations to fall behind live ones.
+const CONV_ESCALATED_BAND = 1000;
+
+// Everything the scorer needs, gathered from one conversation row. Kept
+// separate from the scoring so the demo path and the live path can each build
+// it from their own shapes and then share one set of rules.
+function convPrioritySignals(lead, lastMsg) {
+  const hoursWaiting = (lastMsg?.hoursAgo != null && lastMsg.hoursAgo >= 0) ? lastMsg.hoursAgo : null;
+  return {
+    tier:         computeLeadTier(lead),
+    needsHuman:   !!lead?.needs_human,
+    handoffReason: lead?.handoff_reason || '',
+    isUnread:     !!lead?.is_unread,
+    // "Waiting on us" is the honest reading of an inbound last message: the
+    // customer said something and nobody has answered it.
+    awaitingReply: lastMsg?.direction === 'inbound',
+    hoursWaiting,
+  };
+}
+
+function convPriority(sig) {
+  let score = CONV_TIER_WEIGHT[sig.tier] ?? 0;
+  let label = '', tone = 'wait';
+
+  if (sig.needsHuman) {
+    score += CONV_ESCALATED_BAND;
+    const matched = CONV_PRIORITY_REASONS.find(r => r.test.test(sig.handoffReason));
+    score += matched ? matched.bonus : 0;
+    label = matched ? matched.label : 'Escalated';
+    tone  = 'urgent';
+  }
+  // No chip for a plain hot lead: the row already carries a HOT tier badge and
+  // repeating it would only cost preview width.
+
+  if (sig.isUnread) score += 20;
+
+  if (sig.awaitingReply) {
+    score += 15;
+    const h = sig.hoursWaiting;
+    if (h != null) {
+      // Longer waits rank higher, but capped - a three-day-old unanswered
+      // question must not outrank a deposit screenshot from ten minutes ago.
+      score += Math.min(15, h);
+      // Past 24h the free-reply window has closed and only an approved
+      // template can reach them. Worth surfacing, not worth ranking above
+      // someone an agent can still just reply to.
+      if (h >= 24) {
+        score += 5;
+        if (!label) { label = 'Window closed'; tone = 'closed-window'; }
+      } else if (!label) {
+        label = 'Waiting ' + convWaitLabel(h);
+        tone  = 'wait';
+      }
+    } else if (!label) {
+      label = 'Waiting on a reply';
+      tone  = 'wait';
+    }
+  }
+
+  // A converted customer chatting is not a worklist item.
+  if (sig.tier === 'closed' && !sig.needsHuman) { label = ''; }
+
+  return { score, label, tone };
+}
+
+function convWaitLabel(hours) {
+  if (hours < 1) return Math.max(1, Math.round(hours * 60)) + 'm';
+  if (hours < 48) return Math.round(hours) + 'h';
+  return Math.round(hours / 24) + 'd';
+}
+
+function convPriorityChip(p, sig) {
+  if (!p.label) return '';
+  // The raw handoff reason the bot actually wrote, on hover - the chip is a
+  // summary and must never be mistaken for the record itself.
+  const title = sig?.handoffReason ? ' title="' + esc(sig.handoffReason) + '"' : '';
+  return `<span class="conv-prio-chip conv-prio-${p.tone}"${title}>${esc(p.label)}</span> `;
+}
+
+// Priority first, then most recent - so within one urgency band the list still
+// behaves like the message list agents already know.
+function sortConvsByPriority(rows) {
+  return rows.slice().sort((a, b) =>
+    (b._prio.score - a._prio.score) || (b._sortTime - a._sortTime));
+}
+
+const CONV_SORT_KEY = 'bt-conv-sort';
+let _convSort = 'priority';
+try {
+  const saved = localStorage.getItem(CONV_SORT_KEY);
+  if (saved === 'recent' || saved === 'priority') _convSort = saved;
+} catch (_) { /* private mode / storage blocked - the default is fine */ }
+
+function setConvSort(mode, scope = '') {
+  _convSort = (mode === 'recent') ? 'recent' : 'priority';
+  try { localStorage.setItem(CONV_SORT_KEY, _convSort); } catch (_) {}
+  renderConversations(scope);
+  showToast(_convSort === 'priority'
+    ? 'Inbox sorted by priority - who needs you most is at the top.'
+    : 'Inbox sorted by most recent message.');
+}
+
+function updateConvSortLabels() {
+  document.querySelectorAll('[data-conv-sort-label]').forEach(el => {
+    el.textContent = _convSort === 'priority'
+      ? 'Sort: priority (change to newest)'
+      : 'Sort: newest (change to priority)';
+  });
+}
+
 function tierBadge(tier) {
   const map = {
     new:    '<span style="background:#e0e7ff;color:#4338ca;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">NEW</span>',
@@ -8313,17 +8471,29 @@ async function renderConversations(scope = '') {
       listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:0.85rem">No conversations yet.</div>';
       return;
     }
-    listEl.innerHTML = convs.map(c => {
-      const initials = c.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
-      // Demo rows only carry a simple status, so map that to the closest tier for preview purposes.
+    // Demo rows carry a simple status, so the tier mapping stays as it was -
+    // but the escalation signals come from the matching demo lead, so this path
+    // exercises the same scorer the live path uses rather than a stub of it.
+    const scored = convs.map(c => {
       const tier = c.status === 'converted' ? 'closed' : c.status === 'contacted' ? 'warm' : 'new';
+      const demoLead = _DEMO_LEADS.find(l => l.id === c.leadId) || {};
+      const lastFrom = c.messages?.length ? c.messages[c.messages.length - 1].from : null;
+      const sig = convPrioritySignals(
+        { manual_tier: tier, needs_human: demoLead.needs_human, handoff_reason: demoLead.handoff_reason, is_unread: !!c.unread },
+        { direction: lastFrom === 'lead' ? 'inbound' : 'outbound', hoursAgo: c.inboundHoursAgo },
+      );
+      return { c, tier, sig, _prio: convPriority(sig), _sortTime: -(c.inboundHoursAgo ?? 0) };
+    });
+    const ordered = _convSort === 'priority' ? sortConvsByPriority(scored) : scored;
+    listEl.innerHTML = ordered.map(({ c, tier, sig, _prio }) => {
+      const initials = c.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
       return `
-        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${!!c.unread}" onclick="openConversation('${c.id}','${scope}')">
+        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${!!c.unread}" data-priority="${_prio.score}" onclick="openConversation('${c.id}','${scope}')">
           <div class="conv-avatar" style="background:${avatarColor(c.id)}">${initials}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(c.name)}${c.unread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
             <div class="conv-phone" style="font-size:0.72rem;color:#94a3b8">${esc(c.phone || '')}</div>
-            <div class="conv-preview">${esc(c.lastMsg)}</div>
+            <div class="conv-preview">${convPriorityChip(_prio, sig)}${esc(c.lastMsg)}</div>
           </div>
           <div style="flex-shrink:0;text-align:right">
             <div class="conv-time">${c.lastTime}</div>
@@ -8331,6 +8501,7 @@ async function renderConversations(scope = '') {
           </div>
         </div>`;
     }).join('');
+    updateConvSortLabels();
     filterConversations(scope);
     return;
   }
@@ -8360,20 +8531,32 @@ async function renderConversations(scope = '') {
     // Update sidebar badge - counts unread conversations, not total conversations
     const navBadge = document.getElementById(scope + 'conv-nav-badge');
     if (navBadge) { navBadge.textContent = unreadCount; navBadge.style.display = unreadCount ? 'inline-block' : 'none'; }
-    listEl.innerHTML = convs.map(c => {
+    const now = Date.now();
+    const scored = convs.map(c => {
+      const ts  = new Date(c.created_at).getTime();
+      const sig = convPrioritySignals(c.leads, {
+        direction: c.direction,
+        hoursAgo: Number.isFinite(ts) ? (now - ts) / 3600000 : null,
+      });
+      return { c, sig, _prio: convPriority(sig), _sortTime: Number.isFinite(ts) ? ts : 0 };
+    });
+    // The query already returns newest-first, so "recent" is the untouched
+    // order and priority is an explicit, reversible re-sort on top of it.
+    const ordered = _convSort === 'priority' ? sortConvsByPriority(scored) : scored;
+    listEl.innerHTML = ordered.map(({ c, sig, _prio }) => {
       const name = c.leads?.full_name || 'Unknown';
       const initials = name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
       const preview = (c.direction === 'inbound' ? '↩ ' : '↪ ') + c.body;
-      const tier = computeLeadTier(c.leads);
-      const isUnread = !!c.leads?.is_unread;
+      const tier = sig.tier;
+      const isUnread = sig.isUnread;
       const phone = c.leads?.phone || '';
       return `
-        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" onclick="openConversation('${c.lead_id}','${scope}')">
+        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" data-priority="${_prio.score}" onclick="openConversation('${c.lead_id}','${scope}')">
           <div class="conv-avatar" style="background:${avatarColor(c.lead_id)}">${initials}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(name)}${isUnread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
             <div class="conv-phone" style="font-size:0.72rem;color:#94a3b8">${esc(phone)}</div>
-            <div class="conv-preview">${esc(preview.slice(0,60))}</div>
+            <div class="conv-preview">${convPriorityChip(_prio, sig)}${esc(preview.slice(0,60))}</div>
           </div>
           <div style="flex-shrink:0;text-align:right">
             <div class="conv-time">${fmtConvTime(c.created_at)}</div>
@@ -8381,6 +8564,7 @@ async function renderConversations(scope = '') {
           </div>
         </div>`;
     }).join('');
+    updateConvSortLabels();
     filterConversations(scope);
   } catch(err) {
     listEl.innerHTML = `<div style="padding:24px;text-align:center;color:#ef4444;font-size:0.85rem">Error: ${esc(err.message)}</div>`;
@@ -8979,6 +9163,13 @@ async function runInboxMenuAction(action, scope) {
   if (action === 'refresh') {
     await renderConversations(scope);
     showToast('Inbox refreshed.');
+    return;
+  }
+  // Priority ordering is the default, but it is a view preference, not a rule -
+  // an agent who wants the plain newest-first list back gets it in one click,
+  // and the choice sticks per browser.
+  if (action === 'toggle-sort') {
+    setConvSort(_convSort === 'priority' ? 'recent' : 'priority', scope);
     return;
   }
   if (action === 'all' || action === 'unread') {

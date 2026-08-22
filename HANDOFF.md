@@ -1,9 +1,34 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-08-21 (later). The entry directly below is this session's, written
+_Last updated: 2026-08-21 (later still). The entry directly below is this session's, written
 with its verification actually run. The account-switch entry after it was written fast as
 a usage limit approached - verify its claims before trusting them further. For a fresh
 Claude Code session with zero memory of prior conversations._
+
+## 2026-08-21 (later still) - Omnichannel Inbox ordered by real urgency, not just recency
+
+**DONE, frontend only, browser-verified in demo preview, committed and pushed. No migration, no webhook change, no deploy, and no write of any kind against live data.** This is part (3) of the "AI-driven lead sifting + prioritized agent worklist" to-do. The other three parts are deliberately still open - see below, they need Muhammad's decision rather than a build.
+
+**The problem, in Badar's own terms (2026-08-19):** ~2,400 leads, 45 conversions, because the Inbox is one long list ordered purely by whoever messaged most recently, with no way to see where any conversation left off without opening it. A lead who just sent a deposit screenshot sits below a converted customer saying "thanks".
+
+**What was built.** Each conversation row is now scored from signals the list query already returned - `needs_human`, `handoff_reason`, tier, `is_unread`, and whether the last message was inbound and how long ago. The list sorts by that score, then by recency within it. Each row carries a short chip saying why it is where it is (`Deposit`, `Complaint`, `Wants agent`, `Escalated`, `Waiting 23h`, `Window closed`), with the bot's full raw `handoff_reason` on hover so the chip can never be mistaken for the record itself.
+
+**The one design decision worth knowing about:** escalation is a *band*, not a bonus (`CONV_ESCALATED_BAND`). Anything the bot handed to a human sorts above everything it did not, whatever the other signals say. The reason is the promise attached to it - the handoff-inversion fix merged earlier the same day exists precisely because leads were told "a team member will follow up" and then nobody was. A promised handoff must not be buried under a lead that merely looks hot. **The honest cost:** a stale three-day-old "bot could not understand" escalation currently outranks a red-hot lead who just asked about deposits but was never escalated. That is intentional, but it is a judgement call, and dropping it back to a plain bonus is a one-line change if Muhammad disagrees.
+
+**It is reversible and it is not hidden.** Priority is the default, but the inbox menu carries a "Sort: priority / newest" item that flips back to the plain newest-first list in one click, persisted per browser in `localStorage`. Nothing about the underlying query changed - "newest" is the untouched original order.
+
+**Verified, actually run:** demo preview with deliberately out-of-order injected rows proved the reorder rather than assuming it - newest-first put a converted customer saying "thank you" at position 1 with two deposit screenshots and a complaint below; priority order put the deposits and complaint at 1-2-3 and dropped the converted chatter to last. Dark and light theme, 1440px and 375px, admin and agent scopes, WhatsApp's 72px row height confirmed unchanged (the chip is inline in the preview line, not a new row), search and all six tier filter tabs still work on top of the new order, plus a nine-tab navigation sweep. Zero console errors beyond this sandbox's blocked external CDN fetches. New `tests/inbox-priority-test.mjs` lifts the scorer out and runs it - it **caught a real weighting flaw while being written** (a generic escalation could fall below a merely-hot lead, which is what produced the band decision above). All 11 dependency-free suites pass. The test also statically asserts the block contains no `sb.from` / `.update(` / `.insert(` / `.delete(`, so this can never quietly become a write.
+
+**Not verified:** the live path. Demo mode never touches `sb`, so scoring against real `needs_human` / `handoff_reason` / `is_unread` values is correct by reading, not by running. It is read-and-render only, so a spot-check is safe from anywhere - open the live Inbox and confirm the top rows are the ones that actually deserve attention. **This is the one thing worth eyeballing before showing it to Badar**, since real handoff-reason text is free-form and the reason matching is regex-based; if real reasons do not match the patterns they fall back to the generic "Escalated" chip, which is correct but less useful.
+
+**Deliberately NOT done, and why - do not treat these as forgotten:**
+- **(2) Tightening the bot's own escalation rules** so `needs_human` fires only on real intent signals. That changes live bot behaviour in `whatsapp-webhook`, not display. The ordering above already surfaces the good escalations without changing which ones fire, and a few days of real traffic under the new ordering will actually show whether over-escalation is the problem.
+- **(4) Auto-tiering leads from signals.** Agents own `manual_tier` by Badar's own 2026-07-14 decision ("they know the exact situation"), so auto-writing it would overwrite a human judgement. The priority score reads the same signals without ever writing them. If auto-tiering is still wanted it should be a separate suggested-tier field, never an overwrite.
+- **The scheduled morning digest** ("3 hot leads waiting"). Still undecided. The ordering above deliberately does the same job inside the list agents already open, which is what the original item argued for.
+
+**Standing rule respected throughout:** nothing here sends, replies, edits, deletes, reassigns or bulk-changes anything in Conversations. It changes which order existing rows render in and adds a label. No live conversation data was read or written from this session.
+
+---
 
 ## 2026-08-21 (later) - All Leads filters rebuilt so an empty table is never ambiguous
 

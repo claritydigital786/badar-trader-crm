@@ -27,7 +27,7 @@ live; **TO BUILD** = safe code work, no live send; **BLOCKED (human/3rd-party)**
 | --- | --- |
 | Lead pipeline (All/My Leads, Add Lead, CSV import) | Full CRUD, RLS-scoped. All Leads filter bar rebuilt 2026-08-21: result count, per-filter chips, filter-aware empty state, Unassigned and date-added filters, and Export CSV now matching the visible rows |
 | Lead detail (profile, ledger, KYC, activity, comms) | Live |
-| Omnichannel Inbox / Conversations | Real threads, 24h window timer, contact panel, agent assignment, realtime, agent replies via `send-wa-message`. QA-passed 2026-08-07 |
+| Omnichannel Inbox / Conversations | Real threads, 24h window timer, contact panel, agent assignment, realtime, agent replies via `send-wa-message`. QA-passed 2026-08-07. Priority ordering added 2026-08-21: list sorts by escalation, tier, unread and time waiting, each row chipped with why, reversible to newest-first from the inbox menu |
 | 24-hour window countdown pill (C2) | Live; shows agents the window closing |
 | Forward a message - to a conversation, and to a teammate | Both shipped (frontend). Teammate forward is a passive `lead_activity` note |
 | In-conversation search, day-divider pills | Shipped, demo-verified |
