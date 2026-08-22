@@ -4,6 +4,20 @@ _Last updated: 2026-08-22. The entry directly below is this session's, written
 with its verification actually run. For a fresh Claude Code session with zero
 memory of prior conversations._
 
+## 2026-08-22 (later) - Dispatch (Claude Cowork) rules written down before it gets used on this project
+
+Muhammad asked to continue work on Dispatch so he can drive this project from his phone. First finding: there is no "Dispatch" feature in this CRM and never was. Checked properly rather than assuming - no file, no branch, no commit, no `HANDOFF.md` entry, and the only `dispatch` hits in the repo are the unrelated automation dispatcher from PR #18. It is Claude Cowork's own feature: one long-lived conversation running on Muhammad's Mac in the Claude desktop app, driven from the Claude mobile app. His `Dispatch background conversation` session has existed since 2026-07-07 and was active minutes before this session started, so it is already set up, not waiting to be built.
+
+**Nothing about the setup itself could be done from here and that was said rather than worked around.** This session runs in a remote Linux container. Dispatch is desktop-local, so pairing it, opening it, or pointing it at the repo folder are all Muhammad's own clicks on his Mac.
+
+**What was actually built is the part that belongs in the repo: `DISPATCH.md`, plus a matching standing rule in `CLAUDE.md` and `AGENTS.md`.** The reason this is not busywork: Dispatch has *more* reach than any session this project has used before (the repo folder, `~/Downloads`, the Supabase CLI if that Mac is logged in, a signed-in browser profile) while the person driving it is not looking at the screen. That is the 2026-08-03/04 incident's exact shape, the one where a send meant for one disposable lead matched 39 real ones and only missed because the WhatsApp credentials were broken at the time. They work now. So the rule written is that **a Dispatch session counts as remote, not as Muhammad being present**, however much it is his own laptop: no `_ENABLED` flips, no Edge Function deploys, no real sends, no production migrations, and no client-account access at all. The 2026-08-14 read-only viewing carve-out for Meta Ads Manager and WhatsApp Manager is explicitly ruled out too, since it was granted for a session where Muhammad was watching the same screen and a phone-driven session on an unattended Mac is not that.
+
+`DISPATCH.md` also carries the useful half: what is safe from a phone (reading, research, read-only queries, code, tests, demo-mode passes, commits and pushes), the one standing rule Dispatch honours *better* than a cloud session (deliverables written straight into `~/Downloads`, the thing cloud sessions have repeatedly had to work around), two habits a days-long thread needs (pull before trusting anything, claim work in Active Work Claims since Junaid and Izza cannot see a conversation on Muhammad's Mac), a first-message prompt to paste at the top of a Dispatch thread, and six short phone prompts.
+
+Docs only, no code changed, so there was nothing to exercise in a browser. Checked what could be checked: zero em dashes and zero non-ASCII across all three files.
+
+---
+
 ## 2026-08-22 - receives_leads webhook verified (not deployed - needs Muhammad's go-ahead), backup script's table gap fixed, Settings sidebar made collapsible
 
 Picked up from a bare "continue" on Muhammad's own laptop. Pulled `main` first (brought in a cloud session's already-merged My Team/Inbox-priority/lead-filter work), read `HANDOFF.md`, and took the one loose end its own Active Work Claims flagged: `ecaaaf3`'s `receives_leads` filter in `getAgentRotation()` was committed but never `deno check`ed or deployed.
