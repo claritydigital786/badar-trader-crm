@@ -125,6 +125,28 @@
       text-align: center;
     }
     .nav-item.active .nav-badge { background: rgba(212,168,67,0.3); color: #d4a843; }
+    /* The caret only ever toggles the subgroup below it - its own click
+       handler stops propagation so it never also fires the row's own
+       navigation, which the delegated #admin-tabs listener would otherwise
+       trigger via .nav-item[data-tab]. */
+    .nav-caret {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 5px;
+      color: #94a3b8;
+      font-size: 10px;
+      flex-shrink: 0;
+      transition: transform 0.15s, background 0.15s, color 0.15s;
+    }
+    .nav-caret:hover { background: rgba(15,23,42,.06); color: #334155; }
+    .nav-caret.collapsed { transform: rotate(-90deg); }
+    .nav-subgroup.collapsed { display: none; }
+    [data-theme="dark"] .nav-caret { color: #64748b; }
+    [data-theme="dark"] .nav-caret:hover { background: rgba(255,255,255,.08); color: #f1f5f9; }
 
     .sidebar-footer {
       margin-top: auto;
@@ -1377,11 +1399,16 @@
       <div class="nav-item" data-tab="user-permission"><span class="nav-icon" data-nav-icon="shield" style="background:var(--tint-danger-bg)"></span> User Permission</div>
       <div class="nav-item" data-tab="user-manager"><span class="nav-icon" data-nav-icon="id-card" style="background:var(--tint-sky-bg)"></span> User Manager</div>
       <div class="nav-section-label">SETTINGS</div>
-      <div class="nav-item" data-tab="settings"><span class="nav-icon" data-nav-icon="settings" style="background:var(--tint-gold-bg)"></span> Settings</div>
-      <div class="nav-item" data-tab="meta"><span class="nav-icon" data-nav-icon="link" style="background:var(--tint-gold-bg)"></span> Meta Integration</div>
-      <div class="nav-item" data-tab="notifications"><span class="nav-icon" data-nav-icon="bell" style="background:var(--tint-sky-bg)"></span> Notifications</div>
-      <div class="nav-item" data-tab="sites"><span class="nav-icon" data-nav-icon="globe" style="background:var(--tint-success-bg)"></span> Sites</div>
-      <div class="nav-item" data-tab="guide"><span class="nav-icon" data-nav-icon="book" style="background:var(--tint-warn-bg)"></span> Guide</div>
+      <div class="nav-item" data-tab="settings">
+        <span class="nav-icon" data-nav-icon="settings" style="background:var(--tint-gold-bg)"></span> Settings
+        <span class="nav-caret" id="settings-caret" title="Show or hide Settings items" onclick="toggleNavSubgroup(event,'settings-subgroup','settings-caret')">▾</span>
+      </div>
+      <div class="nav-subgroup" id="settings-subgroup">
+        <div class="nav-item" data-tab="meta"><span class="nav-icon" data-nav-icon="link" style="background:var(--tint-gold-bg)"></span> Meta Integration</div>
+        <div class="nav-item" data-tab="notifications"><span class="nav-icon" data-nav-icon="bell" style="background:var(--tint-sky-bg)"></span> Notifications</div>
+        <div class="nav-item" data-tab="sites"><span class="nav-icon" data-nav-icon="globe" style="background:var(--tint-success-bg)"></span> Sites</div>
+        <div class="nav-item" data-tab="guide"><span class="nav-icon" data-nav-icon="book" style="background:var(--tint-warn-bg)"></span> Guide</div>
+      </div>
     </div>
     <div class="sidebar-footer" onclick="toggleAccountMenu(event, 'admin')" style="cursor:pointer;position:relative">
       <div class="user-avatar" id="sidebar-user-initials">BT</div>
@@ -3822,6 +3849,7 @@ function enterDemoMode() {
 // ── Boot ──────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   renderNavigationIcons();
+  initNavSubgroups();
   // Wire the sidebar before the local demo-preview early return. The preview is
   // the presentation surface, so its navigation must behave exactly like a
   // signed-in Admin session.
@@ -3972,6 +4000,44 @@ async function initAdmin() {
   loadNotifications();
 }
 
+// Collapses/expands a group of sidebar nav-items under the row that owns
+// them (currently just Settings). Stops propagation so clicking the caret
+// never also bubbles into the delegated #admin-tabs click listener and
+// navigates to that row's own tab.
+function toggleNavSubgroup(e, groupId, caretId) {
+  e.stopPropagation();
+  e.preventDefault();
+  const group = document.getElementById(groupId);
+  if (!group) return;
+  const collapsed = group.classList.toggle('collapsed');
+  const caret = document.getElementById(caretId);
+  if (caret) caret.classList.toggle('collapsed', collapsed);
+  try { localStorage.setItem('nav_' + groupId + '_collapsed', collapsed ? '1' : '0'); } catch (err) { /* private mode, ignore */ }
+}
+
+function expandNavSubgroup(groupId, caretId) {
+  const group = document.getElementById(groupId);
+  if (!group || !group.classList.contains('collapsed')) return;
+  group.classList.remove('collapsed');
+  const caret = document.getElementById(caretId);
+  if (caret) caret.classList.remove('collapsed');
+  try { localStorage.setItem('nav_' + groupId + '_collapsed', '0'); } catch (err) { /* private mode, ignore */ }
+}
+
+// Restores each subgroup's last open/closed state. Defaults to open (matches
+// the sidebar's pre-existing look) so a browser with nothing saved yet
+// changes nothing.
+function initNavSubgroups() {
+  document.querySelectorAll('.nav-subgroup').forEach(group => {
+    let collapsed = false;
+    try { collapsed = localStorage.getItem('nav_' + group.id + '_collapsed') === '1'; } catch (err) { /* private mode, ignore */ }
+    if (!collapsed) return;
+    group.classList.add('collapsed');
+    const caret = document.getElementById(group.id.replace(/-subgroup$/, '-caret'));
+    if (caret) caret.classList.add('collapsed');
+  });
+}
+
 function toggleSidebar(forceOpen) {
   // Admin and agent dashboards each have their own .sidebar/.sidebar-overlay -
   // only one is ever visible at a time (the other is display:none), so
@@ -4009,6 +4075,13 @@ function adminTab(name, el) {
     ? el
     : document.querySelector(`#admin-tabs .nav-item[data-tab="${name}"]`);
   if (navItem) navItem.classList.add('active');
+  // A shortcut elsewhere in the app (e.g. the Dashboard's "Open Meta
+  // Integration" button) can land here directly without the sidebar caret
+  // ever being clicked - open the group so the row it just highlighted is
+  // actually visible, not hidden under a collapsed Settings.
+  if (['meta', 'notifications', 'sites', 'guide'].includes(name)) {
+    expandNavSubgroup('settings-subgroup', 'settings-caret');
+  }
   // Update header title
   const titles = {
     dashboard: 'Dashboard', leads: 'All Leads', agents: 'My Team',
