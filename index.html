@@ -22,13 +22,64 @@
     /* --ticker-h is kept in sync with the TradingView iframe's real height by a
        script near the ticker markup: the widget renders 46px on wide screens but
        74px (two-row mode) below ~1280px, and a fixed 46px assumption cuts it off. */
+    /* ── Palette ───────────────────────────────────────────────────────────
+       One palette, and colour that means something.
+
+       Before this (2026-08-23) the file carried 134 distinct hex values and 408
+       hardcoded colours in inline style attributes, from three unrelated
+       systems: a slate scale, a WhatsApp-clone set, and the brand navy/gold.
+       Nothing tied them together, so a page moved from grey to white to green
+       to red for no reason a user could read. Muhammad's words: immature and
+       unprofessional, and he was right.
+
+       The rule from here: NEUTRALS carry the interface, GOLD is the single
+       accent and marks what is active or primary, and the three SEMANTIC
+       colours are reserved for status only - never decoration. If a colour is
+       not saying "this succeeded", "this needs attention" or "this is wrong",
+       it should be a neutral.
+
+       The Conversations screen is deliberately excluded: its WhatsApp-alike
+       greys are intentional mimicry so agents feel at home, not drift. */
     :root {
       --ticker-h: 46px;
-      --tint-gold-bg: #f8f0dd; --tint-gold-fg: #b8862e;
-      --tint-sky-bg: #e3f4fd; --tint-sky-fg: #0ea5e9;
-      --tint-success-bg: #e2f6ec; --tint-success-fg: #1fa971;
-      --tint-warn-bg: #fdf1dc; --tint-warn-fg: #b45309;
-      --tint-danger-bg: #fbe6e4; --tint-danger-fg: #dc4c40;
+
+      /* Neutrals - the one grey scale, replacing the competing sets */
+      --n-900: #0f172a; --n-700: #334155; --n-600: #475569;
+      --n-500: #64748b; --n-400: #94a3b8; --n-300: #cbd5e1;
+      --n-200: #e2e8f0; --n-100: #f1f5f9; --n-050: #f8fafc;
+
+      /* Accent - used sparingly, for active and primary only */
+      --accent: #b8862e; --accent-soft: #f6efdb;
+
+      /* Semantic - status only. Softened from the previous var(--bad) / var(--ok),
+         which shouted next to everything around them. */
+      --ok: #1f8f5f;   --ok-soft: #e6f4ec;
+      --warn: #a76a12; --warn-soft: #fbf1de;
+      --bad: #b8443c;  --bad-soft: #f8e8e6;
+
+      /* Icon chips. Every one of the 34 nav and tile icons used to pick from
+         five unrelated pastels - pink beside amber beside sky, meaning nothing.
+         They now share one calm surface, so the eye reads the icon shape rather
+         than a colour that was never a signal. The five names are kept so no
+         markup has to change; they simply resolve to the same thing. */
+      --tint-gold-bg: var(--n-100);    --tint-gold-fg: var(--accent);
+      --tint-sky-bg: var(--n-100);     --tint-sky-fg: var(--n-600);
+      --tint-success-bg: var(--n-100); --tint-success-fg: var(--n-600);
+      --tint-warn-bg: var(--n-100);    --tint-warn-fg: var(--n-600);
+      --tint-danger-bg: var(--n-100);  --tint-danger-fg: var(--n-600);
+    }
+    /* Dark is this app's default, so the chips need their own calm surface
+       rather than inheriting a light one and glowing against the navy. */
+    [data-theme="dark"] {
+      --tint-gold-bg: #1c2740;    --tint-gold-fg: #d4ad4f;
+      --tint-sky-bg: #1c2740;     --tint-sky-fg: #a3abbd;
+      --tint-success-bg: #1c2740; --tint-success-fg: #a3abbd;
+      --tint-warn-bg: #1c2740;    --tint-warn-fg: #a3abbd;
+      --tint-danger-bg: #1c2740;  --tint-danger-fg: #a3abbd;
+      --accent: #d4ad4f; --accent-soft: #2a2312;
+      --ok: #4ab883;   --ok-soft: #12281d;
+      --warn: #d9a24d; --warn-soft: #2b2011;
+      --bad: #d2726a;  --bad-soft: #2c1715;
     }
     .app-shell { display: flex; height: calc(100vh - var(--ticker-h)); margin-top: var(--ticker-h); overflow: hidden; position: relative; }
     .app-shell::before { content:""; position: fixed; top:50%; left:58%; transform:translate(-50%,-50%); width:640px; height:640px; background:url('/assets/bull.svg') center/contain no-repeat; opacity:0.06; pointer-events:none; z-index:0; }
@@ -101,8 +152,8 @@
     .nav-icon {
       font-size: 13px; width: 26px; height: 26px; border-radius: 8px;
       display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-      background: #f1f5f9;
-      color: #334155;
+      background: var(--n-100);
+      color: var(--n-700);
     }
     .nav-icon svg {
       width: 15px;
@@ -182,7 +233,7 @@
       background: none; border: none; padding: 8px 10px; border-radius: 7px;
       font-family: inherit; font-size: 13px; color: #334155; cursor: pointer;
     }
-    .account-menu button:hover { background: #fef2f2; color: #dc2626; }
+    .account-menu button:hover { background: #fef2f2; color: var(--bad); }
 
     /* ── Main Content ── */
     .main-content {
@@ -357,7 +408,7 @@
     }
     .btn:hover { opacity: .88; }
     .btn-primary   { background: #0ea5e9; color: #fff; width: 100%; margin-top: 22px; }
-    .btn-danger    { background: #ef4444; color: #fff; }
+    .btn-danger    { background: var(--bad); color: #fff; }
     .btn-secondary { background: #1e293b; border: 1px solid #334155; color: #cbd5e1; }
     .btn-sm        { padding: 5px 12px; font-size: 0.78rem; margin-top: 0; width: auto; }
     .btn-inline    { width: auto; margin-top: 0; }
@@ -445,7 +496,10 @@
     [data-theme="dark"] .nav-item { color: #cbd5e1; }
     [data-theme="dark"] .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
     [data-theme="dark"] .nav-item.active { background: rgba(212,168,67,.16); color: #f1f5f9; }
-    [data-theme="dark"] .nav-icon { color: #0f172a; }
+    /* The glyph follows its chip. Pinning it to near-black only worked while
+       the chips were bright pastels; against a calm surface it disappeared. */
+    [data-theme="dark"] .nav-icon { color: #c3cbdb; }
+    [data-theme="dark"] .nav-item.active .nav-icon { color: var(--accent); }
     [data-theme="dark"] .nav-section-label { color: #64748b; }
     [data-theme="dark"] .user-info p { color: #f1f5f9; }
     [data-theme="dark"] .user-info span { color: #64748b; }
@@ -573,24 +627,24 @@
     .badge-proposal_sent { background: #f3e8ff; color: #7e22ce; }
     .badge-converted        { background: #dcfce7; color: #15803d; }
     .badge-pending_approval { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; font-weight: 700; }
-    .badge-lost             { background: #fee2e2; color: #dc2626; }
+    .badge-lost             { background: #fee2e2; color: var(--bad); }
     .pending-approval-banner { background: #fff7ed; border: 1.5px solid #fb923c; border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .pending-approval-banner span { flex: 1; min-width: 200px; font-size: 0.9rem; color: #9a3412; font-weight: 600; }
-    .btn-approve { background: #16a34a; color: #fff; border: none; padding: 7px 18px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+    .btn-approve { background: var(--ok); color: #fff; border: none; padding: 7px 18px; border-radius: 6px; font-weight: 600; cursor: pointer; }
     .btn-approve:hover { background: #15803d; }
-    .btn-reject  { background: #dc2626; color: #fff; border: none; padding: 7px 18px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-left: 8px; }
+    .btn-reject  { background: var(--bad); color: #fff; border: none; padding: 7px 18px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-left: 8px; }
     .btn-reject:hover  { background: #b91c1c; }
     .badge-admin         { background: #fef3c7; color: #92400e; }
     .badge-agent         { background: #dbeafe; color: #1d4ed8; }
     .badge-deposit       { background: #dcfce7; color: #15803d; }
-    .badge-withdrawal    { background: #fee2e2; color: #dc2626; }
+    .badge-withdrawal    { background: #fee2e2; color: var(--bad); }
     .badge-not_started   { background: #f1f5f9; color: #64748b; }
     .badge-pending       { background: #fef9c3; color: #854d0e; }
     .badge-verified      { background: #dcfce7; color: #15803d; }
-    .badge-rejected      { background: #fee2e2; color: #dc2626; }
+    .badge-rejected      { background: #fee2e2; color: var(--bad); }
     .badge-low           { background: #dcfce7; color: #15803d; }
     .badge-medium        { background: #fef9c3; color: #854d0e; }
-    .badge-high          { background: #fee2e2; color: #dc2626; }
+    .badge-high          { background: #fee2e2; color: var(--bad); }
 
     /* ── Channel chips ── */
     .channel-chip {
@@ -638,6 +692,11 @@
     .quick-tile h4 { margin: 0 0 2px; font-size: 12.8px; font-weight: 700; color: #0f172a; }
     .quick-tile p { margin: 0; font-size: 11px; color: #64748b; }
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px; }
+    /* One card in a row may be emphasised - the money one - but with a single
+       quiet signal, not a colour change on every element inside it. */
+    .stat-card-accent { border-left: 3px solid var(--accent); }
+    .stat-card-accent .stat-value { color: var(--accent); }
+
     .stat-card {
       background: #fff;
       border: 1px solid #e5e8ef;
@@ -647,7 +706,7 @@
     }
     .stat-label { color: #64748b; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
     .stat-value { color: #0f172a; font-size: 2rem; font-weight: 700; line-height: 1; }
-    .stat-trend { color: #10b981; font-size: 0.75rem; margin-top: 6px; }
+    .stat-trend { color: var(--ok); font-size: 0.75rem; margin-top: 6px; }
 
     /* ── Subtabs ── */
     .subtabs { display: flex; gap: 4px; border-bottom: 1px solid #e2e8f0; margin-bottom: 18px; flex-wrap: wrap; }
@@ -961,7 +1020,7 @@
     .notif-wrap { position:relative; display:inline-block; }
     .notif-btn { background:none; border:none; cursor:pointer; font-size:1.05rem; line-height:1; padding:6px; position:relative; opacity:.75; }
     .notif-btn:hover { opacity:1; }
-    .notif-badge { position:absolute; top:-2px; right:-4px; background:#ef4444; color:#fff;
+    .notif-badge { position:absolute; top:-2px; right:-4px; background:var(--bad); color:#fff;
       font-size:10px; font-weight:700; border-radius:10px; padding:1px 5px; line-height:1.4; }
     .notif-panel { position:absolute; right:0; top:34px; width:320px; max-height:60vh; overflow-y:auto;
       background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 10px 30px rgba(15,23,42,.15); z-index:40; }
@@ -1384,7 +1443,7 @@
       <div class="nav-item" data-tab="bot-manager"><span class="nav-icon" data-nav-icon="bot" style="background:var(--tint-sky-bg)"></span> Bot Manager</div>
       <div class="nav-section-label">TOOLS</div>
       <div class="nav-item" data-tab="add-lead"><span class="nav-icon" data-nav-icon="user-plus" style="background:var(--tint-gold-bg)"></span> Add Lead</div>
-      <div class="nav-item" data-tab="conversations"><span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Omnichannel Inbox <span id="conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
+      <div class="nav-item" data-tab="conversations"><span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Omnichannel Inbox <span id="conv-nav-badge" style="display:none;background:var(--bad);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
       <div class="nav-item" data-tab="comm-log"><span class="nav-icon" data-nav-icon="history" style="background:var(--tint-success-bg)"></span> Comm Log</div>
       <div class="nav-item" data-tab="reports"><span class="nav-icon" data-nav-icon="report" style="background:var(--tint-warn-bg)"></span> Reports</div>
       <div class="nav-item" data-tab="automation"><span class="nav-icon" data-nav-icon="automation" style="background:var(--tint-danger-bg)"></span> Automation</div>
@@ -1478,16 +1537,16 @@
       <div class="stat-card">
         <div class="stat-label">Converted</div>
         <div class="stat-value" id="dash-converted">-</div>
-        <div class="stat-trend" style="color:#0ea5e9">Paying clients</div>
+        <div class="stat-trend">Paying clients</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Active Agents</div>
         <div class="stat-value" id="dash-agents">-</div>
         <div class="stat-trend">On your team</div>
       </div>
-      <div class="stat-card" style="border-left:4px solid #10b981">
-        <div class="stat-label" style="color:#10b981">Client Account Balances</div>
-        <div class="stat-value" style="color:#10b981" id="dash-revenue">-</div>
+      <div class="stat-card stat-card-accent">
+        <div class="stat-label">Client Account Balances</div>
+        <div class="stat-value" id="dash-revenue">-</div>
         <div class="stat-trend">Current recorded balances</div>
         <div class="stat-trend" id="dash-rev-platform" style="margin-top:6px;color:#94a3b8;line-height:1.6"></div>
       </div>
@@ -1630,7 +1689,7 @@
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <input type="file" id="csv-import-file" accept=".csv" style="font-size:0.82rem;color:#94a3b8" />
         <button class="btn btn-secondary btn-inline" onclick="importLeadsCSV()">Import</button>
-        <span id="csv-import-msg" style="font-size:0.8rem;color:#10b981"></span>
+        <span id="csv-import-msg" style="font-size:0.8rem;color:var(--ok)"></span>
       </div>
       <div id="csv-import-preview" style="margin-top:12px;display:none">
         <div style="font-size:0.78rem;font-weight:700;color:#64748b;margin-bottom:6px" id="csv-import-count"></div>
@@ -1638,7 +1697,7 @@
         <div style="margin-top:10px;display:flex;gap:8px">
           <button class="btn btn-primary btn-inline" id="csv-confirm-btn" onclick="confirmImportCSV()">Confirm Import</button>
           <button class="btn btn-secondary btn-inline" onclick="cancelImportCSV()">Cancel</button>
-          <span id="csv-confirm-msg" style="font-size:0.8rem;color:#10b981"></span>
+          <span id="csv-confirm-msg" style="font-size:0.8rem;color:var(--ok)"></span>
         </div>
       </div>
     </div>
@@ -2662,7 +2721,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">Conversion Rate</div>
-        <div class="stat-value" id="rpt-conv-rate" style="color:#10b981">-</div>
+        <div class="stat-value" id="rpt-conv-rate" style="color:var(--ok)">-</div>
         <div class="stat-trend">Leads → Clients</div>
       </div>
       <div class="stat-card">
@@ -3258,7 +3317,7 @@
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
-      <div class="stat-card"><div class="stat-value" id="ai-accuracy-pct" style="color:#22c55e">-</div><div class="stat-label">Overall TP Hit Rate</div></div>
+      <div class="stat-card"><div class="stat-value" id="ai-accuracy-pct" style="color:var(--ok)">-</div><div class="stat-label">Overall TP Hit Rate</div></div>
       <div class="stat-card"><div class="stat-value" id="ai-signals-sent">0</div><div class="stat-label">Signals Broadcast</div></div>
       <div class="stat-card"><div class="stat-value" id="ai-pending-count">0</div><div class="stat-label">Pending Outcome</div></div>
     </div>
@@ -3299,7 +3358,7 @@
     <div id="ai-signal-card" style="display:none" class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <div style="font-weight:700;font-size:1rem;color:#0f172a">📊 Generated Signal</div>
-        <span id="ai-confidence-badge" style="background:#16a34a;color:#fff;padding:4px 12px;border-radius:20px;font-size:0.78rem;font-weight:700">Confidence: -</span>
+        <span id="ai-confidence-badge" style="background:var(--ok);color:#fff;padding:4px 12px;border-radius:20px;font-size:0.78rem;font-weight:700">Confidence: -</span>
       </div>
       <div id="ai-signal-detail" style="font-family:monospace;background:#0f172a;border-radius:8px;padding:14px;color:#94a3b8;font-size:0.85rem;line-height:1.8;white-space:pre-wrap;margin-bottom:14px"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
@@ -3390,7 +3449,7 @@
       <div class="nav-item tab-btn active" data-tab="dashboard" onclick="agentTab('dashboard',this)"><span class="nav-icon" data-nav-icon="dashboard" style="background:var(--tint-gold-bg)"></span> Dashboard</div>
       <div class="nav-item tab-btn" data-tab="my-leads" onclick="agentTab('my-leads',this)"><span class="nav-icon" data-nav-icon="users" style="background:var(--tint-sky-bg)"></span> My Leads</div>
       <div class="nav-section-label">TOOLS</div>
-      <div class="nav-item tab-btn" data-tab="conversations" onclick="agentTab('conversations',this)"><span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Omnichannel Inbox <span id="agent-conv-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
+      <div class="nav-item tab-btn" data-tab="conversations" onclick="agentTab('conversations',this)"><span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Omnichannel Inbox <span id="agent-conv-nav-badge" style="display:none;background:var(--bad);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
       <div class="nav-item tab-btn" data-tab="comm-log" onclick="agentTab('comm-log',this)"><span class="nav-icon" data-nav-icon="history" style="background:var(--tint-success-bg)"></span> Comm Log</div>
       <div class="nav-item tab-btn" data-tab="log-activity" onclick="agentTab('log-activity',this)"><span class="nav-icon" data-nav-icon="note" style="background:var(--tint-danger-bg)"></span> Log Activity</div>
       <div class="nav-item tab-btn" data-tab="guide" onclick="agentTab('guide',this)"><span class="nav-icon" data-nav-icon="book" style="background:var(--tint-warn-bg)"></span> Guide</div>
@@ -3443,11 +3502,11 @@
       <div class="stat-card">
         <div class="stat-label">Converted</div>
         <div class="stat-value" id="agent-stat-converted">-</div>
-        <div class="stat-trend" style="color:#0ea5e9">Paying clients</div>
+        <div class="stat-trend">Paying clients</div>
       </div>
-      <div class="stat-card" style="border-left:4px solid #10b981">
-        <div class="stat-label" style="color:#10b981">AUM</div>
-        <div class="stat-value" style="color:#10b981" id="agent-stat-revenue">-</div>
+      <div class="stat-card" style="border-left:4px solid var(--ok)">
+        <div class="stat-label" style="color:var(--ok)">AUM</div>
+        <div class="stat-value" style="color:var(--ok)" id="agent-stat-revenue">-</div>
         <div class="stat-trend">Approved deposits</div>
       </div>
     </div>
@@ -4586,14 +4645,14 @@ function renderAgentsTable(tbodyId) {
       <td style="white-space:nowrap">${p.phone
         ? `<span style="font-size:0.82rem">+${esc(p.phone)}</span>`
         : (p.role === 'agent'
-            ? '<span style="color:#ef4444;font-size:0.78rem;font-weight:600" title="Without a number this agent cannot be recognised by the WhatsApp webhook, cannot receive escalation pings, and is skipped by round-robin">not set</span>'
+            ? '<span style="color:var(--bad);font-size:0.78rem;font-weight:600" title="Without a number this agent cannot be recognised by the WhatsApp webhook, cannot receive escalation pings, and is skipped by round-robin">not set</span>'
             : '<span style="color:#94a3b8;font-size:0.78rem">-</span>')}</td>
       <td><span class="badge badge-${p.role}">${p.role}</span></td>
       <td style="color:#666;font-size:0.8rem;white-space:nowrap">${fmtDate(p.created_at)}</td>
       <td style="white-space:nowrap">${!isSelf
         ? (p.is_suspended
-            ? '<span style="color:#ef4444;font-size:0.8rem;font-weight:600">Suspended</span>'
-            : '<span style="color:#22c55e;font-size:0.8rem;font-weight:600">Active</span>')
+            ? '<span style="color:var(--bad);font-size:0.8rem;font-weight:600">Suspended</span>'
+            : '<span style="color:var(--ok);font-size:0.8rem;font-weight:600">Active</span>')
         : '<span style="color:#94a3b8;font-size:0.8rem">You</span>'}
         ${p.role === 'agent' && p.receives_leads === false && !p.is_suspended
           ? '<br><span class="team-hint" title="Has full access but is skipped by round-robin lead assignment">observer, no leads</span>' : ''}</td>
@@ -4605,7 +4664,7 @@ function renderAgentsTable(tbodyId) {
              onclick="toggleReceivesLeads('${p.id}',${p.receives_leads === false})">${p.receives_leads === false ? 'Give leads' : 'No leads'}</button>` : ''}
         ${!isSelf
         ? `<button class="btn btn-secondary btn-sm" onclick="toggleRole('${p.id}','${p.role}')">Make ${p.role === 'admin' ? 'agent' : 'admin'}</button>
-           <button class="btn btn-sm team-danger" style="background:${p.is_suspended ? '#16a34a' : '#dc2626'};color:#fff"
+           <button class="btn btn-sm team-danger" style="background:${p.is_suspended ? 'var(--ok)' : 'var(--bad)'};color:#fff"
              onclick="suspendAgent('${p.id}',${!p.is_suspended})">${p.is_suspended ? 'Unsuspend' : 'Suspend'}</button>`
         : ''}
       </td>
@@ -5550,7 +5609,7 @@ async function openDetail(leadId, ctx) {
           <div style="flex:1">
             <textarea id="det-notes" rows="2" style="width:100%;resize:vertical">${esc(lead.notes||'')}</textarea>
             <button class="btn btn-secondary btn-sm" style="margin-top:4px" onclick="saveLeadNotes('${leadId}','${ctx}')">Save Notes</button>
-            <span id="det-notes-msg" style="font-size:0.78rem;color:#10b981;margin-left:8px"></span>
+            <span id="det-notes-msg" style="font-size:0.78rem;color:var(--ok);margin-left:8px"></span>
           </div>
         </div>
       </div>
@@ -6338,7 +6397,7 @@ function renderLeadsTable(tbodyId, leads, isAdmin, emptyHtml) {
     return `<tr onclick="openDetail('${l.id}','${ctx}')" style="cursor:pointer">
       <td>
         <strong style="color:#0f172a">${esc(l.full_name)}</strong>
-        ${l.needs_human ? `<br><span title="${esc(l.handoff_reason||'Needs human follow-up')}" style="font-size:0.72rem;color:#fff;background:#dc2626;padding:1px 7px;border-radius:8px;display:inline-block;margin-top:2px">⚠ Needs Human</span>` : ''}
+        ${l.needs_human ? `<br><span title="${esc(l.handoff_reason||'Needs human follow-up')}" style="font-size:0.72rem;color:#fff;background:var(--bad);padding:1px 7px;border-radius:8px;display:inline-block;margin-top:2px">⚠ Needs Human</span>` : ''}
         ${l.instrument_type ? `<br><span style="font-size:0.72rem;color:#94a3b8;background:#0f172a;padding:1px 7px;border-radius:8px;display:inline-block;margin-top:2px">${esc(l.instrument_type)}</span>` : ''}
       </td>
       <td>${esc(l.phone||'-')}</td>
@@ -7819,7 +7878,7 @@ async function loadReports() {
     renderSourceChart([
       { source:'Meta Ads',    count:2, color:'#0ea5e9' },
       { source:'Referral',    count:2, color:'#d4a843' },
-      { source:'Website',     count:1, color:'#10b981' },
+      { source:'Website',     count:1, color:'var(--ok)' },
       { source:'Manual',      count:1, color:'#8b5cf6' },
     ], totalLeads);
     renderMonthlyTrendChart(
@@ -7872,7 +7931,7 @@ async function loadReports() {
   })));
   if (sourcePerf && sourcePerf.length) {
     const tot = sourcePerf.reduce((s, r) => s + r.total_leads, 0);
-    const palette = ['#0ea5e9','#d4a843','#10b981','#8b5cf6','#f59e0b'];
+    const palette = ['#0ea5e9','#d4a843','var(--ok)','#8b5cf6','#f59e0b'];
     renderSourceChart(sourcePerf.map((r, i) => ({
       source: sourceLabel(r.source), count: r.total_leads, color: palette[i % palette.length],
     })), tot);
@@ -7934,7 +7993,7 @@ function renderAgentPerformanceReport(rows) {
           <span style="font-size:0.8rem;color:#64748b">${rate}%</span>
         </div>
       </td>
-      <td style="font-weight:700;color:#10b981">${formatCurrencyTotals(r.deposit_totals, 'None')}</td>
+      <td style="font-weight:700;color:var(--ok)">${formatCurrencyTotals(r.deposit_totals, 'None')}</td>
     </tr>`;
   }).join('');
 }
@@ -8017,11 +8076,11 @@ function renderFinancialSummaryReport(row, currencyTotals = null) {
   el.innerHTML = `
     <div class="stat-card">
       <div class="stat-label">Total Deposits</div>
-      <div class="stat-value" style="color:#10b981;font-size:1.25rem">${depositsLabel}</div>
+      <div class="stat-value" style="color:var(--ok);font-size:1.25rem">${depositsLabel}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Total Withdrawals</div>
-      <div class="stat-value" style="color:#ef4444;font-size:1.25rem">${withdrawalsLabel}</div>
+      <div class="stat-value" style="color:var(--bad);font-size:1.25rem">${withdrawalsLabel}</div>
     </div>
     <div class="stat-card" style="border-left:4px solid #d4a843">
       <div class="stat-label" style="color:#d4a843">Net AUM</div>
@@ -8207,7 +8266,9 @@ function renderDashboardStats() {
 // ── DASHBOARD CHARTS: pipeline donut + leads-added trend ───────
 const STATUS_CHART_COLORS = {
   new: '#0ea5e9', contacted: '#f59e0b', qualified: '#8b5cf6',
-  proposal_sent: '#ec4899', converted: '#10b981', lost: '#94a3b8',
+  // Literals on purpose: Chart.js paints to a canvas and cannot read CSS
+  // variables. Kept in step with --ok / --bad by hand.
+  proposal_sent: '#ec4899', converted: '#1f8f5f', lost: '#94a3b8',
 };
 const STATUS_CHART_LABELS = {
   new: 'New', contacted: 'Contacted', qualified: 'Qualified',
@@ -8673,7 +8734,7 @@ function fmtConvMessageTime(isoStr) {
   return d.toLocaleTimeString('en-US', { timeZone:workspaceTimeZone(), hour:'numeric', minute:'2-digit' });
 }
 
-const AVATAR_PALETTE = ['#f59e0b','#22c55e','#ec4899','#8b5cf6','#14b8a6','#3b82f6','#f97316','#64748b'];
+const AVATAR_PALETTE = ['#f59e0b','#1f8f5f','#ec4899','#8b5cf6','#14b8a6','#3b82f6','#f97316','#64748b'];
 function avatarColor(seed) {
   let hash = 0;
   for (const ch of String(seed)) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
@@ -8786,7 +8847,7 @@ async function renderConversations(scope = '') {
     updateConvSortLabels();
     filterConversations(scope);
   } catch(err) {
-    listEl.innerHTML = `<div style="padding:24px;text-align:center;color:#ef4444;font-size:0.85rem">Error: ${esc(err.message)}</div>`;
+    listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--bad);font-size:0.85rem">Error: ${esc(err.message)}</div>`;
   }
 }
 
@@ -9219,7 +9280,7 @@ async function openConversation(convId, scope = '') {
     }
     collapseConvListOnMobile(scope);
   } catch(err) {
-    chatPanel.innerHTML = `<div style="padding:24px;color:#ef4444">Error loading conversation: ${esc(err.message)}</div>`;
+    chatPanel.innerHTML = `<div style="padding:24px;color:var(--bad)">Error loading conversation: ${esc(err.message)}</div>`;
   }
 }
 
@@ -10002,7 +10063,7 @@ function renderTemplateChoices() {
     return `
     <div class="fwd-item" data-id="${esc(t.id)}" onclick="openTemplateCompose(this.dataset.id)">
       <div>
-        <div class="nm">${esc(t.name)}${isMatch ? ' <span style="font-size:0.7rem;font-weight:700;color:#16a34a">· matches lead\'s language</span>' : ''}</div>
+        <div class="nm">${esc(t.name)}${isMatch ? ' <span style="font-size:0.7rem;font-weight:700;color:var(--ok)">· matches lead\'s language</span>' : ''}</div>
         <div class="ph">${esc(truncate(t.body, 80))}</div>
       </div>
     </div>`;
@@ -10895,7 +10956,7 @@ function renderPayrollRows(rows) {
       <td>$${fmtMoney(r.revenue)}</td>
       <td>$${fmtMoney(r.commission)} <span style="color:#94a3b8;font-size:0.78rem">(${r.commPct}%)</span></td>
       <td>$${fmtMoney(r.basePay)} <span style="color:#94a3b8;font-size:0.78rem">(${esc(r.pLabel)})</span></td>
-      <td style="font-weight:700;color:#10b981">$${fmtMoney(r.totalPay)}</td>
+      <td style="font-weight:700;color:var(--ok)">$${fmtMoney(r.totalPay)}</td>
     </tr>`).join('') : '<tr><td colspan="6" class="empty-state">No active agents found.</td></tr>';
   const resEl = document.getElementById('payroll-results');
   if (resEl) resEl.style.display = 'block';
@@ -11894,7 +11955,7 @@ async function generateAISignal() {
     `⚠️ Trade at your own risk.\n` +
     `📲 Badar Trader Signals`;
 
-  const confColor = analysis.confidence >= 80 ? '#22c55e' : analysis.confidence >= 65 ? '#f59e0b' : '#ef4444';
+  const confColor = analysis.confidence >= 80 ? 'var(--ok)' : analysis.confidence >= 65 ? '#f59e0b' : 'var(--bad)';
 
   if (detEl) detEl.textContent = detail;
   const badge = document.getElementById('ai-confidence-badge');
@@ -11927,7 +11988,7 @@ function sendAISignalToBroadcast() {
 // fidelity - no new persistence invented here.
 const OUTCOME_CYCLE  = ['pending', 'tp_hit', 'sl_hit', 'cancelled'];
 const OUTCOME_LABELS = { pending: 'Pending', tp_hit: 'TP Hit', sl_hit: 'SL Hit', cancelled: 'Cancelled' };
-const OUTCOME_COLORS = { pending: '#b45309', tp_hit: '#22c55e', sl_hit: '#ef4444', cancelled: '#64748b' };
+const OUTCOME_COLORS = { pending: '#b45309', tp_hit: 'var(--ok)', sl_hit: 'var(--bad)', cancelled: '#64748b' };
 
 function outcomeTag(outcome) {
   const label = OUTCOME_LABELS[outcome] || OUTCOME_LABELS.pending;
@@ -11957,7 +12018,7 @@ function syncAccuracyTracker() {
   const tpHits   = resolved.filter(s => s.outcome === 'tp_hit').length;
   const pct      = resolved.length ? Math.round(tpHits/resolved.length*100) : null;
   const pctEl    = document.getElementById('ai-accuracy-pct');
-  if (pctEl) { pctEl.textContent = pct !== null ? pct+'%' : '-'; pctEl.style.color = pct >= 60 ? '#22c55e' : '#ef4444'; }
+  if (pctEl) { pctEl.textContent = pct !== null ? pct+'%' : '-'; pctEl.style.color = pct >= 60 ? 'var(--ok)' : 'var(--bad)'; }
   const sentEl = document.getElementById('ai-signals-sent');
   if (sentEl) sentEl.textContent = _signalHistory.length;
   const pendEl = document.getElementById('ai-pending-count');
@@ -11970,10 +12031,10 @@ function syncAccuracyTracker() {
     return `<tr>
       <td style="font-size:0.78rem;color:#94a3b8">${s.time.toLocaleDateString()}</td>
       <td style="font-weight:600">${s.instrument}</td>
-      <td><span style="color:${s.type==='buy'?'#22c55e':'#ef4444'};font-weight:700">${s.type.toUpperCase()}</span></td>
+      <td><span style="color:${s.type==='buy'?'var(--ok)':'var(--bad)'};font-weight:700">${s.type.toUpperCase()}</span></td>
       <td>${s.entry||'-'}</td>
-      <td style="color:#22c55e">${s.tp||'-'}</td>
-      <td style="color:#ef4444">${s.sl||'-'}</td>
+      <td style="color:var(--ok)">${s.tp||'-'}</td>
+      <td style="color:var(--bad)">${s.sl||'-'}</td>
       <td>${rr}</td>
       <td>${outcomeTag(s.outcome)} <button onclick="cycleOutcome('${s.id}','ai')" style="background:none;border:none;cursor:pointer;font-size:0.7rem;color:#64748b">edit</button></td>
       <td style="font-size:0.78rem;color:#94a3b8">${s.outcome==='tp_hit'?'+'+tpPips:s.outcome==='sl_hit'?'-'+slPips:'-'}</td>
