@@ -4,6 +4,20 @@ _Last updated: 2026-08-23. The entry directly below is this session's, written
 with its verification actually run. For a fresh Claude Code session with zero
 memory of prior conversations._
 
+## 2026-08-23 (later) - whatsapp-webhook v87 DEPLOYED: the reply gates are now real toggles
+
+**Deployed by Muhammad on his own laptop, him present, standing rule respected.** This picks up the runtime settings-based gate resolution built earlier the same day (commit `0a889aa`, "Make the three reply gates real toggles instead of a lie") - the code existed and had `deno check` never run, and the webhook had not been redeployed since v86.
+
+**What changed against v86:** `AI_REPLIES_ENABLED`, `BOT_REPLIES_ENABLED`, and `KEYWORD_REPLIES_ENABLED` are now resolved from `settings` on every invocation (`loadGates()`), with the compiled constants as fallback if a row is missing or the read fails - so the Bot Manager gate table can genuinely turn a reply path off, or back on, without a redeploy. Read the actual resolution logic before trusting the commit's own description of it: cache is cleared per request (`_gateCache = null` at the top of `Deno.serve`) and reloaded once per message via `await loadGates(sb)` before any send helper can read it (`gateOpenSync`), so a toggle flipped in Bot Manager takes effect on the very next inbound message, not after an isolate recycles.
+
+**Verified before deploying, not assumed:** `deno check supabase/functions/whatsapp-webhook/index.ts` - clean, zero errors. All 14 dependency-free suites pass. Read the gate-cache priming logic line by line to confirm `gateOpenSync()` can never read a stale or empty cache in practice - `loadGates()` is awaited inside the per-message loop before any code path that can send.
+
+**Verified after deploying:** `supabase functions list` confirms version 87, status ACTIVE. Downloaded the deployed source (`--use-api`, avoids the Docker dependency this environment doesn't have) and diffed both `index.ts` and all four `_shared/*.mjs` modules against committed `main` - byte-identical. GET handshake with a deliberately wrong verify token returned 403 Forbidden, confirming the function is live and reachable without needing the real secret.
+
+**Not yet checked: whether the `settings` rows for the three gate keys actually exist.** The commit that built this claims they were seeded to match the deployed constants exactly, but no migration file backs that claim and this session had no DB credentials to verify it directly. This is safe either way - a missing row falls back to the compiled default (`AI_REPLIES_ENABLED = true`, `BOT_REPLIES_ENABLED = true`, `KEYWORD_REPLIES_ENABLED = false`, i.e. unchanged behaviour) - but worth a real look at Bot Manager's gate table next time someone is signed in live, to confirm the toggles actually read/write and aren't silently falling back to defaults every time.
+
+---
+
 ## 2026-08-23 - whatsapp-webhook v86 DEPLOYED and verified live
 
 **Deployed by Muhammad on his own laptop, him present, standing rule respected. Confirmed independently: `whatsapp-webhook` version 86, status ACTIVE, checked against the platform rather than trusting CLI output.** The upload list shows all four `_shared` modules went up with it, including `agent_notify_policy.mjs`, so the flood protection is genuinely live and not merely committed.
