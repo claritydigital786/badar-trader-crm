@@ -4,6 +4,22 @@ _Last updated: 2026-08-23. The entry directly below is this session's, written
 with its verification actually run. For a fresh Claude Code session with zero
 memory of prior conversations._
 
+## 2026-08-23 (still later) - the double-reply bug: built and tested, NOT deployed
+
+**BUILT, NOT ENABLED IN PRODUCTION.** This is the item the last entry left open - "THE REAL ONE" from Muhammad's wife's testing, where a genuine question at a button stage got an apology and the same button prompt re-sent in one breath.
+
+**What the trace actually showed, once followed through the code rather than assumed from the screenshots:** `tryAIReply()` already gets first refusal on every inbound message, before the scripted flow runs at all (see the dispatch just above `runBotStep`'s call site). Reaching `handleUnmatched()` therefore already means the AI had nothing to say that turn - it is not a second responder firing alongside the flow, it is the flow's own fallback running because the AI's chance already came and went. The real double-send was inside `handleUnmatched()` itself: on any unmatched free-text input it sent the "sorry, didn't understand" apology, then unconditionally called `rePrompt()` immediately after, in the same turn - the exact two-message pattern the screenshots showed, with or without the AI involved at all.
+
+**What was built, per the recommendation already logged (option 1 of three in `REMAINING_TODOS.md`):** `handleUnmatched()` now stays quiet on the button prompt for exactly one turn when the input is genuine free text - not a stray tap on a button that just didn't match anything - and it's the first unmatched attempt at that stage. Only the apology goes out. If the customer's very next message is also unmatched, the prompt re-appears exactly as it always has. Escalation moves out by one turn to make room for this (every one of the eight `handleUnmatched()` call sites changed `limit` from 2 to 3) - a stuck lead still reaches a human, just after two failed exchanges instead of one.
+
+Extracted into a pure, dependency-free helper following the exact pattern `handoff_permanence.mjs` and `agent_notify_policy.mjs` already established: `supabase/functions/_shared/unmatched_reprompt_policy.mjs` (`shouldSuppressRePrompt`). New `supabase/functions/tests/unmatched-reprompt-policy-test.mjs` covers the reported scenario verbatim, confirms the re-prompt comes back on the next unmatched turn, confirms a stray button mis-tap still gets an immediate re-prompt (a mis-tap isn't someone asking a question), confirms empty/whitespace input never suppresses, and confirms it never suppresses past the first attempt no matter how high retries climbs.
+
+**Verified:** `deno check supabase/functions/whatsapp-webhook/index.ts` - clean. All 15 dependency-free suites pass, including the new one.
+
+**Deliberately not deployed.** Live webhook deploys are Muhammad's laptop, him present - standing rule - but this one gets called out specifically rather than folded into the next routine deploy, because it changes something a real customer will notice: how many unanswered exchanges happen before a person takes over. Worth a real look at the actual escalation rhythm after this ships, the same way the 30-minute notification cooldown was logged as "a starting guess, not a decision."
+
+---
+
 ## 2026-08-23 (later) - whatsapp-webhook v87 DEPLOYED: the reply gates are now real toggles
 
 **Deployed by Muhammad on his own laptop, him present, standing rule respected.** This picks up the runtime settings-based gate resolution built earlier the same day (commit `0a889aa`, "Make the three reply gates real toggles instead of a lie") - the code existed and had `deno check` never run, and the webhook had not been redeployed since v86.

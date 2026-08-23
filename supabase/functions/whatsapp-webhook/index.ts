@@ -18,6 +18,7 @@ import {
 import { isAllowedPhoneNumberId } from "../_shared/whatsapp_phone_scope.mjs";
 import { isPermanentHandoff } from "../_shared/handoff_permanence.mjs";
 import { shouldNotifyAgent, DEFAULT_COOLDOWN_MINUTES } from "../_shared/agent_notify_policy.mjs";
+import { shouldSuppressRePrompt } from "../_shared/unmatched_reprompt_policy.mjs";
 
 const WHATSAPP_VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
 const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN") ?? "";
@@ -1212,7 +1213,7 @@ async function runBotStep(
     case "awaiting_language": {
       const chosen = matchLanguage(input);
       if (!chosen) {
-        await handleUnmatched(sb, lead, to, input, 2, "language choice", () => sendLanguageCard(to));
+        await handleUnmatched(sb, lead, to, input, 3, "language choice", () => sendLanguageCard(to));
         return;
       }
       await advanceStage(sb, lead, "awaiting_menu", { language: chosen });
@@ -1224,7 +1225,7 @@ async function runBotStep(
     case "awaiting_menu": {
       const choice = matchMenuChoice(input);
       if (!choice) {
-        await handleUnmatched(sb, lead, to, input, 2, "main menu choice", () => sendMainMenuCard(to, lang));
+        await handleUnmatched(sb, lead, to, input, 3, "main menu choice", () => sendMainMenuCard(to, lang));
         return;
       }
 
@@ -1262,7 +1263,7 @@ async function runBotStep(
     case "awaiting_trader_status": {
       const status = matchTraderStatus(input);
       if (!status) {
-        await handleUnmatched(sb, lead, to, input, 2, "new-or-existing answer", () =>
+        await handleUnmatched(sb, lead, to, input, 3, "new-or-existing answer", () =>
           sendTraderStatusButtons(to, t(lang, "Sorry, I didn't catch that. Have you already opened a trading account with Exness or XM, or would this be your first time?", "Maazrat, samajh nahi aaya. Kya aap ka Exness ya XM par pehle se account hai, ya ye pehli baar hai?"), lang),
         );
         return;
@@ -1288,7 +1289,7 @@ async function runBotStep(
     case "awaiting_broker_existing": {
       const broker = matchBroker(input);
       if (!broker) {
-        await handleUnmatched(sb, lead, to, input, 2, "broker choice", () =>
+        await handleUnmatched(sb, lead, to, input, 3, "broker choice", () =>
           sendBrokerCard(to, t(lang, "Sorry, I didn't catch that. Which one, Exness or XM, or both?", "Maazrat, samajh nahi aaya. Kaun sa, Exness ya XM, ya dono?"), lang),
         );
         return;
@@ -1304,7 +1305,7 @@ async function runBotStep(
     case "awaiting_broker": {
       const broker = matchBroker(input);
       if (!broker) {
-        await handleUnmatched(sb, lead, to, input, 2, "broker choice", () =>
+        await handleUnmatched(sb, lead, to, input, 3, "broker choice", () =>
           sendBrokerCard(to, t(lang, "Sorry, I didn't catch that. Which broker would you like to use?", "Maazrat, samajh nahi aaya. Aap kaun sa broker istemal karna chahenge?"), lang),
         );
         return;
@@ -1318,7 +1319,7 @@ async function runBotStep(
     case "awaiting_experience": {
       const experience = matchExperience(input);
       if (!experience) {
-        await handleUnmatched(sb, lead, to, input, 2, "experience level", () =>
+        await handleUnmatched(sb, lead, to, input, 3, "experience level", () =>
           sendExperienceButtons(to, t(lang, "Just to confirm, are you new to trading, or already experienced?", "Sirf tasdeeq ke liye, kya aap trading mein naye hain, ya pehle se tajurba hai?"), lang),
         );
         return;
@@ -1340,7 +1341,7 @@ async function runBotStep(
     case "awaiting_traded_before": {
       const yesNo = matchYesNo(input);
       if (!yesNo) {
-        await handleUnmatched(sb, lead, to, input, 2, "traded-before answer", () =>
+        await handleUnmatched(sb, lead, to, input, 3, "traded-before answer", () =>
           sendTradedBeforeButtons(to, t(lang, "Sorry, have you traded before with any broker?", "Maazrat, kya aap ne pehle kisi broker ke saath trading ki hai?"), lang),
         );
         return;
@@ -1363,7 +1364,7 @@ async function runBotStep(
         }
         // Give one clarifying re-prompt before handing off, so a single question
         // at the deposit step doesn't instantly escalate a hot lead.
-        await handleUnmatched(sb, lead, to, input, 2, "deposit confirmation", () =>
+        await handleUnmatched(sb, lead, to, input, 3, "deposit confirmation", () =>
           sendDepositConfirm(to, lead.broker_choice, "Sorry, just a Yes or No, are you ready to proceed with the $500 deposit?"),
         );
         return;
@@ -1507,7 +1508,7 @@ async function handleUnmatched(
     // what's being asked, always use one of the two approved "we've received
     // your question, a team member will contact you" templates - the same
     // wording whether this is the 1st unclear message (confusedReply below)
-    // or the 2nd that triggers the actual handoff, not a different-sounding
+    // or the one that triggers the actual handoff, not a different-sounding
     // escalation message.
     await escalate(
       sb, lead, to,
@@ -1518,6 +1519,25 @@ async function handleUnmatched(
   }
   await sb.from("leads").update({ retry_count: retries }).eq("id", lead.id);
   const apologyResult = await sendText(to, confusedReply(lead.language === "ur" ? "ur" : "en"));
+
+  // Muhammad's wife's real test, 2026-08-23: she typed a genuine question at a
+  // button stage ("Ya offer kya hai") and got the apology above immediately
+  // followed by the exact same button prompt again in one breath - answered
+  // with a question instead of an answer. tryAIReply() already gets first
+  // refusal on every inbound message (see the dispatch above); reaching this
+  // function at all means it already had nothing to say this turn, so it
+  // cannot be asked again here. What IS in this function's control is not
+  // piling a second message on top of the apology on her very first unmatched
+  // turn - free text (not a stray tap on a button that just didn't match
+  // anything) reads as someone trying to say something, not someone who
+  // forgot the menu exists. Recommended and approved 2026-08-23 (option 1 of
+  // three, see REMAINING_TODOS.md): stay quiet on the prompt for one turn,
+  // and only re-show it if they are still stuck on the very next message.
+  if (shouldSuppressRePrompt(input, retries)) {
+    await logOutbound(sb, lead.id, combineSendLog(apologyResult));
+    return;
+  }
+
   const rePromptResult = await rePrompt();
   await logOutbound(sb, lead.id, combineSendLog(apologyResult, rePromptResult));
 }
