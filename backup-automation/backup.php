@@ -35,13 +35,34 @@ require_once $scopeHelpers;
 require_once $storageHelpers;
 require_once $configHelpers;
 require_once $restoreHelpers;
+// The real log file path depends on config that has not loaded yet, so every
+// failure below used to go to STDERR alone - which cron discards. The result
+// was a backup that could fail on every single run and leave no trace at all,
+// anywhere: no archive, no log line, nothing to notice. Found 2026-08-23 when
+// Supabase's own request logs showed the script had not fetched a single table
+// in 24 hours while the log file stayed empty. This bootstrap log is written
+// beside the script before anything can fail, so a broken config is visible.
+$bootstrapLog = $scriptDir . '/backup.log';
+$bootstrapFail = static function (string $message) use ($bootstrapLog): void {
+    $line = '[' . gmdate('Y-m-d H:i:s') . 'Z] FATAL (startup): ' . $message . PHP_EOL;
+    fwrite(STDERR, $line);
+    // Best effort: if even this cannot be written, STDERR above is all there is.
+    @file_put_contents($bootstrapLog, $line, FILE_APPEND | LOCK_EX);
+};
+
 try {
     $configFile = crmBackupResolveConfigFile($scriptDir);
-    if ($configFile !== null) {
-        require $configFile;
+    if ($configFile === null) {
+        $bootstrapFail(
+            'no credential file found. Expected config.php beside this script at '
+            . $scriptDir . '/config.php, or BACKUP_CONFIG_FILE set to an absolute path.'
+        );
+        exit(1);
     }
+    require $configFile;
 } catch (Throwable $error) {
-    fwrite(STDERR, 'FATAL: ' . $error->getMessage() . PHP_EOL);
+    $bootstrapFail($error->getMessage()
+        . ' (checked ' . ($scriptDir . '/config.php') . ' and BACKUP_CONFIG_FILE)');
     exit(1);
 }
 
