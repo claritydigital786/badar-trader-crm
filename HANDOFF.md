@@ -1,8 +1,28 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-08-22. The entry directly below is this session's, written
+_Last updated: 2026-08-23. The entry directly below is this session's, written
 with its verification actually run. For a fresh Claude Code session with zero
 memory of prior conversations._
+
+## 2026-08-23 - whatsapp-webhook v86 DEPLOYED and verified live
+
+**Deployed by Muhammad on his own laptop, him present, standing rule respected. Confirmed independently: `whatsapp-webhook` version 86, status ACTIVE, checked against the platform rather than trusting CLI output.** The upload list shows all four `_shared` modules went up with it, including `agent_notify_policy.mjs`, so the flood protection is genuinely live and not merely committed.
+
+**What v86 changes, against v85 which had stood since 2026-08-21:**
+- A Roman Urdu customer now stays in Roman Urdu for the entire funnel. Every prompt and every button label after the main menu had been hardcoded English.
+- The bot's own rotation skips observers, so `receives_leads` finally means the same thing to the webhook as it does to the CRM. Syed Hamza is out of both.
+- Escalation notifications cannot flood: one per lead, and at most one per agent per 30 minutes.
+- New-lead notifications remain OFF. Turning them on is still the four-step test with Muhammad's and Junaid's numbers.
+
+**Two things this deploy is worth remembering for:**
+
+**1. `deno check` on Muhammad's laptop caught four real type errors that no amount of care in the cloud session would have.** `esm.sh` is blocked by organisation policy at this environment's proxy (403), so a full type check genuinely cannot run here - Deno itself installs fine via npm, and lint and the `_shared` modules do check, but the webhook's Supabase import cannot be resolved. Two of the four errors would have broken the very feature being shipped: `agent_notify_policy.mjs` is plain `.mjs` for testability, and TypeScript inferred its parameter shape from the default values alone, turning `testNumbers = []` into `never[]` and inferring `agentPhone` away entirely. The test allowlist would not have compiled. Fixed with JSDoc annotations rather than a `.d.ts` that would need keeping in sync. **The workflow that worked: build in the cloud session, type check on the laptop, paste errors back, fix, re-check, deploy.** Use it again.
+
+**2. A migration file in the repo is not an applied migration, and `deno check` cannot tell you the difference.** `20260822010000_profiles_last_notified_at.sql` had been written and committed but never applied. `getAgentRotation()` selects that column, so deploying without it would have failed that query - and its error handling falls back to `AGENT_ROTATION_FALLBACK`, a hardcoded two-agent list from July. Round-robin would have silently stopped using Farwa, Bilal and Faisal with nothing visibly broken. Caught by checking `information_schema.columns` against the live database immediately before the deploy, and applied first. **Check the schema, not just the code, before any deploy that reads a new column.**
+
+**Still open after this deploy:** the third bug from Muhammad's wife's testing - the AI responder and the scripted button flow both answering the same message, in different languages, so a customer who asks a question gets asked a question back. That is a design decision with three options and a recommendation logged in `REMAINING_TODOS.md`, deliberately not guessed at.
+
+---
 
 ## 2026-08-22 (evening) - Agent notifications rebuilt so they can be turned back on
 
