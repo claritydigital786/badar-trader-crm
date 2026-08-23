@@ -171,6 +171,16 @@ const CONFUSED_REPLIES_UR: string[] = [
   "Apka sawaal mausool ho chuka ha. Jald hamara numainda apse raabta kre ga.\n\nShukriya!",
 ];
 
+// Every prompt in the flow needs both languages. Until 2026-08-23 the four
+// button/card senders below took a plain English string and all fifteen call
+// sites passed English, so a customer who picked Roman Urdu got the greeting
+// and menu in Urdu and then the entire rest of the funnel in English. Muhammad's
+// wife found this in five minutes of real testing. Taking both languages as
+// separate arguments means a new prompt cannot be added without writing both.
+function t(lang: Lang, en: string, ur: string): string {
+  return lang === "ur" ? ur : en;
+}
+
 function confusedReply(lang: Lang): string {
   const pool = lang === "ur" ? CONFUSED_REPLIES_UR : CONFUSED_REPLIES_EN;
   return pool[Math.floor(Math.random() * pool.length)];
@@ -1141,7 +1151,7 @@ async function runBotStep(
         // already has a live Exness/XM account skips straight to the deposit
         // step instead of being walked through opening an account they have.
         await advanceStage(sb, lead, "awaiting_trader_status");
-        const r = await sendTraderStatusButtons(to, "Have you already opened a trading account with Exness or XM, or would this be your first time?");
+        const r = await sendTraderStatusButtons(to, t(lang, "Have you already opened a trading account with Exness or XM, or would this be your first time?", "Kya aap ka Exness ya XM par pehle se trading account hai, ya ye aap ki pehli baar hai?"), lang);
         await logOutbound(sb, lead.id, combineSendLog(r));
         return;
       }
@@ -1171,7 +1181,7 @@ async function runBotStep(
       const status = matchTraderStatus(input);
       if (!status) {
         await handleUnmatched(sb, lead, to, input, 2, "new-or-existing answer", () =>
-          sendTraderStatusButtons(to, "Sorry, I didn't catch that. Have you already opened a trading account with Exness or XM, or would this be your first time?"),
+          sendTraderStatusButtons(to, t(lang, "Sorry, I didn't catch that. Have you already opened a trading account with Exness or XM, or would this be your first time?", "Maazrat, samajh nahi aaya. Kya aap ka Exness ya XM par pehle se account hai, ya ye pehli baar hai?"), lang),
         );
         return;
       }
@@ -1180,7 +1190,7 @@ async function runBotStep(
         // BOX 3B: existing account holder - pick a broker, then skip the
         // experience/traded-before questions and go straight to deposit.
         await advanceStage(sb, lead, "awaiting_broker_existing");
-        const r = await sendBrokerCard(to, "Which one, Exness or XM, or both?");
+        const r = await sendBrokerCard(to, t(lang, "Which one, Exness or XM, or both?", "Kaun sa, Exness ya XM, ya dono?"), lang);
         await logOutbound(sb, lead.id, combineSendLog(r));
         return;
       }
@@ -1188,7 +1198,7 @@ async function runBotStep(
       // BOX 3A: first-time trader - unchanged flow from here on
       // (broker -> experience -> traded-before -> deposit).
       await advanceStage(sb, lead, "awaiting_broker");
-      const r = await sendBrokerCard(to, "Which broker would you like to use?");
+      const r = await sendBrokerCard(to, t(lang, "Which broker would you like to use?", "Aap kaun sa broker istemal karna chahenge?"), lang);
       await logOutbound(sb, lead.id, combineSendLog(r));
       return;
     }
@@ -1197,7 +1207,7 @@ async function runBotStep(
       const broker = matchBroker(input);
       if (!broker) {
         await handleUnmatched(sb, lead, to, input, 2, "broker choice", () =>
-          sendBrokerCard(to, "Sorry, I didn't catch that. Which one, Exness or XM, or both?"),
+          sendBrokerCard(to, t(lang, "Sorry, I didn't catch that. Which one, Exness or XM, or both?", "Maazrat, samajh nahi aaya. Kaun sa, Exness ya XM, ya dono?"), lang),
         );
         return;
       }
@@ -1213,12 +1223,12 @@ async function runBotStep(
       const broker = matchBroker(input);
       if (!broker) {
         await handleUnmatched(sb, lead, to, input, 2, "broker choice", () =>
-          sendBrokerCard(to, "Sorry, I didn't catch that. Which broker would you like to use?"),
+          sendBrokerCard(to, t(lang, "Sorry, I didn't catch that. Which broker would you like to use?", "Maazrat, samajh nahi aaya. Aap kaun sa broker istemal karna chahenge?"), lang),
         );
         return;
       }
       await advanceStage(sb, lead, "awaiting_experience", { broker_choice: broker });
-      const rExp = await sendExperienceButtons(to, "Great choice! Are you new to trading, or already experienced?");
+      const rExp = await sendExperienceButtons(to, t(lang, "Great choice! Are you new to trading, or already experienced?", "Bohat khoob! Kya aap trading mein naye hain, ya pehle se tajurba hai?"), lang);
       await logOutbound(sb, lead.id, combineSendLog(rExp));
       return;
     }
@@ -1227,14 +1237,14 @@ async function runBotStep(
       const experience = matchExperience(input);
       if (!experience) {
         await handleUnmatched(sb, lead, to, input, 2, "experience level", () =>
-          sendExperienceButtons(to, "Just to confirm, are you new to trading, or already experienced?"),
+          sendExperienceButtons(to, t(lang, "Just to confirm, are you new to trading, or already experienced?", "Sirf tasdeeq ke liye, kya aap trading mein naye hain, ya pehle se tajurba hai?"), lang),
         );
         return;
       }
 
       if (experience === "new") {
         await advanceStage(sb, lead, "awaiting_traded_before");
-        const r = await sendTradedBeforeButtons(to, "No problem! Have you traded before (with any broker)?");
+        const r = await sendTradedBeforeButtons(to, t(lang, "No problem! Have you traded before (with any broker)?", "Koi masla nahi! Kya aap ne pehle kabhi trading ki hai (kisi bhi broker ke saath)?"), lang);
         await logOutbound(sb, lead.id, combineSendLog(r));
         return;
       }
@@ -1249,7 +1259,7 @@ async function runBotStep(
       const yesNo = matchYesNo(input);
       if (!yesNo) {
         await handleUnmatched(sb, lead, to, input, 2, "traded-before answer", () =>
-          sendTradedBeforeButtons(to, "Sorry, have you traded before with any broker?"),
+          sendTradedBeforeButtons(to, t(lang, "Sorry, have you traded before with any broker?", "Maazrat, kya aap ne pehle kisi broker ke saath trading ki hai?"), lang),
         );
         return;
       }
@@ -1488,19 +1498,19 @@ async function goBack(sb: SupabaseClient, lead: any, to: string, lang: Lang): Pr
       result = await sendMainMenuCard(to, lang);
       break;
     case "awaiting_trader_status":
-      result = await sendTraderStatusButtons(to, "Sure, have you already opened a trading account with Exness or XM, or would this be your first time?");
+      result = await sendTraderStatusButtons(to, t(lang, "Sure, have you already opened a trading account with Exness or XM, or would this be your first time?", "Zaroor, kya aap ka Exness ya XM par pehle se account hai, ya ye pehli baar hai?"), lang);
       break;
     case "awaiting_broker":
-      result = await sendBrokerCard(to, "Sure, which broker would you like to use?");
+      result = await sendBrokerCard(to, t(lang, "Sure, which broker would you like to use?", "Zaroor, aap kaun sa broker istemal karna chahenge?"), lang);
       break;
     case "awaiting_broker_existing":
-      result = await sendBrokerCard(to, "Sure, which one, Exness or XM, or both?");
+      result = await sendBrokerCard(to, t(lang, "Sure, which one, Exness or XM, or both?", "Zaroor, kaun sa, Exness ya XM, ya dono?"), lang);
       break;
     case "awaiting_experience":
-      result = await sendExperienceButtons(to, "No problem, are you new to trading, or already experienced?");
+      result = await sendExperienceButtons(to, t(lang, "No problem, are you new to trading, or already experienced?", "Koi masla nahi, kya aap trading mein naye hain, ya pehle se tajurba hai?"), lang);
       break;
     case "awaiting_traded_before":
-      result = await sendTradedBeforeButtons(to, "Sure, have you traded before (with any broker)?");
+      result = await sendTradedBeforeButtons(to, t(lang, "Sure, have you traded before (with any broker)?", "Zaroor, kya aap ne pehle kabhi trading ki hai (kisi bhi broker ke saath)?"), lang);
       break;
     default:
       result = await sendMainMenuCard(to, lang);
@@ -1644,7 +1654,7 @@ async function sendMainMenuCard(to: string, lang: Lang): Promise<SendResult> {
       "Menu",
       [
         { id: "menu_start_trading", title: "Trading Shuru Karein", description: "$500 offer + free mentorship course" },
-        { id: "menu_free_signals", title: "Premium Signalling Group", description: "By Badar Tanvir, bilkul free, deposit zaroori nahi" },
+        { id: "menu_free_signals", title: "Premium Signalling Group", description: "Join karein - By Badar Tanvir, bilkul free, deposit zaroori nahi" },
         { id: "menu_talk_agent", title: "Agent se Baat Karein", description: "Hamari team se rabta karein" },
         { id: "menu_faqs", title: "FAQs", description: "Aam sawalat ke jawabat" },
         { id: "nav_back", title: "Peeche Jayein", description: "Language selection par wapas jayein" },
@@ -1671,44 +1681,44 @@ async function sendMainMenuCard(to: string, lang: Lang): Promise<SendResult> {
 // interactive button messages at 3, leaving no room for a 4th "Back" button,
 // so this step uses a list message instead (same pattern as the menu/language
 // cards) purely to fit the back option in.
-async function sendBrokerCard(to: string, bodyText: string): Promise<SendResult> {
+async function sendBrokerCard(to: string, bodyText: string, lang: Lang = "en"): Promise<SendResult> {
   return await sendList(
     to,
-    "Choose Broker",
+    t(lang, "Choose Broker", "Broker Chunein"),
     bodyText,
-    "Choose",
+    t(lang, "Choose", "Chunein"),
     [
       { id: "broker_exness", title: "Exness" },
       { id: "broker_xm", title: "XM" },
-      { id: "broker_both", title: "Both" },
-      { id: "nav_back", title: "Go Back" },
+      { id: "broker_both", title: t(lang, "Both", "Dono") },
+      { id: "nav_back", title: t(lang, "Go Back", "Peeche Jayein") },
     ],
   );
 }
 
 // BOX 3 question. Button titles stay <=20 chars per WhatsApp's reply-button
 // limit, so the full question lives in bodyText, not the button labels.
-async function sendTraderStatusButtons(to: string, bodyText: string): Promise<SendResult> {
+async function sendTraderStatusButtons(to: string, bodyText: string, lang: Lang = "en"): Promise<SendResult> {
   return await sendButtons(to, bodyText, [
-    { id: "trader_existing", title: "I have an account" },
-    { id: "trader_first_time", title: "First time" },
-    { id: "nav_back", title: "Go Back" },
+    { id: "trader_existing", title: t(lang, "I have an account", "Account hai") },
+    { id: "trader_first_time", title: t(lang, "First time", "Pehli baar") },
+    { id: "nav_back", title: t(lang, "Go Back", "Peeche Jayein") },
   ]);
 }
 
-async function sendExperienceButtons(to: string, bodyText: string): Promise<SendResult> {
+async function sendExperienceButtons(to: string, bodyText: string, lang: Lang = "en"): Promise<SendResult> {
   return await sendButtons(to, bodyText, [
-    { id: "exp_new", title: "New to trading" },
-    { id: "exp_experienced", title: "Experienced" },
-    { id: "nav_back", title: "Go Back" },
+    { id: "exp_new", title: t(lang, "New to trading", "Naya hun") },
+    { id: "exp_experienced", title: t(lang, "Experienced", "Tajurba hai") },
+    { id: "nav_back", title: t(lang, "Go Back", "Peeche Jayein") },
   ]);
 }
 
-async function sendTradedBeforeButtons(to: string, bodyText: string): Promise<SendResult> {
+async function sendTradedBeforeButtons(to: string, bodyText: string, lang: Lang = "en"): Promise<SendResult> {
   return await sendButtons(to, bodyText, [
-    { id: "traded_yes", title: "Yes" },
-    { id: "traded_no", title: "No" },
-    { id: "nav_back", title: "Go Back" },
+    { id: "traded_yes", title: t(lang, "Yes", "Haan") },
+    { id: "traded_no", title: t(lang, "No", "Nahi") },
+    { id: "nav_back", title: t(lang, "Go Back", "Peeche Jayein") },
   ]);
 }
 
