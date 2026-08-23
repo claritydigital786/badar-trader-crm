@@ -36,6 +36,23 @@ export function normalizeNotifyPhone(phone) {
   return String(phone ?? "").replace(/\D/g, "");
 }
 
+/**
+ * This module is plain .mjs so it can be unit-tested with no build step, but it
+ * is imported by TypeScript. Without these annotations TypeScript infers the
+ * parameter shape from the default values alone, which gets it wrong in two
+ * ways: `testNumbers = []` infers as `never[]` (so passing real strings fails)
+ * and `agentPhone` has no default, so it is inferred away entirely. Both showed
+ * up as type errors on 2026-08-23. Keep this JSDoc in step with the signature.
+ *
+ * @param {Object} [options]
+ * @param {string | null | undefined} [options.agentPhone] The agent's number, any format.
+ * @param {boolean} [options.leadAlreadyNotified] True if this agent was already told about this lead.
+ * @param {string | null} [options.agentLastNotifiedAt] ISO timestamp of this agent's last notification.
+ * @param {number} [options.now] Epoch ms, injectable for tests.
+ * @param {number} [options.cooldownMinutes] Minimum gap between notifications to one agent.
+ * @param {string[]} [options.testNumbers] When non-empty, ONLY these numbers may be notified.
+ * @returns {{ notify: boolean, reason: string }}
+ */
 export function shouldNotifyAgent({
   agentPhone,
   leadAlreadyNotified = false,

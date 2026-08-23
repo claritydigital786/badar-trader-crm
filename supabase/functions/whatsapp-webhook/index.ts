@@ -424,7 +424,10 @@ function extractUserInput(message: any): UserInput | null {
   return null;
 }
 
-type RotationAgent = { id: string; name: string; phone: string };
+// last_notified_at drives the per-agent notification cooldown. Optional because
+// AGENT_ROTATION_FALLBACK below is a hardcoded degraded list with no database
+// row behind it, and a fallback agent has simply never been notified.
+type RotationAgent = { id: string; name: string; phone: string; last_notified_at?: string | null };
 
 // Agent numbers live in profiles.phone now, not here. This list is only what
 // the function used to hardcode, kept purely as a fallback: if the database
