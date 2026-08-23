@@ -4921,30 +4921,116 @@ function importLeadsCSV() {
   reader.readAsText(file);
 }
 
+// Batch size for the bulk import. Big enough that 4,490 rows take tens of
+// requests instead of thousands; small enough that one rejected row only costs
+// its own batch, and that progress moves visibly on screen.
+const CSV_IMPORT_BATCH_SIZE = 100;
+
+// WhatChimp and similar exports carry their own idea of what a "source" is, but
+// leads.source is constrained. Anything unrecognised lands as 'other' rather
+// than failing the row - losing a label is recoverable, losing the lead is not.
+const CSV_SOURCE_ALIASES = {
+  whatchimp: 'whatchimp', whatsapp: 'whatsapp', wa: 'whatsapp',
+  meta: 'meta', facebook: 'meta', fb: 'meta', instagram: 'meta', ig: 'meta',
+  website: 'website', web: 'website', site: 'website', form: 'website',
+  referral: 'referral', refer: 'referral', friend: 'referral',
+  manual: 'manual', import: 'manual',
+};
+function normalizeLeadSource(raw) {
+  const key = String(raw || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+  return CSV_SOURCE_ALIASES[key] || 'other';
+}
+
+// Rewritten 2026-08-23 for the WhatChimp migration. The previous version did one
+// INSERT and one round-robin lookup per row: about 9,000 sequential round-trips
+// for 4,490 leads, twenty-odd minutes with the tab pinned open, no progress on
+// screen, no way to resume, and no duplicate protection - so a failure halfway
+// through left you unable to safely re-run.
 async function confirmImportCSV() {
   const msgEl = document.getElementById('csv-confirm-msg');
   const btn   = document.getElementById('csv-confirm-btn');
   if (!_csvImportRows.length) return;
   if (demoMode) { msgEl.textContent = 'Import works in live mode only.'; return; }
+
+  const total = _csvImportRows.length;
   btn.disabled = true; btn.textContent = 'Importing...';
-  var inserted = 0; var errors = 0; var assigned = 0;
-  for (var i = 0; i < _csvImportRows.length; i++) {
-    // Single Add Lead has always round-robin'd unassigned rows (see addLead
-    // above); bulk CSV import silently skipped that same call, so every
-    // imported lead landed unassigned regardless of how many agents existed.
-    // Same round-robin call here closes that gap - a 2,000-lead import now
-    // distributes across active agents exactly like adding them one at a time.
-    var row = _csvImportRows[i];
-    if (!row.assigned_agent_id) {
-      var rrAgent = await getNextRoundRobinAgent();
-      if (rrAgent) { row.assigned_agent_id = rrAgent.id; assigned++; }
-    }
-    var { error } = await sb.from('leads').insert(row);
-    if (error) errors++; else inserted++;
+  const say = (t) => { if (msgEl) msgEl.textContent = t; };
+  say('Checking for duplicates...');
+
+  // Skip anyone already in the CRM. Phone is the real identity here - names
+  // repeat and the same person can appear in both an export and the live funnel.
+  // Without this a re-run after any failure silently doubles every lead.
+  let existingPhones = new Set();
+  try {
+    const { data, error } = await sb.from('leads').select('phone').not('phone', 'is', null);
+    if (error) throw error;
+    existingPhones = new Set((data || []).map(r => normalizePhone(r.phone || '')).filter(Boolean));
+  } catch (err) {
+    // Fail closed: importing without the duplicate check is how you end up with
+    // two of everything and no clean way back.
+    btn.disabled = false; btn.textContent = 'Confirm Import';
+    say('Could not check existing leads, so nothing was imported: ' + (err.message || err));
+    return;
   }
+
+  const seenInFile = new Set();
+  const toInsert = [];
+  let skippedDuplicate = 0, skippedInFile = 0;
+  for (const row of _csvImportRows) {
+    const phone = normalizePhone(row.phone || '');
+    if (phone && existingPhones.has(phone)) { skippedDuplicate++; continue; }
+    if (phone && seenInFile.has(phone))     { skippedInFile++;    continue; }
+    if (phone) seenInFile.add(phone);
+    toInsert.push({ ...row, phone, source: normalizeLeadSource(row.source) });
+  }
+
+  if (!toInsert.length) {
+    btn.disabled = false; btn.textContent = 'Confirm Import';
+    say(`Nothing to import - all ${total} rows are already in the CRM.`);
+    return;
+  }
+
+  // Round-robin in memory. Reading the roster once and dealing rows out turns
+  // one query per lead into one query for the whole import, and distributes
+  // evenly by construction rather than by repeated database round-trips.
+  let assigned = 0;
+  const agents = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended && p.receives_leads !== false);
+  if (agents.length) {
+    toInsert.forEach((row, idx) => {
+      if (!row.assigned_agent_id) { row.assigned_agent_id = agents[idx % agents.length].id; assigned++; }
+    });
+  }
+
+  let inserted = 0;
+  const failedBatches = [];
+  for (let start = 0; start < toInsert.length; start += CSV_IMPORT_BATCH_SIZE) {
+    const batch = toInsert.slice(start, start + CSV_IMPORT_BATCH_SIZE);
+    const { error } = await sb.from('leads').insert(batch);
+    if (error) failedBatches.push({ start, size: batch.length, message: error.message });
+    else inserted += batch.length;
+    say(`Importing... ${Math.min(start + batch.length, toInsert.length)} of ${toInsert.length}`);
+  }
+
   btn.disabled = false; btn.textContent = 'Confirm Import';
-  msgEl.textContent = inserted + ' imported' + (assigned ? ', ' + assigned + ' auto-assigned round-robin' : '') + (errors ? ', ' + errors + ' failed' : '') + '.';
-  if (inserted) { await loadAdminLeads(); cancelImportCSV(); }
+
+  const parts = [`${inserted} imported`];
+  if (assigned)          parts.push(`${assigned} assigned round-robin`);
+  if (skippedDuplicate)  parts.push(`${skippedDuplicate} already in CRM`);
+  if (skippedInFile)     parts.push(`${skippedInFile} duplicated inside the file`);
+  if (failedBatches.length) {
+    const failedRows = failedBatches.reduce((n, b) => n + b.size, 0);
+    parts.push(`${failedRows} failed`);
+    // The reason matters more than the count - a constraint violation and a
+    // dropped connection need completely different responses.
+    console.error('CSV import: failed batches', failedBatches);
+    say(parts.join(', ') + '. First error: ' + failedBatches[0].message);
+  } else {
+    say(parts.join(', ') + '.');
+  }
+
+  // Re-running after a partial failure is now safe: everything already inserted
+  // is caught by the duplicate check above.
+  if (inserted) { await loadAdminLeads(); if (!failedBatches.length) cancelImportCSV(); }
 }
 
 function cancelImportCSV() {
