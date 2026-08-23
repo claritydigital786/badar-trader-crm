@@ -4393,20 +4393,79 @@ function paintSelectedBot() {
 // Reads as the truth about the deployed function, not a guess. These are code
 // constants in whatsapp-webhook/index.ts, not database values, which is
 // exactly why they are shown read-only here.
-function renderGateTable() {
+// These were hardcoded to false and rendered read-only, which made this table
+// actively misleading: it showed all three OFF while the deployed webhook had
+// AI and BOT set to true. It now reads the real values and can change them.
+//
+// The webhook resolves each gate from `settings` on every message, so flipping
+// one here takes effect on the very next inbound message - no redeploy. That is
+// the point: if the bot starts saying the wrong thing to real customers, the
+// stop button has to work in seconds, not in however long a deploy takes.
+const REPLY_GATES = [
+  ['BOT_REPLIES_ENABLED',     'The scripted bot - greeting, menu, the whole guided flow'],
+  ['AI_REPLIES_ENABLED',      'The AI answering questions the buttons cannot'],
+  ['KEYWORD_REPLIES_ENABLED', 'Keyword rules replying automatically'],
+];
+
+async function renderGateTable() {
   const tbody = document.getElementById('bm-gate-tbody');
   if (!tbody) return;
-  const gates = [
-    ['AI_REPLIES_ENABLED',      'Whether the AI can answer a customer at all', false],
-    ['KEYWORD_REPLIES_ENABLED', 'Whether keyword rules can answer a customer', false],
-    ['BOT_REPLIES_ENABLED',     'Whether the scripted bot can answer a customer', false],
-  ];
-  tbody.innerHTML = gates.map(([g, what, on]) => `
+
+  let state = {};
+  if (demoMode) {
+    state = { BOT_REPLIES_ENABLED: 'true', AI_REPLIES_ENABLED: 'true', KEYWORD_REPLIES_ENABLED: 'false' };
+  } else {
+    const { data, error } = await sb.from('settings').select('key,value')
+      .in('key', REPLY_GATES.map(g => g[0]));
+    if (error) {
+      // Never guess at this. Showing a confident ON/OFF that might be wrong is
+      // how this table misled everyone in the first place.
+      tbody.innerHTML = `<tr><td colspan="3" style="color:var(--bad);font-size:0.85rem">
+        Could not read the live gate state: ${esc(error.message)}. Reload before trusting this screen.</td></tr>`;
+      return;
+    }
+    (data || []).forEach(r => { state[r.key] = r.value; });
+  }
+
+  tbody.innerHTML = REPLY_GATES.map(([key, what]) => {
+    const on = String(state[key] ?? '').toLowerCase() === 'true';
+    return `
     <tr>
-      <td style="white-space:nowrap"><code>${g}</code></td>
-      <td><span style="color:#64748b;font-size:0.82rem">${what}</span></td>
-      <td><span class="bm-status-pill ${on ? '' : 'off'}">${on ? 'ON' : 'OFF'}</span></td>
-    </tr>`).join('');
+      <td style="white-space:nowrap"><code>${key}</code></td>
+      <td><span style="color:var(--n-500);font-size:0.82rem">${what}</span></td>
+      <td style="white-space:nowrap">
+        <span class="bm-status-pill ${on ? '' : 'off'}" id="gate-pill-${key}">${on ? 'ON' : 'OFF'}</span>
+        <button class="btn btn-secondary btn-sm" style="margin-left:8px"
+                id="gate-btn-${key}" onclick="toggleReplyGate('${key}', ${!on})">
+          Turn ${on ? 'off' : 'on'}
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function toggleReplyGate(key, turnOn) {
+  const label = { BOT_REPLIES_ENABLED: 'the scripted bot', AI_REPLIES_ENABLED: 'the AI',
+                  KEYWORD_REPLIES_ENABLED: 'keyword replies' }[key] || key;
+  // Turning something ON starts messaging real customers, so it is confirmed.
+  // Turning OFF is the emergency stop and must never be slowed by a dialog.
+  if (turnOn && !confirm(
+      `Turn ${label} back on?\n\nReal customers will start receiving these replies from their very next message.`)) return;
+
+  if (demoMode) { showToast('Reply gates are live-mode only. (demo)'); return; }
+
+  const btn = document.getElementById('gate-btn-' + key);
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+  const { error } = await sb.from('settings')
+    .upsert({ key, value: turnOn ? 'true' : 'false', updated_at: new Date().toISOString() },
+            { onConflict: 'key' });
+  if (error) { showToast('Could not change the gate: ' + error.message, 'err'); }
+  else {
+    showToast(turnOn
+      ? `${label.charAt(0).toUpperCase() + label.slice(1)} is ON. It applies from the next inbound message.`
+      : `${label.charAt(0).toUpperCase() + label.slice(1)} is OFF. No further replies will be sent.`);
+  }
+  await renderGateTable();
 }
 
 async function loadAiAgentToggle() {

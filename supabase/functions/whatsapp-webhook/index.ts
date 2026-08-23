@@ -97,6 +97,71 @@ const KEYWORD_REPLIES_ENABLED = false;
 //   4. Muhammad read the assembled prompt before this was flipped.
 const AI_REPLIES_ENABLED = true;
 
+// ── REPLY GATES AT RUNTIME ───────────────────────────────────────────────────
+// The three constants above are now DEFAULTS, not the final word. Each is also
+// looked up in `settings` on every invocation, so the three toggles in Bot
+// Manager can turn a reply path off - or back on - without a redeploy.
+//
+// Why this matters more than convenience: until now the only way to silence the
+// bot was to edit this file and deploy it, which needs a laptop with the CLI and
+// takes minutes. If the bot ever starts saying the wrong thing to real
+// customers, minutes is far too long. This is the stop button.
+//
+// Resolution order, deliberately: an explicit row in `settings` wins; a missing
+// row falls back to the constant above; an unreadable database falls back to the
+// constant too, because if `settings` cannot be read the webhook cannot read
+// leads either and is already failing - silently flipping every gate would just
+// add a second, confusing failure on top of the first.
+//
+// "false" is matched exactly, so a typo in the settings value can never read as
+// off by accident. Anything that is not the literal string "true" or "false"
+// leaves the constant in charge.
+const GATE_DEFAULTS: Record<string, boolean> = {
+  AI_REPLIES_ENABLED: AI_REPLIES_ENABLED,
+  KEYWORD_REPLIES_ENABLED: KEYWORD_REPLIES_ENABLED,
+  BOT_REPLIES_ENABLED: BOT_REPLIES_ENABLED,
+};
+
+// One read per invocation, not per call site: a single inbound message can pass
+// several gates and there is no reason to ask the database each time.
+let _gateCache: Record<string, boolean> | null = null;
+
+async function loadGates(sb: SupabaseClient): Promise<Record<string, boolean>> {
+  if (_gateCache) return _gateCache;
+  const resolved: Record<string, boolean> = { ...GATE_DEFAULTS };
+  try {
+    const { data, error } = await sb
+      .from("settings")
+      .select("key, value")
+      .in("key", Object.keys(GATE_DEFAULTS));
+    if (error) throw error;
+    for (const row of data ?? []) {
+      const v = String(row.value ?? "").trim().toLowerCase();
+      if (v === "true") resolved[row.key] = true;
+      else if (v === "false") resolved[row.key] = false;
+    }
+  } catch (err) {
+    console.error("loadGates: could not read settings, using compiled defaults -",
+      err instanceof Error ? err.message : String(err));
+  }
+  _gateCache = resolved;
+  return resolved;
+}
+
+async function gateOpen(sb: SupabaseClient, name: keyof typeof GATE_DEFAULTS): Promise<boolean> {
+  return (await loadGates(sb))[name];
+}
+
+// The send helpers below have no SupabaseClient and are called from dozens of
+// places, so threading one through all of them would be a large, risky diff for
+// no gain. loadGates() is awaited once at the top of every request instead, well
+// before anything can send, and this reads that already-populated cache. If it
+// somehow runs before the load, it returns the compiled default rather than
+// inventing an answer.
+function gateOpenSync(name: keyof typeof GATE_DEFAULTS): boolean {
+  return (_gateCache ?? GATE_DEFAULTS)[name];
+}
+
 // Muhammad, 22 July 2026: a real lead (Izza) explicitly asked for a human
 // agent and sat unanswered for 10+ days - escalating a lead set needs_human
 // but never actually told anyone, and she had no assigned agent at all to
@@ -201,6 +266,15 @@ function makeSupabase(): SupabaseClient {
 
 Deno.serve(async (req: Request): Promise<Response> => {
   const url = new URL(req.url);
+
+  // Cleared per request on purpose. Edge Functions reuse a warm isolate between
+  // invocations, so a cache left populated would keep serving whatever the gates
+  // said on the first message this instance handled - meaning a toggle flipped
+  // in Bot Manager might not take effect for minutes, or until the instance
+  // recycled. For a control whose whole purpose is stopping the bot quickly,
+  // stale is the one thing it must never be. One small query per message is a
+  // fair price for a stop button that actually stops.
+  _gateCache = null;
 
   if (req.method === "GET") {
     const mode      = url.searchParams.get("hub.mode");
@@ -328,6 +402,11 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         if (message.id) markAsRead(message.id).catch((err) => console.error("markAsRead failed:", err));
 
         const sb = makeSupabase();
+
+        // Resolve the reply gates before anything downstream can send. The send
+        // helpers read this cache synchronously, so filling it here is what makes
+        // gateOpenSync() truthful rather than a guess at the defaults.
+        await loadGates(sb);
 
         const agent = (await getAgentRotation(sb)).find((a) => normalisePhone(a.phone) === senderPhone);
 
@@ -905,7 +984,7 @@ async function tryKeywordReply(
   lead: any,
   input: UserInput,
 ): Promise<SendResult | null> {
-  if (!KEYWORD_REPLIES_ENABLED) return null;
+  if (!(await gateOpen(sb, "KEYWORD_REPLIES_ENABLED"))) return null;
 
   // A human has taken over this conversation - stay silent, same rule the
   // rest of the bot follows. Never talk over an agent.
@@ -961,7 +1040,7 @@ async function getOpenAIModel(sb: SupabaseClient): Promise<string> {
 // match is more deterministic and intentional than an LLM's judgment call,
 // so it should win when both could apply.
 async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Promise<SendResult | null> {
-  if (!AI_REPLIES_ENABLED) return null;
+  if (!(await gateOpen(sb, "AI_REPLIES_ENABLED"))) return null;
   if (lead.needs_human) return null;
 
   const text = (input.text || "").trim();
@@ -1836,8 +1915,8 @@ function matchYesNo(input: UserInput): "yes" | "no" | null {
 // so keyword replies can run while the funnel stays paused. Everything else in
 // this file must keep using sendText.
 async function sendKeywordText(to: string, body: string): Promise<SendResult> {
-  if (!KEYWORD_REPLIES_ENABLED) {
-    return { ok: false, error: "Keyword replies paused (KEYWORD_REPLIES_ENABLED = false)", text: body };
+  if (!gateOpenSync("KEYWORD_REPLIES_ENABLED")) {
+    return { ok: false, error: "Keyword replies paused (KEYWORD_REPLIES_ENABLED is off)", text: body };
   }
   const result = await callGraphApi({
     messaging_product: "whatsapp",
@@ -1849,8 +1928,8 @@ async function sendKeywordText(to: string, body: string): Promise<SendResult> {
 }
 
 async function sendAIText(to: string, body: string): Promise<SendResult> {
-  if (!AI_REPLIES_ENABLED) {
-    return { ok: false, error: "AI replies paused (AI_REPLIES_ENABLED = false)", text: body };
+  if (!gateOpenSync("AI_REPLIES_ENABLED")) {
+    return { ok: false, error: "AI replies paused (AI_REPLIES_ENABLED is off)", text: body };
   }
   const result = await callGraphApi({
     messaging_product: "whatsapp",
@@ -1862,8 +1941,8 @@ async function sendAIText(to: string, body: string): Promise<SendResult> {
 }
 
 async function sendText(to: string, body: string): Promise<SendResult> {
-  if (!BOT_REPLIES_ENABLED) {
-    return { ok: false, error: "Bot replies paused (BOT_REPLIES_ENABLED = false)", text: body };
+  if (!gateOpenSync("BOT_REPLIES_ENABLED")) {
+    return { ok: false, error: "Bot replies paused (BOT_REPLIES_ENABLED is off)", text: body };
   }
   const result = await callGraphApi({
     messaging_product: "whatsapp",
@@ -1876,8 +1955,8 @@ async function sendText(to: string, body: string): Promise<SendResult> {
 
 async function sendButtons(to: string, bodyText: string, buttons: { id: string; title: string }[]): Promise<SendResult> {
   const fallbackText = `${bodyText}\n[Buttons: ${buttons.map((b) => b.title).join(" / ")}]`;
-  if (!BOT_REPLIES_ENABLED) {
-    return { ok: false, error: "Bot replies paused (BOT_REPLIES_ENABLED = false)", text: fallbackText };
+  if (!gateOpenSync("BOT_REPLIES_ENABLED")) {
+    return { ok: false, error: "Bot replies paused (BOT_REPLIES_ENABLED is off)", text: fallbackText };
   }
   const result = await callGraphApi({
     messaging_product: "whatsapp",
@@ -1902,8 +1981,8 @@ async function sendList(
   rows: { id: string; title: string; description?: string }[],
 ): Promise<SendResult> {
   const fallbackText = `${headerText}\n${bodyText}\n[Options: ${rows.map((r) => r.title).join(" / ")}]`;
-  if (!BOT_REPLIES_ENABLED) {
-    return { ok: false, error: "Bot replies paused (BOT_REPLIES_ENABLED = false)", text: fallbackText };
+  if (!gateOpenSync("BOT_REPLIES_ENABLED")) {
+    return { ok: false, error: "Bot replies paused (BOT_REPLIES_ENABLED is off)", text: fallbackText };
   }
   const result = await callGraphApi({
     messaging_product: "whatsapp",
