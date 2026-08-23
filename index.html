@@ -2570,7 +2570,11 @@
     <p class="section-h">Meta Lead Ads</p>
     <div class="card">
       <label>Meta Access Token</label>
-      <input type="text" id="meta-token" placeholder="EAA… (fill in when Badar provides credentials)" />
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="password" id="meta-token" placeholder="EAA… (fill in when Badar provides credentials)" style="flex:1" />
+        <button type="button" class="btn btn-secondary btn-sm" id="meta-token-toggle" onclick="toggleCredentialVisibility('meta-token')" style="white-space:nowrap">Show</button>
+      </div>
+      <p class="cred-hint" id="meta-token-hint" style="color:#94a3b8;font-size:0.78rem;margin:4px 0 0"></p>
       <label>Ad Account ID</label>
       <input type="text" id="meta-account-id" placeholder="act_123456789" value="1024848662493589" />
       <label>WhatsApp Business Account (WABA) ID</label>
@@ -2604,14 +2608,22 @@
       </div>
 
       <label>Verify Token</label>
-      <input type="text" id="wa-verify-token"
-        placeholder="Choose any secret string, e.g. badar_crm_wh_2026 - must match what you set in Supabase secrets" />
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="password" id="wa-verify-token" style="flex:1"
+          placeholder="Choose any secret string, e.g. badar_crm_wh_2026 - must match what you set in Supabase secrets" />
+        <button type="button" class="btn btn-secondary btn-sm" id="wa-verify-token-toggle" onclick="toggleCredentialVisibility('wa-verify-token')" style="white-space:nowrap">Show</button>
+      </div>
+      <p class="cred-hint" id="wa-verify-token-hint" style="color:#94a3b8;font-size:0.78rem;margin:4px 0 0"></p>
 
       <label>WhatsApp Phone Number ID</label>
       <input type="text" id="wa-phone-number-id" placeholder="Provided in Meta Developer App → WhatsApp → API Setup" value="1181979858336353" />
 
       <label>WhatsApp Access Token <span style="color:#666;font-weight:400">(fill in when Badar provides credentials)</span></label>
-      <input type="text" id="wa-access-token" placeholder="EAA… permanent token from Meta Developer App" />
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="password" id="wa-access-token" placeholder="EAA… permanent token from Meta Developer App" style="flex:1" />
+        <button type="button" class="btn btn-secondary btn-sm" id="wa-access-token-toggle" onclick="toggleCredentialVisibility('wa-access-token')" style="white-space:nowrap">Show</button>
+      </div>
+      <p class="cred-hint" id="wa-access-token-hint" style="color:#94a3b8;font-size:0.78rem;margin:4px 0 0"></p>
     </div>
 
     <div>
@@ -5347,6 +5359,7 @@ async function loadMetaSettings() {
   document.getElementById('wa-phone-number-id').value= get('wa_phone_number_id') || '1181979858336353';
   document.getElementById('wa-access-token').value        = get('wa_access_token');
   document.getElementById('admin-whatsapp-number').value  = get('admin_whatsapp_number') || '';
+  refreshCredentialHints();
 }
 
 async function saveMetaSettings() {
@@ -5364,7 +5377,7 @@ async function saveMetaSettings() {
   // Guard before the rows are built, not just before the write: every row
   // reads currentUser.id, which is null in demo mode, so this threw a
   // TypeError before it ever reached the database.
-  if (demoMode) { setMsg(msgEl, 'Settings saved. (demo - nothing was written)', 'ok'); return; }
+  if (demoMode) { setMsg(msgEl, 'Settings saved. (demo - nothing was written)', 'ok'); refreshCredentialHints(); return; }
 
   const now = new Date().toISOString();
   const rows = [
@@ -5381,6 +5394,37 @@ async function saveMetaSettings() {
   const { error } = await sb.from('settings').upsert(rows, { onConflict: 'key' });
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
   setMsg(msgEl, 'Settings saved.', 'ok');
+  refreshCredentialHints();
+}
+
+// Screenshots on 2026-08-23 showed the Meta access token, WhatsApp access
+// token and verify token sitting in plain text inputs on the Meta Integration
+// screen - readable by anyone with admin access or looking at the screen
+// during a share. Same toggle mechanism as the OpenAI key below (type
+// password/text), generalised so every credential field can use it, plus a
+// small "ends in ...xxxx" hint so a field can still be told apart from
+// another without exposing the whole value.
+const CREDENTIAL_FIELD_IDS = ['meta-token', 'wa-verify-token', 'wa-access-token'];
+
+function toggleCredentialVisibility(id) {
+  const el  = document.getElementById(id);
+  const btn = document.getElementById(id + '-toggle');
+  if (!el || !btn) return;
+  const hidden = el.type === 'password';
+  el.type = hidden ? 'text' : 'password';
+  btn.textContent = hidden ? 'Hide' : 'Show';
+}
+
+function renderCredentialHint(id) {
+  const el   = document.getElementById(id);
+  const hint = document.getElementById(id + '-hint');
+  if (!el || !hint) return;
+  const val = el.value || '';
+  hint.textContent = val ? `Currently set - ends in ...${val.slice(-4)}` : 'Not set';
+}
+
+function refreshCredentialHints() {
+  CREDENTIAL_FIELD_IDS.forEach(renderCredentialHint);
 }
 
 function toggleOpenAiKeyVisibility() {
