@@ -185,19 +185,20 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 18px;
-      height: 18px;
-      border-radius: 5px;
-      color: #94a3b8;
-      font-size: 10px;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 1px solid rgba(148,163,184,.35);
+      color: #64748b;
+      font-size: 13px;
       flex-shrink: 0;
-      transition: transform 0.15s, background 0.15s, color 0.15s;
+      transition: transform 0.15s, background 0.15s, color 0.15s, border-color 0.15s;
     }
-    .nav-caret:hover { background: rgba(15,23,42,.06); color: #334155; }
+    .nav-caret:hover { background: rgba(15,23,42,.06); color: #334155; border-color: rgba(51,65,85,.4); }
     .nav-caret.collapsed { transform: rotate(-90deg); }
     .nav-subgroup.collapsed { display: none; }
-    [data-theme="dark"] .nav-caret { color: #64748b; }
-    [data-theme="dark"] .nav-caret:hover { background: rgba(255,255,255,.08); color: #f1f5f9; }
+    [data-theme="dark"] .nav-caret { color: #94a3b8; border-color: rgba(255,255,255,.18); }
+    [data-theme="dark"] .nav-caret:hover { background: rgba(255,255,255,.08); color: #f1f5f9; border-color: rgba(255,255,255,.35); }
 
     .sidebar-footer {
       margin-top: auto;
@@ -1636,6 +1637,8 @@
       <select id="filter-source" onchange="loadAdminLeads()" title="Where the lead came from">
         <option value="">All Sources</option>
         <option value="meta">Meta Ads</option>
+        <option value="whatsapp">💬 WhatsApp</option>
+        <option value="whatchimp">WhatChimp Import</option>
         <option value="referral">Referral</option>
         <option value="website">Website</option>
         <option value="manual">Manual</option>
@@ -1728,6 +1731,7 @@
           <label>Lead Source</label>
           <select id="nl-source">
             <option value="meta">Meta (Facebook / Instagram)</option>
+            <option value="whatsapp">💬 WhatsApp (messaged in directly)</option>
             <option value="referral">Referral</option>
             <option value="website">Website</option>
             <option value="manual">Manual / Walk-In</option>
@@ -3250,7 +3254,7 @@
   <!-- ─── SUBSCRIBERS ─── -->
   <div id="admin-tab-subscribers" class="tab-content">
     <div class="info-box">
-      Subscribers are members of the signalling communities. Everything here saves to the database for real: adds, edits, removals and CSV imports all persist. A subscriber starts as <strong>Pending</strong> when they come from the signup form, and becomes <strong>Active</strong> once you confirm they are actually in the community. Note WhatsApp's Cloud API cannot post into Communities, so this list is a record of membership, not a send list.
+      Subscribers are members of the signalling communities - primarily the <strong>Premium Signalling Group</strong> - not every WhatsApp contact. Anyone who has simply messaged the WhatsApp number is a <strong>Lead</strong> instead (see <strong>All Leads</strong>, filterable by Source = WhatsApp / WhatChimp Import); this list is only people actually in a signal community. Everything here saves to the database for real: adds, edits, removals and CSV imports all persist. A subscriber starts as <strong>Pending</strong> when they come from the signup form, and becomes <strong>Active</strong> once you confirm they are actually in the community. Note WhatsApp's Cloud API cannot post into Communities, so this list is a record of membership, not a send list.
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
       <h3 style="margin:0">👤 Manage Subscribers</h3>
@@ -4095,13 +4099,17 @@ function expandNavSubgroup(groupId, caretId) {
   try { localStorage.setItem('nav_' + groupId + '_collapsed', '0'); } catch (err) { /* private mode, ignore */ }
 }
 
-// Restores each subgroup's last open/closed state. Defaults to open (matches
-// the sidebar's pre-existing look) so a browser with nothing saved yet
-// changes nothing.
+// Restores each subgroup's last open/closed state. Defaults to COLLAPSED
+// (Muhammad, 2026-08-23, repeating the original 2026-08-22 request: the
+// fold existed but opened by default, matching the sidebar's pre-existing
+// look, so a first-time browser looked exactly as flat as before this
+// feature shipped - easy to mistake for not having been built at all,
+// especially with the caret itself being a subtle 18px glyph). Explicit
+// '0' in localStorage (the user clicked it open themselves) still wins.
 function initNavSubgroups() {
   document.querySelectorAll('.nav-subgroup').forEach(group => {
-    let collapsed = false;
-    try { collapsed = localStorage.getItem('nav_' + group.id + '_collapsed') === '1'; } catch (err) { /* private mode, ignore */ }
+    let collapsed = true;
+    try { collapsed = localStorage.getItem('nav_' + group.id + '_collapsed') !== '0'; } catch (err) { /* private mode, ignore */ }
     if (!collapsed) return;
     group.classList.add('collapsed');
     const caret = document.getElementById(group.id.replace(/-subgroup$/, '-caret'));
@@ -6789,7 +6797,8 @@ function statusLabel(s) {
            converted:'Converted', lost:'Lost' }[s] || s;
 }
 function sourceLabel(s) {
-  return { meta:'Meta Ads', referral:'Referral', website:'Website',
+  return { meta:'Meta Ads', whatsapp:'WhatsApp', whatchimp:'WhatChimp Import',
+           referral:'Referral', website:'Website',
            manual:'Manual', walk_in:'Walk-In', other:'Other' }[s] || s;
 }
 function channelLabel(s) {
