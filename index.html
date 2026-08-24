@@ -8564,6 +8564,34 @@ async function updateRoundRobinStatus() {
 }
 
 // ── DASHBOARD STATS ───────────────────────────────────────────
+// Supabase's PostgREST caps any unbounded select at 1000 rows by default -
+// silently, no error. renderDashboardStats() used to read straight off
+// cachedLeads (built for the paginated All Leads table, which has its own
+// separate exact-count query for its own total), so the moment the pipeline
+// crossed 1000 rows - exactly what the 2026-08-24 WhatChimp import did - the
+// newest 1000 leads (all fresh imports, all status 'new', all $0 balance)
+// silently became "the whole dataset" for every Dashboard number: Total
+// Leads, New Leads, Converted, Client Account Balances, the Pipeline donut,
+// and the Lead Growth trend. Older real leads - including the one converted
+// client and the one with an actual recorded balance - fell outside that
+// window and vanished from every stat without any error being thrown.
+// Fetches everything in real 1000-row pages until exhausted, so Dashboard
+// totals stay correct regardless of how large the table grows.
+async function fetchAllLeadsForDashboard() {
+  const pageSize = 1000;
+  let all = [];
+  for (let start = 0; ; start += pageSize) {
+    const { data, error } = await sb
+      .from('leads')
+      .select('status, account_balance, deposit_platform, created_at')
+      .range(start, start + pageSize - 1);
+    if (error) { console.error('fetchAllLeadsForDashboard:', error); break; }
+    all = all.concat(data || []);
+    if (!data || data.length < pageSize) break;
+  }
+  return all;
+}
+
 function renderDashboardStats() {
   const el = id => document.getElementById(id);
   if (demoMode) {
@@ -8586,14 +8614,16 @@ function renderDashboardStats() {
     renderDashboardCharts(_DEMO_LEADS);
     return;
   }
-  if (el('dash-total-leads')) el('dash-total-leads').textContent = cachedLeads.length;
-  if (el('dash-new-leads'))   el('dash-new-leads').textContent   = cachedLeads.filter(l => l.status === 'new').length;
-  if (el('dash-converted'))   el('dash-converted').textContent   = cachedLeads.filter(l => l.status === 'converted').length;
-  if (el('dash-agents'))      el('dash-agents').textContent      = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended).length;
-  renderDashboardCharts(cachedLeads);
-  const revenue = cachedLeads.reduce((s, l) => s + (Number(l.account_balance) || 0), 0);
-  if (el('dash-revenue'))     el('dash-revenue').textContent     = '$' + fmtMoney(revenue);
-  { const bp={}; (cachedLeads||[]).forEach(l=>{ if(l.deposit_platform && Number(l.account_balance)){ bp[l.deposit_platform]=(bp[l.deposit_platform]||0)+Number(l.account_balance);} }); const pl=Object.entries(bp).map(([k,v])=>k.toUpperCase()+': $'+fmtMoney(v)).join('   ·   '); if(el('dash-rev-platform')) el('dash-rev-platform').textContent = pl ? 'By platform - '+pl : ''; }
+  if (el('dash-agents')) el('dash-agents').textContent = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended).length;
+  fetchAllLeadsForDashboard().then(leads => {
+    if (el('dash-total-leads')) el('dash-total-leads').textContent = leads.length;
+    if (el('dash-new-leads'))   el('dash-new-leads').textContent   = leads.filter(l => l.status === 'new').length;
+    if (el('dash-converted'))   el('dash-converted').textContent   = leads.filter(l => l.status === 'converted').length;
+    renderDashboardCharts(leads);
+    const revenue = leads.reduce((s, l) => s + (Number(l.account_balance) || 0), 0);
+    if (el('dash-revenue'))     el('dash-revenue').textContent     = '$' + fmtMoney(revenue);
+    { const bp={}; leads.forEach(l=>{ if(l.deposit_platform && Number(l.account_balance)){ bp[l.deposit_platform]=(bp[l.deposit_platform]||0)+Number(l.account_balance);} }); const pl=Object.entries(bp).map(([k,v])=>k.toUpperCase()+': $'+fmtMoney(v)).join('   ·   '); if(el('dash-rev-platform')) el('dash-rev-platform').textContent = pl ? 'By platform - '+pl : ''; }
+  });
   // Load upcoming follow-ups from lead_activity
   loadUpcomingFollowups();
   loadDashMetaAds();
