@@ -1424,6 +1424,27 @@
   </div>
 </div>
 
+<!-- A password-reset email's link used to log the person straight into the
+     dashboard instead of asking for a new password - Ehsan's report,
+     2026-08-24. The link is genuinely valid (Supabase already authenticates
+     it before the page ever runs), so the fix isn't rejecting it, it's
+     catching the recovery case before afterLogin() runs and asking for a new
+     password first, same look as the login card above. -->
+<div id="set-password-screen" style="display:none">
+  <div class="login-card">
+    <h1>Badar Trader CRM</h1>
+    <p class="subtitle">Choose a new password to finish resetting your account</p>
+    <label for="set-password-new">New Password</label>
+    <input type="password" id="set-password-new" placeholder="At least 6 characters"
+           autocomplete="new-password" />
+    <label for="set-password-confirm">Confirm New Password</label>
+    <input type="password" id="set-password-confirm" placeholder="Type it again"
+           autocomplete="new-password" />
+    <div id="set-password-error"></div>
+    <button class="btn btn-primary" id="set-password-btn" onclick="submitNewPassword()">Set New Password</button>
+  </div>
+</div>
+
 <!-- ═══ ADMIN DASHBOARD ═══ -->
 <div id="admin-dashboard" style="display:none" class="app-shell">
 
@@ -4036,16 +4057,69 @@ window.addEventListener('DOMContentLoaded', () => {
 
   sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  sb.auth.getSession().then(({ data: { session } }) => {
-    if (session) afterLogin(session.user);
-    else         showLogin();
-  });
+  // A recovery link authenticates the browser before this code ever runs -
+  // Supabase reads the token straight out of the URL when the client is
+  // created above. getSession() below would then see a perfectly valid
+  // session and log the person straight in, which is exactly the bug Ehsan
+  // reported: "reset password" links opening the account instead of asking
+  // for a new one. Checking the URL itself, not just the SIGNED_IN event, is
+  // what actually catches it - relying on event ordering alone previously
+  // race-lost to the getSession() call below on some loads.
+  if (isPasswordRecoveryLink()) {
+    sb.auth.getSession().then(({ data: { session } }) => {
+      if (session) showSetPasswordScreen();
+      else         showLogin();
+    });
+  } else {
+    sb.auth.getSession().then(({ data: { session } }) => {
+      if (session) afterLogin(session.user);
+      else         showLogin();
+    });
+  }
 
   sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY')     { showSetPasswordScreen(); return; }
     if (event === 'SIGNED_IN'  && session) afterLogin(session.user);
     if (event === 'SIGNED_OUT')            showLogin();
   });
 });
+
+// Supabase puts the recovery marker in the URL hash fragment, e.g.
+// "#access_token=...&type=recovery". Checked directly rather than trusted to
+// arrive as a PASSWORD_RECOVERY event in time, every load.
+function isPasswordRecoveryLink() {
+  return new URLSearchParams((location.hash || '').replace(/^#/, '')).get('type') === 'recovery';
+}
+
+function showSetPasswordScreen() {
+  document.getElementById('login-screen').style.display        = 'none';
+  document.getElementById('set-password-screen').style.display = 'flex';
+  document.getElementById('admin-dashboard').style.display      = 'none';
+  document.getElementById('agent-dashboard').style.display      = 'none';
+}
+
+async function submitNewPassword() {
+  const pw      = document.getElementById('set-password-new').value;
+  const confirm = document.getElementById('set-password-confirm').value;
+  const errEl   = document.getElementById('set-password-error');
+  const btn     = document.getElementById('set-password-btn');
+
+  if (pw.length < 6)   { errEl.textContent = 'Password must be at least 6 characters.'; return; }
+  if (pw !== confirm)  { errEl.textContent = 'Passwords do not match.'; return; }
+
+  btn.disabled = true; btn.textContent = 'Saving...';
+  const { data, error } = await sb.auth.updateUser({ password: pw });
+  btn.disabled = false; btn.textContent = 'Set New Password';
+
+  if (error) { errEl.textContent = error.message; return; }
+
+  // Clears ?type=recovery out of the address bar so a refresh doesn't loop
+  // back into this screen with a session that has already had its password
+  // changed - the recovery marker is single-purpose, not a standing state.
+  history.replaceState(null, '', location.pathname + location.search);
+  document.getElementById('set-password-screen').style.display = 'none';
+  if (data?.user) afterLogin(data.user);
+}
 
 // ── Auth ──────────────────────────────────────────────────────
 async function handleLogin() {
@@ -4100,7 +4174,8 @@ document.addEventListener('click', () => {
 function showLogin() {
   currentUser = currentProfile = null;
   cachedProfiles = []; cachedLeads = [];
-  document.getElementById('login-screen').style.display    = 'flex';
+  document.getElementById('login-screen').style.display        = 'flex';
+  document.getElementById('set-password-screen').style.display = 'none';
   document.getElementById('admin-dashboard').style.display = 'none';
   document.getElementById('agent-dashboard').style.display = 'none';
   document.getElementById('login-error').textContent       = '';
