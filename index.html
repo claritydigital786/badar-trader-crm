@@ -1804,8 +1804,20 @@
     <div class="card" style="margin-bottom:20px">
       <div style="font-weight:700;font-size:0.9rem;color:#0f172a;margin-bottom:6px">&#128196; Import from CSV</div>
       <p style="font-size:0.8rem;color:#64748b;margin-bottom:12px;line-height:1.6">
-        Upload a CSV with columns: <code style="background:#0f172a;padding:1px 5px;border-radius:4px;font-size:0.78rem">name, phone, email, source, instrument</code> (headers in row 1).
+        Upload a CSV with columns: <code style="background:#0f172a;padding:1px 5px;border-radius:4px;font-size:0.78rem">name, phone, email, source, instrument</code> (headers in row 1). A platform export (WhatChimp, etc.) usually has no Source column of its own - pick what these rows should be labelled below.
       </p>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <label style="font-size:0.8rem;color:#64748b;white-space:nowrap">If the file has no Source column, label these rows:</label>
+        <select id="csv-default-source" style="width:auto">
+          <option value="whatchimp">WhatChimp Import</option>
+          <option value="whatsapp">💬 WhatsApp</option>
+          <option value="meta">Meta Ads</option>
+          <option value="referral">Referral</option>
+          <option value="website">Website</option>
+          <option value="manual">Manual</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <input type="file" id="csv-import-file" accept=".csv" style="font-size:0.82rem;color:#94a3b8" />
         <button class="btn btn-secondary btn-inline" onclick="importLeadsCSV()">Import</button>
@@ -5093,23 +5105,38 @@ function importLeadsCSV() {
     const emailIdx = headers.findIndex(h => h.includes('email'));
     const srcIdx   = headers.findIndex(h => h.includes('source'));
     const instrIdx = headers.findIndex(h => h.includes('instrument'));
-    if (nameIdx === -1) { msgEl.textContent = 'Could not find a "name" column in CSV.'; return; }
+    // A platform export (WhatChimp, etc.) usually has no Source column at
+    // all - findIndex returning -1 used to silently mean "manual" for every
+    // row, mislabelling the entire import. The default-source picker above
+    // is the explicit fallback now, not a guess.
+    const defaultSource = document.getElementById('csv-default-source')?.value || 'manual';
+    if (nameIdx === -1 && phoneIdx === -1) { msgEl.textContent = 'Could not find a "name" or "phone" column in CSV.'; return; }
     _csvImportRows = [];
+    let fallbackNamed = 0;
     for (var i = 1; i < lines.length; i++) {
       var cols = lines[i].match(/(".*?"|[^,]+|(?<=,)(?=,)|(?<=,)$|^(?=,))/g) || lines[i].split(',');
       cols = cols.map(function(c){ return c.trim().replace(/^"|"$/g,''); });
+      var phone = phoneIdx >= 0 ? normalizePhone(cols[phoneIdx] || '') : '';
+      var rawName = (nameIdx >= 0 ? cols[nameIdx] : '') || '';
+      // A blank name used to mean the row was silently dropped - never
+      // imported, no warning. 18 real WhatChimp contacts had exactly this.
+      // Falling back to the phone number keeps the row (and the lead) real
+      // and editable later, rather than losing the person entirely.
+      var usedFallbackName = !rawName && !!phone;
       var row = {
-        full_name:       cols[nameIdx]  || '',
-        phone:           phoneIdx >= 0  ? normalizePhone(cols[phoneIdx] || '') : '',
+        full_name:       rawName || (phone ? 'WhatsApp Contact ' + phone : ''),
+        phone:           phone,
         email:           emailIdx >= 0  ? (cols[emailIdx]  || '') : '',
-        source:          srcIdx >= 0    ? (cols[srcIdx]    || 'manual') : 'manual',
+        source:          srcIdx >= 0    ? normalizeLeadSource(cols[srcIdx]) : defaultSource,
         instrument_type: instrIdx >= 0  ? (cols[instrIdx]  || '') : '',
         status: 'new'
       };
+      if (usedFallbackName) fallbackNamed++;
       if (row.full_name) _csvImportRows.push(row);
     }
     if (!_csvImportRows.length) { msgEl.textContent = 'No valid rows found.'; return; }
-    document.getElementById('csv-import-count').textContent = _csvImportRows.length + ' leads ready to import';
+    document.getElementById('csv-import-count').textContent = _csvImportRows.length + ' leads ready to import'
+      + (fallbackNamed ? ` (${fallbackNamed} had no name - using their phone number instead)` : '');
     const thead = '<thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Source</th><th>Instrument</th></tr></thead>';
     const tbody = '<tbody>' + _csvImportRows.map(function(r) {
       return '<tr><td>'+r.full_name+'</td><td>'+r.phone+'</td><td>'+r.email+'</td><td>'+r.source+'</td><td>'+r.instrument_type+'</td></tr>';
