@@ -1466,7 +1466,7 @@
       <div class="nav-section-label">BOT MANAGER</div>
       <div class="nav-item" data-tab="bot-manager"><span class="nav-icon" data-nav-icon="bot" style="background:var(--tint-sky-bg)"></span> Bot Manager</div>
       <div class="nav-section-label">TOOLS</div>
-      <div class="nav-item" data-tab="add-lead"><span class="nav-icon" data-nav-icon="user-plus" style="background:var(--tint-gold-bg)"></span> Add Lead</div>
+      <div class="nav-item" data-tab="add-lead"><span class="nav-icon" data-nav-icon="user-plus" style="background:var(--tint-gold-bg)"></span> Import Leads</div>
       <div class="nav-item" data-tab="conversations"><span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Omnichannel Inbox <span id="conv-nav-badge" style="display:none;background:var(--bad);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
       <div class="nav-item" data-tab="comm-log"><span class="nav-icon" data-nav-icon="history" style="background:var(--tint-success-bg)"></span> Comm Log</div>
       <div class="nav-item" data-tab="reports"><span class="nav-icon" data-nav-icon="report" style="background:var(--tint-warn-bg)"></span> Reports</div>
@@ -1713,51 +1713,16 @@
       <div style="margin-left:auto;display:flex;gap:8px">
         <button class="btn btn-secondary btn-sm" onclick="exportLeadsCSV()"
                 title="Downloads exactly the rows shown below, with the filters above applied">Export CSV</button>
-        <button class="btn btn-primary btn-inline btn-sm" onclick="adminTab('add-lead')">+ Add Lead</button>
+        <button class="btn btn-primary btn-inline btn-sm" onclick="toggleInlineAddLead()">+ Add Lead</button>
       </div>
     </div>
     <div id="leads-filter-summary" class="leads-filter-summary"></div>
-    <div class="card" style="padding:0">
-      <table>
-        <thead><tr>
-          <th>Name</th><th>Phone</th><th>Source / Campaign</th>
-          <th>Status</th><th>Assigned To</th><th>Added</th><th></th>
-        </tr></thead>
-        <tbody id="admin-leads-tbody">
-          <tr><td colspan="7" class="empty-state">Loading…</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div id="admin-lead-detail" class="detail-panel" style="display:none"></div>
-  </div>
 
-  <!-- Add Lead -->
-  <div id="admin-tab-add-lead" class="tab-content">
-    <h3>Add Lead</h3>
-
-    <!-- CSV Import -->
-    <div class="card" style="margin-bottom:20px">
-      <div style="font-weight:700;font-size:0.9rem;color:#0f172a;margin-bottom:6px">&#128196; Import from CSV</div>
-      <p style="font-size:0.8rem;color:#64748b;margin-bottom:12px;line-height:1.6">
-        Upload a CSV with columns: <code style="background:#0f172a;padding:1px 5px;border-radius:4px;font-size:0.78rem">name, phone, email, source, instrument</code> (headers in row 1).
-      </p>
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <input type="file" id="csv-import-file" accept=".csv" style="font-size:0.82rem;color:#94a3b8" />
-        <button class="btn btn-secondary btn-inline" onclick="importLeadsCSV()">Import</button>
-        <span id="csv-import-msg" style="font-size:0.8rem;color:var(--ok)"></span>
-      </div>
-      <div id="csv-import-preview" style="margin-top:12px;display:none">
-        <div style="font-size:0.78rem;font-weight:700;color:#64748b;margin-bottom:6px" id="csv-import-count"></div>
-        <div id="csv-import-table-wrap" style="overflow-x:auto;max-height:180px;overflow-y:auto"></div>
-        <div style="margin-top:10px;display:flex;gap:8px">
-          <button class="btn btn-primary btn-inline" id="csv-confirm-btn" onclick="confirmImportCSV()">Confirm Import</button>
-          <button class="btn btn-secondary btn-inline" onclick="cancelImportCSV()">Cancel</button>
-          <span id="csv-confirm-msg" style="font-size:0.8rem;color:var(--ok)"></span>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
+    <!-- Quick Add - moved inline 2026-08-24 so adding one lead no longer means
+         leaving All Leads for a separate tab. Bulk CSV import stays on its own
+         Import Leads tab since that's a different, heavier workflow. -->
+    <div class="card" id="inline-add-lead-card" style="display:none;margin-bottom:20px">
+      <h4 style="margin-bottom:12px">Add Lead</h4>
       <div class="form-row">
         <div>
           <label>Full Name *</label>
@@ -1812,9 +1777,51 @@
         placeholder="Any initial notes about this lead…"></textarea>
       <div class="form-actions">
         <button class="btn btn-primary btn-inline" onclick="addLead()">Add Lead</button>
+        <button class="btn btn-secondary btn-inline" onclick="toggleInlineAddLead(false)">Cancel</button>
         <span class="success-msg" id="nl-msg"></span>
       </div>
     </div>
+
+    <div class="card" style="padding:0">
+      <table>
+        <thead><tr>
+          <th>Name</th><th>Phone</th><th>Source / Campaign</th>
+          <th>Status</th><th>Assigned To</th><th>Added</th><th></th>
+        </tr></thead>
+        <tbody id="admin-leads-tbody">
+          <tr><td colspan="7" class="empty-state">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="admin-lead-detail" class="detail-panel" style="display:none"></div>
+  </div>
+
+  <!-- Import Leads (bulk CSV only - single-lead add moved inline into All Leads 2026-08-24) -->
+  <div id="admin-tab-add-lead" class="tab-content">
+    <h3>Import Leads</h3>
+
+    <!-- CSV Import -->
+    <div class="card" style="margin-bottom:20px">
+      <div style="font-weight:700;font-size:0.9rem;color:#0f172a;margin-bottom:6px">&#128196; Import from CSV</div>
+      <p style="font-size:0.8rem;color:#64748b;margin-bottom:12px;line-height:1.6">
+        Upload a CSV with columns: <code style="background:#0f172a;padding:1px 5px;border-radius:4px;font-size:0.78rem">name, phone, email, source, instrument</code> (headers in row 1).
+      </p>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <input type="file" id="csv-import-file" accept=".csv" style="font-size:0.82rem;color:#94a3b8" />
+        <button class="btn btn-secondary btn-inline" onclick="importLeadsCSV()">Import</button>
+        <span id="csv-import-msg" style="font-size:0.8rem;color:var(--ok)"></span>
+      </div>
+      <div id="csv-import-preview" style="margin-top:12px;display:none">
+        <div style="font-size:0.78rem;font-weight:700;color:#64748b;margin-bottom:6px" id="csv-import-count"></div>
+        <div id="csv-import-table-wrap" style="overflow-x:auto;max-height:180px;overflow-y:auto"></div>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button class="btn btn-primary btn-inline" id="csv-confirm-btn" onclick="confirmImportCSV()">Confirm Import</button>
+          <button class="btn btn-secondary btn-inline" onclick="cancelImportCSV()">Cancel</button>
+          <span id="csv-confirm-msg" style="font-size:0.8rem;color:var(--ok)"></span>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- Conversations -->
@@ -3311,6 +3318,8 @@
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
       <h3 style="margin:0">👤 Manage Subscribers</h3>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" onclick="exportSubscribersCSV()"
+                title="Downloads exactly the rows shown below, with the filters above applied">Export CSV</button>
         <button class="btn btn-secondary btn-sm" onclick="document.getElementById('sub-csv-input').click()">📥 Import CSV</button>
         <input type="file" id="sub-csv-input" accept=".csv" style="display:none" onchange="importSubscribersCSV(event)" />
         <button class="btn btn-primary btn-sm" onclick="showAddSubscriberForm()">+ Add Subscriber</button>
@@ -4216,7 +4225,7 @@ function adminTab(name, el) {
   // Update header title
   const titles = {
     dashboard: 'Dashboard', leads: 'All Leads', agents: 'My Team',
-    'add-lead': 'Add Lead', conversations: 'Omnichannel Inbox',
+    'add-lead': 'Import Leads', conversations: 'Omnichannel Inbox',
     settings: 'Settings', meta: 'Meta Integration', 'meta-ads': 'Meta Analytics',
     payroll: 'Payroll', automation: 'Automation',
     notifications: 'Notifications', sites: 'Landing Pages', reports: 'Reports',
@@ -5293,6 +5302,7 @@ async function addLead() {
       .forEach(id => { document.getElementById(id).value = ''; });
     document.getElementById('nl-agent').value = '';
     updateRoundRobinStatus();
+    filterLeadsLocal(); // the new lead is already in cachedLeads - show it now, inline stays open
     return;
   }
 
@@ -5316,6 +5326,22 @@ async function addLead() {
     .forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('nl-agent').value = '';
   updateRoundRobinStatus();
+  await loadAdminLeads(); // the insert isn't in cachedLeads yet - refetch so it shows immediately
+}
+
+// Add Lead moved inline into All Leads 2026-08-24 - no more jumping to a
+// separate tab for the single most common action on this page. The
+// standalone tab (renamed "Import Leads") still exists for the CSV bulk
+// path, which is a genuinely different, heavier workflow.
+function toggleInlineAddLead(show) {
+  const card = document.getElementById('inline-add-lead-card');
+  if (!card) return;
+  const willShow = show ?? (card.style.display === 'none');
+  card.style.display = willShow ? 'block' : 'none';
+  if (willShow) {
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('nl-name')?.focus();
+  }
 }
 
 const GENERAL_SETTINGS_DEFAULTS = {
@@ -11300,6 +11326,39 @@ function exportLeadsCSV() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv' }));
   a.download = `leads_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// Same filter-respecting pattern as exportLeadsCSV() - downloads exactly the
+// rows the table is currently showing (search + status + community), not
+// silently everything regardless of what's on screen.
+function exportSubscribersCSV() {
+  const q     = (document.getElementById('sub-search')?.value || '').toLowerCase();
+  const statF = document.getElementById('sub-status-filter')?.value || 'all';
+  const commF = document.getElementById('sub-community-filter')?.value || 'all';
+
+  let rows = _subscribers;
+  if (statF !== 'all') rows = rows.filter(x => x.status === statF);
+  if (commF !== 'all') rows = rows.filter(x => x.community === commF);
+  if (q) rows = rows.filter(x => (x.name || '').toLowerCase().includes(q) || (x.phone || '').includes(q));
+
+  if (!rows.length) {
+    alert((statF !== 'all' || commF !== 'all' || q)
+      ? 'No subscribers match the current filters, so there is nothing to export. Clear the filters to export everything.'
+      : 'No subscribers to export.');
+    return;
+  }
+  const headers = ['Name','Phone','Email','Community','Status','Source','Notes','Joined At','Added'];
+  const csvRows = rows.map(x => [
+    x.name || '', x.phone || '', x.email || '', x.community || '',
+    x.status || '', x.source || '', x.notes || '',
+    x.joined_at ? new Date(x.joined_at).toLocaleDateString() : '',
+    x.created_at ? new Date(x.created_at).toLocaleDateString() : '',
+  ]);
+  const csv = [headers, ...csvRows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv' }));
+  a.download = `subscribers_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
 }
 
