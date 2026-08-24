@@ -5167,6 +5167,48 @@ function updateLeadsCountBadge() {
 // ── CSV IMPORT ─────────────────────────────────────────────────
 let _csvImportRows = [];
 
+// A real, quote-aware CSV parser. The previous version split the raw file on
+// every newline before looking at quoting at all, so a single field
+// containing an embedded line break - a real WhatsApp display name spanning
+// two lines, found in the actual WhatChimp export - got torn into two
+// "rows": the true row with a truncated name, plus a phantom second row
+// built from whatever came after the break (in the real case, that fragment
+// happened to land on the Subscribed-at date, which fell into the Name
+// column and got inserted as a real lead with a garbage name and no phone).
+// RFC 4180 explicitly allows a newline inside a quoted field, so this reads
+// the whole text as one stream rather than trusting line breaks as row
+// boundaries.
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else {
+        field += c;
+      }
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ',') {
+      row.push(field); field = '';
+    } else if (c === '\r') {
+      // consumed as part of the following \n check, ignore lone \r
+    } else if (c === '\n') {
+      row.push(field); field = '';
+      rows.push(row); row = [];
+    } else {
+      field += c;
+    }
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => !(r.length === 1 && r[0].trim() === ''));
+}
+
 function importLeadsCSV() {
   const fileInput = document.getElementById('csv-import-file');
   const msgEl     = document.getElementById('csv-import-msg');
@@ -5175,9 +5217,9 @@ function importLeadsCSV() {
   msgEl.textContent = '';
   const reader = new FileReader();
   reader.onload = function(e) {
-    const lines = e.target.result.split(/\r?\n/).filter(l => l.trim());
+    const lines = parseCSV(e.target.result);
     if (lines.length < 2) { msgEl.textContent = 'CSV must have a header row and at least one data row.'; return; }
-    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
+    const headers = lines[0].map(h => h.trim().toLowerCase());
     const nameIdx  = headers.findIndex(h => h.includes('name'));
     const phoneIdx = headers.findIndex(h => h.includes('phone'));
     const emailIdx = headers.findIndex(h => h.includes('email'));
@@ -5192,8 +5234,7 @@ function importLeadsCSV() {
     _csvImportRows = [];
     let fallbackNamed = 0;
     for (var i = 1; i < lines.length; i++) {
-      var cols = lines[i].match(/(".*?"|[^,]+|(?<=,)(?=,)|(?<=,)$|^(?=,))/g) || lines[i].split(',');
-      cols = cols.map(function(c){ return c.trim().replace(/^"|"$/g,''); });
+      var cols = lines[i].map(function(c){ return c.trim(); });
       var phone = phoneIdx >= 0 ? normalizePhone(cols[phoneIdx] || '') : '';
       var rawName = (nameIdx >= 0 ? cols[nameIdx] : '') || '';
       // A blank name used to mean the row was silently dropped - never
