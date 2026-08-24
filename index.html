@@ -148,7 +148,8 @@
       user-select: none;
     }
     .nav-item:hover { background: #f1f5f9; color: #0f172a; }
-    .nav-item.active { background: var(--tint-gold-bg); color: #0f172a; border-left-color: #d4a843; font-weight: 600; }
+    .nav-item.active { background: #d4a843; color: #1a1400; border-left-color: transparent; font-weight: 700; box-shadow: 0 1px 3px rgba(212,168,67,.35); }
+    .nav-item.active .nav-icon { background: rgba(26,20,0,.12); color: #1a1400; }
     .nav-icon {
       font-size: 13px; width: 26px; height: 26px; border-radius: 8px;
       display: flex; align-items: center; justify-content: center; flex-shrink: 0;
@@ -496,11 +497,11 @@
     [data-theme="dark"] .sidebar-brand h1 { color: #f1f5f9; }
     [data-theme="dark"] .nav-item { color: #cbd5e1; }
     [data-theme="dark"] .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
-    [data-theme="dark"] .nav-item.active { background: rgba(212,168,67,.16); color: #f1f5f9; }
+    [data-theme="dark"] .nav-item.active { background: #d4a843; color: #1a1400; }
     /* The glyph follows its chip. Pinning it to near-black only worked while
        the chips were bright pastels; against a calm surface it disappeared. */
     [data-theme="dark"] .nav-icon { color: #c3cbdb; }
-    [data-theme="dark"] .nav-item.active .nav-icon { color: var(--accent); }
+    [data-theme="dark"] .nav-item.active .nav-icon { background: rgba(26,20,0,.12); color: #1a1400; }
     [data-theme="dark"] .nav-section-label { color: #64748b; }
     [data-theme="dark"] .user-info p { color: #f1f5f9; }
     [data-theme="dark"] .user-info span { color: #64748b; }
@@ -708,6 +709,28 @@
     .stat-label { color: #64748b; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
     .stat-value { color: #0f172a; font-size: 2rem; font-weight: 700; line-height: 1; }
     .stat-trend { color: var(--ok); font-size: 0.75rem; margin-top: 6px; }
+
+    /* Real percentage rings only - Conversion Rate and New Lead Share are both
+       actual ratios already computed elsewhere in this CRM (Reports' own
+       Conversion Rate). No invented metric like a fabricated "SLA met" stat -
+       this dashboard doesn't track response-time SLAs against a target, so
+       showing one would be a fake number on a live business dashboard. */
+    .kpi-gauge-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+    .kpi-gauge {
+      background: #fff; border: 1px solid #e5e8ef; border-radius: 10px;
+      padding: 18px 22px; box-shadow: 0 1px 3px rgba(0,0,0,.1);
+      display: flex; align-items: center; gap: 16px; flex: 1; min-width: 220px;
+    }
+    .kpi-gauge-svg { width: 68px; height: 68px; flex-shrink: 0; transform: rotate(-90deg); }
+    .kpi-gauge-track { fill: none; stroke: var(--n-100); stroke-width: 8; }
+    .kpi-gauge-fill { fill: none; stroke: var(--accent); stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset .5s ease; }
+    .kpi-gauge-text { display: flex; flex-direction: column; }
+    .kpi-gauge-pct { font-size: 1.5rem; font-weight: 700; color: #0f172a; line-height: 1.1; }
+    .kpi-gauge-label { color: #64748b; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+    .kpi-gauge-sub { color: #94a3b8; font-size: 0.75rem; margin-top: 4px; }
+    [data-theme="dark"] .kpi-gauge { background: #111b2e; border-color: #243350; box-shadow: none; }
+    [data-theme="dark"] .kpi-gauge-pct { color: #f1f5f9; }
+    [data-theme="dark"] .kpi-gauge-track { stroke: #1e293b; }
 
     /* ── Subtabs ── */
     .subtabs { display: flex; gap: 4px; border-bottom: 1px solid #e2e8f0; margin-bottom: 18px; flex-wrap: wrap; }
@@ -1506,6 +1529,30 @@
   <div id="admin-tab-dashboard" class="tab-content active">
     <h3>Welcome Back, <span id="dash-admin-name">Badar Tanveer</span></h3>
     <p style="color:#64748b;font-size:0.85rem;margin:2px 0 18px">Here's what's happening with your pipeline today.</p>
+    <div class="kpi-gauge-row">
+      <div class="kpi-gauge">
+        <svg class="kpi-gauge-svg" viewBox="0 0 68 68">
+          <circle class="kpi-gauge-track" cx="34" cy="34" r="30" />
+          <circle class="kpi-gauge-fill" id="dash-gauge-conv-ring" cx="34" cy="34" r="30" stroke-dasharray="188.5" stroke-dashoffset="188.5" />
+        </svg>
+        <div class="kpi-gauge-text">
+          <div class="kpi-gauge-pct" id="dash-gauge-conv-pct">-</div>
+          <div class="kpi-gauge-label">Conversion Rate</div>
+          <div class="kpi-gauge-sub" id="dash-gauge-conv-sub"></div>
+        </div>
+      </div>
+      <div class="kpi-gauge">
+        <svg class="kpi-gauge-svg" viewBox="0 0 68 68">
+          <circle class="kpi-gauge-track" cx="34" cy="34" r="30" />
+          <circle class="kpi-gauge-fill" id="dash-gauge-new-ring" cx="34" cy="34" r="30" stroke-dasharray="188.5" stroke-dashoffset="188.5" />
+        </svg>
+        <div class="kpi-gauge-text">
+          <div class="kpi-gauge-pct" id="dash-gauge-new-pct">-</div>
+          <div class="kpi-gauge-label">New Lead Share</div>
+          <div class="kpi-gauge-sub" id="dash-gauge-new-sub"></div>
+        </div>
+      </div>
+    </div>
     <div class="quick-tile-row">
       <div class="quick-tile" onclick="adminTab('signal-broadcast')">
         <span class="quick-tile-icon" style="background:var(--tint-sky-bg)">📣</span>
@@ -1562,6 +1609,11 @@
         </div>
         <div>
           <div id="dash-pipeline-legend" style="display:flex;flex-wrap:wrap;gap:10px 18px;margin-bottom:16px"></div>
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px">
+            <span style="font-weight:700;font-size:0.85rem;color:var(--n-500)">Lead Growth (30 days)</span>
+            <span id="dash-trend-30d-total" style="font-weight:700;font-size:1.1rem;color:var(--accent)">-</span>
+            <span style="font-size:0.75rem;color:var(--n-500)">new leads</span>
+          </div>
           <canvas id="dash-trend-chart" height="90"></canvas>
         </div>
       </div>
@@ -8407,6 +8459,24 @@ function renderDashboardCharts(leads) {
   const statusKeys = Object.keys(STATUS_CHART_LABELS).filter(k => counts[k] > 0);
   const total = leads?.length || 0;
 
+  // Real ratios only, both already meaningful on their own: Conversion Rate is
+  // the exact same definition Reports uses (converted/total), New Lead Share
+  // is the honest equivalent for how much of the pipeline hasn't been worked
+  // yet. Circumference for r=30 is 2*pi*30 = 188.5, matching the SVG's own
+  // stroke-dasharray so a dashoffset of 0 draws a full ring.
+  const GAUGE_CIRCUMFERENCE = 188.5;
+  const setGauge = (ringId, pctId, subId, count) => {
+    const ring = document.getElementById(ringId);
+    const pct  = document.getElementById(pctId);
+    const sub  = document.getElementById(subId);
+    const rate = total > 0 ? (count / total) * 100 : 0;
+    if (ring) ring.style.strokeDashoffset = String(GAUGE_CIRCUMFERENCE * (1 - rate / 100));
+    if (pct)  pct.textContent = total > 0 ? rate.toFixed(1) + '%' : '-';
+    if (sub)  sub.textContent = `${count} of ${total}`;
+  };
+  setGauge('dash-gauge-conv-ring', 'dash-gauge-conv-pct', 'dash-gauge-conv-sub', counts.converted || 0);
+  setGauge('dash-gauge-new-ring',  'dash-gauge-new-pct',  'dash-gauge-new-sub',  counts.new || 0);
+
   if (legendEl) {
     legendEl.innerHTML = statusKeys.length ? statusKeys.map(k => `
       <div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:${dashChartTextColor()}">
@@ -8452,15 +8522,17 @@ function renderDashboardCharts(leads) {
     }],
   });
 
-  // Trend: leads added per day, last 14 days
+  // Trend: leads added per day, last 30 days
   const days = [];
   const dayCounts = [];
-  for (let i = 13; i >= 0; i--) {
+  for (let i = 29; i >= 0; i--) {
     const d = new Date(Date.now() - i * 86400000);
     const key = d.toISOString().slice(0, 10);
     days.push(d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }));
     dayCounts.push((leads || []).filter(l => (l.created_at || '').slice(0, 10) === key).length);
   }
+  const trendHeaderEl = document.getElementById('dash-trend-30d-total');
+  if (trendHeaderEl) trendHeaderEl.textContent = dayCounts.reduce((a, b) => a + b, 0);
   if (_dashTrendChart) { _dashTrendChart.destroy(); _dashTrendChart = null; }
   _dashTrendChart = new Chart(trendCanvas.getContext('2d'), {
     type: 'line',
