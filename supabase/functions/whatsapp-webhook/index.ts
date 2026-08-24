@@ -1082,7 +1082,17 @@ async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Prom
           { role: "system", content: systemPrompt },
           { role: "user", content: text },
         ],
-        max_tokens: 300,
+        // Found 2026-08-25 via a real live test that got no answer at all:
+        // `max_tokens` is rejected outright by reasoning models (gpt-5-mini,
+        // the configured default) with a 400 - they require
+        // `max_completion_tokens`. That alone still wasn't enough: a
+        // reasoning model spends part of this budget on hidden reasoning
+        // tokens before it ever writes a visible reply, so the old budget of
+        // 300 was entirely consumed by reasoning, every single time, leaving
+        // zero tokens for the actual answer (confirmed directly against
+        // OpenAI's API with the real system prompt - 300 produced empty
+        // content 100% of the time, 1000 reliably left enough room for both).
+        max_completion_tokens: 1000,
       }),
     });
     if (!res.ok) {
