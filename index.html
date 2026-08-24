@@ -48,8 +48,11 @@
       --n-500: #64748b; --n-400: #94a3b8; --n-300: #cbd5e1;
       --n-200: #e2e8f0; --n-100: #f1f5f9; --n-050: #f8fafc;
 
-      /* Accent - used sparingly, for active and primary only */
-      --accent: #b8862e; --accent-soft: #f6efdb;
+      /* Accent - used sparingly, for active and primary only. Brightened
+         2026-08-24 to match the actual gold in Muhammad's reference concept
+         (a vivid amber, not this muted old-gold) - estimated from a
+         screenshot, not sampled, so it's a close match rather than exact. */
+      --accent: #c2921f; --accent-soft: #f6efdb;
 
       /* Semantic - status only. Softened from the previous var(--bad) / var(--ok),
          which shouted next to everything around them. */
@@ -71,12 +74,12 @@
     /* Dark is this app's default, so the chips need their own calm surface
        rather than inheriting a light one and glowing against the navy. */
     [data-theme="dark"] {
-      --tint-gold-bg: #1c2740;    --tint-gold-fg: #d4ad4f;
+      --tint-gold-bg: #1c2740;    --tint-gold-fg: var(--accent);
       --tint-sky-bg: #1c2740;     --tint-sky-fg: #a3abbd;
       --tint-success-bg: #1c2740; --tint-success-fg: #a3abbd;
       --tint-warn-bg: #1c2740;    --tint-warn-fg: #a3abbd;
       --tint-danger-bg: #1c2740;  --tint-danger-fg: #a3abbd;
-      --accent: #d4ad4f; --accent-soft: #2a2312;
+      --accent: #e6b64c; --accent-soft: #2a2312;
       --ok: #4ab883;   --ok-soft: #12281d;
       --warn: #d9a24d; --warn-soft: #2b2011;
       --bad: #d2726a;  --bad-soft: #2c1715;
@@ -148,7 +151,7 @@
       user-select: none;
     }
     .nav-item:hover { background: #f1f5f9; color: #0f172a; }
-    .nav-item.active { background: #d4a843; color: #1a1400; border-left-color: transparent; font-weight: 700; box-shadow: 0 1px 3px rgba(212,168,67,.35); }
+    .nav-item.active { background: #e6b64c; color: #1a1400; border-left-color: transparent; font-weight: 700; box-shadow: 0 1px 3px rgba(230,182,76,.35); }
     .nav-item.active .nav-icon { background: rgba(26,20,0,.12); color: #1a1400; }
     .nav-icon {
       font-size: 13px; width: 26px; height: 26px; border-radius: 8px;
@@ -167,7 +170,7 @@
     }
     .nav-badge {
       margin-left: auto;
-      background: #d4a843;
+      background: #e6b64c;
       color: #0f172a;
       font-size: 0.68rem;
       font-weight: 700;
@@ -176,7 +179,7 @@
       min-width: 20px;
       text-align: center;
     }
-    .nav-item.active .nav-badge { background: rgba(212,168,67,0.3); color: #d4a843; }
+    .nav-item.active .nav-badge { background: rgba(230,182,76,0.3); color: #e6b64c; }
     /* The caret only ever toggles the subgroup below it - its own click
        handler stops propagation so it never also fires the row's own
        navigation, which the delegated #admin-tabs listener would otherwise
@@ -497,7 +500,7 @@
     [data-theme="dark"] .sidebar-brand h1 { color: #f1f5f9; }
     [data-theme="dark"] .nav-item { color: #cbd5e1; }
     [data-theme="dark"] .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
-    [data-theme="dark"] .nav-item.active { background: #d4a843; color: #1a1400; }
+    [data-theme="dark"] .nav-item.active { background: #e6b64c; color: #1a1400; }
     /* The glyph follows its chip. Pinning it to near-black only worked while
        the chips were bright pastels; against a calm surface it disappeared. */
     [data-theme="dark"] .nav-icon { color: #c3cbdb; }
@@ -708,7 +711,7 @@
     }
     .stat-label { color: #64748b; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
     .stat-value { color: #0f172a; font-size: 2rem; font-weight: 700; line-height: 1; }
-    .stat-trend { color: var(--ok); font-size: 0.75rem; margin-top: 6px; }
+    .stat-trend { color: var(--accent); font-size: 0.75rem; margin-top: 6px; }
 
     /* Real percentage rings only - Conversion Rate and New Lead Share are both
        actual ratios already computed elsewhere in this CRM (Reports' own
@@ -8594,8 +8597,8 @@ function renderDashboardCharts(leads) {
       datasets: [{
         label: 'Leads Added',
         data: dayCounts,
-        borderColor: '#d4a843',
-        backgroundColor: 'rgba(212,168,67,0.15)',
+        borderColor: '#e6b64c',
+        backgroundColor: 'rgba(230,182,76,0.15)',
         fill: true,
         tension: 0.35,
         pointRadius: 2,
