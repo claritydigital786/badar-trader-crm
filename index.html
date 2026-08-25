@@ -2665,6 +2665,14 @@
       Settings are saved to the <code>settings</code> table for reference.
     </div>
 
+    <!-- WhatsApp Connection Health -->
+    <p class="section-h">WhatsApp Connection Health</p>
+    <div class="card">
+      <p style="color:#64748b;font-size:0.85rem;margin-bottom:12px">Checks the WhatsApp number's real status directly with Meta - not stored anywhere, always live.</p>
+      <button class="btn btn-secondary btn-sm" id="wa-status-check-btn" onclick="checkWhatsAppStatus()">Check Connection</button>
+      <div id="wa-status-result" style="margin-top:14px"></div>
+    </div>
+
     <!-- Meta Lead Ads -->
     <p class="section-h">Meta Lead Ads</p>
     <div class="card">
@@ -5627,6 +5635,39 @@ async function saveMetaSettings() {
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
   setMsg(msgEl, 'Settings saved.', 'ok');
   refreshCredentialHints();
+}
+
+// Calls the whatsapp-status Edge Function, which asks Meta's own Graph API
+// (not any third-party platform) for the connected number's real, live
+// status - never fabricated, and never cached, so a stale credential shows
+// up as a real error here instead of a silently wrong "Active" badge.
+async function checkWhatsAppStatus() {
+  const btn = document.getElementById('wa-status-check-btn');
+  const box = document.getElementById('wa-status-result');
+  if (demoMode) {
+    box.innerHTML = `<div class="info-box">Demo mode - connection health needs a real Meta access token, so this only works signed in for real.</div>`;
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Checking…';
+  box.innerHTML = '';
+  const { data, error } = await sb.functions.invoke('whatsapp-status', { method: 'GET' });
+  btn.disabled = false; btn.textContent = 'Check Connection';
+  if (error || !data?.ok) {
+    const msg = data?.error || error?.message || 'Could not check connection.';
+    box.innerHTML = `<div class="info-box" style="background:var(--bad-soft);border-color:var(--bad);color:var(--bad)">${esc(msg)}</div>`;
+    return;
+  }
+  const quality = data.quality_rating || 'UNKNOWN';
+  const qualityColor = quality === 'GREEN' ? 'var(--ok)' : quality === 'RED' ? 'var(--bad)' : 'var(--warn)';
+  box.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px">
+      <div><div class="stat-label">Phone Number</div><div style="font-weight:600">${esc(data.display_phone_number || '-')}</div></div>
+      <div><div class="stat-label">Verified Name</div><div style="font-weight:600">${esc(data.verified_name || '-')}</div></div>
+      <div><div class="stat-label">Quality Rating</div><div style="font-weight:700;color:${qualityColor}">${esc(quality)}</div></div>
+      <div><div class="stat-label">Messaging Limit</div><div style="font-weight:600">${esc(data.messaging_limit_tier || '-')}</div></div>
+      <div><div class="stat-label">Verification</div><div style="font-weight:600">${esc(data.code_verification_status || '-')}</div></div>
+      <div><div class="stat-label">Checked</div><div style="font-weight:600">just now</div></div>
+    </div>`;
 }
 
 // Screenshots on 2026-08-23 showed the Meta access token, WhatsApp access
