@@ -9300,7 +9300,15 @@ async function renderConversations(scope = '') {
       // Excludes the internal "Qualified lead summary" note the webhook logs
       // for itself (whatsapp-webhook/index.ts) - never sent to the customer,
       // so it must never appear as a conversation's preview text either.
-      .neq('subject', 'Qualified lead summary')
+      // CRITICAL: a plain .neq() compiles to SQL "<>", and "NULL <> 'x'" is
+      // NULL (not true) in SQL's three-valued logic - so it silently excluded
+      // every ordinary message, since real customer messages all have
+      // subject: null. Found 2026-08-25 after a real agent (Ehsan) reported
+      // a real conversation showing in Comm Log but not here at all - this
+      // was true for every conversation, for every agent, since this filter
+      // was added, not just his. The .or() below is the null-safe equivalent:
+      // keep a row if its subject is null OR it's some other real value.
+      .or('subject.is.null,subject.neq.Qualified lead summary')
       .order('created_at', { ascending: false });
     if (error) throw error;
     if (!comms || !comms.length) {
@@ -9706,8 +9714,12 @@ async function openConversation(convId, scope = '') {
       sb.from('communications').select('*')
         .eq('lead_id', convId).eq('type', 'whatsapp')
         // Same exclusion as renderConversations() above - this is an internal
-        // note, never actually sent to the customer over WhatsApp.
-        .neq('subject', 'Qualified lead summary')
+        // note, never actually sent to the customer over WhatsApp. Same
+        // null-safe .or() fix too: a plain .neq() silently dropped every
+        // ordinary message (subject: null), so an opened conversation would
+        // have rendered completely empty even if it somehow appeared in the
+        // list at all.
+        .or('subject.is.null,subject.neq.Qualified lead summary')
         .order('created_at', { ascending: true })
     ]);
     if (leadRes.error) throw leadRes.error;
