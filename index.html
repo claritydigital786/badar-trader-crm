@@ -8303,21 +8303,33 @@ async function loadReports() {
     return;
   }
 
-  const [{ data: agentPerf, error: e1 }, { data: sourcePerf, error: e2 }, { data: finSummary, error: e3 }, { data: reportTransactions, error: e4 }] =
+  const [{ data: agentPerf, error: e1 }, { data: sourcePerf, error: e2 }, { data: finSummary, error: e3 }, { data: reportTransactions, error: e4 }, { count: totalLeadsCount, error: e5 }, { count: convertedCount, error: e6 }] =
     await Promise.all([
       sb.rpc('report_agent_performance'),
       sb.rpc('report_source_performance'),
       sb.rpc('report_financial_summary'),
       loadAllReportTransactions(),
+      // Real counts against the whole table, not cachedLeads - that array is
+      // whatever All Leads last loaded (capped at 1000 rows by PostgREST, and
+      // empty if this admin opened Reports without visiting All Leads first),
+      // so these summary cards could read 0/0.0%/0 for a client with over
+      // 5,000 real leads. Found 2026-08-25 while checking this page could
+      // actually answer "how many leads closed" - the Agent Performance table
+      // below was already correct (a real server-side RPC), only these three
+      // top cards were silently wrong.
+      sb.from('leads').select('id', { count: 'exact', head: true }),
+      sb.from('leads').select('id', { count: 'exact', head: true }).eq('status', 'converted'),
     ]);
 
   if (e1) console.error('report_agent_performance:', e1);
   if (e2) console.error('report_source_performance:', e2);
   if (e3) console.error('report_financial_summary:', e3);
   if (e4) console.error('report transactions:', e4);
+  if (e5) console.error('report total leads count:', e5);
+  if (e6) console.error('report converted count:', e6);
 
-  const totalLeads = cachedLeads.length;
-  const converted  = cachedLeads.filter(l => l.status === 'converted').length;
+  const totalLeads = totalLeadsCount || 0;
+  const converted  = convertedCount || 0;
   const convRate   = totalLeads > 0 ? ((converted / totalLeads) * 100).toFixed(1) : '0.0';
   const txRows = reportTransactions || [];
   const depositTotals = transactionTotalsByCurrency(txRows, 'deposit');
@@ -8687,6 +8699,18 @@ function renderDashboardStats() {
         <span style="color:#94a3b8;font-size:0.78rem;white-space:nowrap">Tomorrow</span>
       </div>`;
     renderDashboardCharts(_DEMO_LEADS);
+    // Demo Meta Ads Performance - the live path's loadDashMetaAds() call sits
+    // below this function's early return, so it was never reached in demo
+    // mode at all: the panel was stuck on its static "Loading campaign
+    // metrics..." markup forever, not an eventual demo value. Found 2026-08-25
+    // during a full pre-deploy verification pass.
+    const g = (id, v) => { const e = el(id); if (e) e.textContent = v; };
+    g('dma-impr', '48,320');
+    g('dma-clicks', '1,940');
+    g('dma-cpl', 'PKR 3,021');
+    g('dma-spend', 'PKR 187,280');
+    g('dma-leads', '62');
+    if (el('dma-sub')) el('dma-sub').textContent = 'Demo data - last 30 days';
     return;
   }
   if (el('dash-agents')) el('dash-agents').textContent = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended).length;
