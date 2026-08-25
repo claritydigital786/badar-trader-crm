@@ -1695,7 +1695,7 @@
     <h3>All Leads</h3>
     <div class="filter-bar">
       <input type="text" id="lead-search" placeholder="🔍 Search name, phone, email…"
-             oninput="filterLeadsLocal()"
+             oninput="onLeadSearchInput()"
              style="flex:1;min-width:180px;max-width:280px" />
       <select id="filter-status" onchange="loadAdminLeads()" title="Lead status">
         <option value="">All Statuses</option>
@@ -5087,6 +5087,32 @@ function leadMatchesFilters(l, f) {
   return true;
 }
 
+// Builds a PostgREST .or() expression that's safe against arbitrary typed
+// text: ilike wildcards (%, _) are escaped so a literal % in a search term
+// can't act as a wildcard, and commas/parens (which are .or()'s own
+// condition separators) are stripped rather than passed through, since a
+// stray one would otherwise silently break the filter into something else
+// entirely instead of erroring.
+function buildLeadSearchOr(term) {
+  const escaped = term
+    .replace(/\\/g, '\\\\')
+    .replace(/%/g, '\\%')
+    .replace(/_/g, '\\_')
+    .replace(/[,()]/g, '');
+  const like = `%${escaped}%`;
+  return `full_name.ilike.${like},phone.ilike.${like},email.ilike.${like}`;
+}
+
+// Debounced so every keystroke doesn't fire a request - filterLeadsLocal()
+// still runs instantly for a lead already sitting in cachedLeads, and this
+// catches up shortly after with the real, server-side match.
+let _leadSearchDebounce = null;
+function onLeadSearchInput() {
+  filterLeadsLocal();
+  clearTimeout(_leadSearchDebounce);
+  _leadSearchDebounce = setTimeout(loadAdminLeads, 400);
+}
+
 function clearLeadFilters() {
   ['filter-status', 'filter-agent', 'filter-source', 'filter-human', 'filter-date']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
@@ -5145,6 +5171,13 @@ async function loadAdminLeads() {
   if (f.human === '0') q = q.eq('needs_human', false);
   const since = leadDateSince(f.date);
   if (since) q = q.gte('created_at', since.toISOString());
+  // The search box used to only ever filter cachedLeads client-side, which
+  // PostgREST silently caps at 1000 rows - so searching for a lead older
+  // than the newest 1000 (anything before the WhatChimp import) could come
+  // back empty even though the lead genuinely exists. Pushing the term into
+  // the query means the database does the matching against the real table,
+  // not a truncated in-memory copy of it.
+  if (f.search) q = q.or(buildLeadSearchOr(f.search));
 
   // The filtered rows and the unfiltered head count are independent, so they go
   // out together rather than one after the other - the count is only there to
