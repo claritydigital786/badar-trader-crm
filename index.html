@@ -70,6 +70,28 @@
       --tint-success-bg: var(--n-100); --tint-success-fg: var(--n-600);
       --tint-warn-bg: var(--n-100);    --tint-warn-fg: var(--n-600);
       --tint-danger-bg: var(--n-100);  --tint-danger-fg: var(--n-600);
+
+      /* Semantic text and line roles. These are the tokens that let an inline
+         style be theme-aware, which the raw --n-* scale above cannot be: it is
+         one fixed light-mode ramp with no dark counterpart, so writing
+         var(--n-900) inline is no more theme-aware than writing #0f172a was.
+         Before these existed, dark mode compensated with two catch-all rules
+         matching the literal text of an inline style
+         ([data-theme="dark"] [style*="color:#0f172a"] and its #555 twin),
+         plus five ID selectors clawing back the boxes that are meant to stay
+         light. That worked, but it only ever covered the two exact literals
+         someone had thought to hard-code, and it broke silently the moment a
+         new screen used a slightly different grey. These roles flip properly
+         instead, so the catch-alls could be retired.
+         The boxes that used to be pinned light in both themes (AI Signals'
+         stat boxes, Train AI's prompt preview, the Guide's own cards) were
+         made theme-aware in the same pass, so no exception token is needed. */
+      --text-strong: var(--n-900);   /* names, headings, primary figures */
+      --text-body:   var(--n-600);   /* running copy */
+      --text-muted:  var(--n-500);   /* secondary labels, captions */
+      --text-faint:  var(--n-400);   /* de-emphasised, placeholder-weight */
+      --line:        var(--n-200);   /* hairline dividers and borders */
+      --surface-soft: var(--n-050);  /* inset panels inside a card */
     }
     /* Dark is this app's default, so the chips need their own calm surface
        rather than inheriting a light one and glowing against the navy. */
@@ -83,6 +105,16 @@
       --ok: #4ab883;   --ok-soft: #12281d;
       --warn: #d9a24d; --warn-soft: #2b2011;
       --bad: #d2726a;  --bad-soft: #2c1715;
+      /* The neutral ramp itself is not redefined here on purpose - it is
+         named by lightness (--n-900 IS the darkest), so flipping it would
+         make every name lie. The semantic roles above are re-pointed
+         instead, which is the whole reason they exist. */
+      --text-strong: #f1f5f9;
+      --text-body:   #cbd5e1;
+      --text-muted:  #94a3b8;
+      --text-faint:  #64748b;
+      --line:        #243350;
+      --surface-soft: #16223a;
     }
     .app-shell { display: flex; height: calc(100vh - var(--ticker-h)); margin-top: var(--ticker-h); overflow: hidden; position: relative; }
     .app-shell::before { content:""; position: fixed; top:50%; left:58%; transform:translate(-50%,-50%); width:640px; height:640px; background:url('/assets/bull.svg') center/contain no-repeat; opacity:0.06; pointer-events:none; z-index:0; }
@@ -128,7 +160,9 @@
       margin: 4px 0 0;
     }
     .nav-section-label {
-      color: #94a3b8;
+      /* was #94a3b8, which is 2.56:1 against the white sidebar - the least
+         readable text in the app in light mode, on every screen at once */
+      color: var(--text-muted);
       font-size: 10px;
       font-weight: 700;
       letter-spacing: 1px;
@@ -165,6 +199,22 @@
       background: var(--n-100);
       color: var(--n-700);
     }
+    /* Card headings used to be introduced by an emoji. Emoji are painted by
+       the OS font in their own fixed colours, so every heading carried a
+       small unrelated palette of its own - four different blues and greens
+       above headings whose text is a single neutral token - and one of them
+       (the clipboard in the lead detail) had already rendered as a solid
+       black box on a real agent's machine because that glyph was missing
+       from their font stack. .h-icon reuses the same stroke-icon set the
+       navigation already ships, drawn in currentColor, so a heading's icon
+       is the heading's own colour in both themes and cannot go missing. */
+    .h-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 1em; height: 1em; margin-right: 7px; vertical-align: -0.12em;
+      color: inherit; flex-shrink: 0;
+    }
+    .h-icon svg { width: 1em; height: 1em; fill: none; stroke: currentColor;
+      stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
     .nav-icon svg {
       width: 15px;
       height: 15px;
@@ -232,7 +282,11 @@
     }
     .user-info { min-width: 0; flex: 1; overflow: hidden; }
     .user-info p { margin: 0; color: #0f172a; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .user-info span { color: #94a3b8; font-size: 11px; }
+    /* These eight rules all used #94a3b8 as light-mode secondary text, which
+       is 2.56:1 on white - the same shortfall the sidebar section labels had.
+       --text-muted is #64748b in light (4.76:1) and #94a3b8 in dark, so each
+       gets the readable end of the ramp for the theme it is actually on. */
+    .user-info span { color: var(--text-muted); font-size: 11px; }
     .sidebar-footer:hover { background: #f8fafc; }
     .account-menu {
       position: absolute; bottom: calc(100% + 8px); left: 12px; right: 12px;
@@ -511,7 +565,7 @@
        the chips were bright pastels; against a calm surface it disappeared. */
     [data-theme="dark"] .nav-icon { color: #c3cbdb; }
     [data-theme="dark"] .nav-item.active .nav-icon { background: rgba(26,20,0,.12) !important; color: #1a1400; }
-    [data-theme="dark"] .nav-section-label { color: #64748b; }
+    [data-theme="dark"] .nav-section-label { color: var(--text-muted); }
     [data-theme="dark"] .user-info p { color: #f1f5f9; }
     [data-theme="dark"] .user-info span { color: #64748b; }
     [data-theme="dark"] .sidebar-footer:hover { background: rgba(255,255,255,.05); }
@@ -549,31 +603,19 @@
     [data-theme="dark"] .subtabs { border-bottom-color: #243350; }
     [data-theme="dark"] .subtab-btn { color: #94a3b8; }
     [data-theme="dark"] .section-h { color: #f1f5f9; }
-    /* Same pattern as the color:#0f172a catch-all below, for the app's other
-       common hardcoded muted-text color. Checked all 8 occurrences - none
-       sit on an always-light box, so lightening this in dark mode is a pure
-       improvement everywhere it appears (empty states, secondary table
-       text, "(you)" labels, character counters). */
-    [data-theme="dark"] [style*="color:#555"] { color: #94a3b8 !important; }
     [data-theme="dark"] input, [data-theme="dark"] textarea, [data-theme="dark"] select {
       background: #0f172a; border-color: #243350; color: #f1f5f9;
     }
-    /* Inline color:#0f172a is used ~27 times for card headings (mostly the
-       Guide tab) - class-level overrides above can't beat an inline style,
-       so this specifically targets that literal pattern. */
-    [data-theme="dark"] [style*="color:#0f172a"] { color: #f1f5f9 !important; }
-    /* Bug found 2026-08-04: the catch-all above assumes every inline
-       color:#0f172a sits on a card that goes dark in dark mode. These sit on
-       boxes hardcoded to stay light on purpose (AI Signals' result stat
-       boxes, Train AI's prompt preview) - the catch-all was force-flipping
-       their text to near-white, making it unreadable against its own
-       always-light background. ID selectors beat the attribute-selector
-       catch-all on specificity, so this wins regardless of source order. */
-    [data-theme="dark"] #ai-pattern,
-    [data-theme="dark"] #ai-rr-display,
-    [data-theme="dark"] #ai-trend,
-    [data-theme="dark"] #ai-session,
-    [data-theme="dark"] #akb-preview-pre { color: #0f172a !important; }
+    /* The two [style*="color:#..."] catch-alls that used to live here (one for
+       #0f172a, one for #555), and the five ID selectors that clawed back the
+       boxes they wrongly flipped, were removed 2026-08-26. They matched an
+       inline style by its literal text, so they only ever covered the exact
+       two greys someone had thought to hard-code and silently missed every
+       other one - inline #475569 body copy sat at 2.2:1 on a dark card the
+       whole time because no catch-all named it. The inline styles now use
+       --text-strong / --text-body / --text-muted, which flip per theme on
+       their own, and the boxes that had been pinned light were made
+       theme-aware in the same pass, so nothing needs exempting by ID. */
     td { color: #334155; }
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: #f8fafc; }
@@ -585,7 +627,7 @@
        text disappear against its own hover background on every table in the
        app. */
     [data-theme="dark"] tr:hover td { background: #16223a; }
-    .empty-state { color: #94a3b8; text-align: center; padding: 32px 0; font-size: 0.875rem; }
+    .empty-state { color: var(--text-muted); text-align: center; padding: 32px 0; font-size: 0.875rem; }
 
     /* ── Team roster ── */
     /* The actions cell was display:flex with flex-wrap, so four buttons stacked
@@ -736,7 +778,7 @@
     .kpi-gauge-text { display: flex; flex-direction: column; }
     .kpi-gauge-pct { font-size: 1.5rem; font-weight: 700; color: #0f172a; line-height: 1.1; }
     .kpi-gauge-label { color: #64748b; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
-    .kpi-gauge-sub { color: #94a3b8; font-size: 0.75rem; margin-top: 4px; }
+    .kpi-gauge-sub { color: var(--text-muted); font-size: 0.75rem; margin-top: 4px; }
     [data-theme="dark"] .kpi-gauge { background: #111b2e; border-color: #243350; box-shadow: none; }
     [data-theme="dark"] .kpi-gauge-pct { color: #f1f5f9; }
     [data-theme="dark"] .kpi-gauge-track { stroke: #1e293b; }
@@ -891,7 +933,7 @@
     .activity-item:last-child { border-bottom: none; }
     .activity-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; flex-wrap: wrap; }
     .activity-actor   { color: #64748b; font-size: 0.8rem; }
-    .activity-date    { color: #94a3b8; font-size: 0.78rem; }
+    .activity-date    { color: var(--text-muted); font-size: 0.78rem; }
     .followup-chip    { color: #f59e0b; font-size: 0.78rem; }
     .activity-summary { color: #334155; font-size: 0.875rem; line-height: 1.5; }
 
@@ -907,7 +949,13 @@
       margin-bottom: 18px;
       line-height: 1.6;
     }
-    .info-box strong { color: #78350f; }
+    /* .info-box got a dark-mode override for its own background and body text
+       (see the [data-theme="dark"] rule above), but the <strong> inside it
+       never did - so every emphasised phrase in an info box stayed a dark
+       brown on a dark navy box, at 1.75:1, on five separate tabs. Routed
+       through --warn, which is the palette's own attention colour and flips
+       per theme, so it reads on the light amber box and on the dark one. */
+    .info-box strong { color: var(--warn); }
     .section-h { color: #0f172a; font-size: 0.9rem; font-weight: 700; margin: 24px 0 10px; }
 
     /* ── Agent tab content padding ── */
@@ -1066,8 +1114,8 @@
     .notif-item.unread:hover { background:#dbeafe; }
     .notif-item .t { font-size:0.82rem; font-weight:600; color:#0f172a; }
     .notif-item .b { font-size:0.76rem; color:#475569; margin-top:2px; word-break:break-word; }
-    .notif-item .w { font-size:0.7rem; color:#94a3b8; margin-top:3px; }
-    .notif-empty { padding:22px 14px; text-align:center; color:#94a3b8; font-size:0.8rem; }
+    .notif-item .w { font-size:0.7rem; color:var(--text-muted); margin-top:3px; }
+    .notif-empty { padding:22px 14px; text-align:center; color:var(--text-muted); font-size:0.8rem; }
     [data-theme="dark"] .notif-panel { background:#111b2e; border-color:#243350; }
     [data-theme="dark"] .notif-head { border-bottom-color:#243350; }
     [data-theme="dark"] .notif-head strong, [data-theme="dark"] .notif-item .t { color:#f1f5f9; }
@@ -1161,9 +1209,9 @@
     .fwd-item { display:flex; align-items:center; gap:10px; padding:10px 16px; cursor:pointer; border-bottom:1px solid #f1f5f9; }
     .fwd-item:hover { background:#f8fafc; }
     .fwd-item .nm { font-weight:600; font-size:0.85rem; color:#0f172a; }
-    .fwd-item .ph { font-size:0.74rem; color:#94a3b8; }
+    .fwd-item .ph { font-size:0.74rem; color:var(--text-muted); }
     .fwd-foot { padding:10px 16px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:8px; }
-    .fwd-empty { padding:22px 16px; text-align:center; color:#94a3b8; font-size:0.82rem; }
+    .fwd-empty { padding:22px 16px; text-align:center; color:var(--text-muted); font-size:0.82rem; }
     [data-theme="dark"] .fwd-panel { background:#111b2e; }
     [data-theme="dark"] .fwd-head, [data-theme="dark"] .fwd-search,
     [data-theme="dark"] .fwd-foot { border-color:#243350; }
@@ -1392,7 +1440,7 @@
 <!-- ═══ SETUP BANNER ═══ -->
 <div id="setup-banner" style="display:none">
   <h2>Setup Required</h2>
-  <p style="color:#888;margin-bottom:14px;font-size:0.88rem">
+  <p style="color:var(--text-muted);margin-bottom:14px;font-size:0.88rem">
     Open <code>index.html</code> in a text editor, find the two
     <code>YOUR_SUPABASE_*</code> placeholders near the bottom, and follow these steps:
   </p>
@@ -1409,7 +1457,7 @@
         <em>User Metadata:</em> <code>{"full_name": "Badar Tanvir", "role": "admin"}</code></li>
     <li>Refresh this page - you should see the login screen.</li>
   </ol>
-  <p style="margin-top:14px;color:#555;font-size:0.8rem">
+  <p style="margin-top:14px;color:var(--text-muted);font-size:0.8rem">
     Keep this file on a private host. Do not commit credentials to a public repository.
   </p>
 </div>
@@ -1546,7 +1594,7 @@
         <h2 id="current-tab-title" class="page-title">Dashboard</h2>
       </div>
       <div class="header-actions">
-        <span id="user-greeting" style="color:#64748b;font-size:13px;"></span>
+        <span id="user-greeting" style="color:var(--text-muted);font-size:13px;"></span>
         <div class="notif-wrap">
           <button type="button" class="notif-btn" id="notif-btn" title="Notifications" onclick="toggleNotifPanel('')">🔔<span class="notif-badge" id="notif-badge" style="display:none">0</span></button>
           <div class="notif-panel" id="notif-panel" style="display:none"></div>
@@ -1559,7 +1607,7 @@
   <!-- Dashboard -->
   <div id="admin-tab-dashboard" class="tab-content active">
     <h3>Welcome Back, <span id="dash-admin-name">Badar Tanveer</span></h3>
-    <p style="color:#64748b;font-size:0.85rem;margin:2px 0 18px">Here's what's happening with your pipeline today.</p>
+    <p style="color:var(--text-muted);font-size:0.85rem;margin:2px 0 18px">Here's what's happening with your pipeline today.</p>
     <div class="kpi-gauge-row">
       <div class="kpi-gauge">
         <svg class="kpi-gauge-svg" viewBox="0 0 68 68">
@@ -1586,19 +1634,19 @@
     </div>
     <div class="quick-tile-row">
       <div class="quick-tile" onclick="adminTab('signal-broadcast')">
-        <span class="quick-tile-icon" style="background:var(--tint-sky-bg)">📣</span>
+        <span class="quick-tile-icon" style="background:var(--tint-sky-bg)"><span class="nav-icon" data-nav-icon="broadcast" style="background:transparent;color:var(--tint-sky-fg)"></span></span>
         <div><h4>Broadcast Review</h4><p>Parked · sending disabled</p></div>
       </div>
       <div class="quick-tile" onclick="adminTab('conversations')">
-        <span class="quick-tile-icon" style="background:var(--tint-success-bg)">📥</span>
+        <span class="quick-tile-icon" style="background:var(--tint-success-bg)"><span class="nav-icon" data-nav-icon="message" style="background:transparent;color:var(--tint-success-fg)"></span></span>
         <div><h4>Open Inbox</h4><p>View all conversations</p></div>
       </div>
       <div class="quick-tile" onclick="adminTab('bot-manager')">
-        <span class="quick-tile-icon" style="background:var(--tint-warn-bg)">🧠</span>
+        <span class="quick-tile-icon" style="background:var(--tint-warn-bg)"><span class="nav-icon" data-nav-icon="bot" style="background:transparent;color:var(--tint-warn-fg)"></span></span>
         <div><h4>Bot Manager</h4><p>Manage automation and AI</p></div>
       </div>
       <div class="quick-tile" onclick="adminTab('meta')">
-        <span class="quick-tile-icon" style="background:var(--tint-danger-bg)">🔗</span>
+        <span class="quick-tile-icon" style="background:var(--tint-danger-bg)"><span class="nav-icon" data-nav-icon="link" style="background:transparent;color:var(--tint-danger-fg)"></span></span>
         <div><h4>Meta Integration</h4><p>Review WhatsApp and Meta setup</p></div>
       </div>
     </div>
@@ -1627,13 +1675,13 @@
         <div class="stat-label">Client Account Balances</div>
         <div class="stat-value" id="dash-revenue">-</div>
         <div class="stat-trend">Current recorded balances</div>
-        <div class="stat-trend" id="dash-rev-platform" style="margin-top:6px;color:#94a3b8;line-height:1.6"></div>
+        <div class="stat-trend" id="dash-rev-platform" style="margin-top:6px;color:var(--text-muted);line-height:1.6"></div>
       </div>
     </div>
 
     <!-- Pipeline Overview: donut + trend, real cachedLeads data -->
     <div class="card" style="margin-bottom:20px">
-      <div style="font-weight:700;font-size:0.95rem;color:#0f172a;margin-bottom:14px">📊 Pipeline Overview</div>
+      <div style="font-weight:700;font-size:0.95rem;color:var(--text-strong);margin-bottom:14px"><span class="h-icon" data-nav-icon="chart"></span>Pipeline Overview</div>
       <div style="display:grid;grid-template-columns:minmax(180px,260px) 1fr;gap:24px;align-items:center" id="dash-pipeline-grid">
         <div style="position:relative;max-width:220px;margin:0 auto">
           <canvas id="dash-pipeline-donut" height="220"></canvas>
@@ -1653,18 +1701,18 @@
     <!-- Upcoming Follow-ups -->
     <div class="card" style="margin-bottom:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <div style="font-weight:700;font-size:0.95rem;color:#0f172a">📅 Upcoming Follow-ups</div>
-        <span style="font-size:0.75rem;color:#64748b">Next 7 days</span>
+        <div style="font-weight:700;font-size:0.95rem;color:var(--text-strong)"><span class="h-icon" data-nav-icon="calendar"></span>Upcoming Follow-ups</div>
+        <span style="font-size:0.75rem;color:var(--text-muted)">Next 7 days</span>
       </div>
-      <div id="dash-followups-list"><div style="color:#64748b;font-size:0.85rem;padding:8px 0">Loading…</div></div>
+      <div id="dash-followups-list"><div style="color:var(--text-muted);font-size:0.85rem;padding:8px 0">Loading…</div></div>
     </div>
 
     <!-- Meta Ads Performance Placeholder -->
-    <div class="card" style="border:1px solid #e2e8f0">
+    <div class="card" style="border:1px solid var(--line)">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px">
         <div>
-          <div style="color:#0f172a;font-weight:700;font-size:1rem;margin-bottom:4px">📊 Meta Ads Performance</div>
-          <div id="dma-sub" style="color:#94a3b8;font-size:0.8rem">Loading campaign metrics…</div>
+          <div style="color:var(--text-strong);font-weight:700;font-size:1rem;margin-bottom:4px"><span class="h-icon" data-nav-icon="chart"></span>Meta Ads Performance</div>
+          <div id="dma-sub" style="color:var(--text-muted);font-size:0.8rem">Loading campaign metrics…</div>
         </div>
         <button class="btn btn-secondary btn-sm" onclick="window.open('https://business.facebook.com/adsmanager/manage/campaigns?act=1024848662493589','_blank')"
           style="border-color:#0ea5e9;color:#0ea5e9;white-space:nowrap">
@@ -1673,27 +1721,27 @@
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:16px">
         <div style="text-align:center;padding:10px">
-          <div style="color:#94a3b8;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Impressions</div>
+          <div style="color:var(--text-muted);font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Impressions</div>
           <div id="dma-impr" style="font-size:1.8rem;font-weight:700">--</div>
         </div>
         <div style="text-align:center;padding:10px">
-          <div style="color:#94a3b8;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Clicks</div>
+          <div style="color:var(--text-muted);font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Clicks</div>
           <div id="dma-clicks" style="font-size:1.8rem;font-weight:700">--</div>
         </div>
         <div style="text-align:center;padding:10px">
-          <div style="color:#94a3b8;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Cost per Lead</div>
+          <div style="color:var(--text-muted);font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Cost per Lead</div>
           <div id="dma-cpl" style="font-size:1.8rem;font-weight:700">--</div>
         </div>
         <div style="text-align:center;padding:10px">
-          <div style="color:#94a3b8;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Ad Spend</div>
+          <div style="color:var(--text-muted);font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Ad Spend</div>
           <div id="dma-spend" style="font-size:1.8rem;font-weight:700">--</div>
         </div>
         <div style="text-align:center;padding:10px">
-          <div style="color:#94a3b8;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Leads</div>
+          <div style="color:var(--text-muted);font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Leads</div>
           <div id="dma-leads" style="font-size:1.8rem;font-weight:700">--</div>
         </div>
       </div>
-      <div style="margin-top:12px;color:#64748b;font-size:0.75rem">Ad Account: act_1024848662493589</div>
+      <div style="margin-top:12px;color:var(--text-muted);font-size:0.75rem">Ad Account: act_1024848662493589</div>
     </div>
   </div>
 
@@ -1833,12 +1881,12 @@
 
     <!-- CSV Import -->
     <div class="card" style="margin-bottom:20px">
-      <div style="font-weight:700;font-size:0.9rem;color:#0f172a;margin-bottom:6px">&#128196; Import from CSV</div>
-      <p style="font-size:0.8rem;color:#64748b;margin-bottom:12px;line-height:1.6">
+      <div style="font-weight:700;font-size:0.9rem;color:var(--text-strong);margin-bottom:6px">&#128196; Import from CSV</div>
+      <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:12px;line-height:1.6">
         Upload a CSV with columns: <code style="background:#0f172a;padding:1px 5px;border-radius:4px;font-size:0.78rem">name, phone, email, source, instrument</code> (headers in row 1). A platform export (WhatChimp, etc.) usually has no Source column of its own - pick what these rows should be labelled below.
       </p>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
-        <label style="font-size:0.8rem;color:#64748b;white-space:nowrap">If the file has no Source column, label these rows:</label>
+        <label style="font-size:0.8rem;color:var(--text-muted);white-space:nowrap">If the file has no Source column, label these rows:</label>
         <select id="csv-default-source" style="width:auto">
           <option value="whatchimp">WhatChimp Import</option>
           <option value="whatsapp">💬 WhatsApp</option>
@@ -1850,12 +1898,12 @@
         </select>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <input type="file" id="csv-import-file" accept=".csv" style="font-size:0.82rem;color:#94a3b8" />
+        <input type="file" id="csv-import-file" accept=".csv" style="font-size:0.82rem;color:var(--text-muted)" />
         <button class="btn btn-secondary btn-inline" onclick="importLeadsCSV()">Import</button>
         <span id="csv-import-msg" style="font-size:0.8rem;color:var(--ok)"></span>
       </div>
       <div id="csv-import-preview" style="margin-top:12px;display:none">
-        <div style="font-size:0.78rem;font-weight:700;color:#64748b;margin-bottom:6px" id="csv-import-count"></div>
+        <div style="font-size:0.78rem;font-weight:700;color:var(--text-muted);margin-bottom:6px" id="csv-import-count"></div>
         <div id="csv-import-table-wrap" style="overflow-x:auto;max-height:180px;overflow-y:auto"></div>
         <div style="margin-top:10px;display:flex;gap:8px">
           <button class="btn btn-primary btn-inline" id="csv-confirm-btn" onclick="confirmImportCSV()">Confirm Import</button>
@@ -1873,10 +1921,10 @@
          existed for agents only (V1 request from Ehsan/Hanzala) and was
          never built for admin - Muhammad flagged not seeing it in V2. -->
     <div class="card" id="quick-links" style="margin-bottom:14px;padding:12px 16px">
-      <div style="font-weight:700;font-size:0.85rem;color:#0f172a;margin-bottom:10px">🔗 Quick Links</div>
+      <div style="font-weight:700;font-size:0.85rem;color:var(--text-strong);margin-bottom:10px"><span class="h-icon" data-nav-icon="link"></span>Quick Links</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <select id="quick-links-select" onchange="renderQuickLinkValue('')" style="flex:1;min-width:160px;padding:6px 8px;font-size:0.78rem"></select>
-        <span id="quick-links-value" style="font-family:monospace;font-size:0.78rem;color:#0f172a;flex:2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        <span id="quick-links-value" style="font-family:monospace;font-size:0.78rem;color:var(--text-strong);flex:2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
         <button class="btn btn-secondary btn-sm" id="quick-links-copy-btn" onclick="copySelectedQuickLink('')">Copy</button>
       </div>
     </div>
@@ -1909,13 +1957,13 @@
         </div>
         <div class="conv-list" id="conv-list"></div>
       </div>
-      <button type="button" class="conv-show-list-btn" title="Show the lead list" onclick="toggleConvListPanel('')" style="position:absolute;top:14px;left:14px;z-index:5;border:1px solid #cbd5e1;background:#fff;border-radius:8px;width:34px;height:34px;cursor:pointer;color:#475569;font-size:0.9rem;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.12)">☰</button>
+      <button type="button" class="conv-show-list-btn" title="Show the lead list" onclick="toggleConvListPanel('')" style="position:absolute;top:14px;left:14px;z-index:5;border:1px solid #cbd5e1;background:#fff;border-radius:8px;width:34px;height:34px;cursor:pointer;color:var(--text-body);font-size:0.9rem;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.12)">☰</button>
       <!-- Right: Chat View -->
       <div class="conv-chat-panel" id="conv-chat-panel">
         <div class="conv-empty-chat">
           <div style="font-size:2.5rem;margin-bottom:12px">💬</div>
-          <div style="font-weight:600;color:#64748b;margin-bottom:6px">Select a conversation</div>
-          <div style="font-size:0.8rem;color:#94a3b8">Click on a lead to view their messages</div>
+          <div style="font-weight:600;color:var(--text-muted);margin-bottom:6px">Select a conversation</div>
+          <div style="font-size:0.8rem;color:var(--text-muted)">Click on a lead to view their messages</div>
         </div>
       </div>
       <div class="conv-contact-panel" id="conv-contact-panel"></div>
@@ -1945,7 +1993,7 @@
 
     <p class="section-h">Round-Robin Assignment</p>
     <div class="card" id="rr-status-card">
-      <span style="color:#555">Loading…</span>
+      <span style="color:var(--text-muted)">Loading…</span>
     </div>
   </div>
 
@@ -1975,13 +2023,13 @@
     </div>
     <div class="card">
       <p class="section-h" style="margin-top:0">Admin</p>
-      <p style="color:#475569;font-size:0.85rem;line-height:1.7">
+      <p style="color:var(--text-body);font-size:0.85rem;line-height:1.7">
         Full access: every lead and conversation regardless of assigned agent, KYC approval, transactions/payroll, Meta and WhatsApp integration settings, automation rules, and the ability to promote or suspend other users.
       </p>
     </div>
     <div class="card" style="margin-top:14px">
       <p class="section-h" style="margin-top:0">Agent</p>
-      <p style="color:#475569;font-size:0.85rem;line-height:1.7">
+      <p style="color:var(--text-body);font-size:0.85rem;line-height:1.7">
         Sees only leads assigned to their own account and the related conversations, activity, KYC records, transactions, and communication logs. Can update and reply only within those assigned leads. Cannot approve KYC, change integration settings, promote or suspend users, or access another agent's leads.
       </p>
     </div>
@@ -2056,7 +2104,7 @@
 
             <div class="card">
               <h4 style="margin-bottom:10px">Test a message</h4>
-              <p style="color:#64748b;font-size:0.82rem;margin-bottom:12px">Type what a customer might send and see which rule matches. This only checks your rules, it does not message anyone.</p>
+              <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:12px">Type what a customer might send and see which rule matches. This only checks your rules, it does not message anyone.</p>
               <div class="form-row">
                 <div class="form-group" style="flex:2">
                   <input type="text" id="kw-test-input" placeholder="e.g. what is the price?" oninput="runKeywordTest()" />
@@ -2129,7 +2177,7 @@
                   <input type="text" id="tpl-name" placeholder="e.g. Reopen stale conversation" />
                 </div>
                 <div class="form-group">
-                  <label>Meta Template Name <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+                  <label>Meta Template Name <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
                   <input type="text" id="tpl-meta-name" placeholder="e.g. reopen_conversation" />
                 </div>
               </div>
@@ -2166,7 +2214,7 @@
                 <textarea id="tpl-body" rows="5" placeholder="The template text. Use {{1}}, {{2}} for variables, the same way Meta does."></textarea>
               </div>
               <div class="form-group">
-                <label>Notes <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+                <label>Notes <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
                 <textarea id="tpl-notes" rows="3" placeholder="Why it was rejected, what to change, when it was submitted."></textarea>
               </div>
               <div id="tpl-msg" class="msg"></div>
@@ -2183,7 +2231,7 @@
 
             <div class="card">
               <h4 style="margin-bottom:10px">Test a lead</h4>
-              <p style="color:#64748b;font-size:0.82rem;margin-bottom:12px">Pick a status and how long a lead has been sitting in it, to see which follow-ups would fire. This only checks your rules, it does not message anyone.</p>
+              <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:12px">Pick a status and how long a lead has been sitting in it, to see which follow-ups would fire. This only checks your rules, it does not message anyone.</p>
               <div class="form-row">
                 <div class="form-group">
                   <label>Lead status</label>
@@ -2281,12 +2329,12 @@
           <div class="bm-panel active" id="bm-panel-ai-configuration">
             <div class="card">
               <h4 style="margin-bottom:4px">AI Configuration</h4>
-              <p style="color:#64748b;font-size:0.82rem;margin-bottom:14px">Enable agents and set the provider for the selected bot.</p>
+              <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:14px">Enable agents and set the provider for the selected bot.</p>
 
               <div class="bm-gate">
                 <div style="flex:1;min-width:220px">
                   <div style="font-weight:600;font-size:0.88rem">AI Agent</div>
-                  <div style="color:#64748b;font-size:0.8rem">Turn on AI agents to start answering with your training data.</div>
+                  <div style="color:var(--text-muted);font-size:0.8rem">Turn on AI agents to start answering with your training data.</div>
                 </div>
                 <label class="toggle-switch" title="Saves your intent, does not go live on its own">
                   <input type="checkbox" id="ai-agent-toggle" />
@@ -2299,7 +2347,7 @@
               </div>
 
               <div style="margin-top:14px">
-                <div style="font-size:0.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Live reply gates (deployed webhook)</div>
+                <div style="font-size:0.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Live reply gates (deployed webhook)</div>
                 <table>
                   <thead><tr><th>Gate</th><th>What it controls</th><th>State</th></tr></thead>
                   <tbody id="bm-gate-tbody"></tbody>
@@ -2314,7 +2362,7 @@
 
             <div class="card">
               <h4 style="margin-bottom:10px">AI Provider</h4>
-              <p style="color:#64748b;font-size:0.82rem;margin-bottom:12px">The key the webhook will use for <code>tryAIReply()</code> once <code>AI_REPLIES_ENABLED</code> is flipped on. Saved to this CRM's own <code>settings</code> table only - never sent anywhere else from this screen.</p>
+              <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:12px">The key the webhook will use for <code>tryAIReply()</code> once <code>AI_REPLIES_ENABLED</code> is flipped on. Saved to this CRM's own <code>settings</code> table only - never sent anywhere else from this screen.</p>
               <label>OpenAI API Key</label>
               <div style="display:flex;gap:8px;align-items:center">
                 <input type="password" id="openai-api-key" placeholder="sk-… (leave blank until Muhammad provides it)" style="flex:1" />
@@ -2347,7 +2395,7 @@
               <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
                 <div>
                   <h4 style="margin:0 0 4px">AI Agents</h4>
-                  <p style="color:#64748b;font-size:0.82rem;margin:0">Create agents with their own system prompt and knowledge. Enable and route them from AI Configuration.</p>
+                  <p style="color:var(--text-muted);font-size:0.82rem;margin:0">Create agents with their own system prompt and knowledge. Enable and route them from AI Configuration.</p>
                 </div>
                 <button class="btn btn-primary btn-sm" onclick="resetAgentForm();document.getElementById('bm-agent-form').scrollIntoView({behavior:'smooth',block:'center'})">+ Create Agent</button>
               </div>
@@ -2392,7 +2440,7 @@
 
             <div class="card">
               <h4 style="margin-bottom:10px">Preview what the bot would be told</h4>
-              <p style="color:#64748b;font-size:0.82rem;margin-bottom:12px">Assembles a campaign into the exact instructions an AI would receive. This builds the text only, it makes no AI call and sends nothing.</p>
+              <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:12px">Assembles a campaign into the exact instructions an AI would receive. This builds the text only, it makes no AI call and sends nothing.</p>
               <div class="form-row">
                 <div class="form-group" style="flex:2">
                   <label>Campaign</label>
@@ -2431,7 +2479,7 @@
                 <textarea id="akb-prompt" rows="7" placeholder="Who the assistant is, its tone, language rules, what it must never promise, when to hand off to a human."></textarea>
               </div>
               <div class="form-group">
-                <label>Knowledge Notes <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+                <label>Knowledge Notes <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
                 <textarea id="akb-notes" rows="5" placeholder="Facts the assistant should know: links, referral codes, deposit amounts, course details."></textarea>
               </div>
               <div id="akb-msg" class="msg"></div>
@@ -2500,7 +2548,7 @@
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
       <div class="stat-card"><div class="stat-value" id="appt-today">0</div><div class="stat-label">Today</div></div>
       <div class="stat-card"><div class="stat-value" id="appt-upcoming">0</div><div class="stat-label">Upcoming</div></div>
-      <div class="stat-card"><div class="stat-value" id="appt-overdue" style="color:#dc4c40">0</div><div class="stat-label">Overdue</div></div>
+      <div class="stat-card"><div class="stat-value" id="appt-overdue" style="color:var(--bad)">0</div><div class="stat-label">Overdue</div></div>
       <div class="stat-card"><div class="stat-value" id="appt-done">0</div><div class="stat-label">Completed</div></div>
     </div>
 
@@ -2561,7 +2609,7 @@
         </div>
       </div>
       <div class="form-group">
-        <label>Notes <span style="color:#94a3b8;font-weight:400">(optional)</span></label>
+        <label>Notes <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
         <textarea id="appt-notes" rows="3" placeholder="Anything the owner should know before the call."></textarea>
       </div>
       <div id="appt-msg" class="msg"></div>
@@ -2603,7 +2651,7 @@
             <option value="USDT">USDT - Tether</option>
             <option value="BTC">BTC - Bitcoin</option>
           </select>
-          <p style="color:#64748b;font-size:0.76rem;margin-top:6px">Applied when an Admin records a new deposit or withdrawal. Existing records keep their original currency.</p>
+          <p style="color:var(--text-muted);font-size:0.76rem;margin-top:6px">Applied when an Admin records a new deposit or withdrawal. Existing records keep their original currency.</p>
         </div>
       </div>
       <div class="form-actions">
@@ -2618,7 +2666,7 @@
         <span class="detail-label" style="min-width:190px">Agent lead visibility</span>
         <div>
           <strong>Assigned leads only</strong>
-          <div style="color:#64748b;font-size:0.8rem;margin-top:3px">Enforced by database access policies for leads and their related records.</div>
+          <div style="color:var(--text-muted);font-size:0.8rem;margin-top:3px">Enforced by database access policies for leads and their related records.</div>
         </div>
         <span class="bm-status-pill on" style="margin-left:auto">Enforced</span>
       </div>
@@ -2626,14 +2674,14 @@
         <span class="detail-label" style="min-width:190px">New-lead status</span>
         <div>
           <strong>New</strong>
-          <div style="color:#64748b;font-size:0.8rem;margin-top:3px">Every newly captured lead begins in the New stage.</div>
+          <div style="color:var(--text-muted);font-size:0.8rem;margin-top:3px">Every newly captured lead begins in the New stage.</div>
         </div>
       </div>
       <div class="detail-row">
         <span class="detail-label" style="min-width:190px">WhatsApp reply window</span>
         <div>
           <strong>24-hour customer-service window</strong>
-          <div style="color:#64748b;font-size:0.8rem;margin-top:3px">Free-form replies are blocked outside Meta's window; approved templates are required.</div>
+          <div style="color:var(--text-muted);font-size:0.8rem;margin-top:3px">Free-form replies are blocked outside Meta's window; approved templates are required.</div>
         </div>
         <span class="bm-status-pill on" style="margin-left:auto">Protected</span>
       </div>
@@ -2646,18 +2694,18 @@
     <p class="section-h">Connected administration</p>
     <div class="stat-grid">
       <div class="card">
-        <div style="font-weight:700;color:#0f172a;margin-bottom:6px">Messaging &amp; Meta</div>
-        <p style="color:#64748b;font-size:0.83rem;margin-bottom:12px">Webhook, phone-number ID and WhatsApp API configuration.</p>
+        <div style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Messaging &amp; Meta</div>
+        <p style="color:var(--text-muted);font-size:0.83rem;margin-bottom:12px">Webhook, phone-number ID and WhatsApp API configuration.</p>
         <button class="btn btn-secondary btn-sm" type="button" onclick="adminTab('meta')">Open Meta Integration</button>
       </div>
       <div class="card">
-        <div style="font-weight:700;color:#0f172a;margin-bottom:6px">Notifications</div>
-        <p style="color:#64748b;font-size:0.83rem;margin-bottom:12px">Choose operational alerts and review notification status.</p>
+        <div style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Notifications</div>
+        <p style="color:var(--text-muted);font-size:0.83rem;margin-bottom:12px">Choose operational alerts and review notification status.</p>
         <button class="btn btn-secondary btn-sm" type="button" onclick="adminTab('notifications')">Open Notifications</button>
       </div>
       <div class="card">
-        <div style="font-weight:700;color:#0f172a;margin-bottom:6px">Payroll &amp; commissions</div>
-        <p style="color:#64748b;font-size:0.83rem;margin-bottom:12px">Manage salary setup, commission rules and payroll runs.</p>
+        <div style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Payroll &amp; commissions</div>
+        <p style="color:var(--text-muted);font-size:0.83rem;margin-bottom:12px">Manage salary setup, commission rules and payroll runs.</p>
         <button class="btn btn-secondary btn-sm" type="button" onclick="adminTab('payroll')">Open Payroll</button>
       </div>
     </div>
@@ -2675,7 +2723,7 @@
     <!-- WhatsApp Connection Health -->
     <p class="section-h">WhatsApp Connection Health</p>
     <div class="card">
-      <p style="color:#64748b;font-size:0.85rem;margin-bottom:12px">Checks the WhatsApp number's real status directly with Meta - not stored anywhere, always live.</p>
+      <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:12px">Checks the WhatsApp number's real status directly with Meta - not stored anywhere, always live.</p>
       <button class="btn btn-secondary btn-sm" id="wa-status-check-btn" onclick="checkWhatsAppStatus()">Check Connection</button>
       <div id="wa-status-result" style="margin-top:14px"></div>
     </div>
@@ -2688,14 +2736,14 @@
         <input type="password" id="meta-token" placeholder="EAA… (fill in when Badar provides credentials)" style="flex:1" />
         <button type="button" class="btn btn-secondary btn-sm" id="meta-token-toggle" onclick="toggleCredentialVisibility('meta-token')" style="white-space:nowrap">Show</button>
       </div>
-      <p class="cred-hint" id="meta-token-hint" style="color:#94a3b8;font-size:0.78rem;margin:4px 0 0"></p>
+      <p class="cred-hint" id="meta-token-hint" style="color:var(--text-muted);font-size:0.78rem;margin:4px 0 0"></p>
       <label>Ad Account ID</label>
       <input type="text" id="meta-account-id" placeholder="act_123456789" value="1024848662493589" />
       <label>WhatsApp Business Account (WABA) ID</label>
       <input type="text" id="meta-waba-id" placeholder="WABA ID" value="1342908727797643" />
       <label>Lead Form ID (optional)</label>
       <input type="text" id="meta-form-id" placeholder="Meta Lead Ad form ID" />
-      <label>Pixel ID <span style="color:#666;font-weight:400">(required for Meta Analytics tab)</span></label>
+      <label>Pixel ID <span style="color:var(--text-muted);font-weight:400">(required for Meta Analytics tab)</span></label>
       <input type="text" id="meta-pixel-id" placeholder="e.g. 1234567890123456" />
     </div>
 
@@ -2717,7 +2765,7 @@
       <div style="display:flex;gap:8px;align-items:center">
         <input type="text" id="wa-webhook-url" readonly
           value="https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/whatsapp-webhook"
-          style="cursor:text;background:#f8fafc;color:#0369a1;font-family:monospace;font-size:0.83rem" />
+          style="cursor:text;background:var(--surface-soft);color:var(--text-body);font-family:monospace;font-size:0.83rem" />
         <button class="btn btn-secondary btn-sm" onclick="copyWebhookUrl()" style="white-space:nowrap">Copy</button>
       </div>
 
@@ -2727,21 +2775,21 @@
           placeholder="Choose any secret string, e.g. badar_crm_wh_2026 - must match what you set in Supabase secrets" />
         <button type="button" class="btn btn-secondary btn-sm" id="wa-verify-token-toggle" onclick="toggleCredentialVisibility('wa-verify-token')" style="white-space:nowrap">Show</button>
       </div>
-      <p class="cred-hint" id="wa-verify-token-hint" style="color:#94a3b8;font-size:0.78rem;margin:4px 0 0"></p>
+      <p class="cred-hint" id="wa-verify-token-hint" style="color:var(--text-muted);font-size:0.78rem;margin:4px 0 0"></p>
 
       <label>WhatsApp Phone Number ID</label>
       <input type="text" id="wa-phone-number-id" placeholder="Provided in Meta Developer App → WhatsApp → API Setup" value="1181979858336353" />
 
-      <label>WhatsApp Access Token <span style="color:#666;font-weight:400">(fill in when Badar provides credentials)</span></label>
+      <label>WhatsApp Access Token <span style="color:var(--text-muted);font-weight:400">(fill in when Badar provides credentials)</span></label>
       <div style="display:flex;gap:8px;align-items:center">
         <input type="password" id="wa-access-token" placeholder="EAA… permanent token from Meta Developer App" style="flex:1" />
         <button type="button" class="btn btn-secondary btn-sm" id="wa-access-token-toggle" onclick="toggleCredentialVisibility('wa-access-token')" style="white-space:nowrap">Show</button>
       </div>
-      <p class="cred-hint" id="wa-access-token-hint" style="color:#94a3b8;font-size:0.78rem;margin:4px 0 0"></p>
+      <p class="cred-hint" id="wa-access-token-hint" style="color:var(--text-muted);font-size:0.78rem;margin:4px 0 0"></p>
     </div>
 
     <div>
-      <label>Admin WhatsApp Number (Badar's number for approval notifications) <span style="color:#666;font-weight:400">e.g. 971563309447</span></label>
+      <label>Admin WhatsApp Number (Badar's number for approval notifications) <span style="color:var(--text-muted);font-weight:400">e.g. 971563309447</span></label>
       <input type="text" id="admin-whatsapp-number" placeholder="Country code + number, no +, no spaces - e.g. 971563309447" />
     </div>
 
@@ -2764,7 +2812,7 @@
     <!-- Rules Table -->
     <div class="card" style="padding:0">
       <div style="padding:14px 18px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between">
-        <div style="font-weight:700;font-size:0.9rem;color:#0f172a">⚡ Active Rules</div>
+        <div style="font-weight:700;font-size:0.9rem;color:var(--text-strong)"><span class="h-icon" data-nav-icon="automation"></span>Active Rules</div>
         <button class="btn btn-primary btn-sm" onclick="document.getElementById('automation-form-title').scrollIntoView({behavior:'smooth'})">+ Create Rule</button>
       </div>
       <table>
@@ -2798,7 +2846,7 @@
       </div>
       <div class="form-row">
         <div>
-          <label>Condition <span style="color:#94a3b8;font-weight:400">(optional filter)</span></label>
+          <label>Condition <span style="color:var(--text-muted);font-weight:400">(optional filter)</span></label>
           <input type="text" id="ar-condition" placeholder="e.g. source = meta, status = converted" />
         </div>
         <div>
@@ -2824,7 +2872,7 @@
         <select id="ar-assign-agent">
           <option value="">- Select Agent -</option>
         </select>
-        <p style="color:#64748b;font-size:0.78rem;margin-top:6px">This agent will be auto-assigned when the trigger fires.</p>
+        <p style="color:var(--text-muted);font-size:0.78rem;margin-top:6px">This agent will be auto-assigned when the trigger fires.</p>
       </div>
       <div class="form-actions">
         <button class="btn btn-primary btn-inline" onclick="submitAutomationRule()">Save Rule</button>
@@ -2855,9 +2903,9 @@
         <div class="stat-value" id="rpt-active-clients" style="color:#0ea5e9">-</div>
         <div class="stat-trend">Converted leads</div>
       </div>
-      <div class="stat-card" style="border-left:4px solid #d4a843">
-        <div class="stat-label" style="color:#d4a843">Recorded Deposits</div>
-        <div class="stat-value" id="rpt-total-revenue" style="color:#d4a843">-</div>
+      <div class="stat-card" style="border-left:4px solid var(--accent)">
+        <div class="stat-label" style="color:var(--accent)">Recorded Deposits</div>
+        <div class="stat-value" id="rpt-total-revenue" style="color:var(--accent)">-</div>
         <div class="stat-trend">From transaction records</div>
       </div>
     </div>
@@ -2878,10 +2926,10 @@
     <!-- Live Campaign Funnel -->
     <p class="section-h">Live Campaign Funnel</p>
     <div class="card">
-      <p style="color:#64748b;font-size:0.82rem;margin-bottom:16px">
+      <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:16px">
         Only the live click-to-WhatsApp campaign - excludes the WhatChimp historical import, which hasn't been contacted yet and would otherwise drown out real activity.
       </p>
-      <div id="report-funnel-headline" style="font-size:0.95rem;font-weight:700;color:#0f172a;margin-bottom:16px"></div>
+      <div id="report-funnel-headline" style="font-size:0.95rem;font-weight:700;color:var(--text-strong);margin-bottom:16px"></div>
       <div id="report-funnel-chart"></div>
     </div>
 
@@ -2913,8 +2961,8 @@
     <div class="card">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
         <div>
-          <p style="color:#0f172a;font-weight:700;font-size:1rem;margin-bottom:4px">Badar Trader Hub</p>
-          <p style="color:#64748b;font-size:0.82rem;font-family:monospace">https://preview--profit-path-crm.lovable.app/</p>
+          <p style="color:var(--text-strong);font-weight:700;font-size:1rem;margin-bottom:4px">Badar Trader Hub</p>
+          <p style="color:var(--text-muted);font-size:0.82rem;font-family:monospace">https://preview--profit-path-crm.lovable.app/</p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('https://preview--profit-path-crm.lovable.app/').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Link',1500)})">Copy Link</button>
@@ -2923,121 +2971,121 @@
       </div>
       <div style="background:#141414;border:1px solid #2a2a2a;border-radius:8px;overflow:hidden;height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px">
         <div style="font-size:2.5rem">🌐</div>
-        <p style="color:#888;font-size:0.9rem;font-weight:600">Live preview not available</p>
-        <p style="color:#555;font-size:0.8rem;text-align:center;max-width:340px">Publish your project in Lovable to get a public URL, then update this link to show the live preview.</p>
+        <p style="color:var(--text-muted);font-size:0.9rem;font-weight:600">Live preview not available</p>
+        <p style="color:var(--text-muted);font-size:0.8rem;text-align:center;max-width:340px">Publish your project in Lovable to get a public URL, then update this link to show the live preview.</p>
         <a href="https://preview--profit-path-crm.lovable.app/" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="text-decoration:none;margin-top:4px">Open Page ↗</a>
       </div>
-      <p style="color:#666;font-size:0.8rem;margin-top:10px">💡 This is your lead capture landing page. Share this link in your Meta ads.</p>
+      <p style="color:var(--text-muted);font-size:0.8rem;margin-top:10px">💡 This is your lead capture landing page. Share this link in your Meta ads.</p>
     </div>
 
     <!-- Add New Landing Page placeholder -->
-    <div class="card" style="border:2px dashed #e2e8f0;background:#f8fafc;text-align:center;padding:32px 20px">
-      <div style="font-size:2rem;margin-bottom:10px;color:#94a3b8">＋</div>
-      <p style="color:#64748b;font-size:0.9rem;font-weight:600">Add New Landing Page</p>
-      <p style="color:#94a3b8;font-size:0.8rem;margin-top:6px">Connect additional landing pages or funnels here.</p>
+    <div class="card" style="border:2px dashed var(--line);background:var(--surface-soft);text-align:center;padding:32px 20px">
+      <div style="font-size:2rem;margin-bottom:10px;color:var(--text-muted)">＋</div>
+      <p style="color:var(--text-muted);font-size:0.9rem;font-weight:600">Add New Landing Page</p>
+      <p style="color:var(--text-muted);font-size:0.8rem;margin-top:6px">Connect additional landing pages or funnels here.</p>
     </div>
   </div>
 
   <!-- Guide (admin sees every section, agents see their own subset - see agent-tab-guide) -->
   <div id="admin-tab-guide" class="tab-content">
     <h3>Guide</h3>
-    <p style="color:#64748b;font-size:0.85rem;margin-bottom:18px">What each section of this dashboard is for.</p>
+    <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:18px">What each section of this dashboard is for.</p>
 
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Dashboard</p>
-      <p style="color:#475569;font-size:0.88rem">Home screen: total leads, new leads, converted count, active agents, recorded client account balances, upcoming follow-ups, and Meta Ads performance at a glance.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Dashboard</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Home screen: total leads, new leads, converted count, active agents, recorded client account balances, upcoming follow-ups, and Meta Ads performance at a glance.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">All Leads</p>
-      <p style="color:#475569;font-size:0.88rem">The full list of every lead in the system, with filters by status, agent, and source, plus a search box. Open any lead here to see its full record.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">All Leads</p>
+      <p style="color:var(--text-body);font-size:0.88rem">The full list of every lead in the system, with filters by status, agent, and source, plus a search box. Open any lead here to see its full record.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">My Team</p>
-      <p style="color:#475569;font-size:0.88rem">The list of agents, their roles, and account status. Manage who has access here.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">My Team</p>
+      <p style="color:var(--text-body);font-size:0.88rem">The list of agents, their roles, and account status. Manage who has access here.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Meta Ads</p>
-      <p style="color:#475569;font-size:0.88rem">Live campaign metrics from Meta Ads Manager: impressions, clicks, cost per lead, spend, without leaving the CRM.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Meta Ads</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Live campaign metrics from Meta Ads Manager: impressions, clicks, cost per lead, spend, without leaving the CRM.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Add Lead</p>
-      <p style="color:#475569;font-size:0.88rem">Manually create a single lead, or bulk-import many at once via CSV.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Add Lead</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Manually create a single lead, or bulk-import many at once via CSV.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Omnichannel Inbox</p>
-      <p style="color:#475569;font-size:0.88rem">The actual WhatsApp chat interface. Read and reply to leads directly here.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Omnichannel Inbox</p>
+      <p style="color:var(--text-body);font-size:0.88rem">The actual WhatsApp chat interface. Read and reply to leads directly here.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Create Flow</p>
-      <p style="color:#475569;font-size:0.88rem">A simple automation builder: set a trigger keyword and the reply to send. Create, edit, pause and delete rules here; they save to the database for real. The deployed webhook reads active rules, but <code>KEYWORD_REPLIES_ENABLED</code> remains off, so no customer reply is sent.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Create Flow</p>
+      <p style="color:var(--text-body);font-size:0.88rem">A simple automation builder: set a trigger keyword and the reply to send. Create, edit, pause and delete rules here; they save to the database for real. The deployed webhook reads active rules, but <code>KEYWORD_REPLIES_ENABLED</code> remains off, so no customer reply is sent.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Bot Manager</p>
-      <p style="color:#475569;font-size:0.88rem">Where the bot's system prompt and knowledge notes are managed per number. Create, edit, pause and delete training campaigns here; they save to the database for real. The deployed webhook can read the active campaign, but <code>AI_REPLIES_ENABLED</code> remains off, so it cannot answer a customer.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Bot Manager</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Where the bot's system prompt and knowledge notes are managed per number. Create, edit, pause and delete training campaigns here; they save to the database for real. The deployed webhook can read the active campaign, but <code>AI_REPLIES_ENABLED</code> remains off, so it cannot answer a customer.</p>
     </div>
     <div class="card" style="border-left:3px solid var(--warn)">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">An agent's own number never gets a bot reply</p>
-      <p style="color:#475569;font-size:0.88rem">If an agent texts the business number from their own phone (the same one saved as their contact in My Team), the webhook recognizes it as an agent, not a customer, and routes it to a separate path meant only for acknowledging lead-assignment notifications - a plain message like "Hi" is silently ignored there: no lead, no reply, no communications row. This is by design, not a fault to chase if an agent reports "the bot didn't reply to my test" - check whether the number they used is their own registered contact number first.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">An agent's own number never gets a bot reply</p>
+      <p style="color:var(--text-body);font-size:0.88rem">If an agent texts the business number from their own phone (the same one saved as their contact in My Team), the webhook recognizes it as an agent, not a customer, and routes it to a separate path meant only for acknowledging lead-assignment notifications - a plain message like "Hi" is silently ignored there: no lead, no reply, no communications row. This is by design, not a fault to chase if an agent reports "the bot didn't reply to my test" - check whether the number they used is their own registered contact number first.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Follow-ups</p>
-      <p style="color:#475569;font-size:0.88rem">Rules for nudging leads that go quiet: when a lead has sat in a given status for this many hours without moving, send this message. Create, edit, pause and delete them here; they save for real. The sender is built, but production currently has no cron job and <code>FOLLOW_UPS_ENABLED</code> remains off, so nothing is sent.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Follow-ups</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Rules for nudging leads that go quiet: when a lead has sat in a given status for this many hours without moving, send this message. Create, edit, pause and delete them here; they save for real. The sender is built, but production currently has no cron job and <code>FOLLOW_UPS_ENABLED</code> remains off, so nothing is sent.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Message Templates</p>
-      <p style="color:#475569;font-size:0.88rem">WhatsApp only allows free-form replies within 24 hours of a customer's last message; after that only a template Meta has approved can be sent. This is where that template copy lives, along with whether Meta has approved it. Templates are still created and approved in WhatsApp Manager, the status here is set by hand.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Message Templates</p>
+      <p style="color:var(--text-body);font-size:0.88rem">WhatsApp only allows free-form replies within 24 hours of a customer's last message; after that only a template Meta has approved can be sent. This is where that template copy lives, along with whether Meta has approved it. Templates are still created and approved in WhatsApp Manager, the status here is set by hand.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Comm Log</p>
-      <p style="color:#475569;font-size:0.88rem">A running log of every communication (WhatsApp, call, email, note) across all leads, a quick overview without opening each lead individually.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Comm Log</p>
+      <p style="color:var(--text-body);font-size:0.88rem">A running log of every communication (WhatsApp, call, email, note) across all leads, a quick overview without opening each lead individually.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Reports</p>
-      <p style="color:#475569;font-size:0.88rem">Aggregated numbers: conversion rate, agent performance, lead source performance, financial summary.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Reports</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Aggregated numbers: conversion rate, agent performance, lead source performance, financial summary.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Automation</p>
-      <p style="color:#475569;font-size:0.88rem">Where automated rule triggers live. Currently a stub, no real sending wired up yet.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Automation</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Where automated rule triggers live. Currently a stub, no real sending wired up yet.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Payroll</p>
-      <p style="color:#475569;font-size:0.88rem">Agent payroll and commission tracking tied to converted leads.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Payroll</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Agent payroll and commission tracking tied to converted leads.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Broadcast Signal</p>
-      <p style="color:#475569;font-size:0.88rem">Where a trading signal gets composed and sent out to subscribers.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Broadcast Signal</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Where a trading signal gets composed and sent out to subscribers.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Subscribers</p>
-      <p style="color:#475569;font-size:0.88rem">The list of people who receive signals. Currently placeholder data, a real rebuild is pending a decision on delivery mechanism.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Subscribers</p>
+      <p style="color:var(--text-body);font-size:0.88rem">The list of people who receive signals. Currently placeholder data, a real rebuild is pending a decision on delivery mechanism.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">AI Signals</p>
-      <p style="color:#475569;font-size:0.88rem">Automated signal generation. Currently a placeholder, pending a decision on whether to use real technical indicators or human-picked signals.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">AI Signals</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Automated signal generation. Currently a placeholder, pending a decision on whether to use real technical indicators or human-picked signals.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Meta Integration</p>
-      <p style="color:#475569;font-size:0.88rem">WhatsApp Business API credentials, access tokens, and webhook settings. Backend wiring, admin only.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Meta Integration</p>
+      <p style="color:var(--text-body);font-size:0.88rem">WhatsApp Business API credentials, access tokens, and webhook settings. Backend wiring, admin only.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Notifications</p>
-      <p style="color:#475569;font-size:0.88rem">Settings for what alerts fire and to whom.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Notifications</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Settings for what alerts fire and to whom.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Sites</p>
-      <p style="color:#475569;font-size:0.88rem">Public-facing landing pages and domains connected to this CRM.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Sites</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Public-facing landing pages and domains connected to this CRM.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">User Manager</p>
-      <p style="color:#475569;font-size:0.88rem">Every admin and agent with access to this CRM - promote, suspend, or check when someone joined. Admin only.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">User Manager</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Every admin and agent with access to this CRM - promote, suspend, or check when someone joined. Admin only.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">User Permission</p>
-      <p style="color:#475569;font-size:0.88rem">A reference for what Admin vs Agent can currently do. Roles themselves are changed from User Manager, not here - there is no separate per-feature toggle yet.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">User Permission</p>
+      <p style="color:var(--text-body);font-size:0.88rem">A reference for what Admin vs Agent can currently do. Roles themselves are changed from User Manager, not here - there is no separate per-feature toggle yet.</p>
     </div>
-    <div class="card" style="background:#eef2f7">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">A note on agent access</p>
-      <p style="color:#475569;font-size:0.88rem">Agents see only leads assigned to them and the records attached to those leads. Reports, Automation, Payroll, and Settings stay admin-only.</p>
+    <div class="card" style="background:var(--surface-soft)">
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">A note on agent access</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Agents see only leads assigned to them and the records attached to those leads. Reports, Automation, Payroll, and Settings stay admin-only.</p>
     </div>
   </div>
 
@@ -3058,7 +3106,7 @@
       <button class="btn btn-primary btn-sm" onclick="showAddNoteForm()" style="margin-left:auto">+ Add Note</button>
     </div>
     <div id="cl-status-btns" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px">
-      <span style="font-size:0.72rem;color:#94a3b8;font-weight:600;align-self:center;margin-right:2px">Lead status:</span>
+      <span style="font-size:0.72rem;color:var(--text-muted);font-weight:600;align-self:center;margin-right:2px">Lead status:</span>
       <button class="cl-status-btn btn btn-sm active" onclick="filterCommLogStatus(this,'')">All</button>
       <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'new')">New</button>
       <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'contacted')">Contacted</button>
@@ -3069,7 +3117,7 @@
 
     <!-- Add Note Form -->
     <div id="cl-note-form" class="card" style="display:none;margin-bottom:16px;border-left:3px solid #0ea5e9">
-      <p style="color:#0f172a;font-weight:700;margin-bottom:14px">➕ Add Interaction Note</p>
+      <p style="color:var(--text-strong);font-weight:700;margin-bottom:14px"><span class="h-icon" data-nav-icon="note"></span>Add Interaction Note</p>
       <div class="form-row">
         <div>
           <label>Contact *</label>
@@ -3125,7 +3173,7 @@
 
     <div class="payroll-period-bar">
       <div>
-        <label style="display:inline;margin:0;text-transform:none;letter-spacing:0;font-size:0.85rem;color:#64748b;margin-right:8px">Pay Period:</label>
+        <label style="display:inline;margin:0;text-transform:none;letter-spacing:0;font-size:0.85rem;color:var(--text-muted);margin-right:8px">Pay Period:</label>
         <select id="payroll-period" style="width:auto;min-width:140px">
           <option value="daily">Daily</option>
           <option value="weekly">Weekly</option>
@@ -3205,12 +3253,12 @@
 
     <!-- Summary stat cards -->
     <div class="stat-grid" id="ma-summary-stats" style="margin-bottom:18px">
-      <div class="stat-card"><div class="stat-label">Total Spend</div><div class="stat-value" style="color:#c9a84c">-</div></div>
+      <div class="stat-card"><div class="stat-label">Total Spend</div><div class="stat-value" style="color:var(--accent)">-</div></div>
       <div class="stat-card"><div class="stat-label">Impressions</div><div class="stat-value">-</div></div>
       <div class="stat-card"><div class="stat-label">Clicks</div><div class="stat-value">-</div></div>
-      <div class="stat-card"><div class="stat-label">Leads</div><div class="stat-value" style="color:#4caf50">-</div></div>
+      <div class="stat-card"><div class="stat-label">Leads</div><div class="stat-value" style="color:var(--ok)">-</div></div>
       <div class="stat-card"><div class="stat-label">Avg CTR</div><div class="stat-value">-</div></div>
-      <div class="stat-card"><div class="stat-label">Cost per Lead</div><div class="stat-value" style="color:#e05c5c">-</div></div>
+      <div class="stat-card"><div class="stat-label">Cost per Lead</div><div class="stat-value" style="color:var(--bad)">-</div></div>
       <div class="stat-card"><div class="stat-label">Cost per Click</div><div class="stat-value">-</div></div>
     </div>
 
@@ -3245,41 +3293,41 @@
   <div id="admin-tab-notifications" class="tab-content">
     <h3>Notifications</h3>
     <div class="card" style="max-width:560px">
-      <div style="font-size:0.9rem;font-weight:700;color:#0f172a;margin-bottom:6px">🔔 Notification Settings</div>
-      <p style="font-size:0.82rem;color:#64748b;margin-bottom:18px;line-height:1.6">
+      <div style="font-size:0.9rem;font-weight:700;color:var(--text-strong);margin-bottom:6px"><span class="h-icon" data-nav-icon="bell"></span>Notification Settings</div>
+      <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:18px;line-height:1.6">
         Choose how your team members are notified when a new lead is assigned to them.
       </p>
 
       <div style="margin-bottom:18px">
-        <div style="font-size:0.78rem;font-weight:700;color:#0f172a;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.04em">Notification Channel</div>
+        <div style="font-size:0.78rem;font-weight:700;color:var(--text-strong);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.04em">Notification Channel</div>
         <div style="display:flex;flex-direction:column;gap:10px">
-          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px">
             <input type="radio" name="notif-channel" value="whatsapp" checked />
             <div>
-              <div style="font-size:0.875rem;font-weight:600;color:#0f172a">WhatsApp</div>
-              <div style="font-size:0.75rem;color:#64748b">Recommended · small per-message cost</div>
+              <div style="font-size:0.875rem;font-weight:600;color:var(--text-strong)">WhatsApp</div>
+              <div style="font-size:0.75rem;color:var(--text-muted)">Recommended · small per-message cost</div>
             </div>
           </label>
-          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px">
             <input type="radio" name="notif-channel" value="email" />
             <div>
-              <div style="font-size:0.875rem;font-weight:600;color:#0f172a">Email</div>
-              <div style="font-size:0.75rem;color:#64748b">Free</div>
+              <div style="font-size:0.875rem;font-weight:600;color:var(--text-strong)">Email</div>
+              <div style="font-size:0.75rem;color:var(--text-muted)">Free</div>
             </div>
           </label>
-          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px">
             <input type="radio" name="notif-channel" value="telegram" />
             <div>
-              <div style="font-size:0.875rem;font-weight:600;color:#0f172a">Telegram</div>
-              <div style="font-size:0.75rem;color:#64748b">Free</div>
+              <div style="font-size:0.875rem;font-weight:600;color:var(--text-strong)">Telegram</div>
+              <div style="font-size:0.75rem;color:var(--text-muted)">Free</div>
             </div>
           </label>
         </div>
       </div>
 
-      <div class="info-box" style="background:#fffbeb;border-color:#fde68a;color:#92400e">
+      <div class="info-box">
         ⚠️ <strong>Pending decision:</strong> Awaiting confirmation on notification method before this is activated. Configure your WhatsApp number in
-        <button onclick="adminTab('meta')" style="background:none;border:none;cursor:pointer;color:#d4a843;font-weight:600;text-decoration:underline;font-size:inherit">Meta Integration</button>
+        <button onclick="adminTab('meta')" style="background:none;border:none;cursor:pointer;color:var(--accent);font-weight:600;text-decoration:underline;font-size:inherit">Meta Integration</button>
         first.
       </div>
 
@@ -3291,14 +3339,14 @@
 
   <!-- ─── SIGNAL BROADCAST ─── -->
   <div id="admin-tab-signal-broadcast" class="tab-content">
-    <h3>📡 Broadcast Signal</h3>
+    <h3><span class="h-icon" data-nav-icon="broadcast"></span>Broadcast Signal</h3>
     <div class="info-box">
       <strong>Connected to real subscribers, but sending is switched off.</strong> Target group, recipient counts and signal history below are all real. Pressing Send calls a real server-side function that messages each active subscriber's personal WhatsApp number individually (Cloud API cannot post into WhatsApp Communities at all, so this is the only way a "broadcast" can work), but that function ships with sending disabled until an admin deliberately turns it on - most subscribers are outside Meta's 24 hour customer-service window, so an approved message template is very likely needed first (see the Message Templates tab).
     </div>
 
     <!-- Signal Desk (demo preview) -->
-    <details open style="margin-bottom:20px;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">
-      <summary style="cursor:pointer;padding:12px 16px;background:#f8fafc;font-weight:600;color:#334155;user-select:none">📊 Signal Desk - verified signals &amp; IB Revenue Radar <span style="background:#d4a843;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:2px 8px;margin-left:6px;vertical-align:middle">DEMO PREVIEW</span> <span style="color:#94a3b8;font-weight:400;font-size:12px">(click to collapse)</span></summary>
+    <details open style="margin-bottom:20px;border:1px solid var(--line);border-radius:12px;overflow:hidden">
+      <summary style="cursor:pointer;padding:12px 16px;background:var(--surface-soft);font-weight:600;color:var(--text-body);user-select:none"><span class="h-icon" data-nav-icon="chart"></span>Signal Desk - verified signals &amp; IB Revenue Radar <span style="background:var(--accent);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:2px 8px;margin-left:6px;vertical-align:middle">DEMO PREVIEW</span> <span style="color:var(--text-muted);font-weight:400;font-size:12px">(click to collapse)</span></summary>
       <iframe src="signal-desk.html" title="Signal Desk" style="width:100%;height:78vh;border:none;display:block;background:#0d1117"></iframe>
     </details>
 
@@ -3355,12 +3403,12 @@
         placeholder="Message auto-fills from the fields above, or type a custom message here…"></textarea>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <button class="btn btn-primary btn-inline" onclick="broadcastSignal()" id="bc-send-btn">📡 Send to All Subscribers</button>
-        <span id="bc-status" style="font-size:0.85rem;color:#64748b"></span>
+        <span id="bc-status" style="font-size:0.85rem;color:var(--text-muted)"></span>
       </div>
     </div>
 
     <div style="margin-top:24px">
-      <div style="font-weight:700;font-size:0.95rem;color:#0f172a;margin-bottom:12px">📜 Signal History &amp; Accuracy</div>
+      <div style="font-weight:700;font-size:0.95rem;color:var(--text-strong);margin-bottom:12px"><span class="h-icon" data-nav-icon="history"></span>Signal History &amp; Accuracy</div>
       <div class="card" style="padding:0">
         <table>
           <thead><tr>
@@ -3381,7 +3429,7 @@
       Subscribers are members of the signalling communities - primarily the <strong>Premium Signalling Group</strong> - not every WhatsApp contact. Anyone who has simply messaged the WhatsApp number is a <strong>Lead</strong> instead (see <strong>All Leads</strong>, filterable by Source = WhatsApp / WhatChimp Import); this list is only people actually in a signal community. Everything here saves to the database for real: adds, edits, removals and CSV imports all persist. A subscriber starts as <strong>Pending</strong> when they come from the signup form, and becomes <strong>Active</strong> once you confirm they are actually in the community. Note WhatsApp's Cloud API cannot post into Communities, so this list is a record of membership, not a send list.
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-      <h3 style="margin:0">👤 Manage Subscribers</h3>
+      <h3 style="margin:0"><span class="h-icon" data-nav-icon="subscriber"></span>Manage Subscribers</h3>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-secondary btn-sm" onclick="exportSubscribersCSV()"
                 title="Downloads exactly the rows shown below, with the filters above applied">Export CSV</button>
@@ -3445,7 +3493,7 @@
       </div>
 
       <div class="card" id="sub-detail-panel" style="position:sticky;top:12px;min-height:220px">
-        <div class="empty-state" id="sub-detail-empty">👤<br>Select a subscriber<br><span style="font-size:0.8rem;color:#94a3b8">Click a row to view and edit their details</span></div>
+        <div class="empty-state" id="sub-detail-empty">👤<br>Select a subscriber<br><span style="font-size:0.8rem;color:var(--text-muted)">Click a row to view and edit their details</span></div>
         <div id="sub-detail-body" style="display:none"></div>
       </div>
     </div>
@@ -3453,7 +3501,7 @@
 
   <!-- ─── AI SIGNALS ─── -->
   <div id="admin-tab-ai-signals" class="tab-content">
-    <h3>🤖 AI Signal Generator</h3>
+    <h3><span class="h-icon" data-nav-icon="bot"></span>AI Signal Generator</h3>
     <div class="info-box">
       <strong>Real technical analysis, not demo data.</strong> Pattern, trend and confidence are computed from real historical price data (SMA crossover, RSI, 20-period breakout/breakdown) - not picked from a fixed list. BTCUSD and XAUUSD use real Binance candles (XAUUSD via PAXG, a gold-backed token, since no free intraday gold feed with browser access exists). EURUSD/GBPUSD/USDJPY use real ECB daily rates - daily closes only, no free intraday FX feed is available either. It is normal for "Generate Signal" to sometimes return no clear signal - that is a real result, not a bug, when price is range-bound. Win rate and signal history stay empty until signals are actually broadcast and their outcomes tracked, which is not built yet.
     </div>
@@ -3465,7 +3513,7 @@
     </div>
 
     <div class="card" style="margin-bottom:20px">
-      <div style="font-weight:700;font-size:0.9rem;color:#0f172a;margin-bottom:14px">⚙️ AI Parameters</div>
+      <div style="font-weight:700;font-size:0.9rem;color:var(--text-strong);margin-bottom:14px"><span class="h-icon" data-nav-icon="settings"></span>AI Parameters</div>
       <div class="form-row" style="margin-bottom:12px">
         <div>
           <label>Instrument</label>
@@ -3499,29 +3547,29 @@
 
     <div id="ai-signal-card" style="display:none" class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-        <div style="font-weight:700;font-size:1rem;color:#0f172a">📊 Generated Signal</div>
+        <div style="font-weight:700;font-size:1rem;color:var(--text-strong)"><span class="h-icon" data-nav-icon="sparkles"></span>Generated Signal</div>
         <span id="ai-confidence-badge" style="background:var(--ok);color:#fff;padding:4px 12px;border-radius:20px;font-size:0.78rem;font-weight:700">Confidence: -</span>
       </div>
       <div id="ai-signal-detail" style="font-family:monospace;background:#0f172a;border-radius:8px;padding:14px;color:#94a3b8;font-size:0.85rem;line-height:1.8;white-space:pre-wrap;margin-bottom:14px"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
-        <div style="flex:1;min-width:120px;background:#f8fafc;border:1px solid #e5e8ef;border-radius:8px;padding:10px;text-align:center">
-          <div style="font-size:0.75rem;color:#64748b;margin-bottom:4px">Pattern</div>
-          <div id="ai-pattern" style="font-weight:700;color:#0f172a;font-size:0.85rem">-</div>
+        <div style="flex:1;min-width:120px;background:var(--surface-soft);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px">Pattern</div>
+          <div id="ai-pattern" style="font-weight:700;color:var(--text-strong);font-size:0.85rem">-</div>
         </div>
-        <div style="flex:1;min-width:120px;background:#f8fafc;border:1px solid #e5e8ef;border-radius:8px;padding:10px;text-align:center">
-          <div style="font-size:0.75rem;color:#64748b;margin-bottom:4px">R:R Ratio</div>
-          <div id="ai-rr-display" style="font-weight:700;color:#0f172a;font-size:0.85rem">-</div>
+        <div style="flex:1;min-width:120px;background:var(--surface-soft);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px">R:R Ratio</div>
+          <div id="ai-rr-display" style="font-weight:700;color:var(--text-strong);font-size:0.85rem">-</div>
         </div>
-        <div style="flex:1;min-width:120px;background:#f8fafc;border:1px solid #e5e8ef;border-radius:8px;padding:10px;text-align:center">
-          <div style="font-size:0.75rem;color:#64748b;margin-bottom:4px">Trend</div>
-          <div id="ai-trend" style="font-weight:700;color:#0f172a;font-size:0.85rem">-</div>
+        <div style="flex:1;min-width:120px;background:var(--surface-soft);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px">Trend</div>
+          <div id="ai-trend" style="font-weight:700;color:var(--text-strong);font-size:0.85rem">-</div>
         </div>
-        <div style="flex:1;min-width:120px;background:#f8fafc;border:1px solid #e5e8ef;border-radius:8px;padding:10px;text-align:center">
-          <div style="font-size:0.75rem;color:#64748b;margin-bottom:4px">Session</div>
-          <div id="ai-session" style="font-weight:700;color:#0f172a;font-size:0.85rem">-</div>
+        <div style="flex:1;min-width:120px;background:var(--surface-soft);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px">Session</div>
+          <div id="ai-session" style="font-weight:700;color:var(--text-strong);font-size:0.85rem">-</div>
         </div>
       </div>
-      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;font-size:0.78rem;color:#92400e;margin-bottom:14px">
+      <div style="background:var(--warn-soft);border:1px solid var(--warn);border-radius:8px;padding:10px;font-size:0.78rem;color:var(--warn);margin-bottom:14px">
         ⚠️ <strong>Disclaimer:</strong> Signals are generated from real historical price data using standard technical indicators (SMA crossover, RSI, breakout detection), not a licensed analyst. Always conduct your own analysis before broadcasting to subscribers. Badar Trader is not liable for trading decisions made based on these suggestions.
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -3532,7 +3580,7 @@
     </div>
 
     <div style="margin-top:24px">
-      <div style="font-weight:700;font-size:0.95rem;color:#0f172a;margin-bottom:12px">📈 Signal Accuracy Tracker</div>
+      <div style="font-weight:700;font-size:0.95rem;color:var(--text-strong);margin-bottom:12px"><span class="h-icon" data-nav-icon="chart"></span>Signal Accuracy Tracker</div>
       <div class="card" style="padding:0">
         <table>
           <thead><tr>
@@ -3629,7 +3677,7 @@
   <!-- Dashboard -->
   <div id="agent-tab-dashboard" class="tab-content active">
     <h3>Welcome Back, <span id="dash-agent-name">Agent</span></h3>
-    <p style="color:#64748b;font-size:0.85rem;margin:2px 0 18px">Here's what's happening with your leads today.</p>
+    <p style="color:var(--text-muted);font-size:0.85rem;margin:2px 0 18px">Here's what's happening with your leads today.</p>
     <div class="stat-grid">
       <div class="stat-card">
         <div class="stat-label">My Leads</div>
@@ -3657,19 +3705,19 @@
     <div class="quick-tile-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px">
       <div class="quick-tile" onclick="agentTab('my-leads', document.querySelector('#agent-tabs .nav-item[data-tab=\'my-leads\']'))">
         <span class="quick-tile-icon" style="background:var(--tint-sky-bg)"><span class="nav-icon" data-nav-icon="users" style="background:transparent;color:var(--tint-sky-fg)"></span></span>
-        <div><strong>My Leads</strong><div style="font-size:0.78rem;color:#64748b">View your pipeline</div></div>
+        <div><strong>My Leads</strong><div style="font-size:0.78rem;color:var(--text-muted)">View your pipeline</div></div>
       </div>
       <div class="quick-tile" onclick="agentTab('conversations', document.querySelector('#agent-tabs .nav-item[data-tab=\'conversations\']'))">
         <span class="quick-tile-icon" style="background:var(--tint-sky-bg)"><span class="nav-icon" data-nav-icon="message" style="background:transparent;color:var(--tint-sky-fg)"></span></span>
-        <div><strong>Open Inbox</strong><div style="font-size:0.78rem;color:#64748b">Your conversations</div></div>
+        <div><strong>Open Inbox</strong><div style="font-size:0.78rem;color:var(--text-muted)">Your conversations</div></div>
       </div>
       <div class="quick-tile" onclick="agentTab('log-activity', document.querySelector('#agent-tabs .nav-item[data-tab=\'log-activity\']'))">
         <span class="quick-tile-icon" style="background:var(--tint-danger-bg)"><span class="nav-icon" data-nav-icon="note" style="background:transparent;color:var(--tint-danger-fg)"></span></span>
-        <div><strong>Log Activity</strong><div style="font-size:0.78rem;color:#64748b">Record a call or note</div></div>
+        <div><strong>Log Activity</strong><div style="font-size:0.78rem;color:var(--text-muted)">Record a call or note</div></div>
       </div>
       <div class="quick-tile" onclick="agentTab('guide', document.querySelector('#agent-tabs .nav-item[data-tab=\'guide\']'))">
         <span class="quick-tile-icon" style="background:var(--tint-warn-bg)"><span class="nav-icon" data-nav-icon="book" style="background:transparent;color:var(--tint-warn-fg)"></span></span>
-        <div><strong>Guide</strong><div style="font-size:0.78rem;color:#64748b">How this CRM works</div></div>
+        <div><strong>Guide</strong><div style="font-size:0.78rem;color:var(--text-muted)">How this CRM works</div></div>
       </div>
     </div>
 
@@ -3702,14 +3750,14 @@
     <!-- My Performance + Pipeline breakdown -->
     <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-bottom:20px">
       <div class="card">
-        <div style="font-weight:700;font-size:0.95rem;color:#0f172a;margin-bottom:14px">My Performance</div>
+        <div style="font-weight:700;font-size:0.95rem;color:var(--text-strong);margin-bottom:14px">My Performance</div>
         <table>
           <thead><tr><th>Leads Assigned</th><th>Converted</th><th>Conversion %</th><th>Recorded Deposits</th></tr></thead>
           <tbody id="agent-performance-tbody"><tr><td colspan="4" class="empty-state">Loading…</td></tr></tbody>
         </table>
       </div>
       <div class="card">
-        <div style="font-weight:700;font-size:0.95rem;color:#0f172a;margin-bottom:14px">My Pipeline</div>
+        <div style="font-weight:700;font-size:0.95rem;color:var(--text-strong);margin-bottom:14px">My Pipeline</div>
         <div id="agent-pipeline-chart"></div>
       </div>
     </div>
@@ -3717,16 +3765,16 @@
     <!-- Upcoming Follow-ups -->
     <div class="card" style="margin-bottom:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <div style="font-weight:700;font-size:0.95rem;color:#0f172a">📅 Upcoming Follow-ups</div>
-        <span style="font-size:0.75rem;color:#64748b">Next 7 days</span>
+        <div style="font-weight:700;font-size:0.95rem;color:var(--text-strong)"><span class="h-icon" data-nav-icon="calendar"></span>Upcoming Follow-ups</div>
+        <span style="font-size:0.75rem;color:var(--text-muted)">Next 7 days</span>
       </div>
-      <div id="agent-dash-followups-list"><div style="color:#64748b;font-size:0.85rem;padding:8px 0">Loading…</div></div>
+      <div id="agent-dash-followups-list"><div style="color:var(--text-muted);font-size:0.85rem;padding:8px 0">Loading…</div></div>
     </div>
 
     <!-- My 30-day trend -->
     <div class="card" style="margin-bottom:20px;padding:24px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <div style="font-weight:700;font-size:0.95rem;color:#0f172a">My Lead Growth (30 days)</div>
+        <div style="font-weight:700;font-size:0.95rem;color:var(--text-strong)">My Lead Growth (30 days)</div>
         <span id="agent-trend-30d-total" style="font-weight:700;font-size:1.1rem;color:var(--accent)">-</span>
       </div>
       <canvas id="agent-trend-chart" height="90"></canvas>
@@ -3734,8 +3782,8 @@
 
     <!-- My Payroll (modest, quiet - not a hero element) -->
     <div class="card" style="margin-bottom:20px" id="agent-payroll-card">
-      <div style="font-weight:700;font-size:0.9rem;color:#0f172a;margin-bottom:6px">My Payroll (Estimate)</div>
-      <div id="agent-payroll-body" style="color:#64748b;font-size:0.85rem">Loading…</div>
+      <div style="font-weight:700;font-size:0.9rem;color:var(--text-strong);margin-bottom:6px">My Payroll (Estimate)</div>
+      <div id="agent-payroll-body" style="color:var(--text-muted);font-size:0.85rem">Loading…</div>
     </div>
   </div>
 
@@ -3765,10 +3813,10 @@
   <div id="agent-tab-conversations" class="tab-content">
     <!-- Quick Links - copy/paste into a chat without leaving the tab -->
     <div class="card" id="agent-quick-links" style="margin-bottom:14px;padding:12px 16px">
-      <div style="font-weight:700;font-size:0.85rem;color:#0f172a;margin-bottom:10px">🔗 Quick Links</div>
+      <div style="font-weight:700;font-size:0.85rem;color:var(--text-strong);margin-bottom:10px"><span class="h-icon" data-nav-icon="link"></span>Quick Links</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <select id="agent-quick-links-select" onchange="renderQuickLinkValue('agent-')" style="flex:1;min-width:160px;padding:6px 8px;font-size:0.78rem"></select>
-        <span id="agent-quick-links-value" style="font-family:monospace;font-size:0.78rem;color:#0f172a;flex:2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        <span id="agent-quick-links-value" style="font-family:monospace;font-size:0.78rem;color:var(--text-strong);flex:2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
         <button class="btn btn-secondary btn-sm" id="agent-quick-links-copy-btn" onclick="copySelectedQuickLink('agent-')">Copy</button>
       </div>
     </div>
@@ -3801,13 +3849,13 @@
         </div>
         <div class="conv-list" id="agent-conv-list"></div>
       </div>
-      <button type="button" class="conv-show-list-btn" title="Show the lead list" onclick="toggleConvListPanel('agent-')" style="position:absolute;top:12px;left:12px;z-index:5;border:1px solid #cbd5e1;background:#fff;border-radius:8px;width:34px;height:34px;cursor:pointer;color:#475569;font-size:0.9rem;align-items:center;justify-content:center">☰</button>
+      <button type="button" class="conv-show-list-btn" title="Show the lead list" onclick="toggleConvListPanel('agent-')" style="position:absolute;top:12px;left:12px;z-index:5;border:1px solid #cbd5e1;background:#fff;border-radius:8px;width:34px;height:34px;cursor:pointer;color:var(--text-body);font-size:0.9rem;align-items:center;justify-content:center">☰</button>
       <!-- Right: Chat View -->
       <div class="conv-chat-panel" id="agent-conv-chat-panel">
         <div class="conv-empty-chat">
           <div style="font-size:2.5rem;margin-bottom:12px">💬</div>
-          <div style="font-weight:600;color:#64748b;margin-bottom:6px">Select a conversation</div>
-          <div style="font-size:0.8rem;color:#94a3b8">Click on a lead to view their messages</div>
+          <div style="font-weight:600;color:var(--text-muted);margin-bottom:6px">Select a conversation</div>
+          <div style="font-size:0.8rem;color:var(--text-muted)">Click on a lead to view their messages</div>
         </div>
       </div>
       <div class="conv-contact-panel" id="agent-conv-contact-panel"></div>
@@ -3831,7 +3879,7 @@
       <button class="btn btn-primary btn-sm" onclick="showAddNoteForm('agent-')" style="margin-left:auto">+ Add Note</button>
     </div>
     <div id="agent-cl-status-btns" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px">
-      <span style="font-size:0.72rem;color:#94a3b8;font-weight:600;align-self:center;margin-right:2px">Lead status:</span>
+      <span style="font-size:0.72rem;color:var(--text-muted);font-weight:600;align-self:center;margin-right:2px">Lead status:</span>
       <button class="cl-status-btn btn btn-sm active" onclick="filterCommLogStatus(this,'','agent-')">All</button>
       <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'new','agent-')">New</button>
       <button class="cl-status-btn btn btn-sm" onclick="filterCommLogStatus(this,'contacted','agent-')">Contacted</button>
@@ -3842,7 +3890,7 @@
 
     <!-- Add Note Form -->
     <div id="agent-cl-note-form" class="card" style="display:none;margin-bottom:16px;border-left:3px solid #0ea5e9">
-      <p style="color:#0f172a;font-weight:700;margin-bottom:14px">➕ Add Interaction Note</p>
+      <p style="color:var(--text-strong);font-weight:700;margin-bottom:14px"><span class="h-icon" data-nav-icon="note"></span>Add Interaction Note</p>
       <div class="form-row">
         <div>
           <label>Contact *</label>
@@ -3913,35 +3961,35 @@
   <!-- Guide (agent's own subset - admin sees every section, see admin-tab-guide) -->
   <div id="agent-tab-guide" class="tab-content">
     <h3>Guide</h3>
-    <p style="color:#64748b;font-size:0.85rem;margin-bottom:18px">What each section of your dashboard is for.</p>
+    <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:18px">What each section of your dashboard is for.</p>
 
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Dashboard</p>
-      <p style="color:#475569;font-size:0.88rem">Your home screen: quick stats on leads and your recent activity.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Dashboard</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Your home screen: quick stats on leads and your recent activity.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">My Leads</p>
-      <p style="color:#475569;font-size:0.88rem">The leads assigned to your account. Open a lead here to see its related record and activity.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">My Leads</p>
+      <p style="color:var(--text-body);font-size:0.88rem">The leads assigned to your account. Open a lead here to see its related record and activity.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Omnichannel Inbox</p>
-      <p style="color:#475569;font-size:0.88rem">The actual WhatsApp chat interface. Read and reply to leads directly here.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Omnichannel Inbox</p>
+      <p style="color:var(--text-body);font-size:0.88rem">The actual WhatsApp chat interface. Read and reply to leads directly here.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Comm Log</p>
-      <p style="color:#475569;font-size:0.88rem">A running log of communications for your assigned leads, without opening each lead individually.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Comm Log</p>
+      <p style="color:var(--text-body);font-size:0.88rem">A running log of communications for your assigned leads, without opening each lead individually.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Log Activity</p>
-      <p style="color:#475569;font-size:0.88rem">Record a call, WhatsApp message, email, or note against one of your assigned leads, with an optional follow-up date.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Log Activity</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Record a call, WhatsApp message, email, or note against one of your assigned leads, with an optional follow-up date.</p>
     </div>
     <div class="card" style="border-left:3px solid var(--warn)">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Don't test the bot from your own phone</p>
-      <p style="color:#475569;font-size:0.88rem">If your personal WhatsApp number is saved as your contact number in My Team, the bot will never reply to it - texting it anything, including a plain "Hi", gets silently ignored. This is deliberate: that number is reserved for you to receive and acknowledge lead-assignment notifications, not to be treated as a customer. To see what a real customer experiences, text the business number from a phone that isn't registered to any agent's profile.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Don't test the bot from your own phone</p>
+      <p style="color:var(--text-body);font-size:0.88rem">If your personal WhatsApp number is saved as your contact number in My Team, the bot will never reply to it - texting it anything, including a plain "Hi", gets silently ignored. This is deliberate: that number is reserved for you to receive and acknowledge lead-assignment notifications, not to be treated as a customer. To see what a real customer experiences, text the business number from a phone that isn't registered to any agent's profile.</p>
     </div>
-    <div class="card" style="background:#eef2f7">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Not shown here</p>
-      <p style="color:#475569;font-size:0.88rem">Reports, Automation, Payroll, and Settings stay admin-only.</p>
+    <div class="card" style="background:var(--surface-soft)">
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Not shown here</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Reports, Automation, Payroll, and Settings stay admin-only.</p>
     </div>
   </div>
 
@@ -4553,8 +4601,8 @@ function renderBmPlaceholders() {
           <h4 style="margin:0">${esc(feature.title)}</h4>
           <span class="bm-status-pill on">Available in CRM</span>
         </div>
-        <p style="color:#64748b;font-size:0.85rem;margin-bottom:8px">${esc(feature.summary)}</p>
-        <p style="color:#475569;font-size:0.82rem;margin:0 0 14px">${esc(feature.location)}</p>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:8px">${esc(feature.summary)}</p>
+        <p style="color:var(--text-body);font-size:0.82rem;margin:0 0 14px">${esc(feature.location)}</p>
         <div class="form-actions">${actions}</div>
       </div>`;
   });
@@ -4568,7 +4616,7 @@ function renderBmPlaceholders() {
           <h4 style="margin:0">${esc(feature.title)}</h4>
           <span class="bm-status-pill off">Not planned</span>
         </div>
-        <p style="color:#64748b;font-size:0.85rem;margin:0">${esc(feature.reason)}</p>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin:0">${esc(feature.reason)}</p>
       </div>`;
   });
   Object.entries(BM_PLACEHOLDERS).forEach(([id, [title, what, needs]]) => {
@@ -4581,9 +4629,9 @@ function renderBmPlaceholders() {
           <h4 style="margin:0">${esc(title)}</h4>
           <span class="bm-status-pill off">Not built yet</span>
         </div>
-        <p style="color:#64748b;font-size:0.85rem;margin-bottom:14px">${esc(what)}</p>
-        <div style="font-size:0.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">What it would take</div>
-        <p style="color:#64748b;font-size:0.85rem;margin:0">${esc(needs)}</p>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:14px">${esc(what)}</p>
+        <div style="font-size:0.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">What it would take</div>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin:0">${esc(needs)}</p>
       </div>`;
   });
 }
@@ -4824,8 +4872,8 @@ function renderAgentsList() {
     const kb = (cachedAiKb || []).find(k => k.id === a.kb_id);
     return `
     <tr>
-      <td style="white-space:nowrap"><strong style="color:#0f172a">${esc(a.agent_name)}</strong></td>
-      <td style="white-space:nowrap"><span style="color:#64748b;font-size:0.82rem">${esc(kb ? kb.campaign_name : 'None')}</span></td>
+      <td style="white-space:nowrap"><strong style="color:var(--text-strong)">${esc(a.agent_name)}</strong></td>
+      <td style="white-space:nowrap"><span style="color:var(--text-muted);font-size:0.82rem">${esc(kb ? kb.campaign_name : 'None')}</span></td>
       <td>
         <label class="toggle-switch" title="${a.is_active ? 'Click to pause' : 'Click to activate'}">
           <input type="checkbox" ${a.is_active ? 'checked' : ''} onchange="toggleAgentActive('${a.id}',${a.is_active})" />
@@ -5000,14 +5048,14 @@ function renderAgentsTable(tbodyId) {
         ? `<span style="font-size:0.82rem">+${esc(p.phone)}</span>`
         : (p.role === 'agent'
             ? '<span style="color:var(--bad);font-size:0.78rem;font-weight:600" title="Without a number this agent cannot be recognised by the WhatsApp webhook, cannot receive escalation pings, and is skipped by round-robin">not set</span>'
-            : '<span style="color:#94a3b8;font-size:0.78rem">-</span>')}</td>
+            : '<span style="color:var(--text-muted);font-size:0.78rem">-</span>')}</td>
       <td><span class="badge badge-${p.role}">${p.role}</span></td>
-      <td style="color:#666;font-size:0.8rem;white-space:nowrap">${fmtDate(p.created_at)}</td>
+      <td style="color:var(--text-muted);font-size:0.8rem;white-space:nowrap">${fmtDate(p.created_at)}</td>
       <td style="white-space:nowrap">${!isSelf
         ? (p.is_suspended
             ? '<span style="color:var(--bad);font-size:0.8rem;font-weight:600">Suspended</span>'
             : '<span style="color:var(--ok);font-size:0.8rem;font-weight:600">Active</span>')
-        : '<span style="color:#94a3b8;font-size:0.8rem">You</span>'}
+        : '<span style="color:var(--text-muted);font-size:0.8rem">You</span>'}
         ${p.role === 'agent' && p.receives_leads === false && !p.is_suspended
           ? '<br><span class="team-hint" title="Has full access but is skipped by round-robin lead assignment">observer, no leads</span>' : ''}</td>
       <td class="team-actions">
@@ -6060,10 +6108,10 @@ function renderAgentDashboardExtras(total, converted, revenue) {
       <td>${converted}</td>
       <td>
         <div style="display:flex;align-items:center;gap:8px">
-          <div style="background:#e2e8f0;border-radius:4px;height:6px;width:80px;flex-shrink:0">
+          <div style="background:var(--line);border-radius:4px;height:6px;width:80px;flex-shrink:0">
             <div style="background:var(--accent);height:6px;border-radius:4px;width:${barW}%"></div>
           </div>
-          <span style="font-size:0.8rem;color:#64748b">${rate}%</span>
+          <span style="font-size:0.8rem;color:var(--text-muted)">${rate}%</span>
         </div>
       </td>
       <td style="font-weight:700;color:var(--ok)">$${fmtMoney(revenue)}</td>
@@ -6085,10 +6133,10 @@ function renderAgentDashboardExtras(total, converted, revenue) {
         return `
           <div style="margin-bottom:14px">
             <div style="display:flex;justify-content:space-between;margin-bottom:5px">
-              <span style="font-size:0.875rem;color:#0f172a;font-weight:500">${esc(STATUS_CHART_LABELS[k])}</span>
-              <span style="font-size:0.8rem;color:#64748b">${counts[k]} &nbsp;<strong>${pct}%</strong></span>
+              <span style="font-size:0.875rem;color:var(--text-strong);font-weight:500">${esc(STATUS_CHART_LABELS[k])}</span>
+              <span style="font-size:0.8rem;color:var(--text-muted)">${counts[k]} &nbsp;<strong>${pct}%</strong></span>
             </div>
-            <div style="background:#f1f5f9;border-radius:6px;height:12px">
+            <div style="background:var(--line);border-radius:6px;height:12px">
               <div style="background:${STATUS_CHART_COLORS[k]};height:12px;border-radius:6px;width:${pct}%;transition:width .5s ease"></div>
             </div>
           </div>`;
@@ -6134,7 +6182,7 @@ async function loadAgentPayrollEstimate(revenue) {
   const bodyEl = document.getElementById('agent-payroll-body');
   if (!bodyEl) return;
   if (demoMode) {
-    bodyEl.innerHTML = `Base <strong>$500</strong> + 5% of $${fmtMoney(revenue)} in recorded deposits &asymp; <strong style="color:var(--ok)">$${fmtMoney(500 + revenue * 0.05)}</strong> this month. <span style="color:#94a3b8">(demo estimate)</span>`;
+    bodyEl.innerHTML = `Base <strong>$500</strong> + 5% of $${fmtMoney(revenue)} in recorded deposits &asymp; <strong style="color:var(--ok)">$${fmtMoney(500 + revenue * 0.05)}</strong> this month. <span style="color:var(--text-muted)">(demo estimate)</span>`;
     return;
   }
   const { data, error } = await sb.from('payroll_settings').select('base_salary_monthly, commission_percent').eq('agent_id', currentUser.id).maybeSingle();
@@ -6142,7 +6190,7 @@ async function loadAgentPayrollEstimate(revenue) {
   const base = Number(data?.base_salary_monthly ?? 500);
   const commPct = Number(data?.commission_percent ?? 5);
   const commission = revenue * (commPct / 100);
-  bodyEl.innerHTML = `Base <strong>$${fmtMoney(base)}</strong>/month + <strong>${commPct}%</strong> of $${fmtMoney(revenue)} in recorded deposits &asymp; <strong style="color:var(--ok)">$${fmtMoney(base + commission)}</strong> estimated this period. <span style="color:#94a3b8">Admin finalizes the real payroll run.</span>`;
+  bodyEl.innerHTML = `Base <strong>$${fmtMoney(base)}</strong>/month + <strong>${commPct}%</strong> of $${fmtMoney(revenue)} in recorded deposits &asymp; <strong style="color:var(--ok)">$${fmtMoney(base + commission)}</strong> estimated this period. <span style="color:var(--text-muted)">Admin finalizes the real payroll run.</span>`;
 }
 
 async function logActivityStandalone() {
@@ -6289,7 +6337,7 @@ async function openDetail(leadId, ctx) {
           </div>
           <div class="activity-summary">${esc(a.summary)}</div>
         </div>`).join('')
-      : '<p style="color:#555;font-size:0.85rem;padding:12px 0">No activity logged yet.</p>'}
+      : '<p style="color:var(--text-muted);font-size:0.85rem;padding:12px 0">No activity logged yet.</p>'}
     </div>
 
     <p class="section-h">Log Activity</p>
@@ -6383,7 +6431,7 @@ function buildLedgerTab(lead, leadId, ctx, isAdmin, txRows) {
   const balanceBlock = `
     <div style="margin-bottom:20px">
       <div class="detail-label" style="margin-bottom:4px">Account Balance</div>
-      <div style="font-size:1.8rem;color:#c9a84c;font-weight:700">$${fmtMoney(lead.account_balance)}</div>
+      <div style="font-size:1.8rem;color:var(--accent);font-weight:700">$${fmtMoney(lead.account_balance)}</div>
     </div>
     ${isAdmin ? `
     <div class="form-row" style="align-items:flex-end;max-width:420px">
@@ -6404,11 +6452,11 @@ function buildLedgerTab(lead, leadId, ctx, isAdmin, txRows) {
       <tbody>
         ${txRows.length ? txRows.map(t => `
           <tr>
-            <td style="font-size:0.8rem;color:#666">${fmtDate(t.created_at)}</td>
+            <td style="font-size:0.8rem;color:var(--text-muted)">${fmtDate(t.created_at)}</td>
             <td><span class="badge badge-${t.type}">${txTypeLabel(t.type)}</span></td>
             <td>${fmtMoney(t.amount)}</td>
             <td>${esc(t.currency)}</td>
-            <td style="color:#aaa">${esc(t.notes || '-')}</td>
+            <td style="color:var(--text-muted)">${esc(t.notes || '-')}</td>
             <td>${esc(t.recorder?.full_name || '-')}</td>
           </tr>`).join('')
         : '<tr><td colspan="6" class="empty-state">No transactions recorded yet.</td></tr>'}
@@ -6537,9 +6585,9 @@ function buildKycTab(lead, leadId, ctx, isAdmin, kycRows) {
           <tr>
             <td>${docTypeLabel(d.document_type)}</td>
             <td><span class="badge badge-${d.status}">${kycStatusLabel(d.status)}</span></td>
-            <td style="font-size:0.8rem;color:#666">${fmtDate(d.uploaded_at)}</td>
+            <td style="font-size:0.8rem;color:var(--text-muted)">${fmtDate(d.uploaded_at)}</td>
             <td>${esc(d.reviewer?.full_name || '-')}</td>
-            <td style="color:#aaa">${esc(d.notes || '-')}</td>
+            <td style="color:var(--text-muted)">${esc(d.notes || '-')}</td>
             <td>${d.file_path ? `<button class="btn btn-secondary btn-sm" onclick="${d.document_type === 'deposit_screenshot' ? 'viewDepositScreenshot' : 'viewKycFile'}('${d.file_path}')">View</button>` : '-'}</td>
             ${isAdmin ? `<td style="white-space:nowrap">
               <button class="btn btn-secondary btn-sm" onclick="reviewKycDocument('${d.id}','verified','${leadId}','${ctx}')">Verify</button>
@@ -6734,10 +6782,10 @@ function buildCommsTab(lead, leadId, ctx, commRows) {
       <tbody>
         ${commRows.length ? commRows.map(c => `
           <tr>
-            <td style="font-size:0.8rem;color:#666">${fmtDateTime(c.created_at)}</td>
+            <td style="font-size:0.8rem;color:var(--text-muted)">${fmtDateTime(c.created_at)}</td>
             <td><span class="channel-chip channel-${c.type}">${commTypeLabel(c.type)}</span></td>
             <td><span class="badge badge-${c.direction}">${directionLabel(c.direction)}</span></td>
-            <td style="color:#aaa">${esc(c.subject || truncate(c.body, 60))}</td>
+            <td style="color:var(--text-muted)">${esc(c.subject || truncate(c.body, 60))}</td>
             <td>${esc(c.logger?.full_name || '-')}</td>
             <td>${c.attachment_path ? `<button class="btn btn-secondary btn-sm" onclick="viewDepositScreenshot('${c.attachment_path}')">View</button>` : '-'}</td>
           </tr>`).join('')
@@ -7040,19 +7088,19 @@ function renderLeadsTable(tbodyId, leads, isAdmin, emptyHtml) {
       : 'You';
     return `<tr onclick="openDetail('${l.id}','${ctx}')" style="cursor:pointer">
       <td>
-        <strong style="color:#0f172a">${esc(l.full_name)}</strong>
+        <strong style="color:var(--text-strong)">${esc(l.full_name)}</strong>
         ${l.needs_human ? `<br><span title="${esc(l.handoff_reason||'Needs human follow-up')}" style="font-size:0.72rem;color:#fff;background:var(--bad);padding:1px 7px;border-radius:8px;display:inline-block;margin-top:2px">⚠ Needs Human</span>` : ''}
-        ${l.instrument_type ? `<br><span style="font-size:0.72rem;color:#94a3b8;background:#0f172a;padding:1px 7px;border-radius:8px;display:inline-block;margin-top:2px">${esc(l.instrument_type)}</span>` : ''}
+        ${l.instrument_type ? `<br><span style="font-size:0.72rem;color:var(--text-muted);background:var(--tint-sky-bg);padding:1px 7px;border-radius:8px;display:inline-block;margin-top:2px">${esc(l.instrument_type)}</span>` : ''}
       </td>
       <td>${esc(l.phone||'-')}</td>
       <td>
         <span style="font-size:0.82rem">${sourceLabel(l.source)}</span>
         ${l.meta_campaign
-          ? `<br><span style="color:#555;font-size:0.78rem">${esc(l.meta_campaign)}</span>` : ''}
+          ? `<br><span style="color:var(--text-muted);font-size:0.78rem">${esc(l.meta_campaign)}</span>` : ''}
       </td>
-      <td>${statusBadge(l.status)}${l.deposit_platform ? `<br><span style="font-size:0.68rem;color:#94a3b8" title="Deposit platform">🏦 ${(l.deposit_platform||'').toUpperCase()} ${l.verified ? '✓ verified' : '⏳ pending'}</span>` : ''}</td>
+      <td>${statusBadge(l.status)}${l.deposit_platform ? `<br><span style="font-size:0.68rem;color:var(--text-muted)" title="Deposit platform">🏦 ${(l.deposit_platform||'').toUpperCase()} ${l.verified ? '✓ verified' : '⏳ pending'}</span>` : ''}</td>
       <td>${agentLabel}</td>
-      <td style="font-size:0.8rem;color:#666">${fmtDate(l.created_at)}</td>
+      <td style="font-size:0.8rem;color:var(--text-muted)">${fmtDate(l.created_at)}</td>
       <td><button class="btn btn-secondary btn-sm">View</button></td>
     </tr>`;
   }).join('');
@@ -7098,7 +7146,7 @@ async function initMetaAnalytics() {
   const token     = await maGetSetting('meta_token');
   const accountId = await maGetSetting('meta_account_id');
   if (!token || token.length < 20) {
-    bar.style.cssText = 'background:#1a0a00;border:1px solid #c9a84c;border-radius:8px;padding:12px 16px;color:#ccc;margin-bottom:18px';
+    bar.style.cssText = 'background:#1a0a00;border:1px solid var(--accent);border-radius:8px;padding:12px 16px;color:#ccc;margin-bottom:18px';
     bar.innerHTML = '⚠️ No Meta Access Token found. Go to <strong>Meta Integration</strong> settings, paste your access token and account ID, then save.';
   } else {
     bar.style.cssText = 'background:#001a10;border:1px solid #4caf50;border-radius:8px;padding:12px 16px;color:#aee;margin-bottom:18px';
@@ -7134,13 +7182,13 @@ function maRenderInsights(rows, level, nameField) {
     const leads = maGetLeadCount(r.actions);
     const cpl   = maGetCPL(r.cost_per_action_type);
     return `<tr>
-      <td style="font-weight:600;color:#0f172a;max-width:220px;word-break:break-word">${esc(r[nameField] || '-')}</td>
+      <td style="font-weight:600;color:var(--text-strong);max-width:220px;word-break:break-word">${esc(r[nameField] || '-')}</td>
       <td>${Number(r.impressions||0).toLocaleString()}</td>
       <td>${Number(r.reach||0).toLocaleString()}</td>
       <td>${Number(r.clicks||0).toLocaleString()}</td>
       <td>${parseFloat(r.ctr||0).toFixed(2)}%</td>
-      <td style="color:#c9a84c">PKR ${parseFloat(r.spend||0).toFixed(2)}</td>
-      <td style="color:#4caf50;font-weight:600">${leads || '-'}</td>
+      <td style="color:var(--accent)">PKR ${parseFloat(r.spend||0).toFixed(2)}</td>
+      <td style="color:var(--ok);font-weight:600">${leads || '-'}</td>
       <td>${cpl}</td>
     </tr>`;
   }).join('');
@@ -7158,12 +7206,12 @@ function maRenderSummary(rows) {
   const cpl = t.leads  ? 'PKR ' + (t.spend / t.leads).toFixed(2)  : '-';
   const cpc = t.clicks ? 'PKR ' + (t.spend / t.clicks).toFixed(2) : '-';
   document.getElementById('ma-summary-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">Total Spend</div><div class="stat-value" style="color:#c9a84c">PKR ${fmtMoney(t.spend)}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Spend</div><div class="stat-value" style="color:var(--accent)">PKR ${fmtMoney(t.spend)}</div></div>
     <div class="stat-card"><div class="stat-label">Impressions</div><div class="stat-value">${t.impressions.toLocaleString()}</div></div>
     <div class="stat-card"><div class="stat-label">Clicks</div><div class="stat-value">${t.clicks.toLocaleString()}</div></div>
-    <div class="stat-card"><div class="stat-label">Leads</div><div class="stat-value" style="color:#4caf50">${t.leads.toLocaleString()}</div></div>
+    <div class="stat-card"><div class="stat-label">Leads</div><div class="stat-value" style="color:var(--ok)">${t.leads.toLocaleString()}</div></div>
     <div class="stat-card"><div class="stat-label">Avg CTR</div><div class="stat-value">${ctr}%</div></div>
-    <div class="stat-card"><div class="stat-label">Cost per Lead</div><div class="stat-value" style="color:#e05c5c">${cpl}</div></div>
+    <div class="stat-card"><div class="stat-label">Cost per Lead</div><div class="stat-value" style="color:var(--bad)">${cpl}</div></div>
     <div class="stat-card"><div class="stat-label">Cost per Click</div><div class="stat-value">${cpc}</div></div>
   `;
 }
@@ -7227,7 +7275,7 @@ async function fetchMetaAnalytics() {
     const pixelId   = await maGetSetting('meta_pixel_id');
 
     if (!token || token.length < 20) {
-      iTbody.innerHTML = `<tr><td colspan="8" class="empty-state" style="color:#e05c5c">
+      iTbody.innerHTML = `<tr><td colspan="8" class="empty-state" style="color:var(--bad)">
         No access token. Go to <strong>Meta Integration</strong> settings and save your token first.</td></tr>`;
       pTbody.innerHTML = '<tr><td colspan="3" class="empty-state"></td></tr>';
       return;
@@ -7255,14 +7303,14 @@ async function fetchMetaAnalytics() {
       const pResp = await fetch(pixelUrl);
       const pData = await pResp.json();
       pData.error
-        ? (pTbody.innerHTML = `<tr><td colspan="3" class="empty-state" style="color:#e05c5c">Pixel error: ${esc(pData.error.message)}</td></tr>`)
+        ? (pTbody.innerHTML = `<tr><td colspan="3" class="empty-state" style="color:var(--bad)">Pixel error: ${esc(pData.error.message)}</td></tr>`)
         : maRenderPixel(pData.data || []);
     } else {
       pTbody.innerHTML = '<tr><td colspan="3" class="empty-state">Add your Pixel ID in Meta Integration settings to see pixel event data.</td></tr>';
     }
 
   } catch (err) {
-    iTbody.innerHTML = `<tr><td colspan="8" class="empty-state" style="color:#e05c5c">Error: ${esc(err.message)}</td></tr>`;
+    iTbody.innerHTML = `<tr><td colspan="8" class="empty-state" style="color:var(--bad)">Error: ${esc(err.message)}</td></tr>`;
   } finally {
     if (btn) { btn.textContent = 'Fetch Data'; btn.disabled = false; }
   }
@@ -7317,7 +7365,7 @@ function fmtDateTime(iso) {
 
 function setMsg(el, msg, type) {
   el.textContent = msg;
-  el.style.color = type === 'err' ? '#e05c5c' : '#4caf50';
+  el.style.color = type === 'err' ? 'var(--bad)' : 'var(--ok)';
   if (type === 'ok') setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 4000);
 }
 
@@ -7455,7 +7503,7 @@ function populateApptAgentDropdown() {
 }
 
 function apptAgentName(id) {
-  if (!id) return '<span style="color:#94a3b8">Unassigned</span>';
+  if (!id) return '<span style="color:var(--text-muted)">Unassigned</span>';
   const p = (cachedProfiles || []).find(x => x.id === id);
   return esc(p ? (p.full_name || p.email) : 'Unknown');
 }
@@ -7496,12 +7544,12 @@ function renderAppointmentsTable() {
     return `
     <tr>
       <td style="white-space:nowrap">
-        <strong style="color:${overdue ? '#dc4c40' : '#0f172a'}">${when.toLocaleDateString([], {timeZone:workspaceTimeZone()})}</strong>
-        <br><span style="color:#64748b;font-size:0.78rem">${when.toLocaleTimeString([], {timeZone:workspaceTimeZone(), hour:'2-digit', minute:'2-digit'})} &middot; ${Number(a.duration_mins)}m</span>
-        ${overdue ? '<br><span style="color:#dc4c40;font-size:0.72rem;font-weight:700">OVERDUE</span>' : ''}
+        <strong style="color:${overdue ? 'var(--bad)' : 'var(--text-strong)'}">${when.toLocaleDateString([], {timeZone:workspaceTimeZone()})}</strong>
+        <br><span style="color:var(--text-muted);font-size:0.78rem">${when.toLocaleTimeString([], {timeZone:workspaceTimeZone(), hour:'2-digit', minute:'2-digit'})} &middot; ${Number(a.duration_mins)}m</span>
+        ${overdue ? '<br><span style="color:var(--bad);font-size:0.72rem;font-weight:700">OVERDUE</span>' : ''}
       </td>
-      <td><strong style="color:#0f172a">${esc(a.title)}</strong>${a.notes ? `<br><span style="color:#94a3b8;font-size:0.75rem">${esc(truncate(a.notes, 60))}</span>` : ''}</td>
-      <td style="white-space:nowrap">${esc(a.contact_name || '-')}${a.contact_phone ? `<br><span style="color:#64748b;font-size:0.76rem;font-family:monospace">${esc(a.contact_phone)}</span>` : ''}</td>
+      <td><strong style="color:var(--text-strong)">${esc(a.title)}</strong>${a.notes ? `<br><span style="color:var(--text-muted);font-size:0.75rem">${esc(truncate(a.notes, 60))}</span>` : ''}</td>
+      <td style="white-space:nowrap">${esc(a.contact_name || '-')}${a.contact_phone ? `<br><span style="color:var(--text-muted);font-size:0.76rem;font-family:monospace">${esc(a.contact_phone)}</span>` : ''}</td>
       <td style="white-space:nowrap;font-size:0.82rem">${apptAgentName(a.agent_id)}</td>
       <td><span style="font-size:0.76rem;font-weight:700;color:${APPT_STATUS_COLOURS[a.status] || '#64748b'}">${esc(APPT_STATUS_LABELS[a.status] || a.status)}</span></td>
       <td style="white-space:nowrap">
@@ -7655,7 +7703,7 @@ function runAiKbPreview() {
   if (!box) return;
   const id = document.getElementById('akb-preview-select')?.value;
   const k  = cachedAiKb.find(x => String(x.id) === String(id));
-  if (!k) { box.innerHTML = '<div style="color:#64748b;font-size:0.85rem">Create a campaign below to preview it.</div>'; return; }
+  if (!k) { box.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem">Create a campaign below to preview it.</div>'; return; }
 
   const text   = buildAiKbPrompt(k);
   const chars  = text.length;
@@ -7670,13 +7718,13 @@ function runAiKbPreview() {
   if (tokens > 2000) warn.push('This is a large prompt (roughly ' + tokens.toLocaleString() + ' tokens). It gets sent with every single reply, so it affects both cost and how much room is left for the conversation.');
 
   box.innerHTML = `
-    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px;font-size:0.8rem;color:#64748b">
-      <span><strong style="color:#0f172a">${chars.toLocaleString()}</strong> characters</span>
-      <span><strong style="color:#0f172a">~${tokens.toLocaleString()}</strong> tokens (estimate)</span>
-      <span>Bot number: <strong style="color:#0f172a">${esc(k.bot_number || 'not set')}</strong></span>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px;font-size:0.8rem;color:var(--text-muted)">
+      <span><strong style="color:var(--text-strong)">${chars.toLocaleString()}</strong> characters</span>
+      <span><strong style="color:var(--text-strong)">~${tokens.toLocaleString()}</strong> tokens (estimate)</span>
+      <span>Bot number: <strong style="color:var(--text-strong)">${esc(k.bot_number || 'not set')}</strong></span>
     </div>
     ${warn.map(w => `<div style="border-left:3px solid #b45309;padding:6px 10px;background:rgba(180,83,9,.08);border-radius:6px;margin-bottom:8px;font-size:0.82rem;color:#b45309">${esc(w)}</div>`).join('')}
-    <pre id="akb-preview-pre" style="white-space:pre-wrap;word-break:break-word;background:#f8fafc;border:1px solid #e5e8ef;border-radius:8px;padding:12px;font-size:0.8rem;line-height:1.5;color:#0f172a;max-height:320px;overflow:auto;margin:0">${esc(text)}</pre>`;
+    <pre id="akb-preview-pre" style="white-space:pre-wrap;word-break:break-word;background:var(--surface-soft);border:1px solid var(--line);border-radius:8px;padding:12px;font-size:0.8rem;line-height:1.5;color:var(--text-strong);max-height:320px;overflow:auto;margin:0">${esc(text)}</pre>`;
 }
 
 // ── RULE TESTERS ──────────────────────────────────────────────
@@ -7712,8 +7760,8 @@ function runKeywordTest() {
   if (hit) {
     box.innerHTML = `
       <div style="border-left:3px solid #1fa971;padding:8px 12px;background:rgba(31,169,113,.08);border-radius:6px">
-        <div style="font-weight:700;color:#1fa971;margin-bottom:4px">Matches: ${esc(hit.keyword)} (${esc(KW_MATCH_LABELS[hit.match_type] || hit.match_type)})</div>
-        <div style="color:#475569;white-space:pre-wrap">${esc(hit.reply_message)}</div>
+        <div style="font-weight:700;color:var(--ok);margin-bottom:4px">Matches: ${esc(hit.keyword)} (${esc(KW_MATCH_LABELS[hit.match_type] || hit.match_type)})</div>
+        <div style="color:var(--text-body);white-space:pre-wrap">${esc(hit.reply_message)}</div>
       </div>`;
     return;
   }
@@ -7724,10 +7772,10 @@ function runKeywordTest() {
   box.innerHTML = paused
     ? `<div style="border-left:3px solid #b45309;padding:8px 12px;background:rgba(180,83,9,.08);border-radius:6px">
          <div style="font-weight:700;color:#b45309;margin-bottom:4px">No reply, but a paused rule would match</div>
-         <div style="color:#475569">Rule <strong>${esc(paused.keyword)}</strong> is switched off. Turn it on and this message would get a reply.</div>
+         <div style="color:var(--text-body)">Rule <strong>${esc(paused.keyword)}</strong> is switched off. Turn it on and this message would get a reply.</div>
        </div>`
     : `<div style="border-left:3px solid #94a3b8;padding:8px 12px;background:rgba(148,163,184,.1);border-radius:6px">
-         <div style="color:#475569">No rule matches this message. The bot would fall through to its normal flow.</div>
+         <div style="color:var(--text-body)">No rule matches this message. The bot would fall through to its normal flow.</div>
        </div>`;
 }
 
@@ -7747,16 +7795,16 @@ function runFollowUpTest() {
   if (due.length) {
     html += due.map(f => `
       <div style="border-left:3px solid #1fa971;padding:8px 12px;background:rgba(31,169,113,.08);border-radius:6px;margin-bottom:8px">
-        <div style="font-weight:700;color:#1fa971;margin-bottom:4px">Would send: ${esc(f.name)} (after ${Number(f.delay_hours)}h)</div>
-        <div style="color:#475569;white-space:pre-wrap">${esc(f.message)}</div>
+        <div style="font-weight:700;color:var(--ok);margin-bottom:4px">Would send: ${esc(f.name)} (after ${Number(f.delay_hours)}h)</div>
+        <div style="color:var(--text-body);white-space:pre-wrap">${esc(f.message)}</div>
       </div>`).join('');
   } else {
     html += `<div style="border-left:3px solid #94a3b8;padding:8px 12px;background:rgba(148,163,184,.1);border-radius:6px;margin-bottom:8px">
-               <div style="color:#475569">Nothing would send for a lead sitting ${hours}h in this status.</div>
+               <div style="color:var(--text-body)">Nothing would send for a lead sitting ${hours}h in this status.</div>
              </div>`;
   }
   if (notYet.length) {
-    html += `<div style="color:#64748b;font-size:0.8rem;margin-bottom:4px">Not due yet: ` +
+    html += `<div style="color:var(--text-muted);font-size:0.8rem;margin-bottom:4px">Not due yet: ` +
             notYet.map(f => `${esc(f.name)} (needs ${Number(f.delay_hours)}h)`).join(', ') + `</div>`;
   }
   if (paused.length) {
@@ -7773,7 +7821,7 @@ const TPL_STATUS_LABELS = {
   draft:'Draft', submitted:'Submitted', approved:'Approved', rejected:'Rejected', paused:'Paused'
 };
 const TPL_STATUS_COLOURS = {
-  draft:'#64748b', submitted:'#b45309', approved:'#1fa971', rejected:'#dc4c40', paused:'#64748b'
+  draft:'var(--text-muted)', submitted:'var(--warn)', approved:'var(--ok)', rejected:'var(--bad)', paused:'var(--text-muted)'
 };
 
 async function loadTemplates() {
@@ -7795,13 +7843,13 @@ function renderTemplatesTable() {
   tbody.innerHTML = cachedTemplates.map(t => `
     <tr>
       <td style="white-space:nowrap">
-        <strong style="color:#0f172a">${esc(t.name)}</strong>
-        ${t.meta_name ? `<br><span style="color:#94a3b8;font-size:0.75rem">${esc(t.meta_name)}</span>` : ''}
+        <strong style="color:var(--text-strong)">${esc(t.name)}</strong>
+        ${t.meta_name ? `<br><span style="color:var(--text-muted);font-size:0.75rem">${esc(t.meta_name)}</span>` : ''}
       </td>
       <td style="white-space:nowrap"><span style="font-size:0.8rem">${esc(t.category || '')}</span></td>
       <td style="white-space:nowrap"><span style="font-size:0.8rem">${esc(t.language || '')}</span></td>
       <td style="white-space:nowrap"><span style="font-size:0.78rem;font-weight:700;color:${TPL_STATUS_COLOURS[t.status] || '#64748b'}">${esc(TPL_STATUS_LABELS[t.status] || t.status)}</span></td>
-      <td style="white-space:nowrap"><span style="color:#64748b;font-size:0.78rem">${esc(truncate(t.body || '', 70))}</span></td>
+      <td style="white-space:nowrap"><span style="color:var(--text-muted);font-size:0.78rem">${esc(truncate(t.body || '', 70))}</span></td>
       <td style="white-space:nowrap">
         <button class="btn btn-secondary btn-sm" onclick="editTemplateLoad('${t.id}')">Edit</button>
         <button class="btn btn-danger btn-sm" onclick="deleteTemplate('${t.id}')">Delete</button>
@@ -7924,9 +7972,9 @@ function renderFollowUpsTable() {
   }
   tbody.innerHTML = cachedFollowUps.map(f => `
     <tr>
-      <td style="white-space:nowrap"><strong style="color:#0f172a">${esc(f.name)}</strong></td>
+      <td style="white-space:nowrap"><strong style="color:var(--text-strong)">${esc(f.name)}</strong></td>
       <td style="white-space:nowrap"><span style="font-size:0.82rem">${esc(FUS_STATUS_LABELS[f.trigger_status] || f.trigger_status)} + ${Number(f.delay_hours)}h</span></td>
-      <td style="white-space:nowrap"><span style="color:#64748b;font-size:0.78rem">${esc(truncate(f.message || '', 80))}</span></td>
+      <td style="white-space:nowrap"><span style="color:var(--text-muted);font-size:0.78rem">${esc(truncate(f.message || '', 80))}</span></td>
       <td>
         <label class="toggle-switch" title="${f.is_active ? 'Click to pause' : 'Click to activate'}">
           <input type="checkbox" ${f.is_active ? 'checked' : ''} onchange="toggleFollowUpActive('${f.id}',${f.is_active})" />
@@ -8062,9 +8110,9 @@ function renderAiKbTable() {
   }
   tbody.innerHTML = cachedAiKb.map(k => `
     <tr>
-      <td style="white-space:nowrap"><strong style="color:#0f172a">${esc(k.campaign_name)}</strong></td>
+      <td style="white-space:nowrap"><strong style="color:var(--text-strong)">${esc(k.campaign_name)}</strong></td>
       <td style="white-space:nowrap">${esc(k.bot_number || '-')}</td>
-      <td style="white-space:nowrap"><span style="color:#64748b;font-size:0.78rem">${esc(truncate(k.system_prompt || '', 90))}</span></td>
+      <td style="white-space:nowrap"><span style="color:var(--text-muted);font-size:0.78rem">${esc(truncate(k.system_prompt || '', 90))}</span></td>
       <td>
         <label class="toggle-switch" title="${k.is_active ? 'Click to pause' : 'Click to activate'}">
           <input type="checkbox" ${k.is_active ? 'checked' : ''} onchange="toggleAiKbActive('${k.id}',${k.is_active})" />
@@ -8192,9 +8240,9 @@ function renderKeywordRepliesTable() {
   }
   tbody.innerHTML = cachedKeywordReplies.map(k => `
     <tr>
-      <td style="white-space:nowrap"><strong style="color:#0f172a">${esc(k.keyword)}</strong></td>
+      <td style="white-space:nowrap"><strong style="color:var(--text-strong)">${esc(k.keyword)}</strong></td>
       <td style="white-space:nowrap"><span style="font-size:0.82rem">${esc(KW_MATCH_LABELS[k.match_type] || k.match_type)}</span></td>
-      <td style="white-space:nowrap"><span style="color:#64748b;font-size:0.78rem">${esc(truncate(k.reply_message || '', 90))}</span></td>
+      <td style="white-space:nowrap"><span style="color:var(--text-muted);font-size:0.78rem">${esc(truncate(k.reply_message || '', 90))}</span></td>
       <td>
         <label class="toggle-switch" title="${k.is_active ? 'Click to pause' : 'Click to activate'}">
           <input type="checkbox" ${k.is_active ? 'checked' : ''} onchange="toggleKeywordActive('${k.id}',${k.is_active})" />
@@ -8319,8 +8367,8 @@ function renderAutomationRulesTable() {
   tbody.innerHTML = cachedAutomationRules.map(r => `
     <tr>
       <td>
-        <strong style="color:#0f172a">${esc(r.name)}</strong>
-        ${r.condition_filter ? `<br><span style="color:#94a3b8;font-size:0.75rem">If: ${esc(r.condition_filter)}</span>` : ''}
+        <strong style="color:var(--text-strong)">${esc(r.name)}</strong>
+        ${r.condition_filter ? `<br><span style="color:var(--text-muted);font-size:0.75rem">If: ${esc(r.condition_filter)}</span>` : ''}
       </td>
       <td><span style="font-size:0.82rem">${triggerEventLabel(r.trigger_event)}</span></td>
       <td><span class="channel-chip channel-${actionChipClass(r.channel)}">${actionLabel(r.channel)}</span></td>
@@ -8522,7 +8570,7 @@ async function loadReports() {
     ]);
     renderSourceChart([
       { source:'Meta Ads',    count:2, color:'#0ea5e9' },
-      { source:'Referral',    count:2, color:'#d4a843' },
+      { source:'Referral',    count:2, color:'var(--accent)' },
       { source:'Website',     count:1, color:'var(--ok)' },
       { source:'Manual',      count:1, color:'#8b5cf6' },
     ], totalLeads);
@@ -8600,7 +8648,7 @@ async function loadReports() {
   })));
   if (sourcePerf && sourcePerf.length) {
     const tot = sourcePerf.reduce((s, r) => s + r.total_leads, 0);
-    const palette = ['#0ea5e9','#d4a843','var(--ok)','#8b5cf6','#f59e0b'];
+    const palette = ['#0ea5e9','var(--accent)','var(--ok)','#8b5cf6','var(--warn)'];
     renderSourceChart(sourcePerf.map((r, i) => ({
       source: sourceLabel(r.source), count: r.total_leads, color: palette[i % palette.length],
     })), tot);
@@ -8651,15 +8699,15 @@ function renderAgentPerformanceReport(rows) {
     const rate = r.leads_assigned > 0 ? (r.converted / r.leads_assigned * 100).toFixed(1) : '0.0';
     const barW = Math.min(parseFloat(rate), 100);
     return `<tr>
-      <td><strong style="color:#0f172a">${esc(r.agent_name)}</strong></td>
+      <td><strong style="color:var(--text-strong)">${esc(r.agent_name)}</strong></td>
       <td>${r.leads_assigned}</td>
       <td>${r.converted}</td>
       <td>
         <div style="display:flex;align-items:center;gap:8px">
-          <div style="background:#e2e8f0;border-radius:4px;height:6px;width:80px;flex-shrink:0">
+          <div style="background:var(--line);border-radius:4px;height:6px;width:80px;flex-shrink:0">
             <div style="background:#0ea5e9;height:6px;border-radius:4px;width:${barW}%"></div>
           </div>
-          <span style="font-size:0.8rem;color:#64748b">${rate}%</span>
+          <span style="font-size:0.8rem;color:var(--text-muted)">${rate}%</span>
         </div>
       </td>
       <td style="font-weight:700;color:var(--ok)">${formatCurrencyTotals(r.deposit_totals, 'None')}</td>
@@ -8704,11 +8752,11 @@ const FUNNEL_STAGE_ORDER = [
   { key: 'just_started',              label: 'Just started (picked a language)',          color: '#94a3b8' },
   { key: 'at_menu',                   label: 'Stopped at the main menu',                  color: '#94a3b8' },
   { key: 'discussing_broker',         label: 'Discussing broker & trading experience',    color: '#0ea5e9' },
-  { key: 'asked_to_deposit',          label: 'Asked to deposit $500, no answer yet',      color: '#f59e0b' },
+  { key: 'asked_to_deposit',          label: 'Asked to deposit $500, no answer yet',      color: 'var(--warn)' },
   { key: 'declined_wanted_signals',   label: 'Wanted the free Signals Group instead',     color: '#0ea5e9' },
-  { key: 'declined_deposit',          label: 'Said no to the $500 deposit',               color: '#ef4444' },
+  { key: 'declined_deposit',          label: 'Said no to the $500 deposit',               color: 'var(--bad)' },
   { key: 'declined_manual_takeover',  label: 'Handed to an agent directly',               color: '#64748b' },
-  { key: 'declined_unclear',          label: 'Escalated to a human, reason not recorded', color: '#f59e0b' },
+  { key: 'declined_unclear',          label: 'Escalated to a human, reason not recorded', color: 'var(--warn)' },
   { key: 'qualified',                 label: 'Qualified, ready to deposit',               color: 'var(--ok)' },
   { key: 'converted',                 label: 'Converted',                                 color: 'var(--accent)' },
 ];
@@ -8734,10 +8782,10 @@ function renderCampaignFunnel(buckets) {
     return `
       <div style="margin-bottom:14px">
         <div style="display:flex;justify-content:space-between;margin-bottom:5px">
-          <span style="font-size:0.875rem;color:#0f172a;font-weight:500">${esc(s.label)}</span>
-          <span style="font-size:0.8rem;color:#64748b">${count} leads &nbsp;<strong>${pct}%</strong></span>
+          <span style="font-size:0.875rem;color:var(--text-strong);font-weight:500">${esc(s.label)}</span>
+          <span style="font-size:0.8rem;color:var(--text-muted)">${count} leads &nbsp;<strong>${pct}%</strong></span>
         </div>
-        <div style="background:#f1f5f9;border-radius:6px;height:12px">
+        <div style="background:var(--line);border-radius:6px;height:12px">
           <div style="background:${s.color};height:12px;border-radius:6px;width:${pct}%;transition:width .5s ease"></div>
         </div>
       </div>`;
@@ -8753,10 +8801,10 @@ function renderSourceChart(rows, total) {
     return `
       <div style="margin-bottom:14px">
         <div style="display:flex;justify-content:space-between;margin-bottom:5px">
-          <span style="font-size:0.875rem;color:#0f172a;font-weight:500">${esc(r.source)}</span>
-          <span style="font-size:0.8rem;color:#64748b">${r.count} leads &nbsp;<strong>${pct}%</strong></span>
+          <span style="font-size:0.875rem;color:var(--text-strong);font-weight:500">${esc(r.source)}</span>
+          <span style="font-size:0.8rem;color:var(--text-muted)">${r.count} leads &nbsp;<strong>${pct}%</strong></span>
         </div>
-        <div style="background:#f1f5f9;border-radius:6px;height:12px">
+        <div style="background:var(--line);border-radius:6px;height:12px">
           <div style="background:${r.color};height:12px;border-radius:6px;width:${pct}%;transition:width .5s ease"></div>
         </div>
       </div>`;
@@ -8803,9 +8851,9 @@ function renderMonthlyTrendChart(labels, data) {
       fallback.innerHTML = labels.map((l, i) => {
         const h = Math.max(Math.round((data[i] / max) * 120), 4);
         return `<div style="display:flex;flex-direction:column;align-items:center;flex:1">
-          <div style="font-size:0.8rem;color:#64748b;margin-bottom:4px">${data[i]}</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:4px">${data[i]}</div>
           <div style="background:#0ea5e9;border-radius:4px 4px 0 0;width:70%;height:${h}px"></div>
-          <div style="font-size:0.75rem;color:#64748b;margin-top:6px">${l}</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:6px">${l}</div>
         </div>`;
       }).join('');
     }
@@ -8828,9 +8876,9 @@ function renderFinancialSummaryReport(row, currencyTotals = null) {
       <div class="stat-label">Total Withdrawals</div>
       <div class="stat-value" style="color:var(--bad);font-size:1.25rem">${withdrawalsLabel}</div>
     </div>
-    <div class="stat-card" style="border-left:4px solid #d4a843">
-      <div class="stat-label" style="color:#d4a843">Net AUM</div>
-      <div class="stat-value" style="color:#d4a843;font-size:1.25rem">${netLabel}</div>
+    <div class="stat-card" style="border-left:4px solid var(--accent)">
+      <div class="stat-label" style="color:var(--accent)">Net AUM</div>
+      <div class="stat-value" style="color:var(--accent);font-size:1.25rem">${netLabel}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Verified KYC Clients</div>
@@ -8854,8 +8902,8 @@ function showToast(msg, type = 'ok') {
   }
   const isOk = type === 'ok';
   toast.style.background  = isOk ? '#0a2a0a' : '#2a0a0a';
-  toast.style.border      = `1px solid ${isOk ? '#4caf50' : '#e05c5c'}`;
-  toast.style.color       = isOk ? '#4caf50' : '#e05c5c';
+  toast.style.border      = `1px solid ${isOk ? 'var(--ok)' : 'var(--bad)'}`;
+  toast.style.color       = isOk ? 'var(--ok)' : 'var(--bad)';
   toast.textContent = msg;
   toast.style.opacity = '1';
   toast.style.display = 'block';
@@ -8917,7 +8965,7 @@ async function updateRoundRobinStatus() {
   if (!el) return;
   const agents = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended);
   if (!agents.length) {
-    el.innerHTML = '<span style="color:#555">No agents configured yet. Round-robin will activate once agents are added.</span>';
+    el.innerHTML = '<span style="color:var(--text-muted)">No agents configured yet. Round-robin will activate once agents are added.</span>';
     return;
   }
 
@@ -8945,19 +8993,19 @@ async function updateRoundRobinStatus() {
   el.innerHTML = `
     <div class="detail-row">
       <span class="detail-label" style="min-width:160px">Active Agent</span>
-      <strong style="color:#c9a84c">${esc(current.full_name || current.email)}</strong>
+      <strong style="color:var(--accent)">${esc(current.full_name || current.email)}</strong>
     </div>
     <div class="detail-row">
       <span class="detail-label" style="min-width:160px">Leads This Block</span>
       <span>
-        <span style="color:#c9a84c;font-weight:700">${count}</span>
-        <span style="color:#555"> / 15</span>
-        <span style="color:#666;font-size:0.8rem;margin-left:8px">(${remaining} until next rotation)</span>
+        <span style="color:var(--accent);font-weight:700">${count}</span>
+        <span style="color:var(--text-muted)"> / 15</span>
+        <span style="color:var(--text-muted);font-size:0.8rem;margin-left:8px">(${remaining} until next rotation)</span>
       </span>
     </div>
     <div style="margin:8px 0 14px">
       <div style="background:#2a2a2a;border-radius:4px;height:6px;width:100%;max-width:300px">
-        <div style="background:#c9a84c;height:6px;border-radius:4px;width:${pct}%;transition:width .3s"></div>
+        <div style="background:var(--accent);height:6px;border-radius:4px;width:${pct}%;transition:width .3s"></div>
       </div>
     </div>
     <div class="detail-row" style="border:none;align-items:flex-start">
@@ -9014,12 +9062,12 @@ function renderDashboardStats() {
     const listEl = el('dash-followups-list');
     if (listEl) listEl.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1e293b">
-        <div><div style="color:#0f172a;font-size:0.85rem;font-weight:600">Omar Farooq</div><div style="color:#64748b;font-size:0.76rem">Call back re: gold account setup</div></div>
-        <span style="color:#f59e0b;font-size:0.78rem;white-space:nowrap">Today</span>
+        <div><div style="color:var(--text-strong);font-size:0.85rem;font-weight:600">Omar Farooq</div><div style="color:var(--text-muted);font-size:0.76rem">Call back re: gold account setup</div></div>
+        <span style="color:var(--warn);font-size:0.78rem;white-space:nowrap">Today</span>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0">
-        <div><div style="color:#0f172a;font-size:0.85rem;font-weight:600">Ayesha Malik</div><div style="color:#64748b;font-size:0.76rem">Send crypto signals starter pack</div></div>
-        <span style="color:#94a3b8;font-size:0.78rem;white-space:nowrap">Tomorrow</span>
+        <div><div style="color:var(--text-strong);font-size:0.85rem;font-weight:600">Ayesha Malik</div><div style="color:var(--text-muted);font-size:0.76rem">Send crypto signals starter pack</div></div>
+        <span style="color:var(--text-muted);font-size:0.78rem;white-space:nowrap">Tomorrow</span>
       </div>`;
     renderDashboardCharts(_DEMO_LEADS);
     // The live path's loadDashMetaAds() call sits below this function's early
@@ -9102,7 +9150,7 @@ function renderDashboardCharts(leads) {
     legendEl.innerHTML = statusKeys.length ? statusKeys.map(k => `
       <div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:${dashChartTextColor()}">
         <span style="width:10px;height:10px;border-radius:50%;background:${STATUS_CHART_COLORS[k]};display:inline-block"></span>
-        ${STATUS_CHART_LABELS[k]} <strong style="color:${document.documentElement.getAttribute('data-theme')==='dark'?'#f1f5f9':'#0f172a'}">${counts[k]}</strong>
+        ${STATUS_CHART_LABELS[k]} <strong style="color:var(--text-strong)">${counts[k]}</strong>
       </div>`).join('') : `<div style="color:${dashChartTextColor()};font-size:0.85rem">No leads yet</div>`;
   }
 
@@ -9213,12 +9261,12 @@ async function loadUpcomingFollowups(scope = '') {
   if (demoMode) {
     listEl.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1e293b">
-        <div><div style="color:#0f172a;font-size:0.85rem;font-weight:600">Omar Farooq</div><div style="color:#64748b;font-size:0.76rem">Call back re: gold account setup</div></div>
-        <span style="color:#f59e0b;font-size:0.78rem;white-space:nowrap">Today</span>
+        <div><div style="color:var(--text-strong);font-size:0.85rem;font-weight:600">Omar Farooq</div><div style="color:var(--text-muted);font-size:0.76rem">Call back re: gold account setup</div></div>
+        <span style="color:var(--warn);font-size:0.78rem;white-space:nowrap">Today</span>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0">
-        <div><div style="color:#0f172a;font-size:0.85rem;font-weight:600">Ayesha Malik</div><div style="color:#64748b;font-size:0.76rem">Send crypto signals starter pack</div></div>
-        <span style="color:#94a3b8;font-size:0.78rem;white-space:nowrap">Tomorrow</span>
+        <div><div style="color:var(--text-strong);font-size:0.85rem;font-weight:600">Ayesha Malik</div><div style="color:var(--text-muted);font-size:0.76rem">Send crypto signals starter pack</div></div>
+        <span style="color:var(--text-muted);font-size:0.78rem;white-space:nowrap">Tomorrow</span>
       </div>`;
     return;
   }
@@ -9232,7 +9280,7 @@ async function loadUpcomingFollowups(scope = '') {
     .order('follow_up_date', { ascending: true })
     .limit(8);
   if (error || !data || !data.length) {
-    listEl.innerHTML = `<div style="color:#64748b;font-size:0.85rem;padding:8px 0">No follow-ups scheduled for the next 7 days. 🎉</div>`;
+    listEl.innerHTML = `<div style="color:var(--text-muted);font-size:0.85rem;padding:8px 0">No follow-ups scheduled for the next 7 days. 🎉</div>`;
     return;
   }
   const todayStr = new Date().toISOString().slice(0,10);
@@ -9241,13 +9289,13 @@ async function loadUpcomingFollowups(scope = '') {
     const label = a.follow_up_date === todayStr ? 'Today'
       : a.follow_up_date === tomorrowStr ? 'Tomorrow'
       : new Date(a.follow_up_date + 'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
-    const color = a.follow_up_date === todayStr ? '#f59e0b' : '#94a3b8';
+    const color = a.follow_up_date === todayStr ? 'var(--warn)' : 'var(--text-muted)';
     const border = i < data.length - 1 ? 'border-bottom:1px solid #1e293b' : '';
     const name = a.leads?.full_name || 'Unknown Lead';
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;${border}">
       <div>
-        <div style="color:#0f172a;font-size:0.85rem;font-weight:600">${esc(name)}</div>
-        <div style="color:#64748b;font-size:0.76rem">${esc((a.summary||'').slice(0,70))}${(a.summary||'').length>70?'…':''}</div>
+        <div style="color:var(--text-strong);font-size:0.85rem;font-weight:600">${esc(name)}</div>
+        <div style="color:var(--text-muted);font-size:0.76rem">${esc((a.summary||'').slice(0,70))}${(a.summary||'').length>70?'…':''}</div>
       </div>
       <span style="color:${color};font-size:0.78rem;white-space:nowrap;margin-left:12px">${label}</span>
     </div>`;
@@ -9572,7 +9620,7 @@ async function renderConversations(scope = '') {
   if (demoMode) {
     const convs = _DEMO_CONVERSATIONS;
     if (!convs.length) {
-      listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:0.85rem">No conversations yet.</div>';
+      listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">No conversations yet.</div>';
       return;
     }
     // Demo rows carry a simple status, so the tier mapping stays as it was -
@@ -9596,7 +9644,7 @@ async function renderConversations(scope = '') {
           <div class="conv-avatar" style="background:${avatarColor(c.id)}">${initials}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(c.name)}${c.unread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
-            <div class="conv-phone" style="font-size:0.72rem;color:#94a3b8">${esc(c.phone || '')}</div>
+            <div class="conv-phone" style="font-size:0.72rem;color:var(--text-muted)">${esc(c.phone || '')}</div>
             <div class="conv-preview">${convPriorityChip(_prio, sig)}${esc(c.lastMsg)}</div>
           </div>
           <div style="flex-shrink:0;text-align:right">
@@ -9612,7 +9660,7 @@ async function renderConversations(scope = '') {
 
   // Live mode - RLS returns every conversation for Admins and only
   // conversations related to the signed-in Agent's assigned leads.
-  listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:0.85rem">Loading…</div>';
+  listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">Loading…</div>';
   try {
     const { data: comms, error } = await sb
       .from('communications')
@@ -9633,7 +9681,7 @@ async function renderConversations(scope = '') {
       .order('created_at', { ascending: false });
     if (error) throw error;
     if (!comms || !comms.length) {
-      listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;font-size:0.85rem">No WhatsApp conversations yet.<br><span style="font-size:0.75rem;opacity:.7">Messages received via webhook will appear here.</span></div>';
+      listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">No WhatsApp conversations yet.<br><span style="font-size:0.75rem;opacity:.7">Messages received via webhook will appear here.</span></div>';
       return;
     }
     const seen = new Set();
@@ -9667,7 +9715,7 @@ async function renderConversations(scope = '') {
           <div class="conv-avatar" style="background:${avatarColor(c.lead_id)}">${initials}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(name)}${isUnread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
-            <div class="conv-phone" style="font-size:0.72rem;color:#94a3b8">${esc(phone)}</div>
+            <div class="conv-phone" style="font-size:0.72rem;color:var(--text-muted)">${esc(phone)}</div>
             <div class="conv-preview">${convPriorityChip(_prio, sig)}${esc(preview.slice(0,60))}</div>
           </div>
           <div style="flex-shrink:0;text-align:right">
@@ -9959,7 +10007,7 @@ async function openConversation(convId, scope = '') {
         <button type="button" class="conv-header-btn" title="Search in this conversation" onclick="toggleConvMsgSearch()">🔍</button>
         <button type="button" class="conv-header-btn" title="Mark as unread and go back to the list" onclick="markConversationUnread('${convId}','${scope}')">📩</button>
         <button type="button" class="conv-header-btn" title="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
-        <button type="button" class="conv-copy-link-btn" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:#475569;font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
+        <button type="button" class="conv-copy-link-btn" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--text-body);font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
       </div>
       <div class="conv-msg-search" id="conv-msg-search" style="display:none">
         <input type="text" id="conv-msg-search-input" placeholder="Search in this conversation…"
@@ -9987,9 +10035,9 @@ async function openConversation(convId, scope = '') {
             </div>
           </div>`; }).join(''); })()}
       </div>
-      <div id="conv-reply-preview" style="display:none;background:#f1f5f9;border-top:1px solid #e2e8f0;padding:6px 14px;font-size:0.78rem;color:#475569;align-items:center;justify-content:space-between">
+      <div id="conv-reply-preview" style="display:none;background:#f1f5f9;border-top:1px solid var(--line);padding:6px 14px;font-size:0.78rem;color:var(--text-body);align-items:center;justify-content:space-between">
         <span>Replying to: <em id="conv-reply-preview-text"></em></span>
-        <button type="button" onclick="clearReplyTarget()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:0.9rem">✕</button>
+        <button type="button" onclick="clearReplyTarget()" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:0.9rem">✕</button>
       </div>
       <div id="conv-attach-chip" style="display:none"></div>
       <div class="conv-input-bar">
@@ -10018,7 +10066,7 @@ async function openConversation(convId, scope = '') {
   // Live mode
   const chatPanel = document.getElementById(scope + 'conv-chat-panel');
   if (!chatPanel) return;
-  chatPanel.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8">Loading conversation…</div>';
+  chatPanel.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted)">Loading conversation…</div>';
   renderConversations(scope); // update sidebar active state
 
   try {
@@ -10075,13 +10123,13 @@ async function openConversation(convId, scope = '') {
         <button type="button" class="conv-header-btn" title="Search in this conversation" onclick="toggleConvMsgSearch()">🔍</button>
         <button type="button" class="conv-header-btn" title="Mark as unread and go back to the list" onclick="markConversationUnread('${convId}','${scope}')">📩</button>
         <button type="button" class="conv-header-btn" title="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
-        <select class="conv-tier-select" title="Set this lead's tier yourself - you know the real situation" onchange="setLeadTier('${convId}', this.value, '${scope}')" style="border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;font-size:0.78rem;color:#475569;background:#fff">
+        <select class="conv-tier-select" title="Set this lead's tier yourself - you know the real situation" onchange="setLeadTier('${convId}', this.value, '${scope}')" style="border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;font-size:0.78rem;color:var(--text-body);background:#fff">
           <option value="new" ${currentTier==='new'?'selected':''}>🆕 New</option>
           <option value="warm" ${currentTier==='warm'?'selected':''}>🌤 Warm</option>
           <option value="hot" ${currentTier==='hot'?'selected':''}>🔥 Hot</option>
           <option value="closed" ${currentTier==='closed'?'selected':''}>✅ Converted</option>
         </select>
-        <button type="button" class="conv-copy-link-btn" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:#475569;font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
+        <button type="button" class="conv-copy-link-btn" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--text-body);font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
       </div>
       <div class="conv-msg-search" id="conv-msg-search" style="display:none">
         <input type="text" id="conv-msg-search-input" placeholder="Search in this conversation…"
@@ -10111,12 +10159,12 @@ async function openConversation(convId, scope = '') {
                   <span class="msg-time">${messageActionMarksHtml(m.id)}${fmtConvMessageTime(m.created_at)}${deliveryTickHtml(m.direction, m.delivery_status)}</span>
                 </div>
               </div>`; }).join(''); })()
-          : '<div style="text-align:center;color:#64748b;font-size:0.85rem;padding:32px">No messages yet.</div>'}
+          : '<div style="text-align:center;color:var(--text-muted);font-size:0.85rem;padding:32px">No messages yet.</div>'}
       </div>
       ${windowWarning}
-      <div id="conv-reply-preview" style="display:none;background:#f1f5f9;border-top:1px solid #e2e8f0;padding:6px 14px;font-size:0.78rem;color:#475569;align-items:center;justify-content:space-between">
+      <div id="conv-reply-preview" style="display:none;background:#f1f5f9;border-top:1px solid var(--line);padding:6px 14px;font-size:0.78rem;color:var(--text-body);align-items:center;justify-content:space-between">
         <span>Replying to: <em id="conv-reply-preview-text"></em></span>
-        <button type="button" onclick="clearReplyTarget()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:0.9rem">✕</button>
+        <button type="button" onclick="clearReplyTarget()" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:0.9rem">✕</button>
       </div>
       <div id="conv-attach-chip" style="display:none"></div>
       <div class="conv-input-bar">
@@ -10240,8 +10288,8 @@ async function markConversationUnread(convId, scope = '') {
     chatPanel.innerHTML = `
         <div class="conv-empty-chat">
           <div style="font-size:2.5rem;margin-bottom:12px">💬</div>
-          <div style="font-weight:600;color:#64748b;margin-bottom:6px">Select a conversation</div>
-          <div style="font-size:0.8rem;color:#94a3b8">Click on a lead to view their messages</div>
+          <div style="font-weight:600;color:var(--text-muted);margin-bottom:6px">Select a conversation</div>
+          <div style="font-size:0.8rem;color:var(--text-muted)">Click on a lead to view their messages</div>
         </div>`;
   }
   // On mobile the list is collapsed while a chat is open, so it has to come
@@ -10962,9 +11010,9 @@ function openTemplateCompose(templateId) {
     </div>
     <div class="fwd-search" id="tpl-fields">
       ${count ? Array.from({ length: count }, (_, i) => `
-        <label style="display:block;font-size:0.74rem;color:#64748b;margin:6px 0 3px">Value for {{${i + 1}}}</label>
+        <label style="display:block;font-size:0.74rem;color:var(--text-muted);margin:6px 0 3px">Value for {{${i + 1}}}</label>
         <input type="text" class="tpl-param" data-idx="${i}" value="${i === 0 ? esc(firstName) : ''}" oninput="updateTemplatePreview('${esc(t.id)}')" />`).join('')
-        : '<div style="font-size:0.78rem;color:#64748b">This template has no fill-in values.</div>'}
+        : '<div style="font-size:0.78rem;color:var(--text-muted)">This template has no fill-in values.</div>'}
     </div>
     <div class="fwd-foot">
       <button class="btn btn-secondary btn-sm" onclick="renderTemplatePickerBack()">Back</button>
@@ -11754,7 +11802,7 @@ function renderPayrollSetup() {
   tbody.innerHTML = agents.map(a => {
     const saved = _payrollSettings.find(row => row.agent_id === a.id);
     return `<tr>
-      <td><strong style="color:#0f172a">${esc(a.full_name || a.email)}</strong></td>
+      <td><strong style="color:var(--text-strong)">${esc(a.full_name || a.email)}</strong></td>
       <td><input type="number" id="pr-base-${a.id}" value="${Number(saved?.base_salary_monthly ?? 500)}" min="0" step="50" style="width:130px" /></td>
       <td><input type="number" id="pr-comm-${a.id}" value="${Number(saved?.commission_percent ?? 5)}" min="0" max="100" step="0.5" style="width:110px" /></td>
     </tr>`;
@@ -11826,11 +11874,11 @@ function renderPayrollRows(rows) {
   window._payrollRows = rows;
   const tbody = document.getElementById('payroll-results-tbody');
   if (tbody) tbody.innerHTML = rows.length ? rows.map(r => `<tr>
-      <td><strong style="color:#0f172a">${esc(r.name)}</strong></td>
+      <td><strong style="color:var(--text-strong)">${esc(r.name)}</strong></td>
       <td>${r.conversions}</td>
       <td>$${fmtMoney(r.revenue)}</td>
-      <td>$${fmtMoney(r.commission)} <span style="color:#94a3b8;font-size:0.78rem">(${r.commPct}%)</span></td>
-      <td>$${fmtMoney(r.basePay)} <span style="color:#94a3b8;font-size:0.78rem">(${esc(r.pLabel)})</span></td>
+      <td>$${fmtMoney(r.commission)} <span style="color:var(--text-muted);font-size:0.78rem">(${r.commPct}%)</span></td>
+      <td>$${fmtMoney(r.basePay)} <span style="color:var(--text-muted);font-size:0.78rem">(${esc(r.pLabel)})</span></td>
       <td style="font-weight:700;color:var(--ok)">$${fmtMoney(r.totalPay)}</td>
     </tr>`).join('') : '<tr><td colspan="6" class="empty-state">No active agents found.</td></tr>';
   const resEl = document.getElementById('payroll-results');
@@ -12148,7 +12196,7 @@ function renderCommLog(scope = '') {
   if (_commLogStatusFilter) logs = logs.filter(l => l.lead_status === _commLogStatusFilter);
 
   if (!logs.length) {
-    el.innerHTML = `<div class="card" style="text-align:center;color:#94a3b8;padding:40px">
+    el.innerHTML = `<div class="card" style="text-align:center;color:var(--text-muted);padding:40px">
       <div style="font-size:2.5rem;margin-bottom:10px">🕐</div>
       <div style="font-weight:600;margin-bottom:6px">No interactions yet</div>
       <div style="font-size:0.82rem">Add a note above to start logging communications.</div>
@@ -12163,17 +12211,17 @@ function renderCommLog(scope = '') {
   el.innerHTML = logs.map((l, i) => `
     <div style="display:flex;gap:14px;margin-bottom:${i === logs.length - 1 ? 0 : '4px'}">
       <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
-        <div style="width:38px;height:38px;border-radius:50%;background:#f8fafc;border:2px solid #e2e8f0;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0">${typeIcon(l.type)}</div>
-        ${i < logs.length - 1 ? `<div style="width:2px;background:#e2e8f0;flex:1;min-height:18px;margin-top:4px"></div>` : ''}
+        <div style="width:38px;height:38px;border-radius:50%;background:var(--surface-soft);border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0">${typeIcon(l.type)}</div>
+        ${i < logs.length - 1 ? `<div style="width:2px;background:var(--line);flex:1;min-height:18px;margin-top:4px"></div>` : ''}
       </div>
       <div class="card" style="flex:1;padding:14px 16px;margin-bottom:12px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
           <span class="channel-chip channel-${typeClass(l.type)}">${typeIcon(l.type)} ${typeLabel(l.type)}</span>
-          <strong style="color:#0f172a;font-size:0.875rem">${esc(l.lead_name)}</strong>
-          <span style="color:#94a3b8;font-size:0.75rem;margin-left:auto;white-space:nowrap">${fmtDateTime(l.created_at)}</span>
+          <strong style="color:var(--text-strong);font-size:0.875rem">${esc(l.lead_name)}</strong>
+          <span style="color:var(--text-muted);font-size:0.75rem;margin-left:auto;white-space:nowrap">${fmtDateTime(l.created_at)}</span>
         </div>
-        <p style="color:#334155;font-size:0.875rem;line-height:1.55;margin:0 0 6px">${esc(l.message)}</p>
-        <div style="color:#94a3b8;font-size:0.75rem">by ${esc(l.created_by_name)}</div>
+        <p style="color:var(--text-body);font-size:0.875rem;line-height:1.55;margin:0 0 6px">${esc(l.message)}</p>
+        <div style="color:var(--text-muted);font-size:0.75rem">by ${esc(l.created_by_name)}</div>
       </div>
     </div>`).join('');
 }
@@ -12240,7 +12288,11 @@ document.addEventListener('keydown', e => {
 // vanished on refresh. Now it persists.
 let _subscribers = [];
 
-const SUB_STATUS_COLOURS = { active:'#1fa971', pending:'#b45309', inactive:'#64748b', removed:'#dc4c40' };
+const SUB_STATUS_COLOURS = { active:'var(--ok)', pending:'var(--warn)', inactive:'var(--text-muted)', removed:'var(--bad)' };
+// Paired soft surfaces. Kept as a second map rather than an alpha suffix on
+// the value above: that trick ("${colour}1a") only works while the colour is
+// a literal hex, so it would have broken the moment these became tokens.
+const SUB_STATUS_SURFACES = { active:'var(--ok-soft)', pending:'var(--warn-soft)', inactive:'var(--n-100)', removed:'var(--bad-soft)' };
 
 const _DEMO_SUBSCRIBERS = [
   { id:'sub1', name:'Ahmed Khan',   phone:'+923001234567', community:'Premium Signalling Group', status:'active',  source:'signals_form', created_at:'2026-07-28T10:00:00Z' },
@@ -12304,14 +12356,14 @@ function renderSubscribersTable() {
   }
   tbody.innerHTML = rows.map((x, i) => `
     <tr onclick="selectSubscriber('${x.id}')" style="cursor:pointer;${String(_selectedSubscriberId)===String(x.id)?'background:#f0f9ff':''}">
-      <td style="color:#64748b;font-size:0.78rem">${i+1}</td>
-      <td style="font-weight:600;color:#0f172a">${esc(x.name || '-')}</td>
+      <td style="color:var(--text-muted);font-size:0.78rem">${i+1}</td>
+      <td style="font-weight:600;color:var(--text-strong)">${esc(x.name || '-')}</td>
       <td style="font-family:monospace;font-size:0.82rem">${esc(x.phone)}</td>
       <td><span style="font-size:0.8rem">${esc(x.community || '-')}</span></td>
-      <td><span style="color:#64748b;font-size:0.76rem">${esc((x.source || '').replace('_',' '))}</span></td>
-      <td><span style="color:#64748b;font-size:0.76rem">${x.created_at ? new Date(x.created_at).toLocaleDateString() : '-'}</span></td>
-      <td><span style="font-size:0.75rem;font-weight:700;color:${SUB_STATUS_COLOURS[x.status] || '#64748b'}">${esc(x.status)}</span></td>
-      <td><button onclick="event.stopPropagation();removeSubscriber('${x.id}')" style="background:none;border:none;cursor:pointer;color:#64748b;font-size:0.78rem" title="Remove">✕</button></td>
+      <td><span style="color:var(--text-muted);font-size:0.76rem">${esc((x.source || '').replace('_',' '))}</span></td>
+      <td><span style="color:var(--text-muted);font-size:0.76rem">${x.created_at ? new Date(x.created_at).toLocaleDateString() : '-'}</span></td>
+      <td><span style="font-size:0.75rem;font-weight:700;color:${SUB_STATUS_COLOURS[x.status] || 'var(--text-muted)'}">${esc(x.status)}</span></td>
+      <td><button onclick="event.stopPropagation();removeSubscriber('${x.id}')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:0.78rem" title="Remove">✕</button></td>
     </tr>`).join('');
 
   // Keep the open detail panel in sync if its subscriber is still in view
@@ -12354,37 +12406,37 @@ function renderSubscriberDetail(sub) {
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
       <div style="width:44px;height:44px;border-radius:50%;background:${avatarColor(sub.id)};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700">${esc(initials)}</div>
       <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:1.02rem;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(sub.name || 'Unnamed subscriber')}</div>
-        <div style="font-family:monospace;font-size:0.82rem;color:#64748b">${esc(sub.phone)}</div>
+        <div style="font-weight:700;font-size:1.02rem;color:var(--text-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(sub.name || 'Unnamed subscriber')}</div>
+        <div style="font-family:monospace;font-size:0.82rem;color:var(--text-muted)">${esc(sub.phone)}</div>
       </div>
-      <span style="font-size:0.72rem;font-weight:700;color:${SUB_STATUS_COLOURS[sub.status] || '#64748b'};background:${SUB_STATUS_COLOURS[sub.status] || '#64748b'}1a;padding:3px 9px;border-radius:10px">${esc(sub.status)}</span>
+      <span style="font-size:0.72rem;font-weight:700;color:${SUB_STATUS_COLOURS[sub.status] || 'var(--text-muted)'};background:${SUB_STATUS_SURFACES[sub.status] || 'var(--n-100)'};padding:3px 9px;border-radius:10px">${esc(sub.status)}</span>
     </div>
 
-    <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-bottom:12px">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:8px;font-size:0.85rem">About</p>
+    <div style="border-top:1px solid var(--line);padding-top:12px;margin-bottom:12px">
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:8px;font-size:0.85rem">About</p>
       <div style="display:grid;gap:8px;font-size:0.85rem">
-        <div><span style="color:#64748b">Phone</span><br>${esc(sub.phone)}</div>
-        <div><span style="color:#64748b">Email</span><br>${esc(sub.email || '-')}</div>
-        <div><span style="color:#64748b">Source</span><br>${esc((sub.source || '-').replace('_',' '))}</div>
+        <div><span style="color:var(--text-muted)">Phone</span><br>${esc(sub.phone)}</div>
+        <div><span style="color:var(--text-muted)">Email</span><br>${esc(sub.email || '-')}</div>
+        <div><span style="color:var(--text-muted)">Source</span><br>${esc((sub.source || '-').replace('_',' '))}</div>
       </div>
     </div>
 
-    <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-bottom:12px">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:8px;font-size:0.85rem">Engagement</p>
+    <div style="border-top:1px solid var(--line);padding-top:12px;margin-bottom:12px">
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:8px;font-size:0.85rem">Engagement</p>
       <div style="display:grid;gap:8px;font-size:0.85rem">
-        <div><span style="color:#64748b">Subscribed at</span><br>${sub.created_at ? new Date(sub.created_at).toLocaleString() : '-'}</div>
-        <div><span style="color:#64748b">Joined community</span><br>${sub.joined_at ? new Date(sub.joined_at).toLocaleString() : 'Not confirmed yet'}</div>
+        <div><span style="color:var(--text-muted)">Subscribed at</span><br>${sub.created_at ? new Date(sub.created_at).toLocaleString() : '-'}</div>
+        <div><span style="color:var(--text-muted)">Joined community</span><br>${sub.joined_at ? new Date(sub.joined_at).toLocaleString() : 'Not confirmed yet'}</div>
       </div>
     </div>
 
-    <div style="border-top:1px solid #e2e8f0;padding-top:12px">
-      <p style="font-weight:700;color:#0f172a;margin-bottom:8px;font-size:0.85rem">Edit</p>
+    <div style="border-top:1px solid var(--line);padding-top:12px">
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:8px;font-size:0.85rem">Edit</p>
       <div style="display:grid;gap:10px">
-        <div><label style="font-size:0.78rem;color:#64748b">Community</label>
+        <div><label style="font-size:0.78rem;color:var(--text-muted)">Community</label>
           <input type="text" id="sd-community" value="${esc(sub.community || '')}" list="sub-community-list" style="width:100%" /></div>
-        <div><label style="font-size:0.78rem;color:#64748b">Status</label>
+        <div><label style="font-size:0.78rem;color:var(--text-muted)">Status</label>
           <select id="sd-status" style="width:100%">${statusOptions}</select></div>
-        <div><label style="font-size:0.78rem;color:#64748b">Notes</label>
+        <div><label style="font-size:0.78rem;color:var(--text-muted)">Notes</label>
           <textarea id="sd-notes" rows="3" style="width:100%">${esc(sub.notes || '')}</textarea></div>
       </div>
       <div class="form-actions" style="margin-top:10px">
@@ -12569,14 +12621,14 @@ function renderSignalBroadcastHistory() {
   }
   tbody.innerHTML = _signalBroadcasts.map(b => `
     <tr>
-      <td style="color:#64748b;font-size:0.78rem">${new Date(b.created_at).toLocaleString()}</td>
+      <td style="color:var(--text-muted);font-size:0.78rem">${new Date(b.created_at).toLocaleString()}</td>
       <td>${SIGNAL_TYPE_LABELS[b.signal_type] || esc(b.signal_type)}</td>
       <td>${esc(b.instrument || '-')}</td>
       <td>${esc(b.entry_price || '-')}</td>
       <td>${esc(b.take_profit || '-')}</td>
       <td>${esc(b.stop_loss || '-')}</td>
-      <td>${b.success_count}/${b.recipient_count}${b.failed_count ? ` <span style="color:#dc4c40">(${b.failed_count} failed)</span>` : ''}</td>
-      <td><span style="color:#64748b;font-size:0.76rem">not tracked</span></td>
+      <td>${b.success_count}/${b.recipient_count}${b.failed_count ? ` <span style="color:var(--bad)">(${b.failed_count} failed)</span>` : ''}</td>
+      <td><span style="color:var(--text-muted);font-size:0.76rem">not tracked</span></td>
     </tr>`).join('');
 }
 
@@ -12863,7 +12915,7 @@ async function generateAISignal() {
     `⚠️ Trade at your own risk.\n` +
     `📲 Badar Trader Signals`;
 
-  const confColor = analysis.confidence >= 80 ? 'var(--ok)' : analysis.confidence >= 65 ? '#f59e0b' : 'var(--bad)';
+  const confColor = analysis.confidence >= 80 ? 'var(--ok)' : analysis.confidence >= 65 ? 'var(--warn)' : 'var(--bad)';
 
   if (detEl) detEl.textContent = detail;
   const badge = document.getElementById('ai-confidence-badge');
@@ -12896,7 +12948,7 @@ function sendAISignalToBroadcast() {
 // fidelity - no new persistence invented here.
 const OUTCOME_CYCLE  = ['pending', 'tp_hit', 'sl_hit', 'cancelled'];
 const OUTCOME_LABELS = { pending: 'Pending', tp_hit: 'TP Hit', sl_hit: 'SL Hit', cancelled: 'Cancelled' };
-const OUTCOME_COLORS = { pending: '#b45309', tp_hit: 'var(--ok)', sl_hit: 'var(--bad)', cancelled: '#64748b' };
+const OUTCOME_COLORS = { pending: 'var(--warn)', tp_hit: 'var(--ok)', sl_hit: 'var(--bad)', cancelled: 'var(--text-muted)' };
 
 function outcomeTag(outcome) {
   const label = OUTCOME_LABELS[outcome] || OUTCOME_LABELS.pending;
@@ -12937,15 +12989,15 @@ function syncAccuracyTracker() {
     const slPips = s.sl && s.entry ? Math.abs((parseFloat(s.sl)-parseFloat(s.entry)) / (_PIP_SIZES[s.instrument]||0.1)).toFixed(0) : '-';
     const rr = (tpPips !== '-' && slPips !== '-') ? `1:${(tpPips/slPips).toFixed(1)}` : '-';
     return `<tr>
-      <td style="font-size:0.78rem;color:#94a3b8">${s.time.toLocaleDateString()}</td>
+      <td style="font-size:0.78rem;color:var(--text-muted)">${s.time.toLocaleDateString()}</td>
       <td style="font-weight:600">${s.instrument}</td>
       <td><span style="color:${s.type==='buy'?'var(--ok)':'var(--bad)'};font-weight:700">${s.type.toUpperCase()}</span></td>
       <td>${s.entry||'-'}</td>
       <td style="color:var(--ok)">${s.tp||'-'}</td>
       <td style="color:var(--bad)">${s.sl||'-'}</td>
       <td>${rr}</td>
-      <td>${outcomeTag(s.outcome)} <button onclick="cycleOutcome('${s.id}','ai')" style="background:none;border:none;cursor:pointer;font-size:0.7rem;color:#64748b">edit</button></td>
-      <td style="font-size:0.78rem;color:#94a3b8">${s.outcome==='tp_hit'?'+'+tpPips:s.outcome==='sl_hit'?'-'+slPips:'-'}</td>
+      <td>${outcomeTag(s.outcome)} <button onclick="cycleOutcome('${s.id}','ai')" style="background:none;border:none;cursor:pointer;font-size:0.7rem;color:var(--text-muted)">edit</button></td>
+      <td style="font-size:0.78rem;color:var(--text-muted)">${s.outcome==='tp_hit'?'+'+tpPips:s.outcome==='sl_hit'?'-'+slPips:'-'}</td>
     </tr>`;
   }).join('');
 }
