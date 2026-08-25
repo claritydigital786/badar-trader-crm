@@ -9382,9 +9382,48 @@ function renderContactPanel(scope, convId, info) {
       ${row('Lead created', info.createdAt ? esc(fmtDate(info.createdAt)) : 'Unknown')}
       ${row('Reply window', `<span class="conv-window-pill${info.window.tone === 'ok' ? '' : ' ' + info.window.tone}" id="${scope}conv-contact-window">${esc(info.window.label)}</span>`)}
     </div>
+    <div class="conv-contact-section">
+      <div class="conv-contact-label" style="margin-bottom:8px">Schedule follow-up</div>
+      <input type="date" id="${scope}conv-followup-date" style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;font-size:0.84rem;margin-bottom:6px" />
+      <input type="text" id="${scope}conv-followup-note" placeholder="What's the next step?"
+        style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;font-size:0.84rem;margin-bottom:6px" />
+      <button class="btn btn-secondary btn-sm" style="width:100%" onclick="scheduleFollowUpFromConversation('${convId}','${scope}')">Schedule follow-up</button>
+      <div id="${scope}conv-followup-msg" style="font-size:0.78rem;margin-top:6px"></div>
+    </div>
     <div class="conv-contact-section" style="border-bottom:none">
       <button class="btn btn-primary btn-sm" style="width:100%" onclick="openLeadFromConversation('${convId}','${scope}')">Open full lead record</button>
     </div>`;
+}
+
+// Quick-schedule a follow-up straight from the inbox, so an agent doesn't have
+// to leave the conversation and open the full lead record just to log one.
+// Writes the same lead_activity row logFromDetail() does.
+async function scheduleFollowUpFromConversation(leadId, scope = '') {
+  const dateEl = document.getElementById(scope + 'conv-followup-date');
+  const noteEl = document.getElementById(scope + 'conv-followup-note');
+  const msgEl  = document.getElementById(scope + 'conv-followup-msg');
+  const followup = dateEl.value;
+  const summary  = noteEl.value.trim();
+
+  if (!followup) { setMsg(msgEl, 'Pick a follow-up date.', 'err'); return; }
+  if (!summary)  { setMsg(msgEl, 'Add a short note.', 'err'); return; }
+
+  if (demoMode) {
+    setMsg(msgEl, 'Scheduled. (demo - not written to a real database)', 'ok');
+    dateEl.value = ''; noteEl.value = '';
+    return;
+  }
+
+  const { error } = await sb.from('lead_activity').insert({
+    lead_id: leadId, actor_id: currentUser.id,
+    channel: 'whatsapp', summary, follow_up_date: followup,
+  });
+  if (error) { setMsg(msgEl, error.message, 'err'); return; }
+
+  setMsg(msgEl, 'Scheduled.', 'ok');
+  dateEl.value = ''; noteEl.value = '';
+  loadUpcomingFollowups();
+  loadUpcomingFollowups('agent-');
 }
 
 // ── Assign a conversation from the inbox (catalog E1) ──────────
