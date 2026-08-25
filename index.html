@@ -3649,6 +3649,67 @@
       </div>
     </div>
 
+    <!-- Quick action tiles -->
+    <div class="quick-tile-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px">
+      <div class="quick-tile" onclick="agentTab('my-leads', document.querySelector('#agent-tabs .nav-item[data-tab=\'my-leads\']'))">
+        <span class="quick-tile-icon" style="background:var(--tint-sky-bg)"><span class="nav-icon" data-nav-icon="users" style="background:transparent;color:var(--tint-sky-fg)"></span></span>
+        <div><strong>My Leads</strong><div style="font-size:0.78rem;color:#64748b">View your pipeline</div></div>
+      </div>
+      <div class="quick-tile" onclick="agentTab('conversations', document.querySelector('#agent-tabs .nav-item[data-tab=\'conversations\']'))">
+        <span class="quick-tile-icon" style="background:var(--tint-sky-bg)"><span class="nav-icon" data-nav-icon="message" style="background:transparent;color:var(--tint-sky-fg)"></span></span>
+        <div><strong>Open Inbox</strong><div style="font-size:0.78rem;color:#64748b">Your conversations</div></div>
+      </div>
+      <div class="quick-tile" onclick="agentTab('log-activity', document.querySelector('#agent-tabs .nav-item[data-tab=\'log-activity\']'))">
+        <span class="quick-tile-icon" style="background:var(--tint-danger-bg)"><span class="nav-icon" data-nav-icon="note" style="background:transparent;color:var(--tint-danger-fg)"></span></span>
+        <div><strong>Log Activity</strong><div style="font-size:0.78rem;color:#64748b">Record a call or note</div></div>
+      </div>
+      <div class="quick-tile" onclick="agentTab('guide', document.querySelector('#agent-tabs .nav-item[data-tab=\'guide\']'))">
+        <span class="quick-tile-icon" style="background:var(--tint-warn-bg)"><span class="nav-icon" data-nav-icon="book" style="background:transparent;color:var(--tint-warn-fg)"></span></span>
+        <div><strong>Guide</strong><div style="font-size:0.78rem;color:#64748b">How this CRM works</div></div>
+      </div>
+    </div>
+
+    <!-- Personal gauges -->
+    <div class="kpi-gauge-row">
+      <div class="kpi-gauge">
+        <svg class="kpi-gauge-svg" viewBox="0 0 80 80">
+          <circle class="kpi-gauge-track" cx="40" cy="40" r="32"></circle>
+          <circle class="kpi-gauge-fill" id="agent-gauge-conv-fill" cx="40" cy="40" r="32" stroke-dasharray="201.06" stroke-dashoffset="201.06"></circle>
+        </svg>
+        <div class="kpi-gauge-text">
+          <div class="kpi-gauge-pct" id="agent-gauge-conv-pct">-</div>
+          <div class="kpi-gauge-label">My Conversion Rate</div>
+          <div class="kpi-gauge-sub" id="agent-gauge-conv-sub"></div>
+        </div>
+      </div>
+      <div class="kpi-gauge">
+        <svg class="kpi-gauge-svg" viewBox="0 0 80 80">
+          <circle class="kpi-gauge-track" cx="40" cy="40" r="32"></circle>
+          <circle class="kpi-gauge-fill" id="agent-gauge-pipe-fill" cx="40" cy="40" r="32" stroke-dasharray="201.06" stroke-dashoffset="201.06"></circle>
+        </svg>
+        <div class="kpi-gauge-text">
+          <div class="kpi-gauge-pct" id="agent-gauge-pipe-pct">-</div>
+          <div class="kpi-gauge-label">Still In Pipeline</div>
+          <div class="kpi-gauge-sub" id="agent-gauge-pipe-sub"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- My Performance + Pipeline breakdown -->
+    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-bottom:20px">
+      <div class="card">
+        <div style="font-weight:700;font-size:0.95rem;color:#0f172a;margin-bottom:14px">My Performance</div>
+        <table>
+          <thead><tr><th>Leads Assigned</th><th>Converted</th><th>Conversion %</th><th>Recorded Deposits</th></tr></thead>
+          <tbody id="agent-performance-tbody"><tr><td colspan="4" class="empty-state">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div style="font-weight:700;font-size:0.95rem;color:#0f172a;margin-bottom:14px">My Pipeline</div>
+        <div id="agent-pipeline-chart"></div>
+      </div>
+    </div>
+
     <!-- Upcoming Follow-ups -->
     <div class="card" style="margin-bottom:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
@@ -3656,6 +3717,21 @@
         <span style="font-size:0.75rem;color:#64748b">Next 7 days</span>
       </div>
       <div id="agent-dash-followups-list"><div style="color:#64748b;font-size:0.85rem;padding:8px 0">Loading…</div></div>
+    </div>
+
+    <!-- My 30-day trend -->
+    <div class="card" style="margin-bottom:20px;padding:24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-weight:700;font-size:0.95rem;color:#0f172a">My Lead Growth (30 days)</div>
+        <span id="agent-trend-30d-total" style="font-weight:700;font-size:1.1rem;color:var(--accent)">-</span>
+      </div>
+      <canvas id="agent-trend-chart" height="90"></canvas>
+    </div>
+
+    <!-- My Payroll (modest, quiet - not a hero element) -->
+    <div class="card" style="margin-bottom:20px" id="agent-payroll-card">
+      <div style="font-weight:700;font-size:0.9rem;color:#0f172a;margin-bottom:6px">My Payroll (Estimate)</div>
+      <div id="agent-payroll-body" style="color:#64748b;font-size:0.85rem">Loading…</div>
     </div>
   </div>
 
@@ -5916,6 +5992,7 @@ async function loadAgentLeads() {
   setS('agent-stat-new', newCount);
   setS('agent-stat-converted', converted);
   setS('agent-stat-revenue', revenue >= 1000 ? (revenue/1000).toFixed(1)+'k' : revenue);
+  renderAgentDashboardExtras(total, converted, revenue);
 
   const sel = document.getElementById('act-lead-sel');
   if (sel) {
@@ -5940,6 +6017,124 @@ function filterAgentLeadsLocal() {
   // same as having no leads at all.
   renderLeadsTable('agent-leads-tbody', filtered, false,
     `No leads match "${esc(q)}".`);
+}
+
+// Circumference for r=32 (this dashboard's own gauge SVGs) is 2*pi*32 = 201.06 -
+// matches the stroke-dasharray already set on both rings in the markup, same
+// pattern the admin Dashboard's own gauges use at their own radius.
+const AGENT_GAUGE_CIRCUMFERENCE = 201.06;
+
+function renderAgentDashboardExtras(total, converted, revenue) {
+  const leads = cachedLeads || [];
+  const setGauge = (fillId, pctId, subId, count, label) => {
+    const fill = document.getElementById(fillId);
+    const pct  = document.getElementById(pctId);
+    const sub  = document.getElementById(subId);
+    const rate = total > 0 ? (count / total) * 100 : 0;
+    if (fill) fill.style.strokeDashoffset = String(AGENT_GAUGE_CIRCUMFERENCE * (1 - rate / 100));
+    if (pct)  pct.textContent = total > 0 ? rate.toFixed(1) + '%' : '-';
+    if (sub)  sub.textContent = label(count, total);
+  };
+  setGauge('agent-gauge-conv-fill', 'agent-gauge-conv-pct', 'agent-gauge-conv-sub',
+    converted, (c, t) => `${c} of ${t} leads`);
+  const inPipeline = leads.filter(l => l.status !== 'converted' && l.status !== 'lost').length;
+  setGauge('agent-gauge-pipe-fill', 'agent-gauge-pipe-pct', 'agent-gauge-pipe-sub',
+    inPipeline, (c, t) => `${c} of ${t} leads`);
+
+  // My Performance - one row, same shape as the admin Reports page's Agent
+  // Performance table, just this signed-in agent's own numbers.
+  const perfBody = document.getElementById('agent-performance-tbody');
+  if (perfBody) {
+    const rate = total > 0 ? (converted / total * 100).toFixed(1) : '0.0';
+    const barW = Math.min(parseFloat(rate), 100);
+    perfBody.innerHTML = `<tr>
+      <td>${total}</td>
+      <td>${converted}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="background:#e2e8f0;border-radius:4px;height:6px;width:80px;flex-shrink:0">
+            <div style="background:var(--accent);height:6px;border-radius:4px;width:${barW}%"></div>
+          </div>
+          <span style="font-size:0.8rem;color:#64748b">${rate}%</span>
+        </div>
+      </td>
+      <td style="font-weight:700;color:var(--ok)">$${fmtMoney(revenue)}</td>
+    </tr>`;
+  }
+
+  // My Pipeline - same bar-breakdown pattern as Reports' Lead Source
+  // Breakdown, scoped to this agent's own leads by status.
+  const pipeEl = document.getElementById('agent-pipeline-chart');
+  if (pipeEl) {
+    const counts = {};
+    leads.forEach(l => { counts[l.status] = (counts[l.status] || 0) + 1; });
+    const statusKeys = Object.keys(STATUS_CHART_LABELS).filter(k => counts[k] > 0);
+    if (!statusKeys.length) {
+      pipeEl.innerHTML = '<div class="empty-state">No leads yet.</div>';
+    } else {
+      pipeEl.innerHTML = statusKeys.map(k => {
+        const pct = total > 0 ? ((counts[k] / total) * 100).toFixed(1) : 0;
+        return `
+          <div style="margin-bottom:14px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+              <span style="font-size:0.875rem;color:#0f172a;font-weight:500">${esc(STATUS_CHART_LABELS[k])}</span>
+              <span style="font-size:0.8rem;color:#64748b">${counts[k]} &nbsp;<strong>${pct}%</strong></span>
+            </div>
+            <div style="background:#f1f5f9;border-radius:6px;height:12px">
+              <div style="background:${STATUS_CHART_COLORS[k]};height:12px;border-radius:6px;width:${pct}%;transition:width .5s ease"></div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+  }
+
+  // My 30-day trend - same per-day bucketing as the admin Dashboard's trend,
+  // scoped to this agent's own leads (already RLS-scoped in cachedLeads).
+  const trendCanvas = document.getElementById('agent-trend-chart');
+  if (trendCanvas && typeof Chart !== 'undefined') {
+    const days = [];
+    const dayCounts = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000);
+      const key = d.toISOString().slice(0, 10);
+      days.push(d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }));
+      dayCounts.push(leads.filter(l => (l.created_at || '').slice(0, 10) === key).length);
+    }
+    const totalEl = document.getElementById('agent-trend-30d-total');
+    if (totalEl) totalEl.textContent = dayCounts.reduce((a, b) => a + b, 0) + ' new leads';
+    if (_agentTrendChart) { _agentTrendChart.destroy(); _agentTrendChart = null; }
+    _agentTrendChart = new Chart(trendCanvas.getContext('2d'), {
+      type: 'line',
+      data: { labels: days, datasets: [{ label: 'Leads Added', data: dayCounts,
+        borderColor: '#e6b64c', backgroundColor: 'rgba(230,182,76,0.15)', fill: true, tension: 0.35, pointRadius: 2 }] },
+      options: { responsive: true, plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+    });
+  }
+
+  loadAgentPayrollEstimate(revenue);
+}
+let _agentTrendChart = null;
+
+// A live estimate only - never the finalized figure, which only the admin's
+// own Calculate Payroll run produces and saves (payroll_runs bundles every
+// agent's pay together in one row, so RLS can't safely expose it to agents
+// at all - see migration 20260825000000). This reads just the one settings
+// row this agent is now allowed to see (base salary + commission %) and
+// estimates against their own already-visible revenue.
+async function loadAgentPayrollEstimate(revenue) {
+  const bodyEl = document.getElementById('agent-payroll-body');
+  if (!bodyEl) return;
+  if (demoMode) {
+    bodyEl.innerHTML = `Base <strong>$500</strong> + 5% of $${fmtMoney(revenue)} in recorded deposits &asymp; <strong style="color:var(--ok)">$${fmtMoney(500 + revenue * 0.05)}</strong> this month. <span style="color:#94a3b8">(demo estimate)</span>`;
+    return;
+  }
+  const { data, error } = await sb.from('payroll_settings').select('base_salary_monthly, commission_percent').eq('agent_id', currentUser.id).maybeSingle();
+  if (error) { bodyEl.textContent = 'Could not load payroll settings.'; return; }
+  const base = Number(data?.base_salary_monthly ?? 500);
+  const commPct = Number(data?.commission_percent ?? 5);
+  const commission = revenue * (commPct / 100);
+  bodyEl.innerHTML = `Base <strong>$${fmtMoney(base)}</strong>/month + <strong>${commPct}%</strong> of $${fmtMoney(revenue)} in recorded deposits &asymp; <strong style="color:var(--ok)">$${fmtMoney(base + commission)}</strong> estimated this period. <span style="color:#94a3b8">Admin finalizes the real payroll run.</span>`;
 }
 
 async function logActivityStandalone() {
@@ -9000,6 +9195,25 @@ async function loadDashMetaAds(){
 async function loadUpcomingFollowups(scope = '') {
   const listEl = document.getElementById(scope + 'dash-followups-list');
   if (!listEl) return;
+  // The admin Dashboard's own demoMode branch already returns before ever
+  // reaching this call, with its own hardcoded demo entries - so this guard
+  // never changes admin behavior. It was missing entirely though, so the
+  // agent Dashboard (initAgent() calls this unconditionally) crashed the
+  // instant it ran in demo mode: sb is null there, and this function called
+  // sb.from(...) with no check at all. Found 2026-08-25 while first properly
+  // exercising the agent-side demo dashboard.
+  if (demoMode) {
+    listEl.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1e293b">
+        <div><div style="color:#0f172a;font-size:0.85rem;font-weight:600">Omar Farooq</div><div style="color:#64748b;font-size:0.76rem">Call back re: gold account setup</div></div>
+        <span style="color:#f59e0b;font-size:0.78rem;white-space:nowrap">Today</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0">
+        <div><div style="color:#0f172a;font-size:0.85rem;font-weight:600">Ayesha Malik</div><div style="color:#64748b;font-size:0.76rem">Send crypto signals starter pack</div></div>
+        <span style="color:#94a3b8;font-size:0.78rem;white-space:nowrap">Tomorrow</span>
+      </div>`;
+    return;
+  }
   const today = new Date().toISOString().slice(0,10);
   const in7   = new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0,10);
   const { data, error } = await sb
