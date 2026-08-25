@@ -2975,6 +2975,10 @@
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Bot Manager</p>
       <p style="color:#475569;font-size:0.88rem">Where the bot's system prompt and knowledge notes are managed per number. Create, edit, pause and delete training campaigns here; they save to the database for real. The deployed webhook can read the active campaign, but <code>AI_REPLIES_ENABLED</code> remains off, so it cannot answer a customer.</p>
     </div>
+    <div class="card" style="border-left:3px solid var(--warn)">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">An agent's own number never gets a bot reply</p>
+      <p style="color:#475569;font-size:0.88rem">If an agent texts the business number from their own phone (the same one saved as their contact in My Team), the webhook recognizes it as an agent, not a customer, and routes it to a separate path meant only for acknowledging lead-assignment notifications - a plain message like "Hi" is silently ignored there: no lead, no reply, no communications row. This is by design, not a fault to chase if an agent reports "the bot didn't reply to my test" - check whether the number they used is their own registered contact number first.</p>
+    </div>
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Follow-ups</p>
       <p style="color:#475569;font-size:0.88rem">Rules for nudging leads that go quiet: when a lead has sat in a given status for this many hours without moving, send this message. Create, edit, pause and delete them here; they save for real. The sender is built, but production currently has no cron job and <code>FOLLOW_UPS_ENABLED</code> remains off, so nothing is sent.</p>
@@ -3930,6 +3934,10 @@
     <div class="card">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Log Activity</p>
       <p style="color:#475569;font-size:0.88rem">Record a call, WhatsApp message, email, or note against one of your assigned leads, with an optional follow-up date.</p>
+    </div>
+    <div class="card" style="border-left:3px solid var(--warn)">
+      <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Don't test the bot from your own phone</p>
+      <p style="color:#475569;font-size:0.88rem">If your personal WhatsApp number is saved as your contact number in My Team, the bot will never reply to it - texting it anything, including a plain "Hi", gets silently ignored. This is deliberate: that number is reserved for you to receive and acknowledge lead-assignment notifications, not to be treated as a customer. To see what a real customer experiences, text the business number from a phone that isn't registered to any agent's profile.</p>
     </div>
     <div class="card" style="background:#eef2f7">
       <p style="font-weight:700;color:#0f172a;margin-bottom:6px">Not shown here</p>
