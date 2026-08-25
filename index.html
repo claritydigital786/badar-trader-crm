@@ -2875,6 +2875,16 @@
       </table>
     </div>
 
+    <!-- Live Campaign Funnel -->
+    <p class="section-h">Live Campaign Funnel</p>
+    <div class="card">
+      <p style="color:#64748b;font-size:0.82rem;margin-bottom:16px">
+        Only the live click-to-WhatsApp campaign - excludes the WhatChimp historical import, which hasn't been contacted yet and would otherwise drown out real activity.
+      </p>
+      <div id="report-funnel-headline" style="font-size:0.95rem;font-weight:700;color:#0f172a;margin-bottom:16px"></div>
+      <div id="report-funnel-chart"></div>
+    </div>
+
     <!-- Lead Source Breakdown -->
     <p class="section-h">Lead Source Breakdown</p>
     <div class="card">
@@ -8313,6 +8323,11 @@ async function loadReports() {
       { source:'Website',     count:1, color:'var(--ok)' },
       { source:'Manual',      count:1, color:'#8b5cf6' },
     ], totalLeads);
+    renderCampaignFunnel({
+      just_started: 1, at_menu: 1, discussing_broker: 1, asked_to_deposit: 0,
+      declined_wanted_signals: 1, declined_deposit: 0, declined_manual_takeover: 0,
+      declined_unclear: 0, qualified: 1, converted: 1,
+    });
     renderMonthlyTrendChart(
       ['Feb','Mar','Apr','May','Jun','Jul'],
       [3, 5, 8, 12, 18, 9]
@@ -8324,7 +8339,7 @@ async function loadReports() {
     return;
   }
 
-  const [{ data: agentPerf, error: e1 }, { data: sourcePerf, error: e2 }, { data: finSummary, error: e3 }, { data: reportTransactions, error: e4 }, { count: totalLeadsCount, error: e5 }, { count: convertedCount, error: e6 }] =
+  const [{ data: agentPerf, error: e1 }, { data: sourcePerf, error: e2 }, { data: finSummary, error: e3 }, { data: reportTransactions, error: e4 }, { count: totalLeadsCount, error: e5 }, { count: convertedCount, error: e6 }, { data: funnelLeads, error: e7 }] =
     await Promise.all([
       sb.rpc('report_agent_performance'),
       sb.rpc('report_source_performance'),
@@ -8340,6 +8355,11 @@ async function loadReports() {
       // top cards were silently wrong.
       sb.from('leads').select('id', { count: 'exact', head: true }),
       sb.from('leads').select('id', { count: 'exact', head: true }).eq('status', 'converted'),
+      // Excludes the WhatChimp historical import (5,145 leads bulk-inserted
+      // 2026-08-24, none of them contacted yet) so the funnel reflects the
+      // real, live click-to-WhatsApp campaign only - mixing in the dormant
+      // import would make every real bucket below look microscopic.
+      sb.from('leads').select('bot_stage, status, handoff_reason').neq('source', 'whatchimp'),
     ]);
 
   if (e1) console.error('report_agent_performance:', e1);
@@ -8348,6 +8368,8 @@ async function loadReports() {
   if (e4) console.error('report transactions:', e4);
   if (e5) console.error('report total leads count:', e5);
   if (e6) console.error('report converted count:', e6);
+  if (e7) console.error('report campaign funnel:', e7);
+  renderCampaignFunnel(bucketCampaignFunnel(funnelLeads || []));
 
   const totalLeads = totalLeadsCount || 0;
   const converted  = convertedCount || 0;
@@ -8439,6 +8461,83 @@ function renderAgentPerformanceReport(rows) {
       </td>
       <td style="font-weight:700;color:var(--ok)">${formatCurrencyTotals(r.deposit_totals, 'None')}</td>
     </tr>`;
+  }).join('');
+}
+
+// Classifies one lead into exactly one funnel bucket. Mirrors the real bot
+// flow's stage order (whatsapp-webhook/index.ts) rather than inventing a
+// generic funnel shape - "declined" is deliberately split by handoff_reason
+// because it is not one thing: it covers a customer who explicitly said no
+// to the $500 deposit, a customer who wanted the free Signals Group instead
+// (a different intent, not really a loss), a manual agent takeover, and a
+// real gap where no reason was ever recorded. Collapsing those into a single
+// "declined" number would have been more presentable and less honest.
+function classifyFunnelBucket(lead) {
+  if (lead.status === 'converted') return 'converted';
+  if (lead.status === 'qualified') return 'qualified';
+  if (lead.bot_stage === 'declined') {
+    if (lead.handoff_reason === 'requested human agent after declining $500 deposit') return 'declined_deposit';
+    if (lead.handoff_reason === 'requested human agent for Premium Signalling Group') return 'declined_wanted_signals';
+    if (lead.handoff_reason === 'requested human agent, an agent manually took over this conversation') return 'declined_manual_takeover';
+    return 'declined_unclear';
+  }
+  if (lead.bot_stage === 'awaiting_deposit_confirm') return 'asked_to_deposit';
+  if (['awaiting_trader_status','awaiting_broker_existing','awaiting_broker','awaiting_experience','awaiting_traded_before'].includes(lead.bot_stage)) return 'discussing_broker';
+  if (lead.bot_stage === 'awaiting_menu') return 'at_menu';
+  return 'just_started';
+}
+
+function bucketCampaignFunnel(leads) {
+  const buckets = {
+    just_started: 0, at_menu: 0, discussing_broker: 0, asked_to_deposit: 0,
+    declined_wanted_signals: 0, declined_manual_takeover: 0, declined_unclear: 0,
+    declined_deposit: 0, qualified: 0, converted: 0,
+  };
+  leads.forEach(l => { buckets[classifyFunnelBucket(l)]++; });
+  return buckets;
+}
+
+const FUNNEL_STAGE_ORDER = [
+  { key: 'just_started',              label: 'Just started (picked a language)',          color: '#94a3b8' },
+  { key: 'at_menu',                   label: 'Stopped at the main menu',                  color: '#94a3b8' },
+  { key: 'discussing_broker',         label: 'Discussing broker & trading experience',    color: '#0ea5e9' },
+  { key: 'asked_to_deposit',          label: 'Asked to deposit $500, no answer yet',      color: '#f59e0b' },
+  { key: 'declined_wanted_signals',   label: 'Wanted the free Signals Group instead',     color: '#0ea5e9' },
+  { key: 'declined_deposit',          label: 'Said no to the $500 deposit',               color: '#ef4444' },
+  { key: 'declined_manual_takeover',  label: 'Handed to an agent directly',               color: '#64748b' },
+  { key: 'declined_unclear',          label: 'Escalated to a human, reason not recorded', color: '#f59e0b' },
+  { key: 'qualified',                 label: 'Qualified, ready to deposit',               color: 'var(--ok)' },
+  { key: 'converted',                 label: 'Converted',                                 color: 'var(--accent)' },
+];
+
+function renderCampaignFunnel(buckets) {
+  const chartEl = document.getElementById('report-funnel-chart');
+  const headEl  = document.getElementById('report-funnel-headline');
+  if (!chartEl) return;
+  const total = Object.values(buckets).reduce((s, n) => s + n, 0);
+  if (!total) { chartEl.innerHTML = '<div class="empty-state">No live campaign leads yet.</div>'; if (headEl) headEl.textContent = ''; return; }
+
+  if (headEl) {
+    const biggest = FUNNEL_STAGE_ORDER
+      .filter(s => !['converted','qualified'].includes(s.key))
+      .reduce((max, s) => (buckets[s.key] > (buckets[max.key] || 0) ? s : max), FUNNEL_STAGE_ORDER[0]);
+    const pct = ((buckets[biggest.key] / total) * 100).toFixed(0);
+    headEl.textContent = `${total} real conversations. Biggest single group: "${biggest.label}" - ${buckets[biggest.key]} (${pct}%).`;
+  }
+
+  chartEl.innerHTML = FUNNEL_STAGE_ORDER.filter(s => buckets[s.key] > 0).map(s => {
+    const count = buckets[s.key];
+    const pct = ((count / total) * 100).toFixed(1);
+    return `
+      <div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+          <span style="font-size:0.875rem;color:#0f172a;font-weight:500">${esc(s.label)}</span>
+          <span style="font-size:0.8rem;color:#64748b">${count} leads &nbsp;<strong>${pct}%</strong></span>
+        </div>
+        <div style="background:#f1f5f9;border-radius:6px;height:12px">
+          <div style="background:${s.color};height:12px;border-radius:6px;width:${pct}%;transition:width .5s ease"></div>
+        </div>
+      </div>`;
   }).join('');
 }
 
