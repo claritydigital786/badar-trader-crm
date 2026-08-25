@@ -1,8 +1,28 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-08-23. The entry directly below is this session's, written
+_Last updated: 2026-08-26. The entry directly below is this session's, written
 with its verification actually run. For a fresh Claude Code session with zero
 memory of prior conversations._
+
+## 2026-08-26 - the visual-consistency second pass: the palette now actually reaches inline styles
+
+**DONE, frontend only, browser-verified in demo preview, committed and pushed (`7cc97c8`). No migration, no deploy, nothing touching live conversation data.** Picked up from a bare "continue" on Muhammad's laptop - pulled `main`, read this file, checked Active Work Claims (nothing open), and took the one remaining independently-buildable item in `REMAINING_TODOS.md`. The other ten open items are Muhammad-only deploy/decision steps or need clarifying with Ehsan/Badar first.
+
+**What was actually holding dark mode together, and why it mattered.** The 2026-08-23 first pass built the token layer, but ~420 inline colours still bypassed it. Dark mode compensated with two rules that matched an inline style *by its literal text* - `[data-theme="dark"] [style*="color:#0f172a"]` and a `#555` twin - plus five ID selectors clawing back the boxes those wrongly flipped. That mechanism can only ever cover the exact greys someone thought to hard-code, and it fails silently for every other one. Inline `#475569` body copy had been sitting at 2.15:1 on dark cards the whole time because no catch-all ever named it.
+
+Replaced with semantic roles that flip per theme (`--text-strong`, `--text-body`, `--text-muted`, `--text-faint`, `--line`, `--surface-soft`), 330+ inline colours converted onto them, and both catch-alls plus all five ID exceptions deleted. The boxes that had been pinned light in both themes were made theme-aware instead, so nothing needs exempting any more.
+
+**The four symptoms the to-do named, all fixed:** instrument chips no longer render as near-black pills punched into a light card; 18 heading emoji replaced with the stroke-icon set the navigation already ships (drawn in `currentColor`, so a heading's icon is the heading's own colour and cannot go missing from a font stack - the same failure that made the clipboard emoji a black box on a real agent's machine), plus the four admin quick tiles aligned to the agent-side pattern that already used it; "Today" is `--warn` and later dates `--text-muted`; and the stale golds are gone - `#d4a843` and `#c9a84c` both predated `--accent`, `#f59e0b` predated `--warn`, so up to four golds could sit on one screen at once. **Chart.js canvas values stay literal** - CSS variables do not resolve against a canvas, the 2026-08-23 lesson, deliberately respected.
+
+**Five real bugs found by measuring rather than reading the diff:** `.info-box strong` had no dark override (1.75:1 across five tabs); the Guide's own `#eef2f7` cards were never in the ID exception list, so their headings were near-white on near-white in dark mode; `#666`/`#aaa` table text failed in both themes; sidebar section labels were 2.56:1 on white on every screen at once; and the subscriber status pills built their fill by appending `1a` to the hex for alpha - which silently only works while the value is a literal hex, so it would have broken the moment anyone tokenised it. Split into a paired surface map before that became someone's afternoon.
+
+**Verified, actually run:** 21 tabs swept in both themes for computed contrast, measured against the pre-change baseline rather than assumed - the four tabs measured both ways went 35 failures to 17, and all 18 real grey-text failures were exactly the ones that disappeared (the 17 left are pre-existing emoji/badge measurement artifacts). Zero console errors across every tab. Agent view, 375px, and the Settings collapse/expand/auto-expand-on-navigate all re-checked. All 15 node suites and both PHP suites pass. Zero em dashes.
+
+**Two mistakes caught mid-work, both worth keeping.** An early sweep reported a clean zero because it queried `#admin-app`, which does not exist in this app - the container is `#admin-dashboard`. Every "0 failures" it produced was vacuous, and it would have been very easy to ship a false "verified" on the strength of it. **Check that a selector matches something before trusting what it fails to find.** Separately, one apparent failure on a decorative caret turned out to be a stale `getComputedStyle` read from the browser bridge - forcing an inline `#111111` on the element returned the same old value - so it was a measurement artifact, not a style bug. Confirm a suspicious reading is real before acting on it.
+
+**Deliberately NOT changed, and it needs Muhammad rather than a build:** the only contrast failures left are two colours he chose. `--accent` in light mode (`#c2921f`) is 2.83:1 on white, so every gold label and figure - including the "Client Account Balances" money signal - is below 3:1 in light theme. It was set on 2026-08-24 specifically to match the gold in his own reference concept, so re-picking it silently would be overwriting a design decision. A separate `--accent-text` role, darker and used only for gold text on light surfaces while `--accent` keeps every fill and the whole dark theme unchanged, would fix it without touching his gold. Second, `.btn-primary`'s `#0ea5e9` gives white button text 2.77:1 on every primary button. Neither is new; both are logged in `REMAINING_TODOS.md`.
+
+---
 
 ## 2026-08-23 (still later) - the double-reply bug: built and tested, NOT deployed
 
@@ -305,8 +325,6 @@ Whoever finishes their piece first should update this section (mark it done, sam
 **Standing rule, reinforced hard tonight: zero em dashes, anywhere, ever - user-facing text, code comments, this file, everything.** Muhammad was extremely direct about this. All 158 occurrences in `index.html` and all 184 in this file were swept and replaced with plain hyphens tonight. Check before ever writing one again.
 
 ### Active Work Claims
-
-**CLAIMED 2026-08-26 (Muhammad's laptop) - the second pass on visual consistency, `REMAINING_TODOS.md`'s one remaining independently-buildable open item.** `index.html` only, frontend, no migration, no deploy, nothing touching live conversation data. Scope: establish theme-aware semantic text/line tokens, retire the four competing gold/amber literals onto `--accent`/`--warn`, fix the four symptoms the to-do names (instrument chips, heading emoji, Today/Tomorrow, Reports/Payroll one-offs), and convert the bulk inline neutrals so the two brittle `[data-theme="dark"] [style*="color:#..."]` string-match catch-alls can be retired rather than extended. Chart.js canvas literals stay literal - documented 2026-08-23 lesson. Release this line once committed and pushed.
 
 
 **MERGED AND DEPLOYED 2026-08-21 (Muhammad, him present) - handoff inversion fix from Junaid's branch `feature/qualified-lead-handoff` (commit `c0c0329`) is now live. Claim released.** Held open exactly as Junaid intended, until the bot's own send-permission fix was confirmed working - then merged into `main` via an isolated worktree (clean auto-merge, no conflicts), re-verified on this laptop before deploying: `deno check` clean, all 5 dependency-free suites pass (including the new `handoff-permanence-test.mjs`), the actual diff read line by line against its own documentation and confirmed correct. Deployed as `whatsapp-webhook` **v85**, confirmed ACTIVE, downloaded and diffed byte-identical against committed `main`. Three findings, all originally verified by reading the deployed source and the live `communications` rows.
