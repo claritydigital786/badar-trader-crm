@@ -152,7 +152,13 @@
     }
     .nav-item:hover { background: #f1f5f9; color: #0f172a; }
     .nav-item.active { background: #e6b64c; color: #1a1400; border-left-color: transparent; font-weight: 700; box-shadow: 0 1px 3px rgba(230,182,76,.35); }
-    .nav-item.active .nav-icon { background: rgba(26,20,0,.12); color: #1a1400; }
+    /* !important is load-bearing here: every .nav-icon carries its own inline
+       style="background:var(--tint-*-bg)" in the markup, and an inline style
+       always wins over a stylesheet rule regardless of specificity - so
+       without it, this override never actually applied and the active state
+       showed each icon's normal dark chip square instead of this softer
+       tint, reading as a jarring black box on top of the gold pill. */
+    .nav-item.active .nav-icon { background: rgba(26,20,0,.12) !important; color: #1a1400; }
     .nav-icon {
       font-size: 13px; width: 26px; height: 26px; border-radius: 8px;
       display: flex; align-items: center; justify-content: center; flex-shrink: 0;
@@ -504,7 +510,7 @@
     /* The glyph follows its chip. Pinning it to near-black only worked while
        the chips were bright pastels; against a calm surface it disappeared. */
     [data-theme="dark"] .nav-icon { color: #c3cbdb; }
-    [data-theme="dark"] .nav-item.active .nav-icon { background: rgba(26,20,0,.12); color: #1a1400; }
+    [data-theme="dark"] .nav-item.active .nav-icon { background: rgba(26,20,0,.12) !important; color: #1a1400; }
     [data-theme="dark"] .nav-section-label { color: #64748b; }
     [data-theme="dark"] .user-info p { color: #f1f5f9; }
     [data-theme="dark"] .user-info span { color: #64748b; }
@@ -3965,6 +3971,21 @@ const _DEMO_KEYWORD_REPLIES = [
   { id:'kw3', keyword:'agent', match_type:'exact', reply_message:'Connecting you with a member of our team now.', is_active:false },
 ];
 
+// Small inline-SVG icons for the lead detail panel's Copy buttons. Built
+// 2026-08-25 after the 📋 clipboard emoji rendered as a solid black square on
+// a real agent's machine - some emoji simply have no glyph in a given
+// browser/OS font stack, unlike simple ASCII characters, so this uses the
+// same dependency-free stroke-icon approach as CRM_NAV_ICONS just below.
+// Two copies exist because of where each is used: COPY_ICON_SVG is inserted
+// directly as element content (double-quoted SVG attributes are fine there),
+// while CHECK_ICON_SVG_ATTR is substituted inside an onclick="..." attribute
+// string, where a literal double quote would prematurely close that
+// attribute - its SVG attributes are HTML-entity-escaped (&quot;) so the
+// browser decodes them back to real quotes only once, after the attribute
+// boundary is already resolved.
+const COPY_ICON_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+const CHECK_ICON_SVG_ATTR = '<svg viewBox=&quot;0 0 24 24&quot; width=&quot;14&quot; height=&quot;14&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;20 6 9 17 4 12&quot;></polyline></svg>';
+
 // A small, dependency-free outline icon set keeps the CRM navigation
 // professional and consistent without relying on emoji rendering or a CDN.
 // The paths use the same 24px line-icon convention throughout both roles.
@@ -5998,7 +6019,7 @@ async function openDetail(leadId, ctx) {
             <span>${esc(lead.phone||'-')}</span>
             ${lead.phone ? `
               <a href="tel:${esc(lead.phone)}" class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem;text-decoration:none" title="Call">📞</a>
-              <button class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem" title="Copy" data-copy="${esc(lead.phone)}" onclick="navigator.clipboard.writeText(this.dataset.copy).then(()=>{this.textContent='✓';setTimeout(()=>this.textContent='📋',1200)})">📋</button>
+              <button class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem;display:inline-flex;align-items:center" title="Copy" data-copy="${esc(lead.phone)}" onclick="const b=this;const orig=b.innerHTML;navigator.clipboard.writeText(b.dataset.copy).then(()=>{b.innerHTML='${CHECK_ICON_SVG_ATTR}';setTimeout(()=>b.innerHTML=orig,1200)})">${COPY_ICON_SVG}</button>
               <a href="https://wa.me/${(lead.phone||'').replace(/[^0-9]/g,'')}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem;text-decoration:none;background:#25d366;color:#fff;border-color:#25d366" title="WhatsApp">WA</a>
             ` : ''}
           </span>
@@ -6008,7 +6029,7 @@ async function openDetail(leadId, ctx) {
             <span>${esc(lead.email||'-')}</span>
             ${lead.email ? `
               <a href="mailto:${esc(lead.email)}" class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem;text-decoration:none" title="Email">✉️</a>
-              <button class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem" title="Copy email" data-copy="${esc(lead.email)}" onclick="navigator.clipboard.writeText(this.dataset.copy).then(()=>{this.textContent='✓';setTimeout(()=>this.textContent='📋',1200)})">📋</button>
+              <button class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem;display:inline-flex;align-items:center" title="Copy email" data-copy="${esc(lead.email)}" onclick="const b=this;const orig=b.innerHTML;navigator.clipboard.writeText(b.dataset.copy).then(()=>{b.innerHTML='${CHECK_ICON_SVG_ATTR}';setTimeout(()=>b.innerHTML=orig,1200)})">${COPY_ICON_SVG}</button>
             ` : ''}
           </span>
         </div>
@@ -8699,18 +8720,15 @@ function renderDashboardStats() {
         <span style="color:#94a3b8;font-size:0.78rem;white-space:nowrap">Tomorrow</span>
       </div>`;
     renderDashboardCharts(_DEMO_LEADS);
-    // Demo Meta Ads Performance - the live path's loadDashMetaAds() call sits
-    // below this function's early return, so it was never reached in demo
-    // mode at all: the panel was stuck on its static "Loading campaign
-    // metrics..." markup forever, not an eventual demo value. Found 2026-08-25
-    // during a full pre-deploy verification pass.
-    const g = (id, v) => { const e = el(id); if (e) e.textContent = v; };
-    g('dma-impr', '48,320');
-    g('dma-clicks', '1,940');
-    g('dma-cpl', 'PKR 3,021');
-    g('dma-spend', 'PKR 187,280');
-    g('dma-leads', '62');
-    if (el('dma-sub')) el('dma-sub').textContent = 'Demo data - last 30 days';
+    // The live path's loadDashMetaAds() call sits below this function's early
+    // return, so it was never reached in demo mode at all - the panel was
+    // stuck on its static "Loading campaign metrics..." markup forever.
+    // Fixed honestly rather than inventing numbers: this demo has no real ad
+    // account to report on, so it says that plainly instead of fabricating
+    // figures that could be mistaken for real ones.
+    if (document.getElementById('dma-sub')) {
+      document.getElementById('dma-sub').textContent = 'Connect Meta Ads in Meta Integration to see performance';
+    }
     return;
   }
   if (el('dash-agents')) el('dash-agents').textContent = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended).length;
@@ -9648,7 +9666,7 @@ async function openConversation(convId, scope = '') {
       <div class="conv-input-bar">
         <input type="file" id="conv-attach-input" hidden onchange="onConvAttachPicked(this)" accept="image/jpeg,image/png,application/pdf" />
         <button type="button" class="conv-attach-btn" title="Attach a file" onclick="document.getElementById('conv-attach-input').click()">📎</button>
-        <button type="button" class="conv-attach-btn" title="Send an approved WhatsApp template - the only thing that works once the 24 hour window has closed" onclick="openTemplatePicker()">📋</button>
+        <button type="button" class="conv-attach-btn" title="Send an approved WhatsApp template - the only thing that works once the 24 hour window has closed" onclick="openTemplatePicker()">${COPY_ICON_SVG}</button>
         <textarea class="conv-msg-textarea" id="conv-msg-input" placeholder="Type a message… (Shift+Enter for a new line)" rows="1"
           oninput="autoGrowConvInput(this)"
           onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendConvMessage('${convId}','${scope}'); }"></textarea>
@@ -9771,7 +9789,7 @@ async function openConversation(convId, scope = '') {
       <div class="conv-input-bar">
         <input type="file" id="conv-attach-input" hidden onchange="onConvAttachPicked(this)" accept="image/jpeg,image/png,application/pdf" />
         <button type="button" class="conv-attach-btn" title="Attach a file" onclick="document.getElementById('conv-attach-input').click()">📎</button>
-        <button type="button" class="conv-attach-btn" title="Send an approved WhatsApp template - the only thing that works once the 24 hour window has closed" onclick="openTemplatePicker()">📋</button>
+        <button type="button" class="conv-attach-btn" title="Send an approved WhatsApp template - the only thing that works once the 24 hour window has closed" onclick="openTemplatePicker()">${COPY_ICON_SVG}</button>
         <textarea class="conv-msg-textarea" id="conv-msg-input" placeholder="Type a WhatsApp message… (Shift+Enter for a new line)" rows="1"
           oninput="autoGrowConvInput(this)"
           onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendConvMessage('${convId}','${scope}'); }"></textarea>
