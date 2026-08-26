@@ -23,6 +23,21 @@ import { shouldSuppressRePrompt } from "../_shared/unmatched_reprompt_policy.mjs
 const WHATSAPP_VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
 const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN") ?? "";
 const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? "";
+
+// 3903 (phone number ID confirmed live in WhatsApp Manager, 2026-08-26,
+// Trade Campus WABA - same WABA 6541 already uses) - Muhammad's decision that
+// day, staged connect: real messages start flowing into this CRM (real leads,
+// real agent assignment, visible in the Omnichannel Inbox) so it can be tested
+// against real data, but every automated reply path (scripted funnel, keyword
+// rules, AI) stays silent for this number specifically - see
+// handleIncomingMessage's isIngestOnlyNumber and ingestOnlyMessage() below.
+// WhatChimp's own bot is confirmed off on 3903 already (Muhammad, 2026-08-26),
+// which is what makes this safe to connect without a double-reply risk; if
+// that ever changes, this needs revisiting before bot replies are ever turned
+// on for this number. Empty/unset means 3903 stays fully unrecognised, same
+// as before this existed - fails closed, not open.
+const WHATSAPP_PHONE_NUMBER_ID_3903 = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID_3903") ?? "";
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const META_APP_SECRET = Deno.env.get("META_APP_SECRET") ?? "";
@@ -335,17 +350,31 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
       const incomingPhoneNumberId: string = change?.value?.metadata?.phone_number_id ?? "";
       const { phoneId: expectedPhoneNumberId } = await getWaCredentials();
 
-      if (!isAllowedPhoneNumberId(incomingPhoneNumberId, expectedPhoneNumberId)) {
+      const isPrimaryNumber = isAllowedPhoneNumberId(incomingPhoneNumberId, expectedPhoneNumberId);
+      // 3903 is a second, DELIBERATELY separate allow-check - never folded into
+      // isAllowedPhoneNumberId itself, so the primary 6541 routing guard stays
+      // exactly as it was (zero risk of this change affecting 6541 at all).
+      // Matching here only ever unlocks the ingest-only path below, never the
+      // full bot - see WHATSAPP_PHONE_NUMBER_ID_3903's comment above.
+      const isIngestOnlyNumber =
+        WHATSAPP_PHONE_NUMBER_ID_3903.length > 0 && incomingPhoneNumberId === WHATSAPP_PHONE_NUMBER_ID_3903;
+
+      if (!isPrimaryNumber && !isIngestOnlyNumber) {
         console.error(
           `WhatsApp webhook: rejected event for phone_number_id "${incomingPhoneNumberId || "(missing)"}" - ` +
-            `does not match the configured CRM number "${expectedPhoneNumberId || "(not configured)"}". No data was read or written.`,
+            `does not match the configured CRM number "${expectedPhoneNumberId || "(not configured)"}" or the 3903 ingest-only number. No data was read or written.`,
         );
         continue;
       }
 
       const messages: any[] = change?.value?.messages ?? [];
       const contacts: any[] = change?.value?.contacts ?? [];
-      const statuses: any[] = change?.value?.statuses ?? [];
+      // Delivery statuses only ever describe a message THIS webhook sent -
+      // never relevant for 3903, since the ingest-only path below never sends
+      // anything. Skipping them there avoids a WhatChimp-sent message's real
+      // delivery failure showing up as a misleading "[DELIVERY FAILED]" note
+      // on a lead this CRM never actually messaged.
+      const statuses: any[] = isPrimaryNumber ? (change?.value?.statuses ?? []) : [];
 
       for (const status of statuses) {
         const recipientPhone = normalisePhone(status.recipient_id ?? "");
@@ -395,14 +424,31 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
           contacts.find((c: any) => c.wa_id === message.from)?.profile?.name ??
           senderPhone;
 
+        const sb = makeSupabase();
+
+        // 3903 ingest-only path (2026-08-26): create/find the lead, log the
+        // real message, assign it round-robin - the same visibility any real
+        // lead gets - but stop right there. Deliberately never reaches
+        // markAsRead (it would target the wrong phone number id below
+        // anyway - see getWaCredentials), loadGates, tryKeywordReply,
+        // tryAIReply, or runBotStep, so there is no code path here that can
+        // ever send anything to a real 3903 customer. See
+        // WHATSAPP_PHONE_NUMBER_ID_3903's comment for why this is safe today.
+        if (isIngestOnlyNumber) {
+          if (message.id && (await wasAlreadyProcessed(sb, String(message.id)))) {
+            console.log(`Skipping duplicate 3903 inbound message ${message.id} - already processed.`);
+            continue;
+          }
+          await ingestOnlyMessage(sb, message, senderPhone, contactName, timestamp);
+          continue;
+        }
+
         // Blue double-tick on the customer's side, same as any real WhatsApp
         // reply - Muhammad asked for this so the customer knows someone (the
         // bot) has actually seen their message. Fired in the background, not
         // awaited: it's cosmetic for the customer and must never add latency
         // to the bot's actual reply.
         if (message.id) markAsRead(message.id).catch((err) => console.error("markAsRead failed:", err));
-
-        const sb = makeSupabase();
 
         // Meta can and does redeliver the same webhook event (a slow response,
         // or a genuine duplicate delivery) - without this, a retry would run
@@ -941,6 +987,44 @@ async function handleImageMessage(
     "sent a deposit screenshot",
     "Got it. Your deposit screenshot has been received, our team will confirm it shortly.",
   );
+}
+
+// 3903 ingest-only path (2026-08-26, Muhammad's staged-connect decision - see
+// WHATSAPP_PHONE_NUMBER_ID_3903's comment). Deliberately the smallest possible
+// function: upsert the lead, log whatever the customer actually sent (real
+// text, or a description for anything else), done. No branch here ever calls
+// a send/escalate/reply function - that's not an oversight to double-check,
+// it's the whole point of keeping this separate from handleImageMessage/
+// recordUnsupportedMessage/runBotStep rather than threading a "stay silent"
+// flag through all of them.
+async function ingestOnlyMessage(
+  sb: SupabaseClient,
+  message: any,
+  senderPhone: string,
+  contactName: string,
+  timestamp: string,
+): Promise<void> {
+  const { lead } = await upsertLead(sb, senderPhone, contactName, timestamp);
+  if (!lead) {
+    console.error(`ingestOnlyMessage: could not upsert lead for ${senderPhone} on 3903 - message lost.`);
+    return;
+  }
+
+  const input = extractUserInput(message);
+  if (input) {
+    await insertCommunication(sb, lead.id, "inbound", input.text, timestamp, undefined, message.id);
+    return;
+  }
+
+  const mediaId = mediaIdOf(message);
+  let storedPath: string | undefined;
+  let storeNote = "";
+  if (mediaId) {
+    const stored = await downloadAndStoreMedia(sb, mediaId, lead.id);
+    if (stored.ok) storedPath = stored.path;
+    else storeNote = ` (file could not be stored: ${stored.error})`;
+  }
+  await insertCommunication(sb, lead.id, "inbound", describeUnsupportedMessage(message) + storeNote, timestamp, storedPath, message?.id);
 }
 
 // WhatsApp permits documents up to 100MB. This function buffers the whole
