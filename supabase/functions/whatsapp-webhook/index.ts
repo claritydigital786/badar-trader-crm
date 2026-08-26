@@ -404,6 +404,18 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
 
         const sb = makeSupabase();
 
+        // Meta can and does redeliver the same webhook event (a slow response,
+        // or a genuine duplicate delivery) - without this, a retry would run
+        // the whole funnel step again for a message already handled: a second
+        // identical reply to the customer, a second "qualified" escalation and
+        // agent ping, a second OpenAI call billed for the same message. Checked
+        // before anything else can act on this message, so a duplicate is a
+        // pure no-op rather than a partial one.
+        if (message.id && (await wasAlreadyProcessed(sb, String(message.id)))) {
+          console.log(`Skipping duplicate inbound message ${message.id} - already processed (Meta redelivery).`);
+          continue;
+        }
+
         // Resolve the reply gates before anything downstream can send. The send
         // helpers read this cache synchronously, so filling it here is what makes
         // gateOpenSync() truthful rather than a guess at the defaults.
@@ -1004,6 +1016,10 @@ async function tryKeywordReply(
   lead: any,
   input: UserInput,
 ): Promise<SendResult | null> {
+  // BOT_REPLIES_ENABLED is the master stop button (see sendKeywordText) -
+  // checked here too so flipping it off also skips the database lookup
+  // below, not just the eventual send.
+  if (!(await gateOpen(sb, "BOT_REPLIES_ENABLED"))) return null;
   if (!(await gateOpen(sb, "KEYWORD_REPLIES_ENABLED"))) return null;
 
   // A human has taken over this conversation - stay silent, same rule the
@@ -1060,6 +1076,11 @@ async function getOpenAIModel(sb: SupabaseClient): Promise<string> {
 // match is more deterministic and intentional than an LLM's judgment call,
 // so it should win when both could apply.
 async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Promise<SendResult | null> {
+  // BOT_REPLIES_ENABLED is the master stop button (see sendAIText) - checked
+  // here too so flipping it off also skips the OpenAI call below, not just
+  // the eventual send. Otherwise every message during an emergency stop would
+  // still cost a real OpenAI call for a reply that then never goes out.
+  if (!(await gateOpen(sb, "BOT_REPLIES_ENABLED"))) return null;
   if (!(await gateOpen(sb, "AI_REPLIES_ENABLED"))) return null;
   if (lead.needs_human) return null;
 
@@ -1140,6 +1161,27 @@ async function getLastInboundAt(sb: SupabaseClient, leadId: string): Promise<str
     .limit(1)
     .maybeSingle();
   return data?.created_at ?? null;
+}
+
+// True when this exact WhatsApp message has already been logged as an
+// inbound communication - i.e. this delivery is a Meta retry of one already
+// handled, not a new message. A read failure fails OPEN (returns false,
+// processes the message) rather than closed: risking a rare duplicate is far
+// better than silently dropping a real customer message because settings
+// couldn't be read for an unrelated reason.
+async function wasAlreadyProcessed(sb: SupabaseClient, waMessageId: string): Promise<boolean> {
+  const { data, error } = await sb
+    .from("communications")
+    .select("id")
+    .eq("wa_message_id", waMessageId)
+    .eq("direction", "inbound")
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error("wasAlreadyProcessed: could not check for a duplicate -", error.message);
+    return false;
+  }
+  return !!data;
 }
 
 async function runBotStep(
@@ -1659,10 +1701,31 @@ async function escalate(
   // A lead escalating with nobody assigned would otherwise sit invisible -
   // exactly what happened to Izza (10+ days, no agent, no ping, nobody knew).
   let assignedAgentId: string | null = lead.assigned_agent_id ?? null;
-  let assignedAgent = (await getAgentRotation(sb)).find((a) => a.id === assignedAgentId) ?? null;
-  if (!assignedAgentId) {
+  let assignedAgent = assignedAgentId
+    ? (await getAgentRotation(sb)).find((a) => a.id === assignedAgentId) ?? null
+    : null;
+
+  // Found 2026-08-26, same audit as the funnel-freeze bug: assignedAgentId can
+  // be set on the lead while the agent it names is no longer in rotation at
+  // all (suspended, deactivated, or taken off receives_leads since the
+  // assignment). That used to leave assignedAgent null while assignedAgentId
+  // stayed truthy, skipping the "nobody assigned" branch below entirely - the
+  // lead stayed owned by someone who could never see it, and nobody was ever
+  // notified. Same failure Izza hit, through a different door. Reassign
+  // round-robin whenever there is no genuinely active agent behind the id on
+  // file, whether that id was ever set or not.
+  if (!assignedAgent) {
+    const staleAgentId = assignedAgentId;
     assignedAgent = await assignAgentRoundRobin(sb);
     assignedAgentId = assignedAgent.id;
+    if (staleAgentId) {
+      console.log(`escalate: lead ${lead.id}'s assigned agent ${staleAgentId} is no longer in rotation - reassigned to ${assignedAgent.name}.`);
+      await insertCommunication(
+        sb, lead.id, "outbound",
+        `[previously assigned agent is no longer active - reassigned to ${assignedAgent.name}]`,
+        new Date().toISOString(),
+      );
+    }
   }
 
   await sb.from("leads").update({
@@ -1992,10 +2055,20 @@ function matchesCurrentStage(lead: any, input: UserInput): boolean {
   }
 }
 
-// Deliberately gated by KEYWORD_REPLIES_ENABLED rather than BOT_REPLIES_ENABLED,
-// so keyword replies can run while the funnel stays paused. Everything else in
-// this file must keep using sendText.
+// BOT_REPLIES_ENABLED is checked here too, as of 2026-08-26 - Muhammad's own
+// framing of that gate is "the stop button" for silencing the bot fast if it
+// is ever saying the wrong thing to a real customer, but until now it only
+// covered the scripted funnel (sendText/sendButtons/sendList below); a
+// keyword rule or an AI reply would keep sending even with BOT_REPLIES_ENABLED
+// off. KEYWORD_REPLIES_ENABLED stays its own separate switch on top - it can
+// still turn keyword replies on or off by itself without touching the AI or
+// the scripted flow - but BOT_REPLIES_ENABLED off now always wins and stops
+// every reply path at once, which is what "the stop button" is supposed to
+// mean.
 async function sendKeywordText(to: string, body: string): Promise<SendResult> {
+  if (!gateOpenSync("BOT_REPLIES_ENABLED")) {
+    return { ok: false, error: "Bot replies paused (BOT_REPLIES_ENABLED is off)", text: body };
+  }
   if (!gateOpenSync("KEYWORD_REPLIES_ENABLED")) {
     return { ok: false, error: "Keyword replies paused (KEYWORD_REPLIES_ENABLED is off)", text: body };
   }
@@ -2008,7 +2081,11 @@ async function sendKeywordText(to: string, body: string): Promise<SendResult> {
   return { ...result, text: body };
 }
 
+// See sendKeywordText's comment above - same reasoning, same fix.
 async function sendAIText(to: string, body: string): Promise<SendResult> {
+  if (!gateOpenSync("BOT_REPLIES_ENABLED")) {
+    return { ok: false, error: "Bot replies paused (BOT_REPLIES_ENABLED is off)", text: body };
+  }
   if (!gateOpenSync("AI_REPLIES_ENABLED")) {
     return { ok: false, error: "AI replies paused (AI_REPLIES_ENABLED is off)", text: body };
   }
