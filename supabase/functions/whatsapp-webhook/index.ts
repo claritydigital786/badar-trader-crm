@@ -458,6 +458,25 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         // message, never the one being logged in this same request.
         const lastCustomerTouch = wasCreated ? null : await getLastInboundAt(sb, lead.id);
 
+        // Found live, 25 Aug 2026 (Ehsan's test conversation, in front of
+        // Badar): a customer typing their funnel answer as free text ("Roman
+        // Urdu" in reply to the language card) instead of tapping the button
+        // could get "helpfully" intercepted by tryKeywordReply/tryAIReply
+        // below, which have no idea a specific answer was expected. The reply
+        // sounded fine, but bot_stage never advanced - lead cb765744 was still
+        // sitting at awaiting_language many turns and several real AI answers
+        // later. The AI kept answering the customer's OTHER questions
+        // correctly the whole time, which is exactly what hid this: nothing
+        // looked broken until a question the AI couldn't answer fell through
+        // to the frozen state machine, which reprompted the (long-stale)
+        // language card mid-conversation, out of nowhere. A brand new lead's
+        // very first message has the same exposure (their greeting could be
+        // "answered" by the AI instead of ever sending the language card at
+        // all), so both cases route through the funnel first: keyword/AI only
+        // ever gets a message the funnel isn't currently expecting a specific
+        // answer to.
+        const isStageAnswer = wasCreated || matchesCurrentStage(lead, input);
+
         // Logging the inbound message doesn't need to finish before the bot
         // can respond - neither depends on the other's result, so they run
         // concurrently instead of adding the log write's time to the delay
@@ -468,8 +487,8 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         // which is the normal path today. AI is checked second, only when no
         // keyword rule fired - a specific rule match is more deterministic and
         // intentional than an LLM's judgment call, so it wins when both apply.
-        const keywordResult = await tryKeywordReply(sb, lead, input);
-        const aiResult = keywordResult ? null : await tryAIReply(sb, lead, input);
+        const keywordResult = isStageAnswer ? null : await tryKeywordReply(sb, lead, input);
+        const aiResult = (isStageAnswer || keywordResult) ? null : await tryAIReply(sb, lead, input);
         const replyResult = keywordResult || aiResult;
 
         await Promise.all([
@@ -1939,6 +1958,38 @@ function matchYesNo(input: UserInput): "yes" | "no" | null {
   if (/^\s*(yes|y|haan|ji|han)\b/i.test(input.text)) return "yes";
   if (/^\s*(no|n|nahi)\b/i.test(input.text)) return "no";
   return null;
+}
+
+// True when this input would be recognised as a real answer to whatever the
+// bot is currently waiting on at lead.bot_stage - a tapped button always
+// counts (never ambiguous), and free text counts only if that stage's own
+// matcher would accept it. Used to give the funnel first refusal on anything
+// that looks like an actual answer, before keyword/AI replies ever see it -
+// see the dispatch loop's isStageAnswer comment for why. "qualified" and
+// "declined" have no pending question, so free chat there is fair game for
+// keyword/AI same as before this existed, except the one standing question
+// (asked-about-a-lower-deposit) that still needs a human even post-funnel.
+function matchesCurrentStage(lead: any, input: UserInput): boolean {
+  if (input.selectionId) return true;
+  if (matchNavBack(input)) return true;
+  switch (lead.bot_stage) {
+    case "awaiting_language": return matchLanguage(input) !== null;
+    case "awaiting_menu": return matchMenuChoice(input) !== null;
+    case "awaiting_trader_status": return matchTraderStatus(input) !== null;
+    case "awaiting_broker_existing":
+    case "awaiting_broker": return matchBroker(input) !== null;
+    case "awaiting_experience": return matchExperience(input) !== null;
+    case "awaiting_traded_before": return matchYesNo(input) !== null;
+    // asksAboutLowerDeposit is its own deliberate escalation-to-a-human path
+    // (see that function's comment - a wrong AI-generated answer here already
+    // caused real inconsistency once), so it must reach runBotStep the same
+    // way a Yes/No answer does, not get intercepted by keyword/AI first.
+    case "awaiting_deposit_confirm": return matchYesNo(input) !== null || asksAboutLowerDeposit(input);
+    // qualified/declined have no pending question, but the same
+    // asksAboutLowerDeposit escalation still applies to them (see the
+    // default case in runBotStep's switch) - same reasoning as above.
+    default: return asksAboutLowerDeposit(input);
+  }
 }
 
 // Deliberately gated by KEYWORD_REPLIES_ENABLED rather than BOT_REPLIES_ENABLED,
