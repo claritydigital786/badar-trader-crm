@@ -61,7 +61,14 @@ const DECLINED_RESTART_HOURS = 24;
 // Muhammad, 21 July 2026: turn off the WhatsApp ping agents get on new-lead
 // assignment. Lead assignment itself still happens (round-robin, CRM record),
 // only the outbound notification is silenced. Flip back to true when told to.
-const NEW_LEAD_NOTIFICATIONS_ENABLED = false;
+//
+// Flipped back on 2026-08-27 (Muhammad, his laptop, him present) - the flood
+// bug that caused this to be switched off is fixed (see
+// AGENT_NOTIFY_TEST_NUMBERS below and shouldNotifyAgent's one-ping-per-lead +
+// per-agent-cooldown rules). Real agents beyond the allowlist below still
+// cannot receive anything even with this true - that allowlist is the actual
+// safety net, not this flag.
+const NEW_LEAD_NOTIFICATIONS_ENABLED = true;
 
 // Muhammad, 23 July 2026: WhatChimp got connected to this same WABA as a
 // second subscribed app - Meta allows more than one app to receive the same
@@ -196,12 +203,18 @@ const ESCALATION_NOTIFICATIONS_ENABLED = true;
 // number, those are the ONLY phones that can be notified - every real agent is
 // unreachable no matter what else happens. Empty it only once the rhythm has
 // been watched on test phones and judged right.
-// Muhammad (+92 300 6960632) and Junaid (+92 336 2391119), 2026-08-22.
-// While these two are listed, NO other phone on earth can receive an agent
-// notification from this webhook - real agents included. Emptying this array is
-// what makes notifications live for the whole team, and that is a deliberate
-// decision to take only after watching the rhythm on these two phones.
-const AGENT_NOTIFY_TEST_NUMBERS: string[] = ["923006960632", "923362391119"];
+//
+// Muhammad, 2026-08-27, his laptop, him present: narrowed to Ehsan Wazir only
+// (+92 334 2224925) - Badar's manager, senior to every other agent - as the
+// one real agent to actually watch this on, replacing the earlier
+// Muhammad/Junaid test-only numbers now that the flood-bug fix has been
+// reviewed. While only this number is listed, every OTHER real agent stays
+// completely unreachable no matter what else happens - Ehsan is the only one
+// who can be pinged by a real new-lead assignment right now. Add more agents
+// here once the rhythm on Ehsan's phone has been watched and judged right;
+// emptying this array is what makes notifications live for the whole team,
+// and that is a deliberate decision to take later, not part of this change.
+const AGENT_NOTIFY_TEST_NUMBERS: string[] = ["923342224925"];
 const AGENT_NOTIFY_COOLDOWN_MINUTES = DEFAULT_COOLDOWN_MINUTES;
 
 let cachedWaToken: string | null = null;
