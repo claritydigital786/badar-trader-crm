@@ -9538,7 +9538,16 @@ function sortConvsByPriority(rows) {
 }
 
 const CONV_SORT_KEY = 'bt-conv-sort';
-let _convSort = 'priority';
+// Default changed from 'priority' to 'recent' 2026-08-27 - found live that
+// 'priority' silently buried a large volume of real, very recent, unanswered
+// customer messages (48 conversations active in a single 6-hour window)
+// behind a handful of already-tagged HOT/WARM leads, on every browser/profile
+// that had never manually toggled this. An agent or admin opening the Inbox
+// for the first time (or on any device without a saved preference) needs to
+// see what actually just came in, not what was already flagged days ago -
+// 'priority' stays one click away for whoever wants it, it just isn't the
+// silent default that hides new activity anymore.
+let _convSort = 'recent';
 try {
   const saved = localStorage.getItem(CONV_SORT_KEY);
   if (saved === 'recent' || saved === 'priority') _convSort = saved;
