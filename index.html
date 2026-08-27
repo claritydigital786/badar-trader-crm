@@ -9622,6 +9622,27 @@ function avatarColor(seed) {
   return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
 }
 
+// Small channel indicator overlaid on a conversation's avatar - added
+// 2026-08-27 alongside the Messenger/Instagram ingest-only connection, so a
+// conversation list mixing all three channels still lets an agent tell at a
+// glance where a message actually came from. WhatsApp stays unbadged (it's
+// the default/only channel until now, and stays the vast majority of real
+// traffic) - only the newer channels get a badge, so nothing changes visually
+// for the thousands of existing WhatsApp conversations.
+function channelBadge(type) {
+  if (type === 'messenger') {
+    return `<span style="position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:50%;background:#0084ff;border:2px solid var(--card-bg,#fff);display:flex;align-items:center;justify-content:center" title="Facebook Messenger">
+      <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m13 10 4 4-8 4 4-8-4-4Z"/></svg>
+    </span>`;
+  }
+  if (type === 'instagram') {
+    return `<span style="position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:50%;background:#c13584;border:2px solid var(--card-bg,#fff);display:flex;align-items:center;justify-content:center" title="Instagram">
+      <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="#fff" stroke-width="2.4"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg>
+    </span>`;
+  }
+  return '';
+}
+
 async function renderConversations(scope = '') {
   const listEl = document.getElementById(scope + 'conv-list');
   if (!listEl) return;
@@ -9673,8 +9694,12 @@ async function renderConversations(scope = '') {
   try {
     const { data: comms, error } = await sb
       .from('communications')
-      .select('lead_id, body, direction, created_at, leads(full_name, phone, status, is_unread, bot_stage, needs_human, handoff_reason, manual_tier, language)')
-      .eq('type', 'whatsapp')
+      .select('lead_id, type, body, direction, created_at, leads(full_name, phone, status, is_unread, bot_stage, needs_human, handoff_reason, manual_tier, language)')
+      // Messenger/Instagram added 2026-08-27 (staged, ingest-only connection -
+      // see messenger-webhook) - these leads have no phone/WhatsApp thread at
+      // all, so without this they simply never appeared here even though the
+      // webhook was creating them correctly.
+      .in('type', ['whatsapp', 'messenger', 'instagram'])
       // Excludes the internal "Qualified lead summary" note the webhook logs
       // for itself (whatsapp-webhook/index.ts) - never sent to the customer,
       // so it must never appear as a conversation's preview text either.
@@ -9690,7 +9715,7 @@ async function renderConversations(scope = '') {
       .order('created_at', { ascending: false });
     if (error) throw error;
     if (!comms || !comms.length) {
-      listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">No WhatsApp conversations yet.<br><span style="font-size:0.75rem;opacity:.7">Messages received via webhook will appear here.</span></div>';
+      listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">No conversations yet.<br><span style="font-size:0.75rem;opacity:.7">Messages received via webhook will appear here.</span></div>';
       return;
     }
     const seen = new Set();
@@ -9718,10 +9743,12 @@ async function renderConversations(scope = '') {
       const preview = (c.direction === 'inbound' ? '↩ ' : '↪ ') + c.body;
       const tier = sig.tier;
       const isUnread = sig.isUnread;
-      const phone = c.leads?.phone || '';
+      // Messenger/Instagram leads have no phone at all (see external_id) -
+      // show the channel name in that line instead of leaving it blank.
+      const phone = c.leads?.phone || (c.type === 'messenger' ? 'Messenger' : c.type === 'instagram' ? 'Instagram' : '');
       return `
         <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" data-priority="${_prio.score}" onclick="openConversation('${c.lead_id}','${scope}')">
-          <div class="conv-avatar" style="background:${avatarColor(c.lead_id)}">${initials}</div>
+          <div class="conv-avatar" style="background:${avatarColor(c.lead_id)};position:relative">${initials}${channelBadge(c.type)}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(name)}${isUnread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
             <div class="conv-phone" style="font-size:0.72rem;color:var(--text-muted)">${esc(phone)}</div>

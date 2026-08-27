@@ -28,6 +28,10 @@ CREATE TABLE IF NOT EXISTS public.leads (
   full_name         TEXT        NOT NULL,
   email             TEXT,
   phone             TEXT,
+  -- Platform-scoped identity (PSID/IGSID) for Messenger/Instagram leads, who
+  -- have no phone number at all - never overload `phone` with a non-phone
+  -- value, see the 20260827010000 migration.
+  external_id       TEXT,
   source            TEXT        NOT NULL DEFAULT 'meta'
                                 CHECK (source IN ('manual','meta','referral','website','other')),
   meta_ad_id        TEXT,
@@ -357,7 +361,7 @@ CREATE POLICY "kyc: agent select own clients" ON public.kyc_documents
 CREATE TABLE IF NOT EXISTS public.communications (
   id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   lead_id    UUID        NOT NULL REFERENCES public.leads(id) ON DELETE CASCADE,
-  type       TEXT        NOT NULL CHECK (type IN ('email','whatsapp','call','sms')),
+  type       TEXT        NOT NULL CHECK (type IN ('email','whatsapp','call','sms','messenger','instagram')),
   direction  TEXT        NOT NULL CHECK (direction IN ('inbound','outbound')),
   subject    TEXT,
   body       TEXT        NOT NULL,
