@@ -1543,6 +1543,7 @@
       <div class="nav-item" data-tab="bot-manager"><span class="nav-icon" data-nav-icon="bot" style="background:var(--tint-sky-bg)"></span> Bot Manager</div>
       <div class="nav-item" data-tab="subscribers"><span class="nav-icon" data-nav-icon="subscriber" style="background:var(--tint-success-bg)"></span> Manage Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
       <div class="nav-item" data-tab="meta"><span class="nav-icon" data-nav-icon="link" style="background:var(--tint-gold-bg)"></span> Meta Integration</div>
+      <div class="nav-item" data-tab="social-integration"><span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Facebook &amp; Instagram</div>
       <div class="nav-section-label">LEADS</div>
       <div class="nav-item" data-tab="leads"><span class="nav-icon" data-nav-icon="users" style="background:var(--tint-sky-bg)"></span> All Leads <span class="nav-badge" id="leads-count-badge"></span></div>
       <div class="nav-item" data-tab="agents"><span class="nav-icon" data-nav-icon="team" style="background:var(--tint-success-bg)"></span> My Team</div>
@@ -2796,6 +2797,69 @@
     <div class="form-actions" style="margin-top:16px">
       <button class="btn btn-primary btn-inline" onclick="saveMetaSettings()">Save All Settings</button>
       <span class="success-msg" id="meta-msg"></span>
+    </div>
+  </div>
+
+  <!-- Facebook & Instagram Integration -->
+  <div id="admin-tab-social-integration" class="tab-content">
+    <h3>Facebook &amp; Instagram Integration</h3>
+    <div class="info-box" id="social-status-banner">
+      Checking status…
+    </div>
+
+    <p class="section-h">Overview</p>
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Messages Received</div>
+        <div class="stat-value" id="social-msg-count">–</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Leads Created</div>
+        <div class="stat-value" id="social-lead-count">–</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Configuration</div>
+        <div class="stat-value" id="social-config-status" style="font-size:1.1rem">–</div>
+      </div>
+    </div>
+
+    <p class="section-h">Connection Settings</p>
+    <div class="card">
+      <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:12px">
+        Real Facebook Messenger and Instagram DM ingest - staged, same as 3903's WhatsApp connection: real messages become real leads, visible in the Omnichannel Inbox, but no automated reply goes out on either channel yet. Turning on automated replies is a separate, later, deliberate decision.
+      </p>
+      <label>Facebook Page ID</label>
+      <input type="text" id="fb-page-id" placeholder="e.g. 100095068390642" />
+      <label>Instagram Business Account ID</label>
+      <input type="text" id="ig-business-account-id" placeholder="From Graph API Explorer: GET /{page-id}?fields=instagram_business_account" />
+      <label>Webhook Verify Token <span style="color:var(--text-muted);font-weight:400">(any secret string - must match what's set in Meta's Messenger/Instagram Webhooks tab)</span></label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="password" id="meta-messenger-verify-token" style="flex:1" placeholder="Choose any secret string" />
+        <button type="button" class="btn btn-secondary btn-sm" id="meta-messenger-verify-token-toggle" onclick="toggleCredentialVisibility('meta-messenger-verify-token')" style="white-space:nowrap">Show</button>
+      </div>
+      <p class="cred-hint" id="meta-messenger-verify-token-hint" style="color:var(--text-muted);font-size:0.78rem;margin:4px 0 0"></p>
+
+      <label style="margin-top:14px">Webhook URL (read-only - paste into Meta App Dashboard's Messenger/Instagram Webhooks tab)</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" readonly
+          value="https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/messenger-webhook"
+          style="cursor:text;background:var(--surface-soft);color:var(--text-body);font-family:monospace;font-size:0.83rem" />
+      </div>
+
+      <div class="form-actions" style="margin-top:16px">
+        <button class="btn btn-primary btn-inline" onclick="saveSocialSettings()">Save Connection Settings</button>
+        <span class="success-msg" id="social-msg"></span>
+      </div>
+    </div>
+
+    <p class="section-h">What's Actually Built</p>
+    <div class="card">
+      <ul style="margin:0;padding-left:18px;color:var(--text-body);font-size:0.85rem;line-height:1.8">
+        <li><strong>Ingest</strong> - real Messenger/Instagram messages become real leads (identified by their platform id, not a phone number), round-robin assigned like any other lead.</li>
+        <li><strong>Inbox visibility</strong> - these conversations show in Omnichannel Inbox with a small channel badge.</li>
+        <li><strong>Automated replies</strong> - not built. No scripted flow, no keyword rules, no AI exist for this channel at all yet - that's a separate, later decision.</li>
+        <li><strong>Bot Manager / Subscriber Manager / Broadcasting / Comment Automation</strong> - not started, each is its own project.</li>
+      </ul>
     </div>
   </div>
 
@@ -4488,7 +4552,7 @@ function adminTab(name, el) {
   const titles = {
     dashboard: 'Dashboard', leads: 'All Leads', agents: 'My Team',
     'add-lead': 'Import Leads', conversations: 'Omnichannel Inbox',
-    settings: 'Settings', meta: 'Meta Integration', 'meta-ads': 'Meta Analytics',
+    settings: 'Settings', meta: 'Meta Integration', 'social-integration': 'Facebook & Instagram', 'meta-ads': 'Meta Analytics',
     payroll: 'Payroll', automation: 'Automation',
     notifications: 'Notifications', sites: 'Landing Pages', reports: 'Reports',
     'comm-log': 'Communication Log',
@@ -4506,6 +4570,7 @@ function adminTab(name, el) {
   if (name === 'user-manager')     renderAgentsTable('user-manager-tbody');
   if (name === 'settings')         loadGeneralSettings();
   if (name === 'meta')             loadMetaSettings();
+  if (name === 'social-integration') loadSocialSettings();
   if (name === 'meta-ads')         initMetaAnalytics();
   if (name === 'automation')       { loadAutomationRules(); populateArAgentDropdown(); }
   if (name === 'bot-manager')      initBotManager();
@@ -5834,6 +5899,69 @@ async function saveMetaSettings() {
   refreshCredentialHints();
 }
 
+// Facebook Messenger + Instagram DM ingest (2026-08-27, staged - see
+// messenger-webhook/index.ts). This tab is honest about real status:
+// counts come from a live query, never a guessed/fabricated number, and the
+// banner says plainly whether anything has actually arrived yet.
+async function loadSocialSettings() {
+  if (demoMode) {
+    document.getElementById('social-status-banner').innerHTML =
+      'Demo mode - real status needs a real Meta connection, so this only works signed in for real.';
+    document.getElementById('social-msg-count').textContent = '–';
+    document.getElementById('social-lead-count').textContent = '–';
+    document.getElementById('social-config-status').textContent = '–';
+    return;
+  }
+
+  const keys = ['fb_page_id', 'ig_business_account_id', 'meta_messenger_verify_token'];
+  const { data } = await sb.from('settings').select('key,value').in('key', keys);
+  const get = k => (data?.find(r => r.key === k) || {}).value || '';
+  document.getElementById('fb-page-id').value = get('fb_page_id');
+  document.getElementById('ig-business-account-id').value = get('ig_business_account_id');
+  document.getElementById('meta-messenger-verify-token').value = get('meta_messenger_verify_token');
+  refreshCredentialHints();
+
+  const configured = get('fb_page_id') && get('ig_business_account_id') && get('meta_messenger_verify_token');
+  const configEl = document.getElementById('social-config-status');
+  configEl.textContent = configured ? 'Saved, not yet deployed' : 'Not configured yet';
+  configEl.style.color = configured ? 'var(--warn)' : 'var(--text-muted)';
+
+  const [{ count: msgCount }, { count: leadCount }] = await Promise.all([
+    sb.from('communications').select('id', { count: 'exact', head: true }).in('type', ['messenger', 'instagram']),
+    sb.from('leads').select('id', { count: 'exact', head: true }).not('external_id', 'is', null),
+  ]);
+  document.getElementById('social-msg-count').textContent = msgCount ?? 0;
+  document.getElementById('social-lead-count').textContent = leadCount ?? 0;
+
+  const banner = document.getElementById('social-status-banner');
+  if (!msgCount) {
+    banner.innerHTML = '<strong>Not yet receiving real messages.</strong> Staged connection - real leads and messages will appear here and in the Omnichannel Inbox once the Page ID, Instagram Business Account ID and webhook subscription are all in place and this is deployed. No automated reply goes out on either channel regardless.';
+  } else {
+    banner.innerHTML = `<strong>${msgCount} real message${msgCount === 1 ? '' : 's'} received</strong> across ${leadCount} lead${leadCount === 1 ? '' : 's'} - ingest only, no automated reply has been sent on either channel.`;
+  }
+}
+
+async function saveSocialSettings() {
+  const fbPageId = v('fb-page-id');
+  const igId     = v('ig-business-account-id');
+  const verify   = v('meta-messenger-verify-token');
+  const msgEl    = document.getElementById('social-msg');
+
+  if (demoMode) { setMsg(msgEl, 'Settings saved. (demo - nothing was written)', 'ok'); return; }
+
+  const now = new Date().toISOString();
+  const rows = [
+    { key: 'fb_page_id', value: fbPageId, updated_by: currentUser.id, updated_at: now },
+    { key: 'ig_business_account_id', value: igId, updated_by: currentUser.id, updated_at: now },
+    { key: 'meta_messenger_verify_token', value: verify, updated_by: currentUser.id, updated_at: now },
+  ];
+  const { error } = await sb.from('settings').upsert(rows, { onConflict: 'key' });
+  if (error) { setMsg(msgEl, error.message, 'err'); return; }
+  setMsg(msgEl, 'Saved. Deploy messenger-webhook to pick these up.', 'ok');
+  refreshCredentialHints();
+  loadSocialSettings();
+}
+
 // Calls the whatsapp-status Edge Function, which asks Meta's own Graph API
 // (not any third-party platform) for the connected number's real, live
 // status - never fabricated, and never cached, so a stale credential shows
@@ -5874,7 +6002,7 @@ async function checkWhatsAppStatus() {
 // password/text), generalised so every credential field can use it, plus a
 // small "ends in ...xxxx" hint so a field can still be told apart from
 // another without exposing the whole value.
-const CREDENTIAL_FIELD_IDS = ['meta-token', 'wa-verify-token', 'wa-access-token'];
+const CREDENTIAL_FIELD_IDS = ['meta-token', 'wa-verify-token', 'wa-access-token', 'meta-messenger-verify-token'];
 
 function toggleCredentialVisibility(id) {
   const el  = document.getElementById(id);

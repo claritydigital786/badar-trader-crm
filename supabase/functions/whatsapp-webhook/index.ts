@@ -204,17 +204,26 @@ const ESCALATION_NOTIFICATIONS_ENABLED = true;
 // unreachable no matter what else happens. Empty it only once the rhythm has
 // been watched on test phones and judged right.
 //
-// Muhammad, 2026-08-27, his laptop, him present: narrowed to Ehsan Wazir only
+// Muhammad, 2026-08-27, his laptop, him present: narrowed to Ehsan Wazir
 // (+92 334 2224925) - Badar's manager, senior to every other agent - as the
 // one real agent to actually watch this on, replacing the earlier
 // Muhammad/Junaid test-only numbers now that the flood-bug fix has been
-// reviewed. While only this number is listed, every OTHER real agent stays
-// completely unreachable no matter what else happens - Ehsan is the only one
-// who can be pinged by a real new-lead assignment right now. Add more agents
-// here once the rhythm on Ehsan's phone has been watched and judged right;
+// reviewed.
+//
+// Added 2026-08-27 (later the same day): Muhammad's own number
+// (+92 300 6960632), via a throwaway test-agent profile
+// (profiles.id 3957153d-c3f5-40ad-bd32-73827b47b336) so he can watch a real
+// notification land on his own phone directly, not just Ehsan's - found
+// live testing that every prior attempt to Ehsan failed on WhatsApp's 24h
+// customer-service-window rule (error 131047, his number hadn't messaged
+// 6541 recently), not a bug in this code.
+//
+// While only these two numbers are listed, every OTHER real agent stays
+// completely unreachable no matter what else happens. Add more agents here
+// once the rhythm on these two phones has been watched and judged right;
 // emptying this array is what makes notifications live for the whole team,
 // and that is a deliberate decision to take later, not part of this change.
-const AGENT_NOTIFY_TEST_NUMBERS: string[] = ["923342224925"];
+const AGENT_NOTIFY_TEST_NUMBERS: string[] = ["923342224925", "923006960632"];
 const AGENT_NOTIFY_COOLDOWN_MINUTES = DEFAULT_COOLDOWN_MINUTES;
 
 let cachedWaToken: string | null = null;

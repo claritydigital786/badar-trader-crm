@@ -28,20 +28,39 @@ import {
 const META_APP_SECRET = Deno.env.get("META_APP_SECRET") ?? "";
 const META_SIGNATURE_ENFORCED = isMetaSignatureEnforced(Deno.env.get("META_SIGNATURE_ENFORCED"));
 
-// Meta lets a webhook subscription's GET handshake use its own verify token,
-// separate from WhatsApp's - set when this webhook URL is registered in the
-// Meta App Dashboard's Messenger/Instagram Webhooks tab.
-const META_MESSENGER_VERIFY_TOKEN = Deno.env.get("META_MESSENGER_VERIFY_TOKEN") ?? "";
-
-// Fail-closed routing guard, same shape as whatsapp_phone_scope.mjs's
-// isAllowedPhoneNumberId - reject anything not explicitly this Page/IG
-// account before any DB read or write. Empty/unset means everything is
-// rejected, never means "accept anything".
-const FB_PAGE_ID = Deno.env.get("FB_PAGE_ID") ?? "";
-const IG_BUSINESS_ACCOUNT_ID = Deno.env.get("IG_BUSINESS_ACCOUNT_ID") ?? "";
-
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+// Env-first, settings-table-fallback - same pattern whatsapp-webhook's
+// getWaCredentials() and send-wa-message already use, so Muhammad can paste
+// these into the CRM's own Meta Integration UI (saved to `settings`) instead
+// of needing `supabase secrets set` run for him every time. An explicit env
+// var still wins if one is ever set directly. Fail-closed either way: an
+// unset/empty value rejects every event for that type, never accepts
+// anything.
+type MessengerConfig = { fbPageId: string; igBusinessAccountId: string; verifyToken: string };
+let _configCache: MessengerConfig | null = null;
+
+async function getMessengerConfig(sb: SupabaseClient): Promise<MessengerConfig> {
+  if (_configCache) return _configCache;
+  const envFbPageId = Deno.env.get("FB_PAGE_ID") ?? "";
+  const envIgId = Deno.env.get("IG_BUSINESS_ACCOUNT_ID") ?? "";
+  const envVerifyToken = Deno.env.get("META_MESSENGER_VERIFY_TOKEN") ?? "";
+
+  let row = (_key: string) => "";
+  if (!envFbPageId || !envIgId || !envVerifyToken) {
+    const { data } = await sb.from("settings").select("key, value")
+      .in("key", ["fb_page_id", "ig_business_account_id", "meta_messenger_verify_token"]);
+    row = (key: string) => data?.find((r: any) => r.key === key)?.value?.trim() ?? "";
+  }
+
+  _configCache = {
+    fbPageId: envFbPageId || row("fb_page_id"),
+    igBusinessAccountId: envIgId || row("ig_business_account_id"),
+    verifyToken: envVerifyToken || row("meta_messenger_verify_token"),
+  };
+  return _configCache;
+}
 
 function makeSupabase(): SupabaseClient {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -178,12 +197,17 @@ function describeMessengerMessage(message: any): string {
 
 Deno.serve(async (req: Request): Promise<Response> => {
   const url = new URL(req.url);
+  // Cleared per request, same reasoning as whatsapp-webhook's _gateCache - a
+  // warm instance must never keep serving a stale settings-table value.
+  _configCache = null;
+  const sbForConfig = makeSupabase();
+  const config = await getMessengerConfig(sbForConfig);
 
   if (req.method === "GET") {
     const mode = url.searchParams.get("hub.mode");
     const token = url.searchParams.get("hub.verify_token");
     const challenge = url.searchParams.get("hub.challenge");
-    if (mode === "subscribe" && token === META_MESSENGER_VERIFY_TOKEN && META_MESSENGER_VERIFY_TOKEN) {
+    if (mode === "subscribe" && token === config.verifyToken && config.verifyToken) {
       return new Response(challenge, { status: 200 });
     }
     return new Response("Forbidden", { status: 403 });
@@ -226,18 +250,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return new Response("OK", { status: 200 });
   }
 
-  const sb = makeSupabase();
+  const sb = sbForConfig;
   const entries: any[] = payload?.entry ?? [];
 
   for (const entry of entries) {
     // Fail-closed routing guard - reject anything not explicitly this Page
     // or this Instagram Business account, before any DB read or write. Both
-    // FB_PAGE_ID and IG_BUSINESS_ACCOUNT_ID must be configured for their
+    // fbPageId and igBusinessAccountId must be configured for their
     // respective object type to ever be accepted; an unset id rejects
     // everything of that type rather than accepting anything unconfigured.
     const entryId: string = entry?.id ?? "";
-    const isAllowedPage = objectType === "page" && FB_PAGE_ID.length > 0 && entryId === FB_PAGE_ID;
-    const isAllowedInstagram = objectType === "instagram" && IG_BUSINESS_ACCOUNT_ID.length > 0 && entryId === IG_BUSINESS_ACCOUNT_ID;
+    const isAllowedPage = objectType === "page" && config.fbPageId.length > 0 && entryId === config.fbPageId;
+    const isAllowedInstagram = objectType === "instagram" && config.igBusinessAccountId.length > 0 && entryId === config.igBusinessAccountId;
     if (!isAllowedPage && !isAllowedInstagram) {
       console.error(`messenger-webhook: rejected entry for id "${entryId || "(missing)"}" (object "${objectType}") - does not match the configured Page/Instagram account. No data was read or written.`);
       continue;
