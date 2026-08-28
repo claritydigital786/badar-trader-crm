@@ -324,6 +324,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // stale is the one thing it must never be. One small query per message is a
   // fair price for a stop button that actually stops.
   _gateCache = null;
+  // Found live, 28 Aug 2026 (Muhammad watched 10 real, distinct new-lead
+  // notifications land 90 seconds to a few minutes apart, despite
+  // AGENT_NOTIFY_COOLDOWN_MINUTES being 30): _rotationCache was never reset
+  // here the way _gateCache is, so on a warm isolate every agent's
+  // last_notified_at stayed frozen at whatever it was when that instance's
+  // first message populated the cache - shouldNotifyAgent kept comparing
+  // against that stale timestamp forever, never seeing the real, fast-moving
+  // updates each notification wrote to the database, so the per-agent
+  // cooldown that exists specifically to prevent a repeat of the July 2026
+  // flood incident was silently doing nothing. Same fix as the gate cache:
+  // clear it every request, one extra query is a fair price for a cooldown
+  // that actually cools down.
+  _rotationCache = null;
 
   if (req.method === "GET") {
     const mode      = url.searchParams.get("hub.mode");
