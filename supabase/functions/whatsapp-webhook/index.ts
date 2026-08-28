@@ -616,7 +616,7 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         await Promise.all([
           insertCommunication(sb, lead.id, "inbound", input.text, timestamp, undefined, message.id),
           replyResult
-            ? insertCommunication(sb, lead.id, "outbound", combineSendLog(replyResult), timestamp)
+            ? insertCommunication(sb, lead.id, "outbound", combineSendLog(replyResult), timestamp, undefined, lastMessageId(replyResult))
             : runBotStep(sb, lead, wasCreated, input, lastCustomerTouch),
         ]);
       }
@@ -827,6 +827,8 @@ async function upsertLead(
         ? `[assigned to ${agent.name}, notified]`
         : `[assigned to ${agent.name}, notification SEND FAILED - ${pingResult.error}]`,
       nowIso,
+      undefined,
+      pingResult.messageId,
     );
   })();
   const waitUntil = (globalThis as any).EdgeRuntime?.waitUntil;
@@ -1379,7 +1381,7 @@ async function runBotStep(
     // here than the small time saved.
     const r1 = await sendText(to, greetingReplyText(greeting));
     const r2 = await sendLanguageCard(to);
-    await logOutbound(sb, lead.id, combineSendLog(r1, r2));
+    await logOutbound(sb, lead.id, combineSendLog(r1, r2), lastMessageId(r1, r2));
     return;
   }
 
@@ -1413,7 +1415,7 @@ async function runBotStep(
     // Sequential - same fix as the wasCreated path above, guaranteed order.
     const r1 = await sendText(to, greetingReplyText(greeting));
     const r2 = await sendLanguageCard(to);
-    await logOutbound(sb, lead.id, `[Stale mid-flow lead, was ${lead.bot_stage}, restarted after 24h+]\n${combineSendLog(r1, r2)}`);
+    await logOutbound(sb, lead.id, `[Stale mid-flow lead, was ${lead.bot_stage}, restarted after 24h+]\n${combineSendLog(r1, r2)}`, lastMessageId(r1, r2));
     return;
   }
 
@@ -1437,7 +1439,7 @@ async function runBotStep(
       }
       await advanceStage(sb, lead, "awaiting_menu", { language: chosen });
       const rMenu = await sendMainMenuCard(to, chosen);
-      await logOutbound(sb, lead.id, combineSendLog(rMenu));
+      await logOutbound(sb, lead.id, combineSendLog(rMenu), lastMessageId(rMenu));
       return;
     }
 
@@ -1454,7 +1456,7 @@ async function runBotStep(
         // step instead of being walked through opening an account they have.
         await advanceStage(sb, lead, "awaiting_trader_status");
         const r = await sendTraderStatusButtons(to, t(lang, "Have you already opened a trading account with Exness or XM, or would this be your first time?", "Kya aap ka Exness ya XM par pehle se trading account hai, ya ye aap ki pehli baar hai?"), lang);
-        await logOutbound(sb, lead.id, combineSendLog(r));
+        await logOutbound(sb, lead.id, combineSendLog(r), lastMessageId(r));
         return;
       }
 
@@ -1474,7 +1476,7 @@ async function runBotStep(
           sendText(to, faqText(lang)),
           sendMainMenuCard(to, lang),
         ]);
-        await logOutbound(sb, lead.id, combineSendLog(r1, r2));
+        await logOutbound(sb, lead.id, combineSendLog(r1, r2), lastMessageId(r1, r2));
       }
       return;
     }
@@ -1493,7 +1495,7 @@ async function runBotStep(
         // experience/traded-before questions and go straight to deposit.
         await advanceStage(sb, lead, "awaiting_broker_existing");
         const r = await sendBrokerCard(to, t(lang, "Which one, Exness or XM, or both?", "Kaun sa, Exness ya XM, ya dono?"), lang);
-        await logOutbound(sb, lead.id, combineSendLog(r));
+        await logOutbound(sb, lead.id, combineSendLog(r), lastMessageId(r));
         return;
       }
 
@@ -1501,7 +1503,7 @@ async function runBotStep(
       // (broker -> experience -> traded-before -> deposit).
       await advanceStage(sb, lead, "awaiting_broker");
       const r = await sendBrokerCard(to, t(lang, "Which broker would you like to use?", "Aap kaun sa broker istemal karna chahenge?"), lang);
-      await logOutbound(sb, lead.id, combineSendLog(r));
+      await logOutbound(sb, lead.id, combineSendLog(r), lastMessageId(r));
       return;
     }
 
@@ -1517,7 +1519,7 @@ async function runBotStep(
       // awaiting_traded_before entirely, straight to deposit confirmation.
       await advanceStage(sb, lead, "awaiting_deposit_confirm", { broker_choice: broker, trader_experience: "experienced" });
       const rDep = await sendDepositConfirm(to, broker);
-      await logOutbound(sb, lead.id, combineSendLog(rDep));
+      await logOutbound(sb, lead.id, combineSendLog(rDep), lastMessageId(rDep));
       return;
     }
 
@@ -1531,7 +1533,7 @@ async function runBotStep(
       }
       await advanceStage(sb, lead, "awaiting_experience", { broker_choice: broker });
       const rExp = await sendExperienceButtons(to, t(lang, "Great choice! Are you new to trading, or already experienced?", "Bohat khoob! Kya aap trading mein naye hain, ya pehle se tajurba hai?"), lang);
-      await logOutbound(sb, lead.id, combineSendLog(rExp));
+      await logOutbound(sb, lead.id, combineSendLog(rExp), lastMessageId(rExp));
       return;
     }
 
@@ -1547,13 +1549,13 @@ async function runBotStep(
       if (experience === "new") {
         await advanceStage(sb, lead, "awaiting_traded_before");
         const r = await sendTradedBeforeButtons(to, t(lang, "No problem! Have you traded before (with any broker)?", "Koi masla nahi! Kya aap ne pehle kabhi trading ki hai (kisi bhi broker ke saath)?"), lang);
-        await logOutbound(sb, lead.id, combineSendLog(r));
+        await logOutbound(sb, lead.id, combineSendLog(r), lastMessageId(r));
         return;
       }
 
       await advanceStage(sb, lead, "awaiting_deposit_confirm", { trader_experience: "experienced" });
       const rDep1 = await sendDepositConfirm(to, lead.broker_choice);
-      await logOutbound(sb, lead.id, combineSendLog(rDep1));
+      await logOutbound(sb, lead.id, combineSendLog(rDep1), lastMessageId(rDep1));
       return;
     }
 
@@ -1567,7 +1569,7 @@ async function runBotStep(
       }
       await advanceStage(sb, lead, "awaiting_deposit_confirm", { trader_experience: "new" });
       const rDep2 = await sendDepositConfirm(to, lead.broker_choice);
-      await logOutbound(sb, lead.id, combineSendLog(rDep2));
+      await logOutbound(sb, lead.id, combineSendLog(rDep2), lastMessageId(rDep2));
       return;
     }
 
@@ -1666,7 +1668,7 @@ async function runBotStep(
         // Sequential - same fix as the wasCreated path above, guaranteed order.
         const r1 = await sendText(to, greetingReplyText(greeting));
         const r2 = await sendLanguageCard(to);
-        await logOutbound(sb, lead.id, `[Declined lead returned after 24h+, restarted]\n${combineSendLog(r1, r2)}`);
+        await logOutbound(sb, lead.id, `[Declined lead returned after 24h+, restarted]\n${combineSendLog(r1, r2)}`, lastMessageId(r1, r2));
         return;
       }
 
@@ -1698,7 +1700,7 @@ async function runBotStep(
 
       const prefix = greeting ? `${greetingReplyText(greeting)} ` : "";
       const r = await sendText(to, `${prefix}Thanks for the message. A team member will follow up with you shortly.`);
-      await logOutbound(sb, lead.id, combineSendLog(r));
+      await logOutbound(sb, lead.id, combineSendLog(r), lastMessageId(r));
       return;
     }
   }
@@ -1717,7 +1719,7 @@ async function handleUnmatched(
   if (greeting) {
     const greetResult = await sendText(to, greetingReplyText(greeting));
     const rePromptResult = await rePrompt();
-    await logOutbound(sb, lead.id, combineSendLog(greetResult, rePromptResult));
+    await logOutbound(sb, lead.id, combineSendLog(greetResult, rePromptResult), lastMessageId(greetResult, rePromptResult));
     return;
   }
 
@@ -1753,12 +1755,12 @@ async function handleUnmatched(
   // three, see REMAINING_TODOS.md): stay quiet on the prompt for one turn,
   // and only re-show it if they are still stuck on the very next message.
   if (shouldSuppressRePrompt(input, retries)) {
-    await logOutbound(sb, lead.id, combineSendLog(apologyResult));
+    await logOutbound(sb, lead.id, combineSendLog(apologyResult), lastMessageId(apologyResult));
     return;
   }
 
   const rePromptResult = await rePrompt();
-  await logOutbound(sb, lead.id, combineSendLog(apologyResult, rePromptResult));
+  await logOutbound(sb, lead.id, combineSendLog(apologyResult, rePromptResult), lastMessageId(apologyResult, rePromptResult));
 }
 
 // Every forward step in the funnel goes through this instead of a bare
@@ -1836,7 +1838,7 @@ async function goBack(sb: SupabaseClient, lead: any, to: string, lang: Lang): Pr
     default:
       result = await sendMainMenuCard(to, lang);
   }
-  await logOutbound(sb, lead.id, `[went back to ${prevStage}]\n${combineSendLog(result)}`);
+  await logOutbound(sb, lead.id, `[went back to ${prevStage}]\n${combineSendLog(result)}`, lastMessageId(result));
 }
 
 async function escalate(
@@ -1887,7 +1889,7 @@ async function escalate(
     to,
     message ?? "Thanks for your patience. Let me connect you with a team member who'll help you personally, please hold on a moment.",
   );
-  await logOutbound(sb, lead.id, `[escalated to human: ${reason}]\n${combineSendLog(result)}`);
+  await logOutbound(sb, lead.id, `[escalated to human: ${reason}]\n${combineSendLog(result)}`, lastMessageId(result));
 
   if (ESCALATION_NOTIFICATIONS_ENABLED && assignedAgent) {
     // Every block is written to the lead's own log with its reason, so a quiet
@@ -1934,6 +1936,8 @@ async function escalate(
         "outbound",
         pingResult.ok ? `[agent ${assignedAgent.name} notified of escalation]` : `[SEND FAILED: agent escalation notification - ${pingResult.error}]`,
         nowIso,
+        undefined,
+        pingResult.messageId,
       );
     }
   }
@@ -2064,8 +2068,27 @@ async function sendTradedBeforeButtons(to: string, bodyText: string, lang: Lang 
   ]);
 }
 
-async function logOutbound(sb: SupabaseClient, leadId: string, body: string): Promise<void> {
-  await insertCommunication(sb, leadId, "outbound", body, new Date().toISOString());
+// waMessageId is optional and additive (2026-08-28) - every existing 3-arg
+// call site keeps working exactly as before, with no delivery-tick tracking
+// for that message, same as today. Call sites that also pass a message id
+// (via lastMessageId(), typically the same SendResult(s) already handed to
+// combineSendLog for the body text) let recordDeliveryStatus actually find
+// this row later.
+async function logOutbound(sb: SupabaseClient, leadId: string, body: string, waMessageId?: string): Promise<void> {
+  await insertCommunication(sb, leadId, "outbound", body, new Date().toISOString(), undefined, waMessageId);
+}
+
+// The message id worth recording against a combined outbound log line - the
+// LAST result with one, since a sequence like [greeting, language card] logs
+// as one row and the final message is the one a customer's reply/receipt is
+// actually about. Real sends only; a gate-paused or failed attempt has no id
+// to give, `combineSendLog` already puts "[DELIVERY FAILED: ...]" in the body
+// for that case.
+function lastMessageId(...results: SendResult[]): string | undefined {
+  for (let i = results.length - 1; i >= 0; i--) {
+    if (results[i].messageId) return results[i].messageId;
+  }
+  return undefined;
 }
 
 // A lead asking whether they can deposit less than $500 (or otherwise trying
@@ -2311,8 +2334,8 @@ async function sendList(
 // this is what the CRM's Conversations tab shows agents, so it must never
 // be a placeholder description. See combineSendLog below, used everywhere
 // this used to be replaced with a hand-typed "[thing sent]" bracket note.
-type SendResult = { ok: boolean; error?: string; text: string };
-type GraphApiResult = { ok: boolean; error?: string };
+type SendResult = { ok: boolean; error?: string; text: string; messageId?: string };
+type GraphApiResult = { ok: boolean; error?: string; messageId?: string };
 
 // Builds one log line from one or more send attempts, real content always,
 // never a description of the content. Fixed 21 July 2026 - every outbound
@@ -2361,7 +2384,23 @@ async function callGraphApi(payload: unknown): Promise<GraphApiResult> {
       console.error(`WhatsApp send failed (${res.status}):`, errBody);
       return { ok: false, error: `HTTP ${res.status}: ${errBody.slice(0, 300)}` };
     }
-    return { ok: true };
+    // Found 2026-08-28: this always discarded Meta's own response body, which
+    // is exactly why delivery-status ticks (recordDeliveryStatus) almost
+    // never had anything to match against - only 78 of 2,781 real outbound
+    // messages ever had a wa_message_id at all. A successful send response
+    // looks like {"messages":[{"id":"wamid...."}]} - capturing that id here
+    // is what every send helper below needs to finally log it.
+    let messageId: string | undefined;
+    try {
+      const json = await res.json();
+      messageId = json?.messages?.[0]?.id;
+    } catch (err) {
+      // The send still genuinely succeeded (res.ok was true) - a body we
+      // couldn't parse just means no delivery-tick tracking for this one
+      // message, never a reason to report the send itself as failed.
+      console.error("WhatsApp send succeeded but its response body could not be parsed for a message id:", err);
+    }
+    return { ok: true, messageId };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("WhatsApp send threw an exception (network/timeout):", msg);

@@ -252,7 +252,7 @@ const adminTabsEnd = html.indexOf('id="sidebar-user', adminTabsStart);
 assert.ok(adminTabsStart > -1 && adminTabsEnd > adminTabsStart, 'Admin sidebar markup must exist.');
 const adminTabsMarkup = html.slice(adminTabsStart, adminTabsEnd);
 const adminTabNames = [...adminTabsMarkup.matchAll(/data-tab="([^"]+)"/g)].map((match) => match[1]);
-assert.equal(adminTabNames.length, 22, 'The presentation sidebar must expose all 22 Admin sections, including Settings.');
+assert.equal(adminTabNames.length, 23, 'The presentation sidebar must expose all 23 Admin sections, including Settings and Facebook & Instagram.');
 for (const tabName of adminTabNames) {
   assert.match(
     html,
