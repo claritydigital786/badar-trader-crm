@@ -58,6 +58,17 @@ const HANDOFF_STALE_HOURS = 2;
 // said "not right now" isn't immediately re-pitched.
 const DECLINED_RESTART_HOURS = 24;
 
+// A lead abandoned mid-flow (never explicitly declined, just went quiet) at
+// any of these stages gets the same 24h+ restart as a declined lead - see
+// the dispatch loop's needsStaleRestart and runBotStep's own use of this
+// list below. Hoisted to module scope 2026-08-28 so both places check the
+// exact same set, not two lists that could quietly drift apart.
+const MIDFLOW_RESTART_STAGES = [
+  "awaiting_menu", "awaiting_trader_status", "awaiting_broker",
+  "awaiting_broker_existing", "awaiting_experience",
+  "awaiting_traded_before", "awaiting_deposit_confirm", "qualified",
+];
+
 // Muhammad, 21 July 2026: turn off the WhatsApp ping agents get on new-lead
 // assignment. Lead assignment itself still happens (round-robin, CRM record),
 // only the outbound notification is silenced. Flip back to true when told to.
@@ -555,7 +566,25 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         // all), so both cases route through the funnel first: keyword/AI only
         // ever gets a message the funnel isn't currently expecting a specific
         // answer to.
-        const isStageAnswer = wasCreated || matchesCurrentStage(lead, input);
+        // Found live, 28 Aug 2026 (Muhammad's own test lead, dormant since 11
+        // July): the fix above still let a genuinely stale/abandoned lead's
+        // return message reach the AI first, since "does this look like a
+        // stage answer" and "has this lead gone stale" were two separate
+        // questions - a stale lead's first message back is rarely a stage
+        // answer (matchesCurrentStage says no), so it fell through to the AI,
+        // which cheerfully carried on a "conversation" grafted onto a 6-week-
+        // old, wrong-stage context instead of ever reaching the restart logic
+        // buried inside runBotStep. The AI produced a technically-coherent
+        // but bizarre reply ("I see your test message..."), then failed to
+        // answer the customer's very next real question because bot_stage
+        // still hadn't moved. A stale lead must always reach the funnel
+        // first, regardless of whether the AI could improvise something for
+        // it - staleness is checked here too, not only inside runBotStep.
+        const lastTouchMs = new Date(lastCustomerTouch ?? lead.created_at ?? Date.now()).getTime();
+        const hoursIdle = Number.isFinite(lastTouchMs) ? (Date.now() - lastTouchMs) / 3600000 : 0;
+        const needsStaleRestart = !wasCreated && !input.selectionId && hoursIdle >= DECLINED_RESTART_HOURS &&
+          (MIDFLOW_RESTART_STAGES.includes(lead.bot_stage) || lead.bot_stage === "declined");
+        const isStageAnswer = wasCreated || needsStaleRestart || matchesCurrentStage(lead, input);
 
         // Logging the inbound message doesn't need to finish before the bot
         // can respond - neither depends on the other's result, so they run
@@ -1350,7 +1379,12 @@ async function runBotStep(
   // days or weeks ago, which reads as the bot behaving inconsistently
   // between a fresh number and one with old test/lead history. Same
   // restart shape as the declined-lead rule below, just covering every
-  // abandonable mid-flow stage instead of only one.
+  // abandonable mid-flow stage instead of only one. MIDFLOW_RESTART_STAGES
+  // itself now lives at module scope (see its own comment) - the dispatch
+  // loop's needsStaleRestart checks the identical condition before this
+  // code even runs, so this is normally just a formality by the time we get
+  // here; kept as a real, independent guard in case anything ever calls
+  // runBotStep a different way.
   //
   // input.selectionId is only ever set when the customer tapped a REAL
   // button/list option still on their screen (never for typed free text) -
@@ -1359,11 +1393,6 @@ async function runBotStep(
   // Junaid tapped "FAQs" on a >24h-old Main Menu card and the bot restarted
   // him to the greeting instead of answering, because this check didn't
   // distinguish a real tap from ambiguous typed text.
-  const MIDFLOW_RESTART_STAGES = [
-    "awaiting_menu", "awaiting_trader_status", "awaiting_broker",
-    "awaiting_broker_existing", "awaiting_experience",
-    "awaiting_traded_before", "awaiting_deposit_confirm", "qualified",
-  ];
   const hoursIdle = (Date.now() - lastTouch) / 3600000;
   if (!wasCreated && !input.selectionId && MIDFLOW_RESTART_STAGES.includes(lead.bot_stage) && hoursIdle >= DECLINED_RESTART_HOURS) {
     await sb.from("leads").update({ bot_stage: "awaiting_language", retry_count: 0 }).eq("id", lead.id);
