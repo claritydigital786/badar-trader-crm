@@ -2486,7 +2486,7 @@
               </div>
 
               <div class="info-box" style="margin-top:14px">
-                <strong>This toggle records intent, it does not put the bot live.</strong> Whether a real customer ever gets an AI reply is decided by <code>AI_REPLIES_ENABLED</code> inside the deployed <code>whatsapp-webhook</code> function, which is a code constant, not a database value. Flipping it on means editing that function and deploying it, and per the standing rule that happens only on Muhammad's laptop with him present. The live status below is read from what this CRM knows, not guessed.
+                <strong>This toggle records intent - the real switch is the table below.</strong> Whether a real customer gets an AI reply is decided by <code>AI_REPLIES_ENABLED</code>, read live from the <code>settings</code> table by the deployed <code>whatsapp-webhook</code> function on every message - a genuine toggle, not a hardcoded constant, since 2026-08-23. Flipping a gate off from the table below takes effect on the very next inbound message, no redeploy needed; flipping one on asks for confirmation first. The live status below is read from what this CRM knows, not guessed.
               </div>
 
               <div style="margin-top:14px">
@@ -2578,7 +2578,7 @@
           <!-- AI Knowledge Base (was: Train AI) -->
           <div class="bm-panel" id="bm-panel-ai-knowledge-base">
             <div class="info-box">
-              This stores AI training material: a system prompt plus knowledge notes, per bot number. Saving here is real and persists to the database. The WhatsApp webhook can read the active campaign and call a real AI model with it, but this is gated off by <code>AI_REPLIES_ENABLED = false</code> - it needs the OpenAI API key in AI Configuration and a WhatChimp double-reply check before it can ever answer a real customer. Preview below shows exactly what the AI would be told.
+              This stores AI training material: a system prompt plus knowledge notes, per bot number. Saving here is real and persists to the database. <code>AI_REPLIES_ENABLED</code> is a live toggle read from <code>settings</code> on every message (not a hardcoded constant), currently <strong>on</strong> - the deployed webhook genuinely answers real customers with it, confirmed live since 2026-08-19. Turn it off from the "Live reply gates" table in AI Configuration if it ever needs to stop fast; that takes effect on the next inbound message, no redeploy needed. Preview below shows exactly what the AI is being told right now.
             </div>
 
             <div class="card">
@@ -3255,59 +3255,67 @@
   <!-- Guide (admin sees every section, agents see their own subset - see agent-tab-guide) -->
   <div id="admin-tab-guide" class="tab-content">
     <h3>Guide</h3>
-    <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:18px">What each section of this dashboard is for.</p>
+    <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:18px">What each section of this dashboard is for, and why it matters from where you sit as the owner/admin - running the whole business, not one desk of it. Agents get their own version of this Guide, written for their own day-to-day, not this one copied over.</p>
 
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Dashboard</p>
-      <p style="color:var(--text-body);font-size:0.88rem">Home screen: total leads, new leads, converted count, active agents, recorded client account balances, upcoming follow-ups, and Meta Ads performance at a glance.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">The whole business at a glance: total/new/converted leads, active agents, recorded client account balances, and pipeline-stage gauges (Conversion Rate, New Lead Share, Qualified Rate, Needs Human Rate) you can slice by time frame (Today / 7 / 30 / 90 days / All Time) to spot trends, not just today's snapshot.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">CRM Development Progress</p>
+      <p style="color:var(--text-body);font-size:0.88rem">A running build log of the CRM itself - what's shipped, what's underway, what's still open - and the real project history as a set of phases from day one. This exists so you can see what's actually been built without asking; the "Send Update to Badar" button pushes the same content to your WhatsApp on demand.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Action Items With Badar</p>
+      <p style="color:var(--text-body);font-size:0.88rem">A shared daily to-do list between you and Muhammad, with a "To-Dos for Tomorrow" view and a performance chart tracking both of you - a missed item only counts against you if it's past due AND has no reason on file, so a genuine explanation is never scored as a failure.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">All Leads</p>
-      <p style="color:var(--text-body);font-size:0.88rem">The full list of every lead in the system, with filters by status, agent, and source, plus a search box. Open any lead here to see its full record.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Every lead in the system, across every agent - filter by status, agent, or source to check coverage and follow-up discipline across your whole team, not just one desk.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">My Team</p>
-      <p style="color:var(--text-body);font-size:0.88rem">The list of agents, their roles, and account status. Manage who has access here.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Every agent, their role, and account status - promote, suspend, or set who's actually in the new-lead rotation. This is a staffing/access control, not a to-do list.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Meta Ads</p>
-      <p style="color:var(--text-body);font-size:0.88rem">Live campaign metrics from Meta Ads Manager: impressions, clicks, cost per lead, spend, without leaving the CRM.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Live campaign metrics from Meta Ads Manager: impressions, clicks, cost per lead, spend - the marketing spend that's producing every lead everyone else in this CRM is working.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Add Lead</p>
-      <p style="color:var(--text-body);font-size:0.88rem">Manually create a single lead, or bulk-import many at once via CSV.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Import Leads</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Manually create a single lead, or bulk-import many at once via CSV - the entry point for leads that didn't come in through the connected channels below.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Omnichannel Inbox</p>
-      <p style="color:var(--text-body);font-size:0.88rem">The actual WhatsApp chat interface. Read and reply to leads directly here.</p>
-    </div>
-    <div class="card">
-      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Create Flow</p>
-      <p style="color:var(--text-body);font-size:0.88rem">A simple automation builder: set a trigger keyword and the reply to send. Create, edit, pause and delete rules here; they save to the database for real. The deployed webhook reads active rules, but <code>KEYWORD_REPLIES_ENABLED</code> remains off, so no customer reply is sent.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Every real WhatsApp, Facebook and Instagram conversation across every agent, ordered by real urgency (a deposit screenshot outranks a "thanks"). As admin this is your oversight view of what's actually happening customer-side right now, not just your own queue.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Bot Manager</p>
-      <p style="color:var(--text-body);font-size:0.88rem">Where the bot's system prompt and knowledge notes are managed per number. Create, edit, pause and delete training campaigns here; they save to the database for real. The deployed webhook can read the active campaign, but <code>AI_REPLIES_ENABLED</code> remains off, so it cannot answer a customer.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Where the bot's system prompt and knowledge notes are managed, and where the live reply gates (AI/Bot/Keyword replies) can be turned on or off for real, immediately, without a redeploy. This is the actual stop button if the bot needs to go quiet fast.</p>
     </div>
     <div class="card" style="border-left:3px solid var(--warn)">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">An agent's own number never gets a bot reply</p>
-      <p style="color:var(--text-body);font-size:0.88rem">If an agent texts the business number from their own phone (the same one saved as their contact in My Team), the webhook recognizes it as an agent, not a customer, and routes it to a separate path meant only for acknowledging lead-assignment notifications - a plain message like "Hi" is silently ignored there: no lead, no reply, no communications row. This is by design, not a fault to chase if an agent reports "the bot didn't reply to my test" - check whether the number they used is their own registered contact number first.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">If an agent texts the business number from their own phone (the same one saved as their contact in My Team), the webhook recognizes it as an agent, not a customer, and routes it to a separate path meant only for acknowledging lead-assignment notifications - a plain message like "Hi" is silently ignored there: no lead, no reply, no communications row. If an agent reports "the bot didn't reply to my test," check whether they used their own registered contact number first - it's by design, not a fault.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Follow-ups</p>
-      <p style="color:var(--text-body);font-size:0.88rem">Rules for nudging leads that go quiet: when a lead has sat in a given status for this many hours without moving, send this message. Create, edit, pause and delete them here; they save for real. The sender is built, but production currently has no cron job and <code>FOLLOW_UPS_ENABLED</code> remains off, so nothing is sent.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Manage Subscribers</p>
+      <p style="color:var(--text-body);font-size:0.88rem">The list of people who receive trading signals - a real table now, separate from your lead pipeline, since a subscriber isn't necessarily a lead being worked.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Message Templates</p>
-      <p style="color:var(--text-body);font-size:0.88rem">WhatsApp only allows free-form replies within 24 hours of a customer's last message; after that only a template Meta has approved can be sent. This is where that template copy lives, along with whether Meta has approved it. Templates are still created and approved in WhatsApp Manager, the status here is set by hand.</p>
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Meta Integration</p>
+      <p style="color:var(--text-body);font-size:0.88rem">WhatsApp Business API credentials, access tokens, and webhook settings, plus the live connection-health check. This is the backend wiring that everything customer-facing depends on - admin only for exactly that reason.</p>
+    </div>
+    <div class="card">
+      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Socials (Facebook / Instagram / TikTok)</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Each connected channel's own real status. Facebook and Instagram are staged the same way as the second WhatsApp number - real messages become real leads, no automated reply goes out yet. TikTok is marked honestly as not built, not hidden or hinted at as ready.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Comm Log</p>
-      <p style="color:var(--text-body);font-size:0.88rem">A running log of every communication (WhatsApp, call, email, note) across all leads, a quick overview without opening each lead individually.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">A running log of every communication - WhatsApp, call, email, note - across every lead and every agent. Where Omnichannel Inbox is a live conversation view, this is the audit trail: "did anyone follow up with this person," across the whole team, without opening each lead one by one.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Reports</p>
-      <p style="color:var(--text-body);font-size:0.88rem">Aggregated numbers: conversion rate, agent performance, lead source performance, financial summary.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Aggregated numbers: conversion rate, agent performance, lead source performance, financial summary - the business-level view, not any one lead's story.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Automation</p>
@@ -3315,27 +3323,19 @@
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Payroll</p>
-      <p style="color:var(--text-body);font-size:0.88rem">Agent payroll and commission tracking tied to converted leads.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Agent payroll and commission tracking tied to converted leads - a financial function, admin only by nature.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Broadcast Signal</p>
-      <p style="color:var(--text-body);font-size:0.88rem">Where a trading signal gets composed and sent out to subscribers.</p>
-    </div>
-    <div class="card">
-      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Subscribers</p>
-      <p style="color:var(--text-body);font-size:0.88rem">The list of people who receive signals. Currently placeholder data, a real rebuild is pending a decision on delivery mechanism.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Where a trading signal gets composed and sent out to subscribers - parked, sending disabled, until a real delivery mechanism is decided.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">AI Signals</p>
       <p style="color:var(--text-body);font-size:0.88rem">Automated signal generation. Currently a placeholder, pending a decision on whether to use real technical indicators or human-picked signals.</p>
     </div>
     <div class="card">
-      <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Meta Integration</p>
-      <p style="color:var(--text-body);font-size:0.88rem">WhatsApp Business API credentials, access tokens, and webhook settings. Backend wiring, admin only.</p>
-    </div>
-    <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Notifications</p>
-      <p style="color:var(--text-body);font-size:0.88rem">Settings for what alerts fire and to whom.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Settings for what alerts fire and to whom - who actually gets pinged when a lead needs attention, across your whole team.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Sites</p>
@@ -3343,7 +3343,7 @@
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">User Manager</p>
-      <p style="color:var(--text-body);font-size:0.88rem">Every admin and agent with access to this CRM - promote, suspend, or check when someone joined. Admin only.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Every admin and agent with access to this CRM - promote, suspend, or check when someone joined. Who can get in at all, not what any one person is doing.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">User Permission</p>
@@ -3351,7 +3351,7 @@
     </div>
     <div class="card" style="background:var(--surface-soft)">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">A note on agent access</p>
-      <p style="color:var(--text-body);font-size:0.88rem">Agents see only leads assigned to them and the records attached to those leads. Reports, Automation, Payroll, and Settings stay admin-only.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Agents see only leads assigned to them and the records attached to those leads. CRM Development Progress, Action Items With Badar, Reports, Automation, Payroll, and Settings stay admin-only - the sections that describe running the business, not working an individual lead.</p>
     </div>
   </div>
 
@@ -4227,27 +4227,27 @@
   <!-- Guide (agent's own subset - admin sees every section, see admin-tab-guide) -->
   <div id="agent-tab-guide" class="tab-content">
     <h3>Guide</h3>
-    <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:18px">What each section of your dashboard is for.</p>
+    <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:18px">What each section of your dashboard is for, and why it matters for your own day-to-day - working your assigned leads, not running the business. Admins see a fuller version of this Guide, written for their own view of things.</p>
 
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Dashboard</p>
-      <p style="color:var(--text-body);font-size:0.88rem">Your home screen: quick stats on leads and your recent activity.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Your home screen: quick stats on your own leads and recent activity - a check-in on your own workload, not the whole team's.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">My Leads</p>
-      <p style="color:var(--text-body);font-size:0.88rem">The leads assigned to your account. Open a lead here to see its related record and activity.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Only the leads assigned to you. Open one here to see its full record and history - this is your actual worklist, the thing to check first each day.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Omnichannel Inbox</p>
-      <p style="color:var(--text-body);font-size:0.88rem">The actual WhatsApp chat interface. Read and reply to leads directly here.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">The real WhatsApp (and, where connected, Facebook/Instagram) chat interface for your own assigned conversations, ordered so the ones that need you most - a deposit screenshot, an explicit request for a human - surface first, not just whoever messaged most recently.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Comm Log</p>
-      <p style="color:var(--text-body);font-size:0.88rem">A running log of communications for your assigned leads, without opening each lead individually.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">A running log of communications for your own assigned leads only - a quick way to check "did I already follow up with this person" without opening each lead one by one.</p>
     </div>
     <div class="card">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Log Activity</p>
-      <p style="color:var(--text-body);font-size:0.88rem">Record a call, WhatsApp message, email, or note against one of your assigned leads, with an optional follow-up date.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">Record a call, WhatsApp message, email, or note against one of your own leads, with an optional follow-up date - this is how your own manual work (not the bot's) gets tracked at all.</p>
     </div>
     <div class="card" style="border-left:3px solid var(--warn)">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Don't test the bot from your own phone</p>
@@ -4255,7 +4255,7 @@
     </div>
     <div class="card" style="background:var(--surface-soft)">
       <p style="font-weight:700;color:var(--text-strong);margin-bottom:6px">Not shown here</p>
-      <p style="color:var(--text-body);font-size:0.88rem">Reports, Automation, Payroll, and Settings stay admin-only.</p>
+      <p style="color:var(--text-body);font-size:0.88rem">CRM Development Progress, Action Items With Badar, Reports, Automation, Payroll, and Settings stay admin-only - those describe running the business as a whole, not working your own leads.</p>
     </div>
   </div>
 

@@ -145,10 +145,15 @@ assert.doesNotMatch(
   /no scheduled job reads (?:these rules|this table)/i,
   'Follow-up copy must not claim the built sender is missing.',
 );
+// Corrected 2026-08-30: AI_REPLIES_ENABLED stopped being a hardcoded "off"
+// constant back on 2026-08-23 (it's a real settings-backed toggle now) and
+// the bot has genuinely been answering real customers with it since
+// 2026-08-19 - asserting "remains off" would be asserting a stale, wrong
+// claim back into existence.
 assert.match(
   html,
-  /The deployed webhook can read the active campaign[\s\S]*AI_REPLIES_ENABLED[\s\S]*remains off/,
-  'The Guide must report the deployed AI integration and its disabled live-send gate accurately.',
+  /AI_REPLIES_ENABLED[\s\S]*is a live toggle read from[\s\S]*settings[\s\S]*currently[\s\S]*on/,
+  'The Guide must report the deployed AI integration and its live, currently-on reply gate accurately.',
 );
 assert.doesNotMatch(
   html,
