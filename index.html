@@ -776,7 +776,12 @@
        Conversion Rate). No invented metric like a fabricated "SLA met" stat -
        this dashboard doesn't track response-time SLAs against a target, so
        showing one would be a fake number on a live business dashboard. */
-    .kpi-gauge-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+    /* A grid instead of flex-wrap on purpose: with 4 gauges now (was 2), flex-wrap
+       left the 4th one stranded alone on its own row on real screen widths
+       instead of 4 even boxes in one row - found live, 2026-08-30. auto-fit +
+       minmax gives equal-width boxes that fill one row when there's room and
+       wrap evenly (not lopsided) on narrower ones. */
+    .kpi-gauge-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px; }
     @keyframes ai-live-pulse {
       0%   { box-shadow: 0 0 0 0 rgba(31,143,95,.6); }
       70%  { box-shadow: 0 0 0 6px rgba(31,143,95,0); }
@@ -785,7 +790,7 @@
     .kpi-gauge {
       background: #fff; border: 1px solid #e5e8ef; border-radius: 10px;
       padding: 18px 22px; box-shadow: 0 1px 3px rgba(0,0,0,.1);
-      display: flex; align-items: center; gap: 16px; flex: 0 1 300px; min-width: 220px; max-width: 340px;
+      display: flex; align-items: center; gap: 16px;
     }
     .kpi-gauge-svg { width: 68px; height: 68px; flex-shrink: 0; transform: rotate(-90deg); }
     .kpi-gauge-track { fill: none; stroke: var(--n-100); stroke-width: 8; }
@@ -9829,12 +9834,15 @@ const CRM_DEV_PROGRESS = {
 function renderProgressList(elId, items, dated) {
   const el = document.getElementById(elId);
   if (!el) return;
-  el.innerHTML = items.length ? items.map(item => `
-    <div style="background:var(--surface-soft);border-radius:8px;padding:10px 12px">
-      ${dated ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:3px">${esc(item.date)}${item.time ? ' &middot; ' + esc(item.time) : ''}</div>` : ''}
-      <div style="font-size:0.85rem;color:var(--text-body);line-height:1.4;display:flex;align-items:flex-start;gap:6px">
-        ${item.liveInProgress ? '<span title="Real-time work in progress right now" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#1f8f5f;margin-top:5px;flex-shrink:0;box-shadow:0 0 0 rgba(31,143,95,.6);animation:ai-live-pulse 1.6s infinite"></span>' : ''}
-        <span>${esc(item.text)}</span>
+  el.innerHTML = items.length ? items.map((item, i) => `
+    <div style="background:var(--surface-soft);border-radius:8px;padding:10px 12px;display:flex;gap:8px">
+      <span style="font-size:0.78rem;font-weight:700;color:var(--text-muted);flex-shrink:0;min-width:18px">${i + 1}.</span>
+      <div style="flex:1;min-width:0">
+        ${dated ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:3px">${esc(item.date)}${item.time ? ' &middot; ' + esc(item.time) : ''}</div>` : ''}
+        <div style="font-size:0.85rem;color:var(--text-body);line-height:1.4;display:flex;align-items:flex-start;gap:6px">
+          ${item.liveInProgress ? '<span title="Real-time work in progress right now" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#1f8f5f;margin-top:5px;flex-shrink:0;box-shadow:0 0 0 rgba(31,143,95,.6);animation:ai-live-pulse 1.6s infinite"></span>' : ''}
+          <span>${esc(item.text)}</span>
+        </div>
       </div>
     </div>`).join('') : `<div style="padding:14px;color:var(--text-muted);font-size:0.82rem;background:var(--surface-soft);border-radius:8px">Nothing here right now.</div>`;
 }
