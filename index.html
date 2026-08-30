@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Badar Trader CRM</title>
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg?v=2" />
+  <!-- PWA: lets agents and Badar "Add to Home Screen" and use this like an
+       installed app on their phones. sw.js is deliberately a pass-through -
+       see its own comment - it caches nothing, only unlocks installability. -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/assets/pwa-icons/apple-touch-icon.png" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Badar CRM" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
@@ -4314,6 +4324,16 @@ window.addEventListener('DOMContentLoaded', () => {
       const item = e.target.closest('.nav-item[data-tab]');
       if (!item) return;
       adminTab(item.dataset.tab, item);
+    });
+  }
+
+  // PWA install support. sw.js is a deliberate pass-through (see its own
+  // comment) - it caches nothing, it only satisfies the browser's
+  // installability requirement. Registration failing (unsupported browser,
+  // blocked by an extension) must never break the CRM itself.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.warn('Service worker registration failed (PWA install may be unavailable):', err);
     });
   }
 
