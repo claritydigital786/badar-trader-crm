@@ -1618,8 +1618,23 @@
 
   <!-- Dashboard -->
   <div id="admin-tab-dashboard" class="tab-content active">
-    <h3>Welcome Back, <span id="dash-admin-name">Badar Tanveer</span></h3>
-    <p style="color:var(--text-muted);font-size:0.85rem;margin:2px 0 18px">Here's what's happening with your pipeline today.</p>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div>
+        <h3>Welcome Back, <span id="dash-admin-name">Badar Tanveer</span></h3>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin:2px 0 0">Here's what's happening with your pipeline today.</p>
+      </div>
+      <div>
+        <label style="display:block;font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Time Frame</label>
+        <select id="dash-range-select" onchange="renderDashboardStats()" style="padding:7px 10px;font-size:0.82rem;border-radius:8px;border:1px solid var(--line);background:var(--surface-soft);color:var(--text-strong)">
+          <option value="all">All Time</option>
+          <option value="today">Today</option>
+          <option value="7d">Last 7 Days</option>
+          <option value="30d">Last 30 Days</option>
+          <option value="90d">Last 90 Days</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin:14px 0 18px"></div>
     <div class="kpi-gauge-row">
       <div class="kpi-gauge">
         <svg class="kpi-gauge-svg" viewBox="0 0 68 68">
@@ -9332,12 +9347,32 @@ async function fetchAllLeadsForDashboard() {
   return all;
 }
 
+// Time-frame filter for the Dashboard (Muhammad's request, 2026-08-30):
+// slices the already-fetched full lead set by created_at, client-side, so
+// the 1000-row-pagination fix above stays intact - this never changes what
+// gets fetched, only what's summed afterward. "Today" uses the workspace's
+// own configured timezone (zonedDaySerial), same convention All Leads'
+// existing "Added" date filter already uses, not the browser's local time.
+function filterLeadsByDashRange(leads) {
+  const range = document.getElementById('dash-range-select')?.value || 'all';
+  if (range === 'all') return leads;
+  const now = new Date();
+  if (range === 'today') {
+    const todaySerial = zonedDaySerial(now);
+    return leads.filter(l => zonedDaySerial(new Date(l.created_at)) === todaySerial);
+  }
+  const days = { '7d': 7, '30d': 30, '90d': 90 }[range] || 0;
+  const since = now.getTime() - days * 86400000;
+  return leads.filter(l => new Date(l.created_at).getTime() >= since);
+}
+
 function renderDashboardStats() {
   const el = id => document.getElementById(id);
   if (demoMode) {
-    if (el('dash-total-leads')) el('dash-total-leads').textContent = _DEMO_LEADS.length;
-    if (el('dash-new-leads'))   el('dash-new-leads').textContent   = _DEMO_LEADS.filter(l => l.status === 'new').length;
-    if (el('dash-converted'))   el('dash-converted').textContent   = _DEMO_LEADS.filter(l => l.status === 'converted').length;
+    const demoLeads = filterLeadsByDashRange(_DEMO_LEADS);
+    if (el('dash-total-leads')) el('dash-total-leads').textContent = demoLeads.length;
+    if (el('dash-new-leads'))   el('dash-new-leads').textContent   = demoLeads.filter(l => l.status === 'new').length;
+    if (el('dash-converted'))   el('dash-converted').textContent   = demoLeads.filter(l => l.status === 'converted').length;
     if (el('dash-agents'))      el('dash-agents').textContent      = _DEMO_PROFILES.filter(p => p.role === 'agent' && !p.is_suspended).length;
     if (el('dash-revenue'))     el('dash-revenue').textContent     = '$47,250';
     // Demo follow-ups
@@ -9351,7 +9386,7 @@ function renderDashboardStats() {
         <div><div style="color:var(--text-strong);font-size:0.85rem;font-weight:600">Ayesha Malik</div><div style="color:var(--text-muted);font-size:0.76rem">Send crypto signals starter pack</div></div>
         <span style="color:var(--text-muted);font-size:0.78rem;white-space:nowrap">Tomorrow</span>
       </div>`;
-    renderDashboardCharts(_DEMO_LEADS);
+    renderDashboardCharts(demoLeads);
     // The live path's loadDashMetaAds() call sits below this function's early
     // return, so it was never reached in demo mode at all - the panel was
     // stuck on its static "Loading campaign metrics..." markup forever.
@@ -9364,7 +9399,8 @@ function renderDashboardStats() {
     return;
   }
   if (el('dash-agents')) el('dash-agents').textContent = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended).length;
-  fetchAllLeadsForDashboard().then(leads => {
+  fetchAllLeadsForDashboard().then(allLeads => {
+    const leads = filterLeadsByDashRange(allLeads);
     if (el('dash-total-leads')) el('dash-total-leads').textContent = leads.length;
     if (el('dash-new-leads'))   el('dash-new-leads').textContent   = leads.filter(l => l.status === 'new').length;
     if (el('dash-converted'))   el('dash-converted').textContent   = leads.filter(l => l.status === 'converted').length;
