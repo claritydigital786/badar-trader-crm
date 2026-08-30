@@ -266,6 +266,12 @@
     }
     .nav-caret:hover { background: rgba(15,23,42,.06); color: #334155; border-color: rgba(51,65,85,.4); }
     .nav-caret.collapsed { transform: rotate(-90deg); }
+    /* Sits in front of the section's label instead of the default trailing
+       position (margin-left:auto pushing it to the far right) - Muhammad's
+       request, 2026-08-31, comparing it to how the plain "LEADS" section
+       label reads before its items. Scoped to whichever group opts in via
+       this modifier, not a change to every collapsible nav group's caret. */
+    .nav-caret-leading { margin-left: 0; margin-right: 8px; }
     .nav-subgroup.collapsed { display: none; }
     [data-theme="dark"] .nav-caret { color: #94a3b8; border-color: rgba(255,255,255,.18); }
     [data-theme="dark"] .nav-caret:hover { background: rgba(255,255,255,.08); color: #f1f5f9; border-color: rgba(255,255,255,.35); }
@@ -1590,8 +1596,8 @@
       <div class="nav-item" data-tab="bot-manager"><span class="nav-icon" data-nav-icon="bot" style="background:var(--tint-sky-bg)"></span> Bot Manager</div>
       <div class="nav-item" data-tab="meta"><span class="nav-icon" data-nav-icon="link" style="background:var(--tint-gold-bg)"></span> Meta Integration</div>
       <div class="nav-item" data-tab="social-facebook">
+        <span class="nav-caret nav-caret-leading" id="socials-caret" title="Show or hide Socials items" onclick="toggleNavSubgroup(event,'socials-subgroup','socials-caret')">▾</span>
         <span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Socials
-        <span class="nav-caret" id="socials-caret" title="Show or hide Socials items" onclick="toggleNavSubgroup(event,'socials-subgroup','socials-caret')">▾</span>
       </div>
       <div class="nav-subgroup" id="socials-subgroup">
         <div class="nav-item" data-tab="social-facebook"><span class="nav-icon" data-nav-icon="facebook" style="background:var(--tint-sky-bg)"></span> Facebook</div>
