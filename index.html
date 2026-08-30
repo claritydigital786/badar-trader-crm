@@ -1757,48 +1757,33 @@
     </div>
   </div>
 
-  <!-- Progress: rolled-up numbers + a live feed of individual events, for
-       Badar to see how things are moving without opening every tab. Read-only
-       - nothing here writes to a lead or a conversation. -->
+  <!-- CRM Development Progress: what's been built, what's underway, what's
+       still open - a build/changelog view for Badar, not a leads/sales
+       dashboard (that's the Dashboard tab). Re-scoped 2026-08-30 after
+       Muhammad clarified this is what he actually meant by "progress" -
+       the first version wrongly showed lead/conversion/deposit numbers.
+       Content is curated (see CRM_DEV_PROGRESS below), not queried from
+       leads/communications - there is no live database read on this tab. -->
   <div id="admin-tab-progress" class="tab-content">
     <h3>CRM Development Progress</h3>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-      <div class="btn-group" style="display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden">
-        <button class="progress-range-btn active" data-range="today" style="padding:7px 16px;border:none;background:var(--accent);color:#1a1400;font-weight:700;font-size:0.82rem;cursor:pointer">Today</button>
-        <button class="progress-range-btn" data-range="week" style="padding:7px 16px;border:none;background:transparent;color:var(--text-body);font-weight:600;font-size:0.82rem;cursor:pointer;border-left:1px solid var(--line)">This Week</button>
-      </div>
-      <span style="color:var(--text-muted);font-size:0.78rem">Read-only summary - nothing here changes a lead or a conversation</span>
+      <span style="color:var(--text-muted);font-size:0.78rem">What's been built, what's in progress, and what's still open - read-only, changes nothing</span>
       <button id="progress-notify-badar-btn" onclick="sendProgressUpdateToBadar()" style="margin-left:auto;padding:7px 16px;border:1px solid var(--accent);border-radius:8px;background:transparent;color:var(--accent);font-weight:700;font-size:0.82rem;cursor:pointer">Send Update to Badar</button>
     </div>
     <div id="progress-notify-msg" style="margin-bottom:12px;font-size:0.82rem"></div>
 
-    <div id="progress-stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px">
-      <div class="stat-card" style="background:var(--surface-soft);border-radius:10px;padding:16px">
-        <div style="color:var(--text-muted);font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">New Leads</div>
-        <div id="prog-new-leads" style="font-size:1.9rem;font-weight:700;color:var(--text-strong);margin-top:4px">--</div>
-      </div>
-      <div class="stat-card" style="background:var(--surface-soft);border-radius:10px;padding:16px">
-        <div style="color:var(--text-muted);font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Converted</div>
-        <div id="prog-converted" style="font-size:1.9rem;font-weight:700;color:var(--ok);margin-top:4px">--</div>
-      </div>
-      <div class="stat-card" style="background:var(--surface-soft);border-radius:10px;padding:16px">
-        <div style="color:var(--text-muted);font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Deposits Recorded</div>
-        <div id="prog-deposits" style="font-size:1.9rem;font-weight:700;color:var(--accent);margin-top:4px">--</div>
-      </div>
-      <div class="stat-card" style="background:var(--surface-soft);border-radius:10px;padding:16px">
-        <div style="color:var(--text-muted);font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Active Agents</div>
-        <div id="prog-active-agents" style="font-size:1.9rem;font-weight:700;color:var(--text-strong);margin-top:4px">--</div>
-      </div>
-    </div>
-
     <div style="display:flex;gap:20px;flex-wrap:wrap">
-      <div style="flex:1;min-width:260px">
-        <h4 style="margin:0 0 10px 0;font-size:0.85rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em">By Agent</h4>
-        <div id="progress-agent-breakdown" style="display:flex;flex-direction:column;gap:1px;border-radius:10px;overflow:hidden;border:1px solid var(--line)"></div>
+      <div style="flex:1;min-width:280px">
+        <h4 style="margin:0 0 10px 0;font-size:0.85rem;color:var(--ok);text-transform:uppercase;letter-spacing:0.05em">✅ Recently Completed</h4>
+        <div id="progress-completed-list" style="display:flex;flex-direction:column;gap:8px"></div>
       </div>
-      <div style="flex:2;min-width:320px">
-        <h4 style="margin:0 0 10px 0;font-size:0.85rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em">Live Activity</h4>
-        <div id="progress-feed" style="display:flex;flex-direction:column;gap:8px;max-height:520px;overflow-y:auto"></div>
+      <div style="flex:1;min-width:280px">
+        <h4 style="margin:0 0 10px 0;font-size:0.85rem;color:var(--warn);text-transform:uppercase;letter-spacing:0.05em">🔄 In Progress</h4>
+        <div id="progress-inprogress-list" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+      <div style="flex:1;min-width:280px">
+        <h4 style="margin:0 0 10px 0;font-size:0.85rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em">📋 Upcoming / Awaiting Decision</h4>
+        <div id="progress-upcoming-list" style="display:flex;flex-direction:column;gap:8px"></div>
       </div>
     </div>
   </div>
@@ -9502,181 +9487,61 @@ function renderDashboardCharts(leads) {
 }
 
 // ── CRM DEVELOPMENT PROGRESS ────────────────────────────────────
-// Read-only summary + live feed for Badar: rolled-up numbers (New Leads /
-// Converted / Deposits Recorded / Active Agents) for Today or This Week, plus
-// a per-agent breakdown and a merged activity feed. Nothing here writes to a
-// lead, a conversation, or account_balance - it only reads what other tabs
-// already write. "Deposits Recorded" is deliberately not called "Verified" -
-// account_balance is still a plain agent-typed field with no audit trail
-// (see REMAINING_TODOS.md, 2026-08-30) - this tab must not imply a certainty
-// the underlying data doesn't have yet.
-let _progressRange = 'today';
+// A build/changelog view for Badar - what's been built, what's underway,
+// what's still open - NOT a leads/sales dashboard (that's the Dashboard tab;
+// the first version of this tab wrongly showed lead/conversion/deposit
+// numbers, corrected 2026-08-30 once Muhammad clarified what he actually
+// meant). Content is curated by whoever is actively developing the CRM -
+// there is no live database read here, and nothing on this tab can write to
+// a lead or a conversation. Keep entries short, dated, and in plain language
+// Badar (not a developer) can follow without translation. Update this array
+// directly when real work ships, in the same session that ships it - stale
+// entries here are worse than none, since Badar has no other way to check.
+const CRM_DEV_PROGRESS = {
+  completed: [
+    { date: '2026-08-30', text: 'New lead notifications now arrive instantly for every genuinely new lead - fixed a bug where they could be delayed or silently skipped.' },
+    { date: '2026-08-30', text: 'Deposit accuracy safeguard added: a lead’s recorded balance now locks once its conversion is approved, approving requires a deposit screenshot on file, and every change to a balance is logged with who/when/why.' },
+    { date: '2026-08-30', text: 'This CRM Development Progress page - so you can see what’s built, in progress, or upcoming without asking.' },
+    { date: '2026-08-30', text: 'The CRM can now be installed as an app on a phone (Add to Home Screen) for you and your agents.' },
+    { date: '2026-08-30', text: 'Fixed a Quick Links bug in the Omnichannel Inbox where broker links looked clickable but weren’t.' },
+    { date: '2026-08-28', text: 'Fixed a bug where a customer who had gone quiet for weeks could get a confusing, out-of-context reply when they came back.' },
+    { date: '2026-08-27', text: 'Facebook & Instagram added as a new connected channel - currently receiving messages only, automated replies not yet turned on.' },
+    { date: '2026-08-27', text: 'A second WhatsApp number (3903) connected for visibility - real messages come in, no automated replies sent from it yet.' },
+    { date: '2026-08-23', text: 'Fixed a bug where the bot could send two conflicting replies to the same customer message.' },
+  ],
+  inProgress: [
+    { text: 'A proposal for Badar: getting API access from Exness and XM, so deposit amounts can be independently verified against the broker’s own records instead of only recorded from what an agent enters.' },
+    { text: 'Turning the on-demand "Send Update to Badar" button into a recurring scheduled update, once the on-demand version has been used a few times.' },
+  ],
+  upcoming: [
+    { text: 'A full WhatsApp number-management page (add/remove numbers, connection health) - a first design has already been reviewed, awaiting the go-ahead to build it for real.' },
+    { text: 'Turning on real automated replies for the Facebook & Instagram channel (currently receiving messages only).' },
+    { text: 'A decision on the mobile-app path (installable-app version already live today; a full App Store / Play Store listing is a separate, bigger decision).' },
+  ],
+};
 
-async function fetchLeadsForProgress() {
-  const pageSize = 1000;
-  let all = [];
-  for (let start = 0; ; start += pageSize) {
-    const { data, error } = await sb
-      .from('leads')
-      .select('id, full_name, status, assigned_agent_id, account_balance, created_at, updated_at, converted_at')
-      .range(start, start + pageSize - 1);
-    if (error) { console.error('fetchLeadsForProgress:', error); break; }
-    all = all.concat(data || []);
-    if (!data || data.length < pageSize) break;
-  }
-  return all;
+function renderProgressList(elId, items, dated) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.innerHTML = items.length ? items.map(item => `
+    <div style="background:var(--surface-soft);border-radius:8px;padding:10px 12px">
+      ${dated ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:3px">${esc(item.date)}</div>` : ''}
+      <div style="font-size:0.85rem;color:var(--text-body);line-height:1.4">${esc(item.text)}</div>
+    </div>`).join('') : `<div style="padding:14px;color:var(--text-muted);font-size:0.82rem;background:var(--surface-soft);border-radius:8px">Nothing here right now.</div>`;
 }
 
-async function fetchProgressFeedEvents(sinceIso) {
-  // System-generated log lines only (assignment/notification/escalation) -
-  // the same square-bracket convention loadCommLog's "auto" half already
-  // reads, not raw customer chat.
-  const { data, error } = await sb
-    .from('communications')
-    .select('id, lead_id, body, created_at, leads(full_name)')
-    .eq('direction', 'outbound')
-    .ilike('body', '[%')
-    .gte('created_at', sinceIso)
-    .order('created_at', { ascending: false })
-    .limit(60);
-  if (error) { console.error('fetchProgressFeedEvents:', error); return []; }
-  return data || [];
-}
-
-function progressRangeSince(range) {
-  const now = new Date();
-  if (range === 'today') {
-    // Midnight in the workspace's own configured timezone, not the browser's.
-    return new Date(zonedDaySerial(now) * 86400000).toISOString();
-  }
-  // "This Week" = trailing 7 days, not calendar week - simpler and avoids a
-  // Monday-vs-Sunday argument nobody asked for.
-  return new Date(now.getTime() - 7 * 86400000).toISOString();
-}
-
-function progressEventLine(body) {
-  // Turns the comm-log's own bracketed system lines into something a
-  // non-technical reader (Badar) can follow at a glance, without inventing a
-  // second copy of the same logic elsewhere.
-  let m;
-  if ((m = body.match(/^\[assigned to (.+?), notified\]/)))               return { icon: '📨', text: `New lead assigned to ${m[1]}` };
-  if ((m = body.match(/^\[assigned to (.+?), NOT notified/)))             return { icon: '📨', text: `New lead assigned to ${m[1]}` };
-  if ((m = body.match(/^\[agent (.+?) notified of escalation\]/)))        return { icon: '🚩', text: `${m[1]} alerted - lead needs a human` };
-  if ((m = body.match(/^\[escalated to human: (.+?)\]/)))                 return { icon: '🚩', text: `Escalated to a human agent - ${m[1]}` };
-  if ((m = body.match(/^\[previously assigned agent is no longer active - reassigned to (.+?)\]/))) return { icon: '🔁', text: `Lead reassigned to ${m[1]}` };
-  return null; // Anything else (delivery ticks, gate/test-mode notes, etc.) is internal plumbing, not progress worth showing Badar.
-}
-
-function renderProgressStats({ newLeads, converted, depositTotal, depositCount, activeAgents, agentBreakdown, feedItems }) {
-  const el = id => document.getElementById(id);
-  if (el('prog-new-leads'))     el('prog-new-leads').textContent = newLeads;
-  if (el('prog-converted'))     el('prog-converted').textContent = converted;
-  if (el('prog-deposits'))      el('prog-deposits').textContent = depositCount ? `$${fmtMoney(depositTotal)}` : '$0';
-  if (el('prog-active-agents')) el('prog-active-agents').textContent = activeAgents;
-
-  const breakdownEl = el('progress-agent-breakdown');
-  if (breakdownEl) {
-    breakdownEl.innerHTML = agentBreakdown.length ? agentBreakdown.map(a => `
-      <div style="background:var(--surface-soft);padding:11px 14px;display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:0.85rem;color:var(--text-body)">${esc(a.name)}</span>
-        <span style="font-size:0.85rem;font-weight:700;color:var(--ok)">${a.count}</span>
-      </div>`).join('') : `<div style="padding:14px;color:var(--text-muted);font-size:0.82rem;background:var(--surface-soft)">No conversions in this range yet.</div>`;
-  }
-
-  const feedEl = el('progress-feed');
-  if (feedEl) {
-    feedEl.innerHTML = feedItems.length ? feedItems.map(f => `
-      <div style="background:var(--surface-soft);border-radius:8px;padding:10px 12px;display:flex;align-items:flex-start;gap:10px">
-        <span style="font-size:1rem;line-height:1.3">${f.icon}</span>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:0.85rem;color:var(--text-body)">${esc(f.text)}</div>
-          <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">${fmtDateTime(f.at)}</div>
-        </div>
-      </div>`).join('') : `<div style="padding:16px;color:var(--text-muted);font-size:0.85rem;background:var(--surface-soft);border-radius:8px">No activity in this range yet.</div>`;
-  }
-}
-
-function computeProgressFromLeads(leads, sinceIso, feedEvents) {
-  const since = new Date(sinceIso).getTime();
-  const agents = (demoMode ? _DEMO_PROFILES : cachedProfiles).filter(p => p.role === 'agent');
-  const agentName = id => agents.find(a => a.id === id)?.full_name || 'Unassigned';
-
-  const newLeadsList  = leads.filter(l => new Date(l.created_at).getTime() >= since);
-  const convertedList = leads.filter(l => l.status === 'converted' && new Date(l.converted_at || l.updated_at).getTime() >= since);
-  const depositList   = leads.filter(l => Number(l.account_balance) > 0 && new Date(l.converted_at || l.updated_at).getTime() >= since);
-  const depositTotal  = depositList.reduce((s, l) => s + Number(l.account_balance || 0), 0);
-
-  const perAgent = {};
-  convertedList.forEach(l => { const n = agentName(l.assigned_agent_id); perAgent[n] = (perAgent[n] || 0) + 1; });
-  const agentBreakdown = Object.entries(perAgent).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
-
-  const feedItems = [];
-  newLeadsList.forEach(l  => feedItems.push({ icon: '🆕', text: `New lead: ${l.full_name}`,        at: l.created_at }));
-  convertedList.forEach(l => feedItems.push({ icon: '✅', text: `${l.full_name} converted`,          at: l.converted_at || l.updated_at }));
-  (feedEvents || []).forEach(e => {
-    const parsed = progressEventLine(e.body || '');
-    if (parsed) feedItems.push({ icon: parsed.icon, text: `${parsed.text}${e.leads?.full_name ? ' - ' + e.leads.full_name : ''}`, at: e.created_at });
-  });
-  feedItems.sort((a, b) => new Date(b.at) - new Date(a.at));
-
-  return {
-    newLeads: newLeadsList.length,
-    converted: convertedList.length,
-    depositTotal, depositCount: depositList.length,
-    activeAgents: agents.filter(p => !p.is_suspended).length,
-    agentBreakdown,
-    feedItems: feedItems.slice(0, 30),
-  };
-}
-
-async function renderProgressTab() {
-  document.querySelectorAll('.progress-range-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.range === _progressRange);
-    btn.style.background = btn.dataset.range === _progressRange ? 'var(--accent)' : 'transparent';
-    btn.style.color = btn.dataset.range === _progressRange ? '#1a1400' : 'var(--text-body)';
-    btn.onclick = () => { _progressRange = btn.dataset.range; renderProgressTab(); };
-  });
-
-  const sinceIso = progressRangeSince(_progressRange);
-
-  if (demoMode) {
-    // This branch only ever runs from the localhost dev-preview URL
-    // (?demo-preview=1) - the real deployed app never reaches it, so Badar
-    // can never see this. Demo data is fixed at 2026-06 dates, so filtering
-    // it against the real wall clock would always show zero - same reason
-    // the Dashboard's demo revenue figure is a flat hardcoded string rather
-    // than computed. Shown as a representative snapshot instead, clearly not
-    // live-computed - but the names in it are the REAL current agent roster
-    // (checked live 2026-08-30), not invented ones, so a preview never shows
-    // a name nobody on the team recognises.
-    const converted = _DEMO_LEADS.filter(l => l.status === 'converted');
-    renderProgressStats({
-      newLeads: _DEMO_LEADS.filter(l => l.status === 'new').length,
-      converted: converted.length,
-      depositTotal: converted.reduce((s, l) => s + Number(l.account_balance || 0), 0),
-      depositCount: converted.length,
-      activeAgents: _DEMO_PROFILES.filter(p => p.role === 'agent').length,
-      agentBreakdown: [{ name: 'Ehsan Wazir', count: 1 }, { name: 'Farwa Qazi', count: 1 }],
-      feedItems: [
-        { icon: '✅', text: 'Zara Sheikh converted - agent Ehsan Wazir',  at: '2026-05-25T16:00:00Z' },
-        { icon: '✅', text: 'Bilal Khan converted - agent Farwa Qazi',    at: '2026-05-30T08:20:00Z' },
-        { icon: '🆕', text: 'New lead: Omar Farooq',                     at: '2026-06-20T09:15:00Z' },
-      ],
-    });
-    return;
-  }
-
-  const [leads, feedEvents] = await Promise.all([
-    fetchLeadsForProgress(),
-    fetchProgressFeedEvents(sinceIso),
-  ]);
-  renderProgressStats(computeProgressFromLeads(leads, sinceIso, feedEvents));
+function renderProgressTab() {
+  renderProgressList('progress-completed-list', CRM_DEV_PROGRESS.completed, true);
+  renderProgressList('progress-inprogress-list', CRM_DEV_PROGRESS.inProgress, false);
+  renderProgressList('progress-upcoming-list', CRM_DEV_PROGRESS.upcoming, false);
 }
 
 // Manual trigger for now, not a schedule - see REMAINING_TODOS.md,
-// 2026-08-30. Sends the same summary shape as this tab's own stats, computed
-// server-side in notify-admin-progress so the browser never handles Badar's
-// WhatsApp number or credentials.
+// 2026-08-30. Sends the SAME curated CRM_DEV_PROGRESS content this tab shows
+// (passed in the request body) so there is one source of truth for what
+// "recent progress" means, not a second copy of the list maintained
+// separately on the server. notify-admin-progress only formats it and holds
+// the WhatsApp credentials, which never reach the browser.
 async function sendProgressUpdateToBadar() {
   const btn = document.getElementById('progress-notify-badar-btn');
   const msgEl = document.getElementById('progress-notify-msg');
@@ -9687,7 +9552,7 @@ async function sendProgressUpdateToBadar() {
   if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
   if (msgEl) msgEl.textContent = '';
   try {
-    const { data, error } = await sb.functions.invoke('notify-admin-progress', { body: {} });
+    const { data, error } = await sb.functions.invoke('notify-admin-progress', { body: { progress: CRM_DEV_PROGRESS } });
     if (error || !data?.ok) {
       const reason = data?.error || error?.message || 'Unknown error';
       if (msgEl) { msgEl.style.color = 'var(--bad)'; msgEl.textContent = `Not sent: ${reason}`; }

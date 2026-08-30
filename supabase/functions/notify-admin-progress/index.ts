@@ -1,20 +1,22 @@
 // Sends Badar a WhatsApp text summarising the CRM Development Progress tab's
-// own numbers (New Leads / Converted / Deposits Recorded / Active Agents,
-// plus the most recent activity), on demand - triggered by an admin clicking
-// "Send Update to Badar" in that tab. Not yet on a schedule; that is a
-// deliberate fast-follow (see REMAINING_TODOS.md, 2026-08-30) once this
-// manual path is proven.
+// own curated content (recently completed / in progress / upcoming), on
+// demand - triggered by an admin clicking "Send Update to Badar" in that tab.
+// Not yet on a schedule; that is a deliberate fast-follow (see
+// REMAINING_TODOS.md, 2026-08-30) once this manual path is proven.
+//
+// Re-scoped 2026-08-30: this originally summarised lead/conversion/deposit
+// numbers, which was the WRONG content - Muhammad clarified he wants a
+// build/changelog view (what's been built, what's underway, what's still
+// open), not a sales dashboard. The browser is the single source of truth
+// for that curated list (CRM_DEV_PROGRESS in index.html) and passes it in
+// the request body; this function only formats it and holds the WhatsApp
+// credentials, which never reach the browser.
 //
 // Reuses the exact patterns already established elsewhere in this repo:
 // - env-first / settings-fallback WhatsApp credentials (whatsapp-webhook's
 //   getWaCredentials, send-wa-message's getWaCredentials).
 // - the existing `admin_whatsapp_number` settings key, already the
 //   destination notify-admin-pending-approval sends to.
-// - "Deposits Recorded" is deliberately worded as recorded, not verified -
-//   account_balance is still a plain agent-typed field with no audit trail
-//   as of this entry (see REMAINING_TODOS.md, 2026-08-30 deposit-accuracy
-//   discussion). This message must not imply a certainty the data doesn't
-//   have yet.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -31,6 +33,11 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// WhatsApp text messages cap at 4096 chars; kept well under that so a large
+// curated list can never silently fail to send.
+const MAX_ITEMS_PER_SECTION = 12;
+const MAX_ITEM_LENGTH = 280;
+
 function json(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -46,27 +53,26 @@ function cleanPhone(value: unknown): string {
   return String(value ?? "").replace(/\D/g, "");
 }
 
-type LeadRow = {
-  full_name: string; status: string; assigned_agent_id: string | null;
-  account_balance: number | null; created_at: string; updated_at: string; converted_at: string | null;
-};
+type ProgressItem = { date?: string; text: string };
 
-async function fetchAllLeads(sb: ReturnType<typeof serviceClient>): Promise<LeadRow[]> {
-  const pageSize = 1000;
-  let all: LeadRow[] = [];
-  for (let start = 0; ; start += pageSize) {
-    const { data, error } = await sb.from("leads")
-      .select("full_name, status, assigned_agent_id, account_balance, created_at, updated_at, converted_at")
-      .range(start, start + pageSize - 1);
-    if (error) { console.error("fetchAllLeads:", error.message); break; }
-    all = all.concat((data ?? []) as LeadRow[]);
-    if (!data || data.length < pageSize) break;
+function sanitizeItems(raw: unknown): ProgressItem[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ProgressItem[] = [];
+  for (const item of raw.slice(0, MAX_ITEMS_PER_SECTION)) {
+    if (item && typeof item === "object" && typeof (item as ProgressItem).text === "string") {
+      const text = (item as ProgressItem).text.slice(0, MAX_ITEM_LENGTH).trim();
+      if (!text) continue;
+      const rawDate = (item as ProgressItem).date;
+      out.push(typeof rawDate === "string" ? { date: rawDate, text } : { text });
+    }
   }
-  return all;
+  return out;
 }
 
-function fmtMoney(n: number): string {
-  return n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+function formatSection(title: string, items: ProgressItem[]): string {
+  if (!items.length) return `${title}\n(nothing right now)`;
+  const lines = items.map((item) => `- ${item.date ? `[${item.date}] ` : ""}${item.text}`);
+  return `${title}\n${lines.join("\n")}`;
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -88,6 +94,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error: "Only an admin can send this update" }, 403);
   }
 
+  let completed: ProgressItem[] = [];
+  let inProgress: ProgressItem[] = [];
+  let upcoming: ProgressItem[] = [];
+  try {
+    const body = await req.json().catch(() => ({}));
+    const progress = body?.progress ?? {};
+    completed = sanitizeItems(progress.completed);
+    inProgress = sanitizeItems(progress.inProgress);
+    upcoming = sanitizeItems(progress.upcoming);
+  } catch {
+    return json({ ok: false, error: "Invalid request body" }, 400);
+  }
+  if (!completed.length && !inProgress.length && !upcoming.length) {
+    return json({ ok: false, error: "No progress content was supplied to send" }, 400);
+  }
+
   const { data: settings } = await sb.from("settings").select("key, value")
     .in("key", ["wa_access_token", "wa_phone_number_id", "admin_whatsapp_number"]);
   const setting = (key: string) => settings?.find((r: { key: string; value: string }) => r.key === key)?.value?.trim() ?? "";
@@ -98,25 +120,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error: "Admin WhatsApp notification is not configured" }, 503);
   }
 
-  const leads = await fetchAllLeads(sb);
-  const now = Date.now();
-  const since = now - 24 * 60 * 60 * 1000; // trailing 24h, matches "Today" closely enough for a digest
-  const newLeads = leads.filter((l) => new Date(l.created_at).getTime() >= since);
-  const converted = leads.filter((l) => l.status === "converted"
-    && new Date(l.converted_at || l.updated_at).getTime() >= since);
-  const deposits = converted.filter((l) => Number(l.account_balance) > 0);
-  const depositTotal = deposits.reduce((s, l) => s + Number(l.account_balance || 0), 0);
-
   const message = [
-    "Badar Trader CRM - Progress Update (last 24h)",
+    "Badar Trader CRM - Development Progress Update",
     "",
-    `New leads: ${newLeads.length}`,
-    `Converted: ${converted.length}`,
-    `Deposits recorded: $${fmtMoney(depositTotal)} (${deposits.length} lead${deposits.length === 1 ? "" : "s"})`,
+    formatSection("Recently Completed:", completed),
+    "",
+    formatSection("In Progress:", inProgress),
+    "",
+    formatSection("Upcoming / Awaiting Decision:", upcoming),
     "",
     "Full detail: CRM Development Progress tab.",
-    "(Deposit figures are recorded from agent-entered data, not yet independently verified.)",
-  ].join("\n");
+  ].join("\n").slice(0, 4000);
 
   try {
     const response = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneId}/messages`, {
