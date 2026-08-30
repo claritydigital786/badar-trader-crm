@@ -1387,7 +1387,20 @@ async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Prom
         // zero tokens for the actual answer (confirmed directly against
         // OpenAI's API with the real system prompt - 300 produced empty
         // content 100% of the time, 1000 reliably left enough room for both).
-        max_completion_tokens: 1000,
+        //
+        // RECURRED 2026-08-31, same failure, higher budget needed: a real
+        // stuck lead (bot_stage qualified, escalated, three real messages in
+        // a row got zero reply) traced to this exact wall again -
+        // finish_reason "length", content "", reasoning_tokens 1000/1000.
+        // Reproduced directly against OpenAI with this lead's real history
+        // and the current system prompt: 1000 reliably empties out once the
+        // prompt includes real conversation history (added the same day) and
+        // the longer system prompt (the FLAG tagging rules, also added the
+        // same day) - both correct, needed changes that simply made every
+        // prompt bigger, which makes a reasoning model reason longer. 2000
+        // still occasionally emptied out; 3000 answered cleanly twice in a
+        // row against this same real prompt.
+        max_completion_tokens: 3000,
       }),
     });
     if (!res.ok) {
