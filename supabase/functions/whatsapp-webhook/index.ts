@@ -18,6 +18,7 @@ import {
 import { isAllowedPhoneNumberId } from "../_shared/whatsapp_phone_scope.mjs";
 import { isPermanentHandoff } from "../_shared/handoff_permanence.mjs";
 import { shouldAnswerWhileEscalated } from "../_shared/escalated_reply_policy.mjs";
+import { isImpatienceNudge, chooseNudgeReplyStyle, pickNudgeShortReply } from "../_shared/nudge_reply_policy.mjs";
 
 // Marks an AI-generated outbound in the lead's log. Needed because the cap on
 // AI replies while a handoff is open has to count the AI's own messages and
@@ -305,6 +306,28 @@ function t(lang: Lang, en: string, ur: string): string {
 
 function confusedReply(lang: Lang): string {
   const pool = lang === "ur" ? CONFUSED_REPLIES_UR : CONFUSED_REPLIES_EN;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+// Rotation pool for the handover line every escalation-adjacent message ends
+// on. Muhammad's instruction, 2026-08-30: never let the bot read as scripted
+// or AI-flavoured - "A team member will follow up with you personally
+// shortly" repeated verbatim on every message was exactly that tell. Kept as
+// a small pool (like CONFUSED_REPLIES above) so the same customer doesn't see
+// the identical sentence twice in one conversation.
+const HANDOVER_LINES_EN: string[] = [
+  "Our team member from the concerned department will get back to you shortly.",
+  "Someone from our team will reach out to you personally soon.",
+  "A team member will get in touch with you shortly to help further.",
+];
+const HANDOVER_LINES_UR: string[] = [
+  "Concerned department ka koi numainda jald aap se raabta kare ga.",
+  "Hamari team ka koi rukun jald khud aap se baat kare ga.",
+  "Jald hi hamari team ka koi banda aap se raabta kare ga.",
+];
+
+function handoverLine(lang: Lang): string {
+  const pool = lang === "ur" ? HANDOVER_LINES_UR : HANDOVER_LINES_EN;
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -1268,6 +1291,21 @@ async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Prom
       return null;
     }
     escalatedNote = true;
+
+    // "Are you there?" style nudges get the full answer the first time, then
+    // something short and different every time after - see
+    // nudge_reply_policy.mjs. Real case, 2026-08-30: two such nudges back to
+    // back correctly got one combined answer; a third right after would have
+    // triggered the exact same OpenAI call and the exact same script again.
+    const style = chooseNudgeReplyStyle({
+      isNudge: isImpatienceNudge(text),
+      alreadyAnsweredSinceEscalation: activity.hasAnsweredSinceEscalation,
+    });
+    if (style === "short") {
+      const lang: Lang = lead.language === "ur" ? "ur" : "en";
+      const to = lead.phone.replace(/^\+/, "");
+      return await sendAIText(to, pickNudgeShortReply(lang));
+    }
   }
 
   const { data: campaigns, error } = await sb
@@ -1335,22 +1373,24 @@ async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Prom
   // now". The handover promise stays attached to every such reply.
   if (escalatedNote) {
     const lang: Lang = lead.language === "ur" ? "ur" : "en";
-    reply += t(
-      lang,
-      "\n\nA team member will follow up with you personally shortly.",
-      "\n\nHamari team ka numainda jald aap se khud raabta kare ga.",
-    );
+    reply += `\n\n${handoverLine(lang)}`;
   }
 
   const to = lead.phone.replace(/^\+/, "");
   return await sendAIText(to, reply);
 }
 
-// The one fact the escalated-reply policy needs, read here so the policy
-// itself stays pure and testable. `logged_by` non-null is an agent's own
-// message; null is the bot's. Only scoped back to the most recent escalation
-// marker escalate() writes, so a resolved-then-re-escalated lead doesn't see
-// an agent reply from a previous, unrelated handoff as "still active".
+// The facts the escalated-reply and nudge policies need, read here so both
+// stay pure and testable. `logged_by` non-null is an agent's own message;
+// null is the bot's. Only scoped back to the most recent escalation marker
+// escalate() writes, so a resolved-then-re-escalated lead doesn't see an
+// agent reply (or an AI answer) from a previous, unrelated handoff as
+// "already handled" this time.
+//
+// hasAnsweredSinceEscalation is NOT a cap (that was removed 2026-08-30) - it
+// only tells the nudge policy whether a real answer has already gone out this
+// wait, so a second "are you there?" gets something short instead of the
+// same full answer replayed.
 //
 // Returns null on a lookup failure (not just a null agentLastRepliedAt) so the
 // caller can fail closed - the policy's own no-cap rule (2026-08-30) means an
@@ -1360,7 +1400,7 @@ async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Prom
 async function getEscalationActivity(
   sb: SupabaseClient,
   leadId: string,
-): Promise<{ agentLastRepliedAt: string | null } | null> {
+): Promise<{ agentLastRepliedAt: string | null; hasAnsweredSinceEscalation: boolean } | null> {
   try {
     const { data: rows, error } = await sb
       .from("communications")
@@ -1372,11 +1412,13 @@ async function getEscalationActivity(
     if (error) throw new Error(error.message);
 
     let agentLastRepliedAt: string | null = null;
+    let hasAnsweredSinceEscalation = false;
     for (const row of rows ?? []) {
       if (row.logged_by && !agentLastRepliedAt) agentLastRepliedAt = row.created_at;
+      if (!row.logged_by && String(row.body ?? "").startsWith(AI_REPLY_LOG_PREFIX)) hasAnsweredSinceEscalation = true;
       if (String(row.body ?? "").startsWith("[escalated to human:")) break;
     }
-    return { agentLastRepliedAt };
+    return { agentLastRepliedAt, hasAnsweredSinceEscalation };
   } catch (e) {
     console.error("getEscalationActivity failed:", e instanceof Error ? e.message : String(e));
     return null;
@@ -1716,8 +1758,8 @@ async function runBotStep(
           "qualified, ready for the $500 deposit",
           t(
             lang,
-            `Perfect! Deposit $500 in your own ${brokerName} account using the link below:\n${linkSection}\n\nAlready trading with ${brokerName} and have $500 or more deposited? Even better, that counts too. Either way, send your account screenshot showing the deposit here and our team will confirm and unlock your free $250 mentorship course. A team member will follow up with you shortly!`,
-            `Zabardast! Neeche diye gaye link se apne ${brokerName} account mein $500 deposit karein:\n${linkSection}\n\nAgar aap pehle se ${brokerName} par trading kar rahe hain aur $500 ya us se zyada jama hai, to wo bhi bilkul chalega. Dono soorton mein, deposit dikhata hua apne account ka screenshot yahan bhej dein - hamari team tasdeeq kar ke aap ka free $250 ka mentorship course unlock kar de gi. Hamari team ka numainda jald aap se raabta kare ga!`,
+            `Perfect! Deposit $500 in your own ${brokerName} account using the link below:\n${linkSection}\n\nAlready trading with ${brokerName} and have $500 or more deposited? Even better, that counts too. Either way, send your account screenshot showing the deposit here and our team will confirm and unlock your free $250 mentorship course. ${handoverLine("en")}`,
+            `Zabardast! Neeche diye gaye link se apne ${brokerName} account mein $500 deposit karein:\n${linkSection}\n\nAgar aap pehle se ${brokerName} par trading kar rahe hain aur $500 ya us se zyada jama hai, to wo bhi bilkul chalega. Dono soorton mein, deposit dikhata hua apne account ka screenshot yahan bhej dein - hamari team tasdeeq kar ke aap ka free $250 ka mentorship course unlock kar de gi. ${handoverLine("ur")}`,
           ),
         );
         return;
@@ -1784,7 +1826,9 @@ async function runBotStep(
       }
 
       const prefix = greeting ? `${greetingReplyText(greeting)} ` : "";
-      const r = await sendText(to, `${prefix}Thanks for the message. A team member will follow up with you shortly.`);
+      const lang: Lang = lead.language === "ur" ? "ur" : "en";
+      const thanksLine = t(lang, "Thanks for the message.", "Aapke paigham ka shukriya.");
+      const r = await sendText(to, `${prefix}${thanksLine} ${handoverLine(lang)}`);
       await logOutbound(sb, lead.id, combineSendLog(r), lastMessageId(r));
       return;
     }
