@@ -1,11 +1,80 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-08-30 (later, second session of the day - the account-switch
-handoff below this one was the PREVIOUS session). The entry directly below is
-this session's, written with its verification actually run. For a fresh Claude
-Code session with zero memory of prior conversations. This session is also
-about to run out of its own usage window - written now, mid-task, rather than
-risk losing it._
+_Last updated: 2026-08-30 (third session of the day, running remotely rather
+than on a laptop - see the entry directly below for what that limits). For a
+fresh Claude Code session with zero memory of prior conversations._
+
+## 2026-08-30 (remote session) - docs and the Progress tab caught up with three features that shipped after the last catch-up
+
+**Read this first if you are picking up from a bare "continue".** Started
+exactly that way: pulled `main`, read this file, and found the top entry below
+was already out of date against `git log`. Three real commits landed after the
+last docs catch-up (`40c4b65`) and none of them were in this file, in
+`REMAINING_TODOS.md`'s Questions Log, or in the one place Badar himself can see
+progress.
+
+### What was actually stale, and what was done about it
+
+1. **`CRM_DEV_PROGRESS` in `index.html` had not been touched since the tab was
+   built**, so three features that shipped the same day afterwards were invisible
+   on the page built specifically to show them: the "Action Items With Badar"
+   tracker (`d8b2f8f`), the Dashboard time-frame filter (`d07a7e7`), and the
+   Qualified Rate / Needs Human Rate gauges (`0c09355`). All three added in
+   Badar-facing language, plus Phase 5's "How We Got Here" text now mentions the
+   shared action tracker. Committed as `a122d0c`. **This is the exact failure the
+   tab's own note warns about - "update `CRM_DEV_PROGRESS` directly in the same
+   session real work ships". It slipped within a day of being written down.**
+2. **Two items the entry below flagged as open are actually closed already**,
+   confirmed by reading the code rather than trusting the note:
+   - The Dashboard visual gap ("NOT YET FIXED... pick this up first on the next
+     session") **was fixed** in `0c09355` - both gauges are live in `index.html`
+     at the Qualified Rate / Needs Human Rate labels.
+   - The TikTok "awaiting handle" text it said to reconcile in the CRM tab
+     **does not exist**. `grep -i tiktok index.html` finds exactly one hit, an
+     unrelated demo action-item row. The CRM tab never carried a TikTok section;
+     that lives only in the standalone report. Nothing to reconcile.
+3. **Questions Log and this file brought current** for the three commits above.
+
+### What this session could NOT verify, and why - read before repeating a claim
+
+**This session ran remotely in a cloud container, not on anyone's Mac.** That
+rules out several things this repo normally treats as mandatory:
+
+- **`crm.badartrader.com` is unreachable from here** - the environment's own
+  network policy returns `403 CONNECT tunnel failed` for it. So **nothing in
+  this entry claims anything about production.** The `a122d0c` change is pushed
+  to `main`; whether Vercel has actually built and served it has not been
+  checked and needs a real curl from a machine that can reach the site.
+- **No Supabase CLI, no `deno`, no credentials** in this container - so no
+  `deno check`, no function download-and-diff, no live database query. Nothing
+  in this session touched an Edge Function or a migration, so none of that was
+  needed, but it also means the three still-unconfirmed deploys the entry below
+  lists (`11730f4`, `aaeb552`, `fffbda7`) are **still unconfirmed** - this
+  session could not check them either.
+- **The repo's "write deliverables into `~/Downloads`" rule does not apply
+  here** - there is no user-facing Mac attached to this session. It still
+  applies on Muhammad's and Junaid's laptops.
+
+### Verified, actually run
+
+Local static preview on `127.0.0.1:8744` driven with a real Chromium: the CRM
+Development Progress tab rendered in dark, light, and at 375px - all 5 phases
+present, completed list now 12 items with the three new ones on top,
+In Progress 2 and Upcoming 3 unchanged, no horizontal overflow. All 15
+dependency-free node suites pass (baseline run before the change, and again
+after). Inline JS parses clean. Zero em dashes in the diff. The only console
+errors are this sandbox's own blocked CDN requests (`cdn.jsdelivr.net` for
+supabase-js and Chart.js, `s3.tradingview.com`) - network policy, not the app,
+and they load normally on a laptop.
+
+### Still open, unchanged by this session
+
+`REMAINING_TODOS.md` still has **15** open items and this session closed none of
+them - the work above was documentation drift, not a listed to-do. The list the
+entry below calls out is still accurate apart from the two items corrected in
+point 2 above.
+
+---
 
 ## 2026-08-30 (later) - notification cooldown removed by design, deposit-accuracy mechanism, CRM Development Progress tab (re-scoped twice), PWA, Quick Links fix, phased project history
 
