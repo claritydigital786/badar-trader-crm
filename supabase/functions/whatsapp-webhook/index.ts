@@ -19,6 +19,8 @@ import { isAllowedPhoneNumberId } from "../_shared/whatsapp_phone_scope.mjs";
 import { isPermanentHandoff } from "../_shared/handoff_permanence.mjs";
 import { shouldAnswerWhileEscalated } from "../_shared/escalated_reply_policy.mjs";
 import { isImpatienceNudge, chooseNudgeReplyStyle, pickNudgeShortReply } from "../_shared/nudge_reply_policy.mjs";
+import { extractFlagTag, shouldEscalateOnRepeatFlag } from "../_shared/flag_reply_policy.mjs";
+import { buildChatHistory } from "../_shared/conversation_history.mjs";
 
 // Marks an AI-generated outbound in the lead's log. Needed because the cap on
 // AI replies while a handoff is open has to count the AI's own messages and
@@ -27,6 +29,9 @@ import { isImpatienceNudge, chooseNudgeReplyStyle, pickNudgeShortReply } from ".
 // convention (`[escalated to human: ...]`, `[agent ... notified]`) so the
 // Comm Log stays readable to a person.
 const AI_REPLY_LOG_PREFIX = "[ai reply]";
+// Marks a quiet, real agent flag (complaint/discount/uncertain) that did NOT
+// escalate the lead - see notifyAgentOfFlag and flag_reply_policy.mjs.
+const FLAG_LOG_PREFIX = "[flagged for agent:";
 import { shouldNotifyAgent } from "../_shared/agent_notify_policy.mjs";
 import { shouldSuppressRePrompt } from "../_shared/unmatched_reprompt_policy.mjs";
 
@@ -1343,7 +1348,16 @@ async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Prom
     ? `${campaign.system_prompt}\n\nKnowledge notes:\n${campaign.knowledge_notes}`
     : campaign.system_prompt;
 
-  let reply = "";
+  // Found 2026-08-31, wiring in the nudge/flag work: this call had never sent
+  // any conversation history, only the current message - so the system
+  // prompt's own "never repeat what you already said" / "resolve 'these two'
+  // or 'that one'" rules could never actually work. This is what Muhammad
+  // meant asking the bot to "remember each lead's communication where the
+  // user left it." See conversation_history.mjs for what gets filtered out.
+  const historyRows = await getConversationHistoryRows(sb, lead.id);
+  const chatHistory = buildChatHistory(historyRows as { direction: "inbound" | "outbound"; body: string }[]);
+
+  let rawReply = "";
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -1352,6 +1366,7 @@ async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Prom
         model,
         messages: [
           { role: "system", content: systemPrompt },
+          ...chatHistory,
           { role: "user", content: text },
         ],
         // Found 2026-08-25 via a real live test that got no answer at all:
@@ -1373,11 +1388,33 @@ async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Prom
       return null;
     }
     const json = await res.json();
-    reply = (json?.choices?.[0]?.message?.content || "").trim();
-    if (!reply) return null;
+    rawReply = (json?.choices?.[0]?.message?.content || "").trim();
+    if (!rawReply) return null;
   } catch (e) {
     console.error("tryAIReply: exception calling OpenAI:", e instanceof Error ? e.message : String(e));
     return null;
+  }
+
+  // The model tags its own judgment on whether this needs a human flagged
+  // (a complaint, a discount ask, genuine uncertainty) - see
+  // flag_reply_policy.mjs. A malformed/missing tag fails safe: the whole
+  // reply still goes out, just with no flag.
+  const { reply, flag } = extractFlagTag(rawReply);
+  if (!reply) return null;
+
+  if (flag !== "none") {
+    const lastFlagAt = await getLastFlagAt(sb, lead.id);
+    if (shouldEscalateOnRepeatFlag({ lastFlaggedAt: lastFlagAt })) {
+      // Flagged before and it's come up again without an agent stepping in -
+      // this is the "situation isn't diffusing" case. Hand off for real, but
+      // the AI's own reply below (apology/answer) IS the handoff message -
+      // markEscalated only does the silent DB/agent side, no second message.
+      await markEscalated(sb, lead, `repeat ${flag} after first AI response`);
+    } else {
+      // First time this has come up - a real, quiet flag to an agent, no
+      // interruption to the conversation the AI is already handling well.
+      await notifyAgentOfFlag(sb, lead, flag, text);
+    }
   }
 
   const to = lead.phone.replace(/^\+/, "");
@@ -1426,6 +1463,57 @@ async function getEscalationActivity(
   } catch (e) {
     console.error("getEscalationActivity failed:", e instanceof Error ? e.message : String(e));
     return null;
+  }
+}
+
+// Most recent quiet flag (complaint/discount/uncertain) since the last real
+// escalation - see flag_reply_policy.mjs's shouldEscalateOnRepeatFlag. Fails
+// safe toward "no prior flag": worst case that causes is one duplicate quiet
+// flag, never a premature real escalation from a lookup error.
+async function getLastFlagAt(sb: SupabaseClient, leadId: string): Promise<string | null> {
+  try {
+    const { data: rows, error } = await sb
+      .from("communications")
+      .select("body, created_at")
+      .eq("lead_id", leadId)
+      .eq("direction", "outbound")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) throw new Error(error.message);
+    for (const row of rows ?? []) {
+      const body = String(row.body ?? "");
+      if (body.startsWith(FLAG_LOG_PREFIX)) return row.created_at;
+      if (body.startsWith("[escalated to human:")) break;
+    }
+    return null;
+  } catch (e) {
+    console.error("getLastFlagAt failed:", e instanceof Error ? e.message : String(e));
+    return null;
+  }
+}
+
+// Recent history for the AI to actually see as prior conversation - see
+// conversation_history.mjs for why this matters and what it filters out.
+// Fails safe to an empty history: answering with no memory of the
+// conversation is a real regression, but it is a strictly smaller one than
+// crashing the whole reply on a transient read error.
+async function getConversationHistoryRows(
+  sb: SupabaseClient,
+  leadId: string,
+  limit = 50,
+): Promise<{ direction: string; body: string }[]> {
+  try {
+    const { data, error } = await sb
+      .from("communications")
+      .select("direction, body, created_at")
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return (data ?? []).slice().reverse();
+  } catch (e) {
+    console.error("getConversationHistoryRows failed, answering with no history:", e instanceof Error ? e.message : String(e));
+    return [];
   }
 }
 
@@ -1974,13 +2062,15 @@ async function goBack(sb: SupabaseClient, lead: any, to: string, lang: Lang): Pr
   await logOutbound(sb, lead.id, `[went back to ${prevStage}]\n${combineSendLog(result)}`, lastMessageId(result));
 }
 
-async function escalate(
-  sb: SupabaseClient,
-  lead: any,
-  to: string,
-  reason: string,
-  message?: string,
-): Promise<void> {
+// Everything escalate() does EXCEPT sending the customer-facing message -
+// factored out so tryAIReply's real-takeover path (a flag that didn't
+// diffuse) can do the exact same DB handoff and agent notification without
+// also sending a second, separate "let me connect you" message on top of the
+// AI's own reply that already covers it. Mutates `lead` in memory (not just
+// the DB row) so a caller that keeps running afterward - unlike escalate()'s
+// own callers, which always return right away - sees the correct
+// needs_human/handoff_reason immediately, not a stale in-memory value.
+async function markEscalated(sb: SupabaseClient, lead: any, reason: string): Promise<RotationAgent | null> {
   // A lead escalating with nobody assigned would otherwise sit invisible -
   // exactly what happened to Izza (10+ days, no agent, no ping, nobody knew).
   let assignedAgentId: string | null = lead.assigned_agent_id ?? null;
@@ -2002,7 +2092,7 @@ async function escalate(
     assignedAgent = await assignAgentRoundRobin(sb);
     assignedAgentId = assignedAgent.id;
     if (staleAgentId) {
-      console.log(`escalate: lead ${lead.id}'s assigned agent ${staleAgentId} is no longer in rotation - reassigned to ${assignedAgent.name}.`);
+      console.log(`markEscalated: lead ${lead.id}'s assigned agent ${staleAgentId} is no longer in rotation - reassigned to ${assignedAgent.name}.`);
       await insertCommunication(
         sb, lead.id, "outbound",
         `[previously assigned agent is no longer active - reassigned to ${assignedAgent.name}]`,
@@ -2017,12 +2107,11 @@ async function escalate(
     assigned_agent_id: assignedAgentId,
     updated_at:     new Date().toISOString(),
   }).eq("id", lead.id);
+  lead.needs_human = true;
+  lead.handoff_reason = reason;
+  lead.assigned_agent_id = assignedAgentId;
 
-  const result = await sendText(
-    to,
-    message ?? "Thanks for your patience. Let me connect you with a team member who'll help you personally, please hold on a moment.",
-  );
-  await logOutbound(sb, lead.id, `[escalated to human: ${reason}]\n${combineSendLog(result)}`, lastMessageId(result));
+  await insertCommunication(sb, lead.id, "outbound", `[escalated to human: ${reason}]`, new Date().toISOString());
 
   if (ESCALATION_NOTIFICATIONS_ENABLED && assignedAgent) {
     // Every block is written to the lead's own log with its reason, so a quiet
@@ -2072,6 +2161,59 @@ async function escalate(
       );
     }
   }
+
+  return assignedAgent;
+}
+
+async function escalate(
+  sb: SupabaseClient,
+  lead: any,
+  to: string,
+  reason: string,
+  message?: string,
+): Promise<void> {
+  await markEscalated(sb, lead, reason);
+  const result = await sendText(
+    to,
+    message ?? "Thanks for your patience. Let me connect you with a team member who'll help you personally, please hold on a moment.",
+  );
+  await logOutbound(sb, lead.id, combineSendLog(result), lastMessageId(result));
+}
+
+// A complaint or discount ask (or genuine AI uncertainty) that hasn't come up
+// again recently gets a quiet, real flag to the assigned agent - no
+// needs_human, no interruption to how the AI is already handling the
+// conversation, just an actual person genuinely knowing, unlike the AI's old
+// hollow "I've forwarded your query" promise. Muhammad's decision, 2026-08-31.
+async function notifyAgentOfFlag(sb: SupabaseClient, lead: any, category: string, customerText: string): Promise<void> {
+  let assignedAgentId: string | null = lead.assigned_agent_id ?? null;
+  let assignedAgent = assignedAgentId
+    ? (await getAgentRotation(sb)).find((a) => a.id === assignedAgentId) ?? null
+    : null;
+  if (!assignedAgent) {
+    assignedAgent = await assignAgentRoundRobin(sb);
+    assignedAgentId = assignedAgent.id;
+    await sb.from("leads").update({ assigned_agent_id: assignedAgentId }).eq("id", lead.id);
+    lead.assigned_agent_id = assignedAgentId;
+  }
+
+  const snippet = customerText.length > 200 ? `${customerText.slice(0, 200)}...` : customerText;
+  await insertCommunication(sb, lead.id, "outbound", `${FLAG_LOG_PREFIX} ${category}] ${snippet}`, new Date().toISOString());
+
+  if (!ESCALATION_NOTIFICATIONS_ENABLED || !assignedAgent) return;
+  const pingResult = await sendText(
+    assignedAgent.phone,
+    `A lead may need attention (${category}): ${lead.full_name || "Unknown"} (${lead.phone}). The AI is still handling this conversation for now - please check the CRM when free.`,
+  );
+  await insertCommunication(
+    sb,
+    lead.id,
+    "outbound",
+    pingResult.ok ? `[agent ${assignedAgent.name} notified of a flag]` : `[SEND FAILED: agent flag notification - ${pingResult.error}]`,
+    new Date().toISOString(),
+    undefined,
+    pingResult.messageId,
+  );
 }
 
 async function handleAgentReply(
