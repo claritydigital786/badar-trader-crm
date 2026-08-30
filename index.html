@@ -1643,6 +1643,28 @@
           <div class="kpi-gauge-sub" id="dash-gauge-new-sub"></div>
         </div>
       </div>
+      <div class="kpi-gauge">
+        <svg class="kpi-gauge-svg" viewBox="0 0 68 68">
+          <circle class="kpi-gauge-track" cx="34" cy="34" r="30" />
+          <circle class="kpi-gauge-fill" id="dash-gauge-qualified-ring" cx="34" cy="34" r="30" stroke-dasharray="188.5" stroke-dashoffset="188.5" />
+        </svg>
+        <div class="kpi-gauge-text">
+          <div class="kpi-gauge-pct" id="dash-gauge-qualified-pct">-</div>
+          <div class="kpi-gauge-label">Qualified Rate</div>
+          <div class="kpi-gauge-sub" id="dash-gauge-qualified-sub"></div>
+        </div>
+      </div>
+      <div class="kpi-gauge">
+        <svg class="kpi-gauge-svg" viewBox="0 0 68 68">
+          <circle class="kpi-gauge-track" cx="34" cy="34" r="30" />
+          <circle class="kpi-gauge-fill" id="dash-gauge-needshuman-ring" cx="34" cy="34" r="30" stroke-dasharray="188.5" stroke-dashoffset="188.5" />
+        </svg>
+        <div class="kpi-gauge-text">
+          <div class="kpi-gauge-pct" id="dash-gauge-needshuman-pct">-</div>
+          <div class="kpi-gauge-label">Needs Human Rate</div>
+          <div class="kpi-gauge-sub" id="dash-gauge-needshuman-sub"></div>
+        </div>
+      </div>
     </div>
     <div class="quick-tile-row">
       <div class="quick-tile" onclick="adminTab('signal-broadcast')">
@@ -9301,7 +9323,7 @@ async function fetchAllLeadsForDashboard() {
   for (let start = 0; ; start += pageSize) {
     const { data, error } = await sb
       .from('leads')
-      .select('status, account_balance, deposit_platform, created_at')
+      .select('status, account_balance, deposit_platform, created_at, needs_human')
       .range(start, start + pageSize - 1);
     if (error) { console.error('fetchAllLeadsForDashboard:', error); break; }
     all = all.concat(data || []);
@@ -9405,6 +9427,14 @@ function renderDashboardCharts(leads) {
   };
   setGauge('dash-gauge-conv-ring', 'dash-gauge-conv-pct', 'dash-gauge-conv-sub', counts.converted || 0);
   setGauge('dash-gauge-new-ring',  'dash-gauge-new-pct',  'dash-gauge-new-sub',  counts.new || 0);
+  // Same pipeline-stage shape as the two above: Qualified Rate is the next
+  // stage along (qualified/total), Needs Human Rate is how much of the
+  // pipeline is waiting on a person right now (needs_human/total) - added
+  // 2026-08-30 to fill the visual gap this row left on wider screens, using
+  // data the dashboard already fetches rather than a new query.
+  const needsHumanCount = (leads || []).filter(l => l.needs_human).length;
+  setGauge('dash-gauge-qualified-ring',   'dash-gauge-qualified-pct',   'dash-gauge-qualified-sub',   counts.qualified || 0);
+  setGauge('dash-gauge-needshuman-ring',  'dash-gauge-needshuman-pct',  'dash-gauge-needshuman-sub',  needsHumanCount);
 
   if (legendEl) {
     legendEl.innerHTML = statusKeys.length ? statusKeys.map(k => `
