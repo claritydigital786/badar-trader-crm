@@ -2124,3 +2124,17 @@ CREATE POLICY "action_items: admin full access" ON public.action_items
 
 -- DONE (Phase 34)
 -- =============================================================
+
+-- =============================================================
+-- Phase 35 - Which real WhatsApp number a lead came in on (Muhammad, 2026-08-31)
+-- Corresponds to supabase/migrations/20260831000000_leads_wa_channel.sql
+-- =============================================================
+
+ALTER TABLE public.leads
+  ADD COLUMN IF NOT EXISTS wa_channel text
+    CHECK (wa_channel IS NULL OR wa_channel IN ('6541', '3903'));
+
+CREATE INDEX IF NOT EXISTS idx_leads_wa_channel ON public.leads(wa_channel);
+
+-- DONE (Phase 35)
+-- =============================================================

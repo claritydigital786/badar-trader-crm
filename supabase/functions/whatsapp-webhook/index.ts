@@ -582,7 +582,7 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
           continue;
         }
 
-        const { lead, wasCreated } = await upsertLead(sb, senderPhone, contactName, timestamp);
+        const { lead, wasCreated } = await upsertLead(sb, senderPhone, contactName, timestamp, "6541");
         if (!lead) continue;
 
         // Idle-time checks (handoff auto-expiry, 24h stage restarts) need the
@@ -758,6 +758,7 @@ async function upsertLead(
   phone: string,
   name: string,
   timestamp: string,
+  waChannel: "6541" | "3903" | null = null,
 ): Promise<{ lead: any | null; wasCreated: boolean }> {
   const { data: existing, error: selectError } = await sb
     .from("leads")
@@ -776,7 +777,13 @@ async function upsertLead(
     // ap-northeast-1 region) sitting in the critical path of every single
     // message from a returning lead, the most common case by far. Same
     // background pattern already used for agent notification below.
-    const markUnread = sb.from("leads").update({ is_unread: true }).eq("id", existing.id).then(
+    //
+    // Opportunistically backfills wa_channel on a legacy lead (created before
+    // this column existed) the first time a new message confirms which real
+    // number it's on - never overwrites one that's already set.
+    const updateFields: Record<string, unknown> = { is_unread: true };
+    if (waChannel && !existing.wa_channel) updateFields.wa_channel = waChannel;
+    const markUnread = sb.from("leads").update(updateFields).eq("id", existing.id).then(
       ({ error }) => { if (error) console.error("Error marking lead unread:", error.message); },
     );
     const waitUntil = (globalThis as any).EdgeRuntime?.waitUntil;
@@ -792,6 +799,7 @@ async function upsertLead(
       phone:      phone,
       source:     "meta",
       status:     "new",
+      wa_channel: waChannel,
       created_at: timestamp,
       updated_at: timestamp,
     })
@@ -1012,7 +1020,7 @@ async function recordUnsupportedMessage(
 ): Promise<void> {
   // upsertLead also flips is_unread, so the conversation surfaces in the
   // inbox's Unread filter the same way a normal inbound message would.
-  const { lead } = await upsertLead(sb, senderPhone, contactName, timestamp);
+  const { lead } = await upsertLead(sb, senderPhone, contactName, timestamp, "6541");
   if (!lead) {
     console.error(
       `recordUnsupportedMessage: could not upsert lead for ${senderPhone} - a "${message?.type}" message is being lost.`,
@@ -1050,7 +1058,7 @@ async function handleImageMessage(
   contactName: string,
   timestamp: string,
 ): Promise<void> {
-  const { lead } = await upsertLead(sb, senderPhone, contactName, timestamp);
+  const { lead } = await upsertLead(sb, senderPhone, contactName, timestamp, "6541");
   if (!lead) return;
 
   const to = senderPhone.replace(/^\+/, "");
@@ -1106,7 +1114,7 @@ async function ingestOnlyMessage(
   contactName: string,
   timestamp: string,
 ): Promise<void> {
-  const { lead } = await upsertLead(sb, senderPhone, contactName, timestamp);
+  const { lead } = await upsertLead(sb, senderPhone, contactName, timestamp, "3903");
   if (!lead) {
     console.error(`ingestOnlyMessage: could not upsert lead for ${senderPhone} on 3903 - message lost.`);
     return;

@@ -1032,6 +1032,25 @@
     }
     .conv-filter-tab:hover  { background:#e9edef; }
     .conv-filter-tab.active { background:#d9fdd3; color:#04785a; }
+    /* Added 2026-08-31: bifurcates the Omnichannel Inbox by which real
+       WhatsApp number a lead came in on (6541 vs 3903), so Badar can see both
+       numbers' campaigns actively populating real leads, side by side. */
+    .conv-channel-row {
+      display:flex; flex-wrap:nowrap; overflow-x:auto; gap:6px;
+      padding:0 12px 8px; background:#fff;
+    }
+    .conv-channel-pill {
+      flex-shrink:0; cursor:pointer; border:1px solid #d1d7db; border-radius:14px;
+      padding:4px 10px; font-size:0.74rem; font-weight:600;
+      background:#fff; color:#54656f; display:flex; align-items:center; gap:5px;
+    }
+    .conv-channel-pill:hover  { background:#f0f2f5; }
+    .conv-channel-pill.active { background:#e7f3ff; border-color:#8ec5ff; color:#0a5ba8; }
+    .conv-channel-count {
+      background:#f0f2f5; color:#54656f; border-radius:8px; padding:0 5px;
+      font-size:0.68rem; font-weight:700; min-width:14px; text-align:center;
+    }
+    .conv-channel-pill.active .conv-channel-count { background:#0a5ba8; color:#fff; }
     .conv-list { flex:1; overflow-y:auto; background:#fff; }
     /* 72px row with the divider starting after the avatar, as WhatsApp does. */
     .conv-item { display:flex; align-items:center; gap:13px; padding:0 13px; height:72px; cursor:pointer; transition:background .12s; position:relative; }
@@ -1387,6 +1406,12 @@
     [data-theme="dark"] .conv-filter-tab        { background:#202c33; color:#8696a0; }
     [data-theme="dark"] .conv-filter-tab:hover  { background:#2a3942; }
     [data-theme="dark"] .conv-filter-tab.active { background:#103529; color:#00a884; }
+    [data-theme="dark"] .conv-channel-row       { background:#111b21; }
+    [data-theme="dark"] .conv-channel-pill      { background:#202c33; color:#8696a0; border-color:#34434b; }
+    [data-theme="dark"] .conv-channel-pill:hover  { background:#2a3942; }
+    [data-theme="dark"] .conv-channel-pill.active { background:#0c2a44; border-color:#2f6690; color:#6cb2ff; }
+    [data-theme="dark"] .conv-channel-count     { background:#2a3942; color:#8696a0; }
+    [data-theme="dark"] .conv-channel-pill.active .conv-channel-count { background:#2f6690; color:#fff; }
     [data-theme="dark"] .conv-item::after   { background:#222d34; }
     [data-theme="dark"] .conv-item:hover    { background:#202c33; }
     [data-theme="dark"] .conv-item.active   { background:#2a3942; }
@@ -2101,6 +2126,11 @@
             </div>
           </div>
           <input type="text" id="conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations()" />
+        </div>
+        <div class="conv-channel-row" id="conv-channel-row" title="Which real WhatsApp number each conversation came in on">
+          <button class="conv-channel-pill active" data-channel="all" onclick="setConvChannel('all')">All numbers <span class="conv-channel-count" id="conv-channel-count-all">0</span></button>
+          <button class="conv-channel-pill" data-channel="6541" onclick="setConvChannel('6541')">6541 <span class="conv-channel-count" id="conv-channel-count-6541">0</span></button>
+          <button class="conv-channel-pill" data-channel="3903" onclick="setConvChannel('3903')">3903 <span class="conv-channel-count" id="conv-channel-count-3903">0</span></button>
         </div>
         <div class="conv-filter-tabs" id="conv-filter-tabs" >
           <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all')">All</button>
@@ -4116,6 +4146,11 @@
             </div>
           </div>
           <input type="text" id="agent-conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations('agent-')" />
+        </div>
+        <div class="conv-channel-row" id="agent-conv-channel-row" title="Which real WhatsApp number each conversation came in on">
+          <button class="conv-channel-pill active" data-channel="all" onclick="setConvChannel('all','agent-')">All numbers <span class="conv-channel-count" id="agent-conv-channel-count-all">0</span></button>
+          <button class="conv-channel-pill" data-channel="6541" onclick="setConvChannel('6541','agent-')">6541 <span class="conv-channel-count" id="agent-conv-channel-count-6541">0</span></button>
+          <button class="conv-channel-pill" data-channel="3903" onclick="setConvChannel('3903','agent-')">3903 <span class="conv-channel-count" id="agent-conv-channel-count-3903">0</span></button>
         </div>
         <div class="conv-filter-tabs" id="agent-conv-filter-tabs" >
           <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all','agent-')">All</button>
@@ -10187,6 +10222,11 @@ let _activeConvScope = '';
 let _convRealtimeSub = null;
 let _convRealtimeScope = '';
 let _activeConvFilter = 'all';
+// Which real WhatsApp number's conversations are shown - '6541' (the main
+// automated-bot line) or '3903' (the second, ingest-only line, connected
+// 2026-08-27). 'all' shows every channel (WhatsApp on either number, plus
+// Messenger/Instagram). Added 2026-08-31, Muhammad's request.
+let _activeConvChannel = 'all';
 let _replyTarget = null; // { waMessageId, preview } - set when an agent taps "reply" on a specific message
 let _lastConvs = []; // cache of the last rendered conversation rows, so switching tabs doesn't re-fetch
 let _messageActions = new Map(); // communication id -> current user's pin/star/hide/reaction row
@@ -10432,6 +10472,16 @@ function setConvFilter(tier, scope = '') {
   filterConversations(scope);
 }
 
+// Bifurcates the Omnichannel Inbox by which real WhatsApp number a
+// conversation came in on - 'all' | '6541' | '3903'. Added 2026-08-31.
+function setConvChannel(channel, scope = '') {
+  _activeConvChannel = channel;
+  document.querySelectorAll(`#${scope}conv-channel-row .conv-channel-pill`).forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.channel === channel);
+  });
+  filterConversations(scope);
+}
+
 function fmtConvTime(isoStr) {
   if (!isoStr) return '';
   const d = new Date(isoStr);
@@ -10484,12 +10534,44 @@ function channelBadge(type) {
   return '';
 }
 
+// Which channel bucket a conversation-list row belongs to for the
+// 6541/3903 bifurcation - added 2026-08-31. Non-WhatsApp channels
+// (Messenger/Instagram) and a WhatsApp lead created before this column
+// existed and never backfilled both fall to 'other'/'unattributed' rather
+// than being silently guessed into one of the two real numbers.
+function convChannelOf(c) {
+  if (c.type !== 'whatsapp') return 'other';
+  return c.leads?.wa_channel || 'unattributed';
+}
+
+// Populates the "All numbers / 6541 / 3903" pill counts above the filter
+// tabs, from whichever conversations were just fetched - lets Badar see both
+// numbers' campaigns actively producing real leads at a glance, not just by
+// clicking through each filter. Demo mode calls this with an empty/undefined
+// list, which safely renders all-zero counts rather than erroring.
+function renderConvChannelCounts(convs, scope = '') {
+  const list = convs || [];
+  const counts = { all: list.length, '6541': 0, '3903': 0 };
+  for (const c of list) {
+    const ch = convChannelOf(c);
+    if (ch === '6541' || ch === '3903') counts[ch]++;
+  }
+  const setCount = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n; };
+  setCount(`${scope}conv-channel-count-all`, counts.all);
+  setCount(`${scope}conv-channel-count-6541`, counts['6541']);
+  setCount(`${scope}conv-channel-count-3903`, counts['3903']);
+}
+
 async function renderConversations(scope = '') {
   const listEl = document.getElementById(scope + 'conv-list');
   if (!listEl) return;
 
   if (demoMode) {
     const convs = _DEMO_CONVERSATIONS;
+    // Demo threads have no real WhatsApp number to attribute - shown as "All
+    // numbers" only, so the 6541/3903 filter pills correctly show 0 in demo
+    // rather than silently guessing which number a fake lead came in on.
+    renderConvChannelCounts(convs, scope);
     if (!convs.length) {
       listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">No conversations yet.</div>';
       return;
@@ -10511,7 +10593,7 @@ async function renderConversations(scope = '') {
     listEl.innerHTML = ordered.map(({ c, tier, sig, _prio }) => {
       const initials = c.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
       return `
-        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${!!c.unread}" data-priority="${_prio.score}" onclick="openConversation('${c.id}','${scope}')">
+        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${!!c.unread}" data-priority="${_prio.score}" data-channel="unattributed" onclick="openConversation('${c.id}','${scope}')">
           <div class="conv-avatar" style="background:${avatarColor(c.id)}">${initials}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(c.name)}${c.unread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
@@ -10535,7 +10617,7 @@ async function renderConversations(scope = '') {
   try {
     const { data: comms, error } = await sb
       .from('communications')
-      .select('lead_id, type, body, direction, created_at, leads(full_name, phone, status, is_unread, bot_stage, needs_human, handoff_reason, manual_tier, language)')
+      .select('lead_id, type, body, direction, created_at, leads(full_name, phone, status, is_unread, bot_stage, needs_human, handoff_reason, manual_tier, language, wa_channel)')
       // Messenger/Instagram added 2026-08-27 (staged, ingest-only connection -
       // see messenger-webhook) - these leads have no phone/WhatsApp thread at
       // all, so without this they simply never appeared here even though the
@@ -10566,6 +10648,7 @@ async function renderConversations(scope = '') {
     // Update sidebar badge - counts unread conversations, not total conversations
     const navBadge = document.getElementById(scope + 'conv-nav-badge');
     if (navBadge) { navBadge.textContent = unreadCount; navBadge.style.display = unreadCount ? 'inline-block' : 'none'; }
+    renderConvChannelCounts(convs, scope);
     const now = Date.now();
     const scored = convs.map(c => {
       const ts  = new Date(c.created_at).getTime();
@@ -10588,7 +10671,7 @@ async function renderConversations(scope = '') {
       // show the channel name in that line instead of leaving it blank.
       const phone = c.leads?.phone || (c.type === 'messenger' ? 'Messenger' : c.type === 'instagram' ? 'Instagram' : '');
       return `
-        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" data-priority="${_prio.score}" onclick="openConversation('${c.lead_id}','${scope}')">
+        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" data-priority="${_prio.score}" data-channel="${convChannelOf(c)}" onclick="openConversation('${c.lead_id}','${scope}')">
           <div class="conv-avatar" style="background:${avatarColor(c.lead_id)};position:relative">${initials}${channelBadge(c.type)}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(name)}${isUnread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
@@ -10619,7 +10702,8 @@ function filterConversations(scope = '') {
       : _activeConvFilter === 'unread'
         ? el.dataset.unread === 'true'
         : el.dataset.tier === _activeConvFilter;
-    const show = matchesText && matchesTier;
+    const matchesChannel = _activeConvChannel === 'all' ? true : el.dataset.channel === _activeConvChannel;
+    const show = matchesText && matchesTier && matchesChannel;
     el.style.display = show ? '' : 'none';
     if (show) visibleCount++;
   });
