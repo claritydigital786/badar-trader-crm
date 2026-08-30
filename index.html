@@ -6181,7 +6181,21 @@ function renderQuickLinkValue(scope) {
   const valEl = document.getElementById(scope + 'quick-links-value');
   if (!sel || !valEl) return;
   const link = QUICK_LINKS[Number(sel.value)];
-  valEl.textContent = link ? link.value : '';
+  if (!link) { valEl.textContent = ''; return; }
+  // Found 2026-08-30: this was plain text the whole time, no <a> tag at all -
+  // it LOOKS like a link (monospace, URL-shaped) so clicking it was the
+  // obvious thing to try, and nothing happened. Both broker referral URLs
+  // themselves were checked directly in a real browser and work correctly
+  // (Exness and XM both redirect through with their tracking params intact) -
+  // the bug was here in the display, not in either destination. A code or
+  // phone number stays plain text; only an actual http(s) value becomes a
+  // real clickable link, opened in a new tab so the agent's place in the
+  // conversation isn't lost.
+  if (/^https?:\/\//i.test(link.value)) {
+    valEl.innerHTML = `<a href="${esc(link.value)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline">${esc(link.value)}</a>`;
+  } else {
+    valEl.textContent = link.value;
+  }
 }
 
 function copySelectedQuickLink(scope) {
