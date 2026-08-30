@@ -769,7 +769,7 @@
     }
     .stat-label { color: #64748b; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
     .stat-value { color: #0f172a; font-size: 2rem; font-weight: 700; line-height: 1; }
-    .stat-trend { color: var(--accent); font-size: 0.75rem; margin-top: 6px; }
+    .stat-trend { color: var(--accent); font-size: 0.75rem; margin-top: 6px; font-weight: 700; }
 
     /* Real percentage rings only - Conversion Rate and New Lead Share are both
        actual ratios already computed elsewhere in this CRM (Reports' own
@@ -7677,7 +7677,7 @@ function maRenderInsights(rows, level, nameField) {
       <td>${Number(r.reach||0).toLocaleString()}</td>
       <td>${Number(r.clicks||0).toLocaleString()}</td>
       <td>${parseFloat(r.ctr||0).toFixed(2)}%</td>
-      <td style="color:var(--accent)">PKR ${parseFloat(r.spend||0).toFixed(2)}</td>
+      <td style="color:var(--accent);font-weight:700">PKR ${parseFloat(r.spend||0).toFixed(2)}</td>
       <td style="color:var(--ok);font-weight:600">${leads || '-'}</td>
       <td>${cpl}</td>
     </tr>`;
