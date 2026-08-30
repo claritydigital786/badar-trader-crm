@@ -1765,12 +1765,14 @@
        Content is curated (see CRM_DEV_PROGRESS below), not queried from
        leads/communications - there is no live database read on this tab. -->
   <div id="admin-tab-progress" class="tab-content">
-    <h3>CRM Development Progress</h3>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
       <span style="color:var(--text-muted);font-size:0.78rem">What's been built, what's in progress, and what's still open - read-only, changes nothing</span>
       <button id="progress-notify-badar-btn" onclick="sendProgressUpdateToBadar()" style="margin-left:auto;padding:7px 16px;border:1px solid var(--accent);border-radius:8px;background:transparent;color:var(--accent);font-weight:700;font-size:0.82rem;cursor:pointer">Send Update to Badar</button>
     </div>
     <div id="progress-notify-msg" style="margin-bottom:12px;font-size:0.82rem"></div>
+
+    <h4 style="margin:0 0 10px 0;font-size:0.85rem;color:var(--accent);text-transform:uppercase;letter-spacing:0.05em">🗺️ How We Got Here</h4>
+    <div id="progress-phases-list" style="display:flex;flex-direction:column;gap:2px;margin-bottom:24px"></div>
 
     <div style="display:flex;gap:20px;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
@@ -9497,6 +9499,42 @@ function renderDashboardCharts(leads) {
 // Badar (not a developer) can follow without translation. Update this array
 // directly when real work ships, in the same session that ships it - stale
 // entries here are worse than none, since Badar has no other way to check.
+// The project's real phased history, grounded in the actual commit record
+// and HANDOFF.md (checked 2026-08-30, not written from memory) - shared with
+// the standalone "Development Journey" report published for Badar the same
+// day. Dates are real; the WhatChimp-interim reasoning is the documented
+// one (subscription already committed + double-reply crosstalk risk), not
+// an invented narrative.
+const PROJECT_PHASES = [
+  { range: 'Jun 30 - Jul 20, 2026', title: 'Phase 1 - Foundation', color: 'var(--accent)',
+    text: "Built the CRM's foundation: secure logins, role-based access for admins vs. agents, and the core lead pipeline everything since has been built on top of." },
+  { range: 'Jul 20 - Jul 28, 2026', title: 'Phase 2 - Real WhatsApp Integration & First Bot', color: 'var(--accent)',
+    text: 'Full build kicked into gear with Muhammad’s go-ahead: the real WhatsApp Business number was connected, and the CRM’s own automated chatbot was deployed live for the first time on July 22.' },
+  { range: 'Jul 28 - Aug 3, 2026', title: 'Phase 3 - WhatChimp Interim', color: 'var(--warn)',
+    text: 'The CRM’s own bot was deliberately paused - a WhatChimp subscription was already paid for and committed to, and running both risked the same customer getting two different replies on the same number. WhatChimp carried the business while the real solution kept being built underneath it.' },
+  { range: 'Aug 3 - Aug 19, 2026', title: 'Phase 4 - Return & Hardening', color: 'var(--accent)',
+    text: 'WhatChimp was not renewed. The following two weeks closed a real Meta permissions bug that had silently blocked every automated reply - fixed August 19, the first genuine end-to-end automated reply on the real business number.' },
+  { range: 'Aug 19 - Aug 30, 2026 - ongoing', title: 'Phase 5 - Scaling, Intelligence & Safety', color: 'var(--ok)',
+    text: 'The AI’s knowledge base was filled in with real answers, a real notification-flood bug was fixed, a second WhatsApp number and Facebook & Instagram were connected, a deposit-accuracy safeguard went in, the CRM became installable as an app, and this page was built.' },
+];
+
+function renderProjectPhases() {
+  const el = document.getElementById('progress-phases-list');
+  if (!el) return;
+  el.innerHTML = PROJECT_PHASES.map((p, i) => `
+    <div style="display:flex;gap:14px">
+      <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:10px">
+        <div style="width:10px;height:10px;border-radius:50%;background:${p.color};margin-top:6px"></div>
+        ${i < PROJECT_PHASES.length - 1 ? '<div style="width:2px;flex:1;background:var(--line);margin-top:3px;min-height:24px"></div>' : ''}
+      </div>
+      <div style="padding-bottom:14px">
+        <div style="font-size:0.68rem;color:var(--text-muted);font-weight:600">${esc(p.range)}</div>
+        <div style="font-size:0.85rem;font-weight:700;color:var(--text-strong);margin:2px 0 4px 0">${esc(p.title)}</div>
+        <div style="font-size:0.8rem;color:var(--text-body);line-height:1.5;max-width:640px">${esc(p.text)}</div>
+      </div>
+    </div>`).join('');
+}
+
 const CRM_DEV_PROGRESS = {
   completed: [
     { date: '2026-08-30', text: 'New lead notifications now arrive instantly for every genuinely new lead - fixed a bug where they could be delayed or silently skipped.' },
@@ -9531,6 +9569,7 @@ function renderProgressList(elId, items, dated) {
 }
 
 function renderProgressTab() {
+  renderProjectPhases();
   renderProgressList('progress-completed-list', CRM_DEV_PROGRESS.completed, true);
   renderProgressList('progress-inprogress-list', CRM_DEV_PROGRESS.inProgress, false);
   renderProgressList('progress-upcoming-list', CRM_DEV_PROGRESS.upcoming, false);
