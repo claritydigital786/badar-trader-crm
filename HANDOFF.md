@@ -1,11 +1,28 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-08-30 (latest, third session of the day - the account-switch
-handoff below this one was the PREVIOUS session). The entry directly below is
-this session's, written with its verification actually run. For a fresh Claude
-Code session with zero memory of prior conversations. This session is also
-about to run out of its own usage window - written now, mid-task, rather than
-risk losing it._
+_Last updated: 2026-08-30 (later still, same session as the "notification
+cooldown removed by design" entry below - continuing in the same window, not
+a new session). The entry directly below is this session's, written with its
+verification actually run. For a fresh Claude Code session with zero memory
+of prior conversations._
+
+## 2026-08-30 (continued) - Dashboard filter, Action Items tab, Socials/TikTok split, Guide rewrite, and a live merge with a concurrent cloud session
+
+**Everything below is committed, pushed, and confirmed live on `crm.badartrader.com` and via deployed-function diffs - not assumed from a push.**
+
+1. **Dashboard time-frame filter.** All Time / Today / 7 / 30 / 90 days, filtering every downstream stat (totals, both gauge pairs, revenue/platform breakdown) on the already-fully-paginated lead fetch - deliberately not touching the Lead Growth trend chart (already its own fixed window) or Active Agents (a roster count).
+2. **Qualified Rate and Needs Human Rate gauges** added to the Dashboard to fill a visual gap Muhammad flagged (the two existing gauges left odd empty space). Both use data already fetched, no new query - only `needs_human` was missing from the select, added.
+3. **`syedbadartk@gmail.com`'s `profiles.full_name` was literally the string "syedbadartk"** (Supabase's Add User flow never asks for a name) - corrected to "Badar Tanveer" to match his other admin login, confirmed by reading the row back.
+4. **"Action Items With Badar" tab** - new `action_items` table (migration `20260830010000`, applied live via `supabase db query --linked`, confirmed by querying it directly), a shared daily to-do list between Muhammad Shoaib and Badar Tanveer with a "To-Dos for Tomorrow" view, an "All Open Items" view, and a 14-day Chart.js performance graph per person. The scoring rule that matters: an item only counts as a negative miss when it's past due, not done, AND has no reason on file - either person can add a reason at any time, which is the deliberate "leverage" Muhammad asked for so an explained miss is never scored as a failure. Not tied to CRM logins (Muhammad has none; both of Badar's logins share the name "Badar Tanveer") - `assigned_to` is plain text.
+5. **Socials navigation rebuilt.** "Facebook & Instagram" (one flat item, one combined tab) replaced with a collapsible "Socials" group (same caret/subgroup pattern Settings already uses) holding three real sub-items - Facebook, Instagram, TikTok - each with its own icon. Facebook and Instagram now show genuinely separate real message/lead counts (`communications.type` distinguishes them - `leads.source` can't, both channels write `'meta'` there). TikTok is an honest "not built yet" card. Facebook's tab keeps the one shared Connection Settings form; Instagram's tab is read-only status linking back to it.
+6. **CRM Development Progress's Upcoming section now carries every real open item from `REMAINING_TODOS.md`'s To-Dos section** (pulled 2026-08-30, not summarised from memory) - Muhammad's explicit instruction not to confine it to this CRM alone. `renderProgressList` also gained a small blinking-green-dot capability (`liveInProgress: true`) for an item genuinely being worked on right now in the background - not attached to anything at commit time since nothing was async-in-flight at that moment, but ready for next time.
+7. **Guide rewritten for both admin and agent - same sections, deliberately different "why."** Muhammad's explicit request: sections shared between the two Guides need different framing (admin = running the whole business; agent = their own worklist), not copy-pasted text. Also caught the admin Guide badly out of date (missing CRM Development Progress, Action Items, the Socials split; still describing Create Flow/Follow-ups/Message Templates as standalone tabs, which were folded into Bot Manager a while ago via `BM_MOVED_TABS` and no longer exist on their own).
+8. **Found and fixed two real stale claims while touching Bot Manager**, both predating this session: its AI Knowledge Base and AI Configuration panels still said `AI_REPLIES_ENABLED` was a hardcoded "off" constant needing a redeploy to change - that stopped being true 2026-08-23 (the reply gates became real settings-backed toggles) and the bot has genuinely answered real customers since 2026-08-19. Corrected both. `tests/inbox-ui-test.mjs` had an assertion pinned to the old "remains off" wording - updated to match the accurate copy instead of asserting a known-wrong claim back into the page.
+9. **A concurrent cloud session (a different Claude Opus 5 background session, same shared account) pushed directly to `main` mid-session**: `d9f56b3`, "Stop the bot going silent on the leads most likely to convert" - a real, thoroughly-verified fix (16 suites passing at the time, 9 new) for `escalate()`'s `needs_human` flag silencing every responder at once on a permanent handoff, even the highest-intent moment in the funnel. Pulled and merged cleanly (no file conflicts - it touched `whatsapp-webhook`/`_shared`/tests, this session's work was all `index.html`), `deno check` run again post-merge (clean), all 17 suites pass together, deployed as `whatsapp-webhook` (confirmed byte-identical against `main` afterward). **This is a real, live behavior change to a real customer-facing funnel - worth Muhammad watching the actual escalation rhythm over the next real conversations**, same as prior similar changes logged this way.
+
+**Standing reminder for whoever picks this up next:** run `git pull origin main` before trusting anything in this file or your own local state - a second Claude session on this same shared account can and did push real work directly to `main` while this session was active. Check `git log` and `supabase functions list` against what's described here, don't just read this file's word for it.
+
+---
 
 ## 2026-08-30 (latest) - The bot went silent on a qualified lead. Diagnosed from the database, fixed, NOT DEPLOYED.
 
