@@ -17,6 +17,15 @@ import {
 } from "../_shared/meta_signature.mjs";
 import { isAllowedPhoneNumberId } from "../_shared/whatsapp_phone_scope.mjs";
 import { isPermanentHandoff } from "../_shared/handoff_permanence.mjs";
+import { shouldAnswerWhileEscalated } from "../_shared/escalated_reply_policy.mjs";
+
+// Marks an AI-generated outbound in the lead's log. Needed because the cap on
+// AI replies while a handoff is open has to count the AI's own messages and
+// nothing else - a keyword reply, a funnel step and an agent's own message all
+// look the same in `body` otherwise. Kept in the existing bracket-prefix
+// convention (`[escalated to human: ...]`, `[agent ... notified]`) so the
+// Comm Log stays readable to a person.
+const AI_REPLY_LOG_PREFIX = "[ai reply]";
 import { shouldNotifyAgent } from "../_shared/agent_notify_policy.mjs";
 import { shouldSuppressRePrompt } from "../_shared/unmatched_reprompt_policy.mjs";
 
@@ -608,11 +617,14 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         const keywordResult = isStageAnswer ? null : await tryKeywordReply(sb, lead, input);
         const aiResult = (isStageAnswer || keywordResult) ? null : await tryAIReply(sb, lead, input);
         const replyResult = keywordResult || aiResult;
+        const replyLog = replyResult
+          ? (aiResult ? `${AI_REPLY_LOG_PREFIX} ${combineSendLog(replyResult)}` : combineSendLog(replyResult))
+          : "";
 
         await Promise.all([
           insertCommunication(sb, lead.id, "inbound", input.text, timestamp, undefined, message.id),
           replyResult
-            ? insertCommunication(sb, lead.id, "outbound", combineSendLog(replyResult), timestamp, undefined, lastMessageId(replyResult))
+            ? insertCommunication(sb, lead.id, "outbound", replyLog, timestamp, undefined, lastMessageId(replyResult))
             : runBotStep(sb, lead, wasCreated, input, lastCustomerTouch),
         ]);
       }
@@ -1228,10 +1240,30 @@ async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Prom
   // still cost a real OpenAI call for a reply that then never goes out.
   if (!(await gateOpen(sb, "BOT_REPLIES_ENABLED"))) return null;
   if (!(await gateOpen(sb, "AI_REPLIES_ENABLED"))) return null;
-  if (lead.needs_human) return null;
 
   const text = (input.text || "").trim();
   if (!text) return null;
+
+  // An escalated lead used to get nothing from anybody here. See
+  // escalated_reply_policy.mjs for why that changed and what still stops it.
+  // The scripted funnel is NOT reopened by this - runBotStep still returns on
+  // a permanent handoff, so the bot answers the question and never re-pitches.
+  let escalatedNote = false;
+  if (lead.needs_human) {
+    const activity = await getEscalationActivity(sb, lead.id);
+    const decision = shouldAnswerWhileEscalated({
+      needsHuman: true,
+      agentLastRepliedAt: activity.agentLastRepliedAt,
+      aiRepliesSinceEscalation: activity.aiRepliesSinceEscalation,
+    });
+    if (!decision.answer) {
+      // Logged, not silent-by-accident: a quiet bot should always be
+      // explainable from the lead's own record.
+      console.log(`tryAIReply: staying quiet on escalated lead ${lead.id} - ${decision.reason}`);
+      return null;
+    }
+    escalatedNote = true;
+  }
 
   const { data: campaigns, error } = await sb
     .from("ai_knowledge_base")
@@ -1294,8 +1326,53 @@ async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Prom
     return null;
   }
 
+  // Answering while a handoff is open must never read as "the bot has this
+  // now". The handover promise stays attached to every such reply.
+  if (escalatedNote) {
+    const lang: Lang = lead.language === "ur" ? "ur" : "en";
+    reply += t(
+      lang,
+      "\n\nA team member will follow up with you personally shortly.",
+      "\n\nHamari team ka numainda jald aap se khud raabta kare ga.",
+    );
+  }
+
   const to = lead.phone.replace(/^\+/, "");
   return await sendAIText(to, reply);
+}
+
+// Two facts the escalated-reply policy needs, read in one place so the policy
+// itself stays pure and testable. `logged_by` non-null is an agent's own
+// message; null is the bot's. AI replies are counted back to the escalation
+// marker escalate() writes, so the cap resets on each new handoff rather than
+// being spent once for the lifetime of the lead.
+async function getEscalationActivity(
+  sb: SupabaseClient,
+  leadId: string,
+): Promise<{ agentLastRepliedAt: string | null; aiRepliesSinceEscalation: number | null }> {
+  try {
+    const { data: rows, error } = await sb
+      .from("communications")
+      .select("body, logged_by, created_at")
+      .eq("lead_id", leadId)
+      .eq("direction", "outbound")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) throw new Error(error.message);
+
+    let agentLastRepliedAt: string | null = null;
+    let aiRepliesSinceEscalation = 0;
+    for (const row of rows ?? []) {
+      if (row.logged_by && !agentLastRepliedAt) agentLastRepliedAt = row.created_at;
+      if (String(row.body ?? "").startsWith("[escalated to human:")) break;
+      if (!row.logged_by && String(row.body ?? "").startsWith(AI_REPLY_LOG_PREFIX)) aiRepliesSinceEscalation++;
+    }
+    return { agentLastRepliedAt, aiRepliesSinceEscalation };
+  } catch (e) {
+    // Fail closed - null makes the policy decline rather than guess.
+    console.error("getEscalationActivity failed:", e instanceof Error ? e.message : String(e));
+    return { agentLastRepliedAt: null, aiRepliesSinceEscalation: null };
+  }
 }
 
 async function getLastInboundAt(sb: SupabaseClient, leadId: string): Promise<string | null> {
@@ -1514,7 +1591,7 @@ async function runBotStep(
       // Existing account holder: skip awaiting_experience and
       // awaiting_traded_before entirely, straight to deposit confirmation.
       await advanceStage(sb, lead, "awaiting_deposit_confirm", { broker_choice: broker, trader_experience: "experienced" });
-      const rDep = await sendDepositConfirm(to, broker);
+      const rDep = await sendDepositConfirm(to, broker, lang);
       await logOutbound(sb, lead.id, combineSendLog(rDep), lastMessageId(rDep));
       return;
     }
@@ -1550,7 +1627,7 @@ async function runBotStep(
       }
 
       await advanceStage(sb, lead, "awaiting_deposit_confirm", { trader_experience: "experienced" });
-      const rDep1 = await sendDepositConfirm(to, lead.broker_choice);
+      const rDep1 = await sendDepositConfirm(to, lead.broker_choice, lang);
       await logOutbound(sb, lead.id, combineSendLog(rDep1), lastMessageId(rDep1));
       return;
     }
@@ -1564,7 +1641,7 @@ async function runBotStep(
         return;
       }
       await advanceStage(sb, lead, "awaiting_deposit_confirm", { trader_experience: "new" });
-      const rDep2 = await sendDepositConfirm(to, lead.broker_choice);
+      const rDep2 = await sendDepositConfirm(to, lead.broker_choice, lang);
       await logOutbound(sb, lead.id, combineSendLog(rDep2), lastMessageId(rDep2));
       return;
     }
@@ -1582,7 +1659,7 @@ async function runBotStep(
         // Give one clarifying re-prompt before handing off, so a single question
         // at the deposit step doesn't instantly escalate a hot lead.
         await handleUnmatched(sb, lead, to, input, 3, "deposit confirmation", () =>
-          sendDepositConfirm(to, lead.broker_choice, "Sorry, just a Yes or No, are you ready to proceed with the $500 deposit?"),
+          sendDepositConfirm(to, lead.broker_choice, lang, t(lang, "Sorry, just a Yes or No, are you ready to proceed with the $500 deposit?", "Maazrat, sirf Haan ya Nahi - kya aap $500 deposit ke liye tayyar hain?")),
         );
         return;
       }
@@ -1629,7 +1706,11 @@ async function runBotStep(
           lead,
           to,
           "qualified, ready for the $500 deposit",
-          `Perfect! Deposit $500 in your own ${brokerName} account using the link below:\n${linkSection}\n\nAlready trading with ${brokerName} and have $500 or more deposited? Even better, that counts too. Either way, send your account screenshot showing the deposit here and our team will confirm and unlock your free $250 mentorship course. A team member will follow up with you shortly!`,
+          t(
+            lang,
+            `Perfect! Deposit $500 in your own ${brokerName} account using the link below:\n${linkSection}\n\nAlready trading with ${brokerName} and have $500 or more deposited? Even better, that counts too. Either way, send your account screenshot showing the deposit here and our team will confirm and unlock your free $250 mentorship course. A team member will follow up with you shortly!`,
+            `Zabardast! Neeche diye gaye link se apne ${brokerName} account mein $500 deposit karein:\n${linkSection}\n\nAgar aap pehle se ${brokerName} par trading kar rahe hain aur $500 ya us se zyada jama hai, to wo bhi bilkul chalega. Dono soorton mein, deposit dikhata hua apne account ka screenshot yahan bhej dein - hamari team tasdeeq kar ke aap ka free $250 ka mentorship course unlock kar de gi. Hamari team ka numainda jald aap se raabta kare ga!`,
+          ),
         );
         return;
       }
@@ -1959,15 +2040,27 @@ async function handleAgentReply(
 // Caller is responsible for logging the result (matches every other send*
 // helper) - this used to log internally, which double-logged when reused as
 // handleUnmatched's rePrompt (handleUnmatched logs its own combined result).
-async function sendDepositConfirm(to: string, brokerChoice: string, bodyText?: string): Promise<SendResult> {
+// The deposit confirmation was the one card in the whole funnel that never
+// took `lang` - so a lead who chose Roman Urdu walked the entire flow in Urdu
+// and then hit the single most important question in it in English (seen live
+// 2026-08-23, Junaid's test). The earlier language sweep missed this one
+// because its signature ends in an OPTIONAL body string, so it was almost
+// always called as sendDepositConfirm(to, broker) with no literal for the
+// bare-string test to catch. Button IDs are unchanged and matchYesNo() keys
+// off the ID, not the label, so translating the titles cannot break the match.
+async function sendDepositConfirm(to: string, brokerChoice: string, lang: Lang, bodyText?: string): Promise<SendResult> {
   const brokerLabel = brokerChoice === "xm" ? "XM" : brokerChoice === "both" ? "Exness or XM" : "Exness";
   return await sendButtons(
     to,
-    bodyText ?? `This offer needs a $500 deposit with ${brokerLabel} to unlock Badar's free $250 mentorship course. Ready to proceed?`,
+    bodyText ?? t(
+      lang,
+      `This offer needs a $500 deposit with ${brokerLabel} to unlock Badar's free $250 mentorship course. Ready to proceed?`,
+      `Is offer ke liye ${brokerLabel} par $500 deposit karna hoga, jis se Badar ka free $250 ka mentorship course unlock ho jata hai. Kya aap aage barhna chahenge?`,
+    ),
     [
-      { id: "deposit_yes", title: "Yes, I'm ready" },
-      { id: "deposit_no", title: "Not right now" },
-      { id: "nav_back", title: "Go Back" },
+      { id: "deposit_yes", title: t(lang, "Yes, I'm ready", "Ji haan, tayyar hun") },
+      { id: "deposit_no", title: t(lang, "Not right now", "Abhi nahi") },
+      { id: "nav_back", title: t(lang, "Go Back", "Peeche Jayein") },
     ],
   );
 }

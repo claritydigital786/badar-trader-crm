@@ -10,9 +10,16 @@ import { readFileSync } from 'node:fs';
 const src = readFileSync(new URL('../whatsapp-webhook/index.ts', import.meta.url), 'utf8');
 
 // ── No prompt may reach a sender as a bare English string ───────────────────
+// sendDepositConfirm joined this list on 2026-08-23. It was missed by the
+// first sweep because its signature ends in an OPTIONAL body string, so it was
+// almost always called as sendDepositConfirm(to, broker) with no literal for
+// the bare-string check below to catch. The result was visible in Junaid's
+// live test: the whole funnel in Roman Urdu, and then the single most
+// important question in it - the $500 deposit - in English.
 const SENDERS = [
   'sendTraderStatusButtons', 'sendBrokerCard',
   'sendExperienceButtons', 'sendTradedBeforeButtons',
+  'sendDepositConfirm',
 ];
 for (const fn of SENDERS) {
   const bare = new RegExp(`${fn}\\(\\s*to\\s*,\\s*["\`]`, 'g');
@@ -65,3 +72,29 @@ assert.match(src, /function t\(lang: Lang, en: string, ur: string\): string \{\s
   't() must return the Urdu string for "ur" and English otherwise.');
 
 console.log('flow-language: every prompt and button is bilingual and within WhatsApp limits.');
+
+// -- The deposit step specifically, because it is the one that got missed ----
+// A sender with an optional trailing string is exactly the shape the
+// bare-string regex above cannot see, so check the copy itself, not the call.
+for (const [en, ur] of [
+  ["Yes, I'm ready", 'Ji haan, tayyar hun'],
+  ['Not right now', 'Abhi nahi'],
+]) {
+  const pattern = new RegExp('t\\(lang, "' + en.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '", "' + ur + '"\\)');
+  assert.match(src, pattern, `The deposit confirmation button "${en}" has no Roman Urdu label.`);
+}
+
+// WhatsApp truncates a reply-button title over 20 characters, which would
+// silently mangle the funnel's most important buttons rather than error.
+for (const label of ['Ji haan, tayyar hun', 'Abhi nahi', 'Peeche Jayein']) {
+  assert.ok(label.length <= 20, `Button label "${label}" is ${label.length} chars; WhatsApp's limit is 20.`);
+}
+
+// The deposit question and the post-qualification instructions must both be
+// bilingual - the second is what a lead reads at the moment they convert.
+assert.match(src, /Is offer ke liye .* \$500 deposit karna hoga/,
+  'The $500 deposit question has no Roman Urdu version.');
+assert.match(src, /Zabardast! Neeche diye gaye link se/,
+  'The post-qualification deposit instructions have no Roman Urdu version.');
+
+console.log("  ok  the deposit step speaks the customer's language");
