@@ -6604,19 +6604,23 @@ async function loadClientTransactions(leadId) {
 function buildLedgerTab(lead, leadId, ctx, isAdmin, txRows) {
   const defaultTxCurrency = workspaceSettings.default_transaction_currency || 'USD';
   const currencyOption = code => `<option value="${code}"${code === defaultTxCurrency ? ' selected' : ''}>${code}</option>`;
+  const isLocked = !!lead.balance_locked;
   const balanceBlock = `
     <div style="margin-bottom:20px">
-      <div class="detail-label" style="margin-bottom:4px">Account Balance</div>
+      <div class="detail-label" style="margin-bottom:4px">Account Balance ${isLocked ? '<span title="Locked after conversion was approved - unlock it, with a reason, before editing" style="font-size:0.72rem;font-weight:700;color:var(--text-muted)">&#128274; Locked</span>' : ''}</div>
       <div style="font-size:1.8rem;color:var(--accent);font-weight:700">$${fmtMoney(lead.account_balance)}</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Recorded from agent-entered data - not yet independently verified against the broker/platform.</div>
     </div>
     ${isAdmin ? `
     <div class="form-row" style="align-items:flex-end;max-width:420px">
       <div>
         <label>Update Balance</label>
-        <input type="text" id="det-balance-input" value="${esc(lead.account_balance ?? 0)}" />
+        <input type="text" id="det-balance-input" value="${esc(lead.account_balance ?? 0)}"${isLocked ? ' disabled' : ''} />
       </div>
       <div style="flex:0 0 auto">
-        <button class="btn btn-primary btn-sm" onclick="saveBalance('${leadId}','${ctx}')">Save</button>
+        ${isLocked
+          ? `<button class="btn btn-secondary btn-sm" onclick="unlockBalance('${leadId}','${ctx}')">Unlock to Correct</button>`
+          : `<button class="btn btn-primary btn-sm" onclick="saveBalance('${leadId}','${ctx}')">Save</button>`}
       </div>
     </div>
     <span class="success-msg" id="det-balance-msg"></span>
@@ -6688,9 +6692,49 @@ async function saveBalance(leadId, ctx) {
   }
   const { error } = await sb.from('leads')
     .update({ account_balance: parseFloat(balance) }).eq('id', leadId);
-  if (error) { setMsg(msgEl, error.message, 'err'); return; }
+  if (error) {
+    // The database trigger itself refuses a locked balance (see
+    // guard_leads_admin_only_columns, Phase 33) - this is the real backstop,
+    // the disabled input above is just the friendlier front door to it.
+    setMsg(msgEl, error.message, 'err'); return;
+  }
   const lead = cachedLeads.find(l => l.id === leadId);
   if (lead) lead.account_balance = parseFloat(balance);
+  await openDetail(leadId, ctx);
+}
+
+// Unlocking is a deliberate, logged action - a reason is required and
+// written to balance_audit_log BEFORE the lead's own balance_locked flag is
+// cleared, so the "why" is on record even if the actual correction is made
+// later or by someone else. See migrations/20260830000000_deposit_accuracy_mechanism.sql.
+async function unlockBalance(leadId, ctx) {
+  const reason = (prompt('Why is this balance being unlocked for correction? (required, logged)') || '').trim();
+  if (!reason) return;
+  const msgEl = document.getElementById('det-balance-msg');
+
+  if (demoMode) {
+    const lead = cachedLeads.find(l => l.id === leadId);
+    if (lead) lead.balance_locked = false;
+    setMsg(msgEl, 'Unlocked. (demo - nothing was written)', 'ok');
+    await openDetail(leadId, ctx);
+    return;
+  }
+
+  const lead = cachedLeads.find(l => l.id === leadId);
+  const { error: logError } = await sb.from('balance_audit_log').insert({
+    lead_id: leadId,
+    changed_by: currentUser?.id ?? null,
+    old_balance: lead?.account_balance ?? null,
+    new_balance: lead?.account_balance ?? null,
+    action: 'unlock',
+    reason,
+  });
+  if (logError) { setMsg(msgEl, `Could not log the reason, so did not unlock: ${logError.message}`, 'err'); return; }
+
+  const { error } = await sb.from('leads').update({ balance_locked: false }).eq('id', leadId);
+  if (error) { setMsg(msgEl, error.message, 'err'); return; }
+  if (lead) lead.balance_locked = false;
+  setMsg(msgEl, 'Unlocked - you can now edit the balance.', 'ok');
   await openDetail(leadId, ctx);
 }
 
@@ -7121,22 +7165,41 @@ async function notifyAdminPendingApproval(leadId) {
 }
 
 async function approveConversion(leadId, ctx) {
-  if (!confirm('Approve this conversion? The lead will be marked as Converted.')) return;
   const lead  = cachedLeads.find(l => l.id === leadId);
 
   if (demoMode) {
-    if (lead) lead.status = 'converted';
+    if (!confirm('Approve this conversion? The lead will be marked as Converted.')) return;
+    if (lead) { lead.status = 'converted'; lead.balance_locked = true; }
     showToast('✅ Conversion approved - lead marked as Converted! (demo)');
     filterLeadsLocal(); // keep the active filter + search applied after an inline edit
     await openDetail(leadId, ctx);
     return;
   }
 
+  // Deposit-accuracy mechanism (Muhammad, 2026-08-30, see
+  // REMAINING_TODOS.md): a conversion cannot be approved without a Deposit
+  // Screenshot on file - real evidence behind the number, not just a typed
+  // figure. This does not make account_balance verified, only recorded with
+  // evidence attached; see the "Recorded, not Verified" copy elsewhere.
+  const { data: screenshots, error: screenshotError } = await sb
+    .from('kyc_documents')
+    .select('id')
+    .eq('client_id', leadId)
+    .eq('document_type', 'deposit_screenshot')
+    .limit(1);
+  if (screenshotError) { showToast('Could not check for a deposit screenshot: ' + screenshotError.message, 'err'); return; }
+  if (!screenshots || !screenshots.length) {
+    showToast('Cannot approve - no Deposit Screenshot is on file for this lead. Ask the agent to upload one first (KYC Documents tab).', 'err');
+    return;
+  }
+
+  if (!confirm('Approve this conversion? The lead will be marked as Converted and its balance locked.')) return;
+
   const { error } = await sb.from('leads')
-    .update({ status: 'converted', converted_at: new Date().toISOString() }).eq('id', leadId);
+    .update({ status: 'converted', converted_at: new Date().toISOString(), balance_locked: true }).eq('id', leadId);
   if (error) { showToast('Error approving: ' + error.message, 'err'); return; }
-  if (lead) lead.status = 'converted';
-  showToast('✅ Conversion approved - lead marked as Converted!');
+  if (lead) { lead.status = 'converted'; lead.balance_locked = true; }
+  showToast('✅ Conversion approved - lead marked as Converted, balance locked!');
   filterLeadsLocal(); // keep the active filter + search applied after an inline edit
   await openDetail(leadId, ctx);
   // Notify the assigned agent via WA (optional - fires same helper with a different message)
