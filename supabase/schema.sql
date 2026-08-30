@@ -2096,3 +2096,31 @@ $$;
 
 -- DONE (Phase 33)
 -- =============================================================
+
+-- =============================================================
+-- Phase 34 - Action Items With Badar (Muhammad, 2026-08-30)
+-- Corresponds to supabase/migrations/20260830010000_action_items.sql
+-- =============================================================
+
+CREATE TABLE IF NOT EXISTS public.action_items (
+  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  title        TEXT        NOT NULL,
+  assigned_to  TEXT        NOT NULL CHECK (assigned_to IN ('Badar', 'Muhammad Shoaib')),
+  due_date     DATE        NOT NULL,
+  done         BOOLEAN     NOT NULL DEFAULT false,
+  done_at      TIMESTAMPTZ,
+  reason       TEXT,
+  reason_by    TEXT        CHECK (reason_by IS NULL OR reason_by IN ('Badar', 'Muhammad Shoaib')),
+  reason_at    TIMESTAMPTZ,
+  created_by   UUID        REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.action_items ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "action_items: admin full access" ON public.action_items;
+CREATE POLICY "action_items: admin full access" ON public.action_items
+  FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- DONE (Phase 34)
+-- =============================================================
