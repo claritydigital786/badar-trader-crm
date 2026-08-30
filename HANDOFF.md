@@ -1,8 +1,36 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-08-30. The entry directly below is this session's, written
-with its verification actually run. For a fresh Claude Code session with zero
-memory of prior conversations._
+_Last updated: 2026-08-30 (later, second session of the day - the account-switch
+handoff below this one was the PREVIOUS session). The entry directly below is
+this session's, written with its verification actually run. For a fresh Claude
+Code session with zero memory of prior conversations. This session is also
+about to run out of its own usage window - written now, mid-task, rather than
+risk losing it._
+
+## 2026-08-30 (later) - notification cooldown removed by design, deposit-accuracy mechanism, CRM Development Progress tab (re-scoped twice), PWA, Quick Links fix, phased project history
+
+**Everything below is committed, pushed, and confirmed live on `crm.badartrader.com` - verified by actually curling the production site and downloading deployed function source to diff against `main`, not assumed from a push.**
+
+1. **Per-agent WhatsApp notification cooldown REMOVED entirely - deliberate product decision, not a bug fix.** Investigated a screenshot showing 10+ rapid notifications; found `getAgentRotation()`'s `.map()` silently dropped `last_notified_at` so the 2026-08-28 cooldown-cache fix could never have worked regardless. Muhammad's explicit call once this was explained: every unique lead should notify its agent immediately, even 60 seconds after the last one - the 30-minute cross-lead cooldown was never actually wanted. `shouldNotifyAgent()` now has two rules (test allowlist, one-ping-per-lead), not three. Deployed `whatsapp-webhook` **v101**, confirmed byte-identical.
+2. **Deposit-accuracy mechanism, live on the database.** Migration `20260830000000_deposit_accuracy_mechanism.sql` applied directly via `supabase db query --linked` (NOT `db push` - its migration history had real drift from historically-manually-pasted SQL; repaired the ledger back to its correct pre-existing state afterward, verified via `migration list`). `leads.balance_locked`, new `balance_audit_log` table, `kyc_documents.document_type` widened to actually allow `deposit_screenshot` (it never did before - zero rows existed yet so nothing was lost). `approveConversion()` now refuses without a screenshot on file and locks the balance; the existing `guard_leads_admin_only_columns` trigger now also auto-logs every real balance change and blocks editing a locked one unless the same statement unlocks it. This is a verified-process mechanism, not mathematical certainty - true 100% accuracy still needs a real Exness/XM API, a separate open question for Badar (a proposal for this is in both the CRM tab and the standalone report, see below).
+3. **CRM Development Progress tab - built, then RE-SCOPED after a real miscommunication, worth reading closely if picking this up.** First version showed lead/conversion/deposit stats - Muhammad clarified he actually wanted a build/changelog view ("what we had already performed on the CRM development, what is in progress, what is yet to be completed"), not a sales dashboard. Rebuilt entirely: `CRM_DEV_PROGRESS` (completed/inProgress/upcoming, curated by hand in `index.html`, no database read at all) plus a new `PROJECT_PHASES` timeline ("How We Got Here" - 5 real dated phases from the actual commit history/HANDOFF.md, matching the standalone report below). **Update `CRM_DEV_PROGRESS` directly in the same session real work ships - stale entries are worse than none, Badar has no other way to check.** Also fixed: a duplicate `<h3>` repeating the page's own title (Muhammad caught it live), and the demo-preview's sample data using the real current agent roster's names instead of fictional ones.
+4. **New `notify-admin-progress` Edge Function** - "Send Update to Badar" button on the tab, admin-only, formats the SAME `CRM_DEV_PROGRESS` content the browser passes in (single source of truth) and sends it to the existing `admin_whatsapp_number` setting. Not yet on a schedule (logged as a fast-follow) - on-demand only.
+5. **PWA install support shipped** - `manifest.webmanifest` + a deliberately pass-through `sw.js` (caches nothing - this is a live CRM with real customer data, an aggressive app-shell cache would be actively dangerous here). **Real deploy gap caught and fixed**: `vercel.json`'s `builds` only declared `*.html` and `assets/**`, so both new root files 404'd in production after the first push - found by actually curling the live site, not assuming. Badar/agents can now "Add to Home Screen" on iOS Safari or Android Chrome.
+6. **Quick Links bug fixed** (Omnichannel Inbox) - the displayed value was plain text, not a clickable `<a>`, so a URL-shaped string did nothing when clicked. Both broker referral links themselves were checked live and work correctly (Exness/XM both redirect with tracking intact) - the bug was purely in the display.
+7. **Standalone report published for Badar**: **[Badar Trader CRM Development Journey](https://claude.ai/code/artifact/e91d1c6c-a4d3-43ea-8d7a-f3a7858eb0ea)** - the same 5-phase history, current snapshot, In Progress/Upcoming sections, and a TikTok section with Badar's REAL checked-live stats (35.5K followers, 424.9K likes, @syedbadartanveer) plus a proposed (explicitly labeled as a proposal, not a guarantee) 1/3/6/12-month growth path.
+
+**Deliberately left unresolved / flagged, not yet done:**
+- **Dashboard visual gap, raised 2026-08-30, NOT YET FIXED.** Muhammad flagged that the two gauge boxes (Conversion Rate, New Lead Share) at the top of the admin Dashboard leave an oddly empty-looking gap beside them that visually drags the eye every time - he wants two more boxes added there to balance it. Not started - pick this up first on the next session. Screenshot showed real live data at the time: 6,733 total leads, 1 converted, $301 client balance (Exness).
+- **Restore real agents (Farwa, Hanzala, Bilal, Faisal) to lead rotation** - still open from 2026-08-28, unrelated to this session's work, still flagged in `REMAINING_TODOS.md`.
+- **TikTok handle was provided this session** (`@syedbadartanveer`) - real stats already pulled and in both the CRM tab... no, correction: the TikTok section lives ONLY in the standalone report (item 7 above), not yet mirrored into the CRM tab's own Upcoming section text (which still says "awaiting handle" as of the last CRM-tab edit in this entry's item 3 - double check and reconcile if picking this up).
+- **Meta AI chatbot question answered but not actioned** - explained there's no known public API to swap in Meta's own AI for a business's WhatsApp number; the real lever is prompt-tuning the existing OpenAI-based bot. No code change from this.
+- **Exness/XM API proposal** - drafted in prose to Muhammad and included in both the CRM tab and the standalone report; not yet actually sent to Badar as its own distinct ask (it's bundled into the general progress content, not a dedicated pitch).
+
+**Full detail, verification steps, and exact commits for every item above are in git log (`e1d728d` through `2de0e42`) and this file's own commit history - read the diffs, they're thorough.** Everything is verified live, not just pushed: production curled directly for every claim above, both touched Edge Functions downloaded and diffed byte-identical against `main`.
+
+---
+
+
 
 ## 2026-08-30 - account-switch handoff note: catching HANDOFF.md up on three days of un-logged work
 
