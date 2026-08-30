@@ -1,11 +1,87 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-08-30 (later, second session of the day - the account-switch
+_Last updated: 2026-08-30 (latest, third session of the day - the account-switch
 handoff below this one was the PREVIOUS session). The entry directly below is
 this session's, written with its verification actually run. For a fresh Claude
 Code session with zero memory of prior conversations. This session is also
 about to run out of its own usage window - written now, mid-task, rather than
 risk losing it._
+
+## 2026-08-30 (latest) - The bot went silent on a qualified lead. Diagnosed from the database, fixed, NOT DEPLOYED.
+
+**What Muhammad saw.** A WhatsApp screenshot of the Testing chat: the lead
+tapped "Yes, I'm ready" on the $500 deposit at 11:19 AM, got the deposit
+instructions, then sent "kuch badar k bare mein btaen" (11:30), "?" (11:42),
+"minimum kitne paise jama kerwane hn?" (11:43) and "Hi" (12:52). Four inbound
+messages, zero replies, 93 minutes. His words: "after your above fixations, now
+it has been stucked!"
+
+**It was not the knowledge base or the reply gates.** Checked before answering
+rather than defending the recent work. Lead `88b64aeb` (M Junaid Ur Rehman,
++923362391119): the funnel ran correctly and entirely in Roman Urdu, `escalate()`
+fired at 06:19:06 UTC with reason "qualified, ready for the $500 deposit", and
+Farwa Qazi was notified at 06:19:07. Both gates verified open. `updated_at`
+moved on the 12:52 message, so the webhook received it and chose not to answer.
+
+**Cause, and it was designed in.** Three early returns on one flag:
+`tryKeywordReply` and `tryAIReply` both `if (lead.needs_human) return null;`,
+and `runBotStep` returns on `isPermanentHandoff(handoff_reason)`. "qualified,
+ready for the $500 deposit" is one of the three permanent reasons, so the flag
+never clears and every responder switched off at once. This was the open
+"permanently-escalated lead gets total silence" item - now observed happening
+to a real conversation instead of reasoned about. **The customer with the
+highest intent in the funnel was the one the system guaranteed to ignore.**
+
+**Fix - `_shared/escalated_reply_policy.mjs` (new).** Narrower rather than
+absent: while a handoff is open the AI may ANSWER a question, but never
+reopens the funnel and never talks over a person.
+- An agent who replied within 60 minutes means a human is present - stay
+  silent. `communications.logged_by` is the discriminator (non-null = a person
+  sent it), confirmed against live data: 112 agent-sent vs 2,081 bot-sent.
+- At most 3 AI answers between one escalation and an agent arriving.
+- Every such reply appends the handover promise in the lead's own language.
+- Fails CLOSED, unlike `handoff_permanence.mjs`. There the risk was a muted
+  customer; here it is a bot interrupting a live sales conversation, and
+  silence is the cheaper mistake. `runBotStep` is untouched, so the scripted
+  flow stays shut - no re-pitch, no double reply.
+
+The AI's outbound log line is now prefixed `[ai reply]` so the cap counts only
+its own messages, in the existing bracket convention.
+
+**Second real bug, same transcript.** `sendDepositConfirm` was the one sender
+in the funnel that never took `lang`, so a Roman Urdu lead walked the whole
+flow in Urdu and met the single most important question in it ("This offer
+needs a $500 deposit...", plus Yes, I'm ready / Not right now / Go Back) in
+English. The 2026-08-23 language sweep missed it because its signature ends in
+an OPTIONAL body string, leaving no literal for the bare-string test to catch.
+Now bilingual, along with the post-qualification deposit instructions, and
+`flow-language-test.mjs` covers that shape specifically.
+
+**Rebased, not merged blindly.** This work started from `3a3fa9e` and
+`origin/main` had moved 72 commits ahead. Re-applied onto current `main` in an
+isolated worktree rather than merging a stale diff, after checking that the bug
+still existed upstream (it did - all three early returns intact) and that
+`sendDepositConfirm` was still English-only upstream (it was).
+
+**Verification actually run.** All 16 node suites pass, including 9 new ones. A
+test caught a real hole while it was being written: a JS default of `= 0` on the
+reply count fired on `undefined`, silently turning "could not establish this"
+into "no replies yet, go ahead" - the opposite of failing closed. Fixed in the
+module, not the test. `deno lint` matches the upstream baseline exactly (27
+no-explicit-any, 1 no-import-prefix, 1 no-unused-vars), so nothing new.
+
+**Type checking, done differently.** `deno check` still cannot run in the cloud
+session - `esm.sh` is blocked by org policy at the proxy. Instead of punting it
+unverified, the check ran against a copy with only that one unreachable import
+swapped for a structural stub. One error remains, `TS7006` at line 709, on code
+untouched by this change and caused by the stub typing `data` loosely where the
+real client types it. **Every line in this diff type-checks clean, including the
+JSDoc-typed `.mjs` boundary that produced four real errors last time.** This is
+not a substitute for the real thing - run `deno check` on the laptop before
+deploying.
+
+**NOT DEPLOYED.** Live webhook deploys are Muhammad's laptop with him present.
+Until it ships, the silence in his screenshot is still live.
 
 ## 2026-08-30 (later) - notification cooldown removed by design, deposit-accuracy mechanism, CRM Development Progress tab (re-scoped twice), PWA, Quick Links fix, phased project history
 
