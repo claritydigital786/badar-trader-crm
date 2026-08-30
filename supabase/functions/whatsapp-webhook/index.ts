@@ -1251,10 +1251,15 @@ async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Prom
   let escalatedNote = false;
   if (lead.needs_human) {
     const activity = await getEscalationActivity(sb, lead.id);
+    if (!activity) {
+      // Fail closed: could not establish whether an agent is active, so do
+      // not risk talking over one.
+      console.log(`tryAIReply: staying quiet on escalated lead ${lead.id} - could not read agent activity`);
+      return null;
+    }
     const decision = shouldAnswerWhileEscalated({
       needsHuman: true,
       agentLastRepliedAt: activity.agentLastRepliedAt,
-      aiRepliesSinceEscalation: activity.aiRepliesSinceEscalation,
     });
     if (!decision.answer) {
       // Logged, not silent-by-accident: a quiet bot should always be
@@ -1341,15 +1346,21 @@ async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Prom
   return await sendAIText(to, reply);
 }
 
-// Two facts the escalated-reply policy needs, read in one place so the policy
+// The one fact the escalated-reply policy needs, read here so the policy
 // itself stays pure and testable. `logged_by` non-null is an agent's own
-// message; null is the bot's. AI replies are counted back to the escalation
-// marker escalate() writes, so the cap resets on each new handoff rather than
-// being spent once for the lifetime of the lead.
+// message; null is the bot's. Only scoped back to the most recent escalation
+// marker escalate() writes, so a resolved-then-re-escalated lead doesn't see
+// an agent reply from a previous, unrelated handoff as "still active".
+//
+// Returns null on a lookup failure (not just a null agentLastRepliedAt) so the
+// caller can fail closed - the policy's own no-cap rule (2026-08-30) means an
+// error here can never be papered over as "no agent activity", or the bot
+// would answer through a DB hiccup that could just as easily be hiding a real
+// agent reply.
 async function getEscalationActivity(
   sb: SupabaseClient,
   leadId: string,
-): Promise<{ agentLastRepliedAt: string | null; aiRepliesSinceEscalation: number | null }> {
+): Promise<{ agentLastRepliedAt: string | null } | null> {
   try {
     const { data: rows, error } = await sb
       .from("communications")
@@ -1361,17 +1372,14 @@ async function getEscalationActivity(
     if (error) throw new Error(error.message);
 
     let agentLastRepliedAt: string | null = null;
-    let aiRepliesSinceEscalation = 0;
     for (const row of rows ?? []) {
       if (row.logged_by && !agentLastRepliedAt) agentLastRepliedAt = row.created_at;
       if (String(row.body ?? "").startsWith("[escalated to human:")) break;
-      if (!row.logged_by && String(row.body ?? "").startsWith(AI_REPLY_LOG_PREFIX)) aiRepliesSinceEscalation++;
     }
-    return { agentLastRepliedAt, aiRepliesSinceEscalation };
+    return { agentLastRepliedAt };
   } catch (e) {
-    // Fail closed - null makes the policy decline rather than guess.
     console.error("getEscalationActivity failed:", e instanceof Error ? e.message : String(e));
-    return { agentLastRepliedAt: null, aiRepliesSinceEscalation: null };
+    return null;
   }
 }
 

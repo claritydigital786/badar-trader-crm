@@ -18,30 +18,40 @@
 // because no agent happened to be looking. The customer most likely to convert
 // is the one the system guarantees will be ignored.
 //
-// So the rule is now narrower rather than absent: the bot may ANSWER a
+// So the rule became narrower rather than absent: the bot may ANSWER a
 // question while escalated, but it may never re-run the funnel and it must
-// never talk over an agent who is actually present.
+// never talk over an agent who is actually present. That version (2026-08-23)
+// still capped the AI at 3 answers per escalation, on the theory that a long
+// unattended thread should eventually read as "nobody is here."
 //
-// THE THREE CONDITIONS
+// REVISED 2026-08-30 (Muhammad, explicit product decision): the reply cap
+// itself turned out to cost real leads. A "Trade Campus" thread hit the old
+// cap of 3 and then went silent on a live customer who was still typing -
+// exactly the kind of ignored high-intent lead this file was written to stop.
+// Muhammad's instruction: "till the time the user remains available, the AI
+// chatbot should keep it engaged" - bounded only by Meta's real 24-hour
+// customer-service window (a WhatsApp platform limit this code cannot see or
+// extend, so once that closes there genuinely is no other option). The
+// reply-count cap is gone. What Muhammad explicitly kept, in the same
+// decision: never talk over an agent who is actually present - condition 1
+// below is unchanged and still absolute.
+//
+// THE CONDITIONS
 //
 // 1. An agent replying recently means a human is genuinely in the thread.
 //    Stay silent - this is the case the original rule was written for, and it
 //    is still absolutely right. `logged_by` is what separates an agent's
 //    message from the bot's own (non-null = a person sent it).
 //
-// 2. Answers since the escalation are capped. A customer sending fifteen
-//    messages into an unattended thread should not receive fifteen machine
-//    replies - past a few answers the honest state is "nobody is here", and
-//    more bot output only makes it look attended when it is not.
-//
-// 3. Everything else gets an answer, in the customer's own language, from the
+// 2. Everything else gets an answer, in the customer's own language, from the
 //    approved knowledge base only, with the handover line still attached so
 //    nobody is misled into thinking the human is no longer coming.
 //
-// Fails CLOSED, unlike handoff_permanence.mjs: if the caller cannot establish
-// agent activity or the reply count, we do not answer. There the risk was a
-// muted customer; here the risk is a bot interrupting a live human sales
-// conversation, and silence is the cheaper mistake of the two.
+// Fails CLOSED on agent-activity, unlike handoff_permanence.mjs: if the caller
+// cannot establish whether an agent is active, we do not answer. The risk of a
+// bot interrupting a live human sales conversation is worse than one missed
+// customer message, which the no-cap change above already guards against on
+// the other side.
 
 // How recently an agent must have replied for the bot to treat the thread as
 // actively handled and keep quiet. One hour, because agents work this inbox in
@@ -49,39 +59,23 @@
 // "gone" while they are mid-conversation and still typing.
 export const AGENT_ACTIVE_MINUTES = 60;
 
-// Most AI answers allowed between one escalation and an agent arriving.
-export const MAX_AI_REPLIES_WHILE_ESCALATED = 3;
-
 /**
  * @param {{
  *   needsHuman?: boolean,
  *   agentLastRepliedAt?: string|number|Date|null,
- *   aiRepliesSinceEscalation?: number|null,
  *   now?: number,
  *   agentActiveMinutes?: number,
- *   maxReplies?: number,
  * }} [args]
  * @returns {{ answer: boolean, reason: string }}
  */
 export function shouldAnswerWhileEscalated({
   needsHuman = false,
   agentLastRepliedAt = null,
-  // Deliberately NOT defaulted to 0. A JS default fires on `undefined`, which
-  // would quietly turn "the caller could not establish this" into "no replies
-  // yet, go ahead" - the exact opposite of failing closed. Caught by the test
-  // for this file, not by review.
-  aiRepliesSinceEscalation,
   now = Date.now(),
   agentActiveMinutes = AGENT_ACTIVE_MINUTES,
-  maxReplies = MAX_AI_REPLIES_WHILE_ESCALATED,
 } = {}) {
   // Not escalated at all - this policy has no opinion, the normal AI path runs.
   if (!needsHuman) return { answer: true, reason: "not escalated" };
-
-  // Fail closed on an unusable count rather than guessing it is zero.
-  if (typeof aiRepliesSinceEscalation !== "number" || !Number.isFinite(aiRepliesSinceEscalation)) {
-    return { answer: false, reason: "reply count unavailable" };
-  }
 
   if (agentLastRepliedAt) {
     const at = new Date(agentLastRepliedAt).getTime();
@@ -93,9 +87,9 @@ export function shouldAnswerWhileEscalated({
     }
   }
 
-  if (aiRepliesSinceEscalation >= maxReplies) {
-    return { answer: false, reason: "already answered the maximum while waiting for an agent" };
-  }
-
-  return { answer: true, reason: "escalated but unattended" };
+  // No cap: keep the customer engaged for as long as they remain reachable.
+  // The only real ceiling is Meta's own 24-hour customer-service window,
+  // which this function cannot see - that is enforced by WhatsApp itself on
+  // the send, not by this policy.
+  return { answer: true, reason: "escalated but unattended - no reply cap" };
 }
