@@ -777,6 +777,11 @@
        this dashboard doesn't track response-time SLAs against a target, so
        showing one would be a fake number on a live business dashboard. */
     .kpi-gauge-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+    @keyframes ai-live-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(31,143,95,.6); }
+      70%  { box-shadow: 0 0 0 6px rgba(31,143,95,0); }
+      100% { box-shadow: 0 0 0 0 rgba(31,143,95,0); }
+    }
     .kpi-gauge {
       background: #fff; border: 1px solid #e5e8ef; border-radius: 10px;
       padding: 18px 22px; box-shadow: 0 1px 3px rgba(0,0,0,.1);
@@ -1555,7 +1560,15 @@
       <div class="nav-item" data-tab="bot-manager"><span class="nav-icon" data-nav-icon="bot" style="background:var(--tint-sky-bg)"></span> Bot Manager</div>
       <div class="nav-item" data-tab="subscribers"><span class="nav-icon" data-nav-icon="subscriber" style="background:var(--tint-success-bg)"></span> Manage Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
       <div class="nav-item" data-tab="meta"><span class="nav-icon" data-nav-icon="link" style="background:var(--tint-gold-bg)"></span> Meta Integration</div>
-      <div class="nav-item" data-tab="social-integration"><span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Facebook &amp; Instagram</div>
+      <div class="nav-item" data-tab="social-facebook">
+        <span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Socials
+        <span class="nav-caret" id="socials-caret" title="Show or hide Socials items" onclick="toggleNavSubgroup(event,'socials-subgroup','socials-caret')">▾</span>
+      </div>
+      <div class="nav-subgroup" id="socials-subgroup">
+        <div class="nav-item" data-tab="social-facebook"><span class="nav-icon" data-nav-icon="facebook" style="background:var(--tint-sky-bg)"></span> Facebook</div>
+        <div class="nav-item" data-tab="social-instagram"><span class="nav-icon" data-nav-icon="instagram" style="background:var(--tint-danger-bg)"></span> Instagram</div>
+        <div class="nav-item" data-tab="social-tiktok"><span class="nav-icon" data-nav-icon="tiktok" style="background:var(--tint-warn-bg)"></span> TikTok</div>
+      </div>
       <div class="nav-section-label">LEADS</div>
       <div class="nav-item" data-tab="leads"><span class="nav-icon" data-nav-icon="users" style="background:var(--tint-sky-bg)"></span> All Leads <span class="nav-badge" id="leads-count-badge"></span></div>
       <div class="nav-item" data-tab="agents"><span class="nav-icon" data-nav-icon="team" style="background:var(--tint-success-bg)"></span> My Team</div>
@@ -2930,8 +2943,11 @@
   </div>
 
   <!-- Facebook & Instagram Integration -->
-  <div id="admin-tab-social-integration" class="tab-content">
-    <h3>Facebook &amp; Instagram Integration</h3>
+  <!-- Facebook: carries the shared Connection Settings form (one webhook
+       serves both Messenger and Instagram, so one place to configure it) -
+       plus Facebook-only stats. -->
+  <div id="admin-tab-social-facebook" class="tab-content">
+    <h3>Facebook Integration</h3>
     <div class="info-box" id="social-status-banner">
       Checking status…
     </div>
@@ -2955,7 +2971,7 @@
     <p class="section-h">Connection Settings</p>
     <div class="card">
       <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:12px">
-        Real Facebook Messenger and Instagram DM ingest - staged, same as 3903's WhatsApp connection: real messages become real leads, visible in the Omnichannel Inbox, but no automated reply goes out on either channel yet. Turning on automated replies is a separate, later, deliberate decision.
+        Real Facebook Messenger and Instagram DM ingest - staged, same as 3903's WhatsApp connection: real messages become real leads, visible in the Omnichannel Inbox, but no automated reply goes out on either channel yet. Turning on automated replies is a separate, later, deliberate decision. One webhook serves both channels, so this is the one place to configure it - Instagram's own tab shows its status read-only.
       </p>
       <label>Facebook Page ID</label>
       <input type="text" id="fb-page-id" placeholder="e.g. 100095068390642" />
@@ -2984,10 +3000,67 @@
     <p class="section-h">What's Actually Built</p>
     <div class="card">
       <ul style="margin:0;padding-left:18px;color:var(--text-body);font-size:0.85rem;line-height:1.8">
-        <li><strong>Ingest</strong> - real Messenger/Instagram messages become real leads (identified by their platform id, not a phone number), round-robin assigned like any other lead.</li>
+        <li><strong>Ingest</strong> - real Messenger messages become real leads (identified by their platform id, not a phone number), round-robin assigned like any other lead.</li>
         <li><strong>Inbox visibility</strong> - these conversations show in Omnichannel Inbox with a small channel badge.</li>
         <li><strong>Automated replies</strong> - not built. No scripted flow, no keyword rules, no AI exist for this channel at all yet - that's a separate, later decision.</li>
         <li><strong>Bot Manager / Subscriber Manager / Broadcasting / Comment Automation</strong> - not started, each is its own project.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Instagram: same underlying webhook/settings as Facebook, so this tab
+       is read-only status only - the form lives on Facebook's tab. -->
+  <div id="admin-tab-social-instagram" class="tab-content">
+    <h3>Instagram Integration</h3>
+    <div class="info-box" id="instagram-status-banner">
+      Checking status…
+    </div>
+
+    <p class="section-h">Overview</p>
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Messages Received</div>
+        <div class="stat-value" id="instagram-msg-count">–</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Leads Created</div>
+        <div class="stat-value" id="instagram-lead-count">–</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Configuration</div>
+        <div class="stat-value" id="instagram-config-status" style="font-size:1.1rem">–</div>
+      </div>
+    </div>
+
+    <div class="info-box" style="margin-top:16px">
+      Instagram shares one webhook connection with Facebook Messenger - configure the Page ID, Instagram Business Account ID and webhook URL on the <a href="#" onclick="adminTab('social-facebook'); return false;">Facebook</a> tab. This page shows Instagram's own real message/lead counts only.
+    </div>
+
+    <p class="section-h">What's Actually Built</p>
+    <div class="card">
+      <ul style="margin:0;padding-left:18px;color:var(--text-body);font-size:0.85rem;line-height:1.8">
+        <li><strong>Ingest</strong> - real Instagram DMs become real leads (identified by their platform id, not a phone number), round-robin assigned like any other lead.</li>
+        <li><strong>Inbox visibility</strong> - these conversations show in Omnichannel Inbox with a small channel badge.</li>
+        <li><strong>Automated replies</strong> - not built. No scripted flow, no keyword rules, no AI exist for this channel at all yet - that's a separate, later decision.</li>
+        <li><strong>Subscriber Manager / Comment Automation</strong> - not started, each is its own project.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- TikTok: genuinely not started - nothing to configure, said plainly
+       rather than a placeholder that pretends otherwise. -->
+  <div id="admin-tab-social-tiktok" class="tab-content">
+    <h3>TikTok Integration</h3>
+    <div class="info-box" style="background:var(--warn-soft);border-color:var(--warn);color:var(--warn)">
+      Not built yet. There is no TikTok ingest, no messaging integration, and nothing to configure here today - this tab exists to show it's on the radar, not that it's connected.
+    </div>
+
+    <p class="section-h">What Would Be Involved</p>
+    <div class="card">
+      <ul style="margin:0;padding-left:18px;color:var(--text-body);font-size:0.85rem;line-height:1.8">
+        <li>TikTok's own Business/Messaging API access would need to be requested and approved - a separate process from Meta's, with its own review.</li>
+        <li>A new ingest-only webhook, the same staged pattern as Facebook/Instagram/3903 - real messages become real leads, no automated reply until that's a deliberate later decision.</li>
+        <li>Badar's own TikTok profile (@syedbadartanveer) is already tracked, with real stats and a proposed growth path, in the standalone "CRM Development Journey" report and this CRM's own Development Progress tab.</li>
       </ul>
     </div>
   </div>
@@ -4347,7 +4420,13 @@ const CRM_NAV_ICONS = {
   bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>',
   globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>',
   book: '<path d="M4 4h6a4 4 0 0 1 4 4v12a4 4 0 0 0-4-4H4z"/><path d="M20 4h-6a4 4 0 0 0-4 4v12a4 4 0 0 1 4-4h6z"/>',
-  note: '<path d="M5 3h10l4 4v14H5z"/><path d="M14 3v5h5M8 13h8M8 17h5"/>'
+  note: '<path d="M5 3h10l4 4v14H5z"/><path d="M14 3v5h5M8 13h8M8 17h5"/>',
+  // Recognisable channel glyphs, drawn in the app's own single-stroke style
+  // (not the official multi-colour brand marks) so they sit consistently
+  // beside every other nav icon - same convention as every icon above.
+  facebook: '<path d="M15 8h2V5h-2a4 4 0 0 0-4 4v2H9v3h2v7h3v-7h2.5l.5-3H14V9a1 1 0 0 1 1-1z"/>',
+  instagram: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/>',
+  tiktok: '<path d="M14 4v10.5a3.5 3.5 0 1 1-3-3.46"/><path d="M14 4a5 5 0 0 0 5 5"/>'
 };
 
 function renderNavigationIcons() {
@@ -4687,11 +4766,14 @@ function adminTab(name, el) {
   if (['meta', 'notifications', 'sites', 'guide'].includes(name)) {
     expandNavSubgroup('settings-subgroup', 'settings-caret');
   }
+  if (['social-facebook', 'social-instagram', 'social-tiktok'].includes(name)) {
+    expandNavSubgroup('socials-subgroup', 'socials-caret');
+  }
   // Update header title
   const titles = {
     dashboard: 'Dashboard', progress: 'CRM Development Progress', 'action-items': 'Action Items With Badar', leads: 'All Leads', agents: 'My Team',
     'add-lead': 'Import Leads', conversations: 'Omnichannel Inbox',
-    settings: 'Settings', meta: 'Meta Integration', 'social-integration': 'Facebook & Instagram', 'meta-ads': 'Meta Analytics',
+    settings: 'Settings', meta: 'Meta Integration', 'social-facebook': 'Facebook', 'social-instagram': 'Instagram', 'social-tiktok': 'TikTok', 'meta-ads': 'Meta Analytics',
     payroll: 'Payroll', automation: 'Automation',
     notifications: 'Notifications', sites: 'Landing Pages', reports: 'Reports',
     'comm-log': 'Communication Log',
@@ -4711,7 +4793,8 @@ function adminTab(name, el) {
   if (name === 'user-manager')     renderAgentsTable('user-manager-tbody');
   if (name === 'settings')         loadGeneralSettings();
   if (name === 'meta')             loadMetaSettings();
-  if (name === 'social-integration') loadSocialSettings();
+  if (name === 'social-facebook')  loadSocialSettings();
+  if (name === 'social-instagram') loadInstagramStatus();
   if (name === 'meta-ads')         initMetaAnalytics();
   if (name === 'automation')       { loadAutomationRules(); populateArAgentDropdown(); }
   if (name === 'bot-manager')      initBotManager();
@@ -6067,18 +6150,64 @@ async function loadSocialSettings() {
   configEl.textContent = configured ? 'Saved, not yet deployed' : 'Not configured yet';
   configEl.style.color = configured ? 'var(--warn)' : 'var(--text-muted)';
 
-  const [{ count: msgCount }, { count: leadCount }] = await Promise.all([
-    sb.from('communications').select('id', { count: 'exact', head: true }).in('type', ['messenger', 'instagram']),
-    sb.from('leads').select('id', { count: 'exact', head: true }).not('external_id', 'is', null),
+  // Facebook Messenger only - Instagram has its own read-only tab/loader
+  // (loadInstagramStatus) using the exact same shared settings. Leads can't
+  // be split by leads.source (messenger-webhook writes 'meta' for both
+  // channels, same as the Meta Ads pipeline) - counted here from distinct
+  // lead_id values on communications.type instead, the only field that
+  // actually distinguishes the two.
+  const [{ count: msgCount }, { data: msgRows }] = await Promise.all([
+    sb.from('communications').select('id', { count: 'exact', head: true }).eq('type', 'messenger'),
+    sb.from('communications').select('lead_id').eq('type', 'messenger'),
   ]);
+  const leadCount = new Set((msgRows || []).map(r => r.lead_id)).size;
   document.getElementById('social-msg-count').textContent = msgCount ?? 0;
   document.getElementById('social-lead-count').textContent = leadCount ?? 0;
 
   const banner = document.getElementById('social-status-banner');
   if (!msgCount) {
-    banner.innerHTML = '<strong>Not yet receiving real messages.</strong> Staged connection - real leads and messages will appear here and in the Omnichannel Inbox once the Page ID, Instagram Business Account ID and webhook subscription are all in place and this is deployed. No automated reply goes out on either channel regardless.';
+    banner.innerHTML = '<strong>Not yet receiving real Messenger messages.</strong> Staged connection - real leads and messages will appear here and in the Omnichannel Inbox once the Page ID, Instagram Business Account ID and webhook subscription are all in place and this is deployed. No automated reply goes out on either channel regardless.';
   } else {
-    banner.innerHTML = `<strong>${msgCount} real message${msgCount === 1 ? '' : 's'} received</strong> across ${leadCount} lead${leadCount === 1 ? '' : 's'} - ingest only, no automated reply has been sent on either channel.`;
+    banner.innerHTML = `<strong>${msgCount} real Messenger message${msgCount === 1 ? '' : 's'} received</strong> across ${leadCount} lead${leadCount === 1 ? '' : 's'} - ingest only, no automated reply has been sent.`;
+  }
+}
+
+// Instagram shares Facebook's own settings form (one webhook, one set of
+// credentials) - this loader only reads Instagram's own real counts, it
+// never writes anything.
+async function loadInstagramStatus() {
+  const el = id => document.getElementById(id);
+  if (demoMode) {
+    if (el('instagram-status-banner')) el('instagram-status-banner').innerHTML = 'Demo mode - real status needs a real Meta connection, so this only works signed in for real.';
+    if (el('instagram-msg-count')) el('instagram-msg-count').textContent = '–';
+    if (el('instagram-lead-count')) el('instagram-lead-count').textContent = '–';
+    if (el('instagram-config-status')) el('instagram-config-status').textContent = '–';
+    return;
+  }
+
+  const keys = ['fb_page_id', 'ig_business_account_id', 'meta_messenger_verify_token'];
+  const { data } = await sb.from('settings').select('key,value').in('key', keys);
+  const get = k => (data?.find(r => r.key === k) || {}).value || '';
+  const configured = get('fb_page_id') && get('ig_business_account_id') && get('meta_messenger_verify_token');
+  if (el('instagram-config-status')) {
+    el('instagram-config-status').textContent = configured ? 'Saved, not yet deployed' : 'Not configured yet';
+    el('instagram-config-status').style.color = configured ? 'var(--warn)' : 'var(--text-muted)';
+  }
+
+  const [{ count: msgCount }, { data: msgRows }] = await Promise.all([
+    sb.from('communications').select('id', { count: 'exact', head: true }).eq('type', 'instagram'),
+    sb.from('communications').select('lead_id').eq('type', 'instagram'),
+  ]);
+  const leadCount = new Set((msgRows || []).map(r => r.lead_id)).size;
+  if (el('instagram-msg-count'))  el('instagram-msg-count').textContent = msgCount ?? 0;
+  if (el('instagram-lead-count')) el('instagram-lead-count').textContent = leadCount ?? 0;
+
+  const banner = el('instagram-status-banner');
+  if (!banner) return;
+  if (!msgCount) {
+    banner.innerHTML = '<strong>Not yet receiving real Instagram messages.</strong> Configure the connection on the Facebook tab, then this fills in once real DMs arrive.';
+  } else {
+    banner.innerHTML = `<strong>${msgCount} real Instagram message${msgCount === 1 ? '' : 's'} received</strong> across ${leadCount} lead${leadCount === 1 ? '' : 's'} - ingest only, no automated reply has been sent.`;
   }
 }
 
@@ -9652,13 +9781,16 @@ function renderProjectPhases() {
 
 const CRM_DEV_PROGRESS = {
   completed: [
+    { date: '2026-08-30', time: '12:56 PM', text: 'Socials navigation rebuilt: a proper "Socials" section with its own dropdown arrow, three sub-sections (Facebook, Instagram, TikTok) each with their own recognisable icon. Facebook and Instagram now show their own separate real message/lead counts instead of one combined number; TikTok is an honest "not built yet" placeholder rather than pretending it exists.' },
     { date: '2026-08-30', text: 'New lead notifications now arrive instantly for every genuinely new lead - fixed a bug where they could be delayed or silently skipped.' },
     { date: '2026-08-30', text: 'Deposit accuracy safeguard added: a lead’s recorded balance now locks once its conversion is approved, approving requires a deposit screenshot on file, and every change to a balance is logged with who/when/why.' },
     { date: '2026-08-30', text: 'This CRM Development Progress page - so you can see what’s built, in progress, or upcoming without asking.' },
+    { date: '2026-08-30', text: '"Action Items With Badar" tab added - a shared daily to-do list between Muhammad and Badar, with a To-Dos-for-Tomorrow view and a performance chart for both.' },
+    { date: '2026-08-30', text: 'The Dashboard got a time-frame filter (All Time / Today / 7 / 30 / 90 days) and two new gauges (Qualified Rate, Needs Human Rate).' },
     { date: '2026-08-30', text: 'The CRM can now be installed as an app on a phone (Add to Home Screen) for you and your agents.' },
     { date: '2026-08-30', text: 'Fixed a Quick Links bug in the Omnichannel Inbox where broker links looked clickable but weren’t.' },
     { date: '2026-08-28', text: 'Fixed a bug where a customer who had gone quiet for weeks could get a confusing, out-of-context reply when they came back.' },
-    { date: '2026-08-27', text: 'Facebook & Instagram added as a new connected channel - currently receiving messages only, automated replies not yet turned on.' },
+    { date: '2026-08-27', text: 'Facebook & Instagram connected - currently receiving real messages, automated replies not yet turned on.' },
     { date: '2026-08-27', text: 'A second WhatsApp number (3903) connected for visibility - real messages come in, no automated replies sent from it yet.' },
     { date: '2026-08-23', text: 'Fixed a bug where the bot could send two conflicting replies to the same customer message.' },
   ],
@@ -9666,20 +9798,44 @@ const CRM_DEV_PROGRESS = {
     { text: 'A proposal for Badar: getting API access from Exness and XM, so deposit amounts can be independently verified against the broker’s own records instead of only recorded from what an agent enters.' },
     { text: 'Turning the on-demand "Send Update to Badar" button into a recurring scheduled update, once the on-demand version has been used a few times.' },
   ],
+  // Every entry below is a real open item from REMAINING_TODOS.md's To-Dos
+  // section (pulled 2026-08-30, not summarised from memory) - not confined
+  // to this CRM alone, per Muhammad's own instruction. liveInProgress:true
+  // only belongs on an item while real work on it is genuinely underway in
+  // this session - clear it the same session the work finishes or pauses.
   upcoming: [
     { text: 'A full WhatsApp number-management page (add/remove numbers, connection health) - a first design has already been reviewed, awaiting the go-ahead to build it for real.' },
-    { text: 'Turning on real automated replies for the Facebook & Instagram channel (currently receiving messages only).' },
+    { text: 'Turning on real automated replies for the Facebook & Instagram channel (currently receiving messages only) - and building out its Bot Manager, Subscriber Manager, Broadcasting and Comment Automation pieces, each its own project, lowest priority.' },
     { text: 'A decision on the mobile-app path (installable-app version already live today; a full App Store / Play Store listing is a separate, bigger decision).' },
+    { text: 'Restoring Farwa, Hanzala, Bilal and Faisal to real lead rotation now that the Ehsan-only notification test has succeeded - a pure data change, awaiting Muhammad’s go-ahead.' },
+    { text: 'Deciding what a permanently-escalated lead who returns after going quiet should see - right now they get total silence once a human owns the conversation, which needs a deliberate fix, not a default.' },
+    { text: 'A way to follow up when an assigned agent hasn’t acted on a lead ping, since WhatsApp nudges were ruled out - the agent ping currently fires once and never repeats.' },
+    { text: 'A decision on Supabase’s plan tier (currently the free tier) before campaign spend increases further - it limits automated backups, uptime, and realtime capacity.' },
+    { text: 'Deciding whether a raw messages-sent-per-agent metric is genuinely needed, separate from the lead/conversion numbers Reports already shows - needs Ehsan/Badar to confirm what they actually meant.' },
+    { text: 'Turning on strict signature verification on the public webhooks - a careful staged rollout (watch-only first, enforce after), waiting on Muhammad to set the required Meta secret himself.' },
+    { text: 'Two colour-contrast tweaks flagged for accessibility on gold text and primary buttons - deliberately left alone, they’re Muhammad’s own chosen brand colours, not oversights.' },
+    { text: 'Setting up a regular manual check of the CRM’s recorded deposits against real broker statements, once the new accuracy safeguard has been running a while.' },
+    { text: 'A parked in-app notifications feature, intentionally shelved for now - not counted as active progress until picked back up.' },
+    { text: 'One unexplained missed message from a real phone number, weeks ago - investigated at the time, never resolved, not seen again since.' },
   ],
 };
 
+// A small blinking green dot marks an item as genuinely being worked on
+// right now, in the background, at this exact moment - Muhammad's explicit
+// request (2026-08-30). Only ever set liveInProgress:true on an item while
+// real work on it is actually underway in this session; clear it the same
+// session the work finishes or pauses - a stale blinking dot would be worse
+// than none.
 function renderProgressList(elId, items, dated) {
   const el = document.getElementById(elId);
   if (!el) return;
   el.innerHTML = items.length ? items.map(item => `
     <div style="background:var(--surface-soft);border-radius:8px;padding:10px 12px">
-      ${dated ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:3px">${esc(item.date)}</div>` : ''}
-      <div style="font-size:0.85rem;color:var(--text-body);line-height:1.4">${esc(item.text)}</div>
+      ${dated ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:3px">${esc(item.date)}${item.time ? ' &middot; ' + esc(item.time) : ''}</div>` : ''}
+      <div style="font-size:0.85rem;color:var(--text-body);line-height:1.4;display:flex;align-items:flex-start;gap:6px">
+        ${item.liveInProgress ? '<span title="Real-time work in progress right now" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#1f8f5f;margin-top:5px;flex-shrink:0;box-shadow:0 0 0 rgba(31,143,95,.6);animation:ai-live-pulse 1.6s infinite"></span>' : ''}
+        <span>${esc(item.text)}</span>
+      </div>
     </div>`).join('') : `<div style="padding:14px;color:var(--text-muted);font-size:0.82rem;background:var(--surface-soft);border-radius:8px">Nothing here right now.</div>`;
 }
 
