@@ -1271,7 +1271,20 @@ async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Prom
   // escalated_reply_policy.mjs for why that changed and what still stops it.
   // The scripted funnel is NOT reopened by this - runBotStep still returns on
   // a permanent handoff, so the bot answers the question and never re-pitches.
-  let escalatedNote = false;
+  //
+  // Muhammad, 2026-08-30 (same session, right after the first version of this
+  // shipped): every AI answer sent while escalated used to end with a fixed
+  // "a team member will follow up" line. The intent was right - never let an
+  // answer read as "the bot alone has this now" - but appending it to EVERY
+  // reply was itself the most bot-like, scripted-sounding part of the whole
+  // message, directly undercutting the "never read as an AI/bot" rule from
+  // the same conversation. It's gone. The actual safeguard (a human still
+  // signs off before anything is marked converted, an agent still gets
+  // pinged, the bot still steps back the moment a real agent is active) is
+  // unchanged and still fully enforced below - it just doesn't need to be
+  // re-announced to the customer on every message. Mentioning a team member
+  // is left to the system prompt's own rules, for the specific cases that
+  // actually need a person (a deposit question, a discount, a complaint).
   if (lead.needs_human) {
     const activity = await getEscalationActivity(sb, lead.id);
     if (!activity) {
@@ -1290,8 +1303,6 @@ async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Prom
       console.log(`tryAIReply: staying quiet on escalated lead ${lead.id} - ${decision.reason}`);
       return null;
     }
-    escalatedNote = true;
-
     // "Are you there?" style nudges get the full answer the first time, then
     // something short and different every time after - see
     // nudge_reply_policy.mjs. Real case, 2026-08-30: two such nudges back to
@@ -1367,13 +1378,6 @@ async function tryAIReply(sb: SupabaseClient, lead: any, input: UserInput): Prom
   } catch (e) {
     console.error("tryAIReply: exception calling OpenAI:", e instanceof Error ? e.message : String(e));
     return null;
-  }
-
-  // Answering while a handoff is open must never read as "the bot has this
-  // now". The handover promise stays attached to every such reply.
-  if (escalatedNote) {
-    const lang: Lang = lead.language === "ur" ? "ur" : "en";
-    reply += `\n\n${handoverLine(lang)}`;
   }
 
   const to = lead.phone.replace(/^\+/, "");
