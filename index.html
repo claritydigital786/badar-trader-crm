@@ -1563,7 +1563,6 @@
       <div class="nav-section-label">WHATSAPP</div>
       <div class="nav-item" data-tab="conversations"><span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Omnichannel Inbox <span id="conv-nav-badge" style="display:none;background:var(--bad);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
       <div class="nav-item" data-tab="bot-manager"><span class="nav-icon" data-nav-icon="bot" style="background:var(--tint-sky-bg)"></span> Bot Manager</div>
-      <div class="nav-item" data-tab="subscribers"><span class="nav-icon" data-nav-icon="subscriber" style="background:var(--tint-success-bg)"></span> Manage Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
       <div class="nav-item" data-tab="meta"><span class="nav-icon" data-nav-icon="link" style="background:var(--tint-gold-bg)"></span> Meta Integration</div>
       <div class="nav-item" data-tab="social-facebook">
         <span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Socials
@@ -1587,8 +1586,15 @@
       <div class="nav-section-label">FINANCE</div>
       <div class="nav-item" data-tab="payroll"><span class="nav-icon" data-nav-icon="wallet" style="background:var(--tint-gold-bg)"></span> Payroll</div>
       <div class="nav-section-label">WHATSAPP SIGNALS</div>
-      <div class="nav-item" data-tab="signal-broadcast"><span class="nav-icon" data-nav-icon="broadcast" style="background:var(--tint-sky-bg)"></span> Broadcast Signal</div>
-      <div class="nav-item" data-tab="ai-signals"><span class="nav-icon" data-nav-icon="sparkles" style="background:var(--tint-warn-bg)"></span> AI Signals</div>
+      <div class="nav-item" data-tab="subscribers">
+        <span class="nav-icon" data-nav-icon="subscriber" style="background:var(--tint-success-bg)"></span> Signals
+        <span class="nav-caret" id="signals-caret" title="Show or hide Signals items" onclick="toggleNavSubgroup(event,'signals-subgroup','signals-caret')">▾</span>
+      </div>
+      <div class="nav-subgroup" id="signals-subgroup">
+        <div class="nav-item" data-tab="subscribers"><span class="nav-icon" data-nav-icon="subscriber" style="background:var(--tint-success-bg)"></span> Manage Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
+        <div class="nav-item" data-tab="signal-broadcast"><span class="nav-icon" data-nav-icon="broadcast" style="background:var(--tint-sky-bg)"></span> Broadcast Signal</div>
+        <div class="nav-item" data-tab="ai-signals"><span class="nav-icon" data-nav-icon="sparkles" style="background:var(--tint-warn-bg)"></span> AI Signals</div>
+      </div>
       <div class="nav-section-label">SYSTEM</div>
       <div class="nav-item" data-tab="user-permission"><span class="nav-icon" data-nav-icon="shield" style="background:var(--tint-danger-bg)"></span> User Permission</div>
       <div class="nav-item" data-tab="user-manager"><span class="nav-icon" data-nav-icon="id-card" style="background:var(--tint-sky-bg)"></span> User Manager</div>
@@ -4774,6 +4780,9 @@ function adminTab(name, el) {
   }
   if (['social-facebook', 'social-instagram', 'social-tiktok'].includes(name)) {
     expandNavSubgroup('socials-subgroup', 'socials-caret');
+  }
+  if (['subscribers', 'signal-broadcast', 'ai-signals'].includes(name)) {
+    expandNavSubgroup('signals-subgroup', 'signals-caret');
   }
   // Update header title
   const titles = {
