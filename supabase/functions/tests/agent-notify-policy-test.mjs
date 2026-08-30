@@ -2,24 +2,22 @@
 // the flood in July is why notifications have been off since 21 July 2026.
 import assert from 'node:assert/strict';
 import {
-  shouldNotifyAgent, normalizeNotifyPhone, DEFAULT_COOLDOWN_MINUTES,
+  shouldNotifyAgent, normalizeNotifyPhone,
 } from '../_shared/agent_notify_policy.mjs';
 
 const NOW = new Date('2026-08-22T12:00:00Z').getTime();
-const minsAgo = m => new Date(NOW - m * 60000).toISOString();
 
 // ── The exact scenario that caused the flood ────────────────────────────────
 // A customer fires four messages in twenty seconds. Only the first may notify.
 {
   let leadAlreadyNotified = false;
-  let agentLastNotifiedAt = null;
   const sent = [];
   for (let i = 0; i < 4; i++) {
     const d = shouldNotifyAgent({
-      agentPhone: '923001234567', leadAlreadyNotified, agentLastNotifiedAt,
+      agentPhone: '923001234567', leadAlreadyNotified,
       now: NOW + i * 5000,
     });
-    if (d.notify) { sent.push(i); leadAlreadyNotified = true; agentLastNotifiedAt = new Date(NOW + i * 5000).toISOString(); }
+    if (d.notify) { sent.push(i); leadAlreadyNotified = true; }
   }
   assert.deepEqual(sent, [0], 'Four escalations in twenty seconds must produce exactly one notification.');
 }
@@ -35,7 +33,7 @@ const minsAgo = m => new Date(NOW - m * 60000).toISOString();
     'A REAL agent must be unreachable while test mode is on. This is the safety net.');
   // Every other rule passing must not override the allowlist.
   assert.equal(shouldNotifyAgent({
-    agentPhone: '923342224925', leadAlreadyNotified: false, agentLastNotifiedAt: null,
+    agentPhone: '923342224925', leadAlreadyNotified: false,
     now: NOW, testNumbers,
   }).notify, false, 'Test mode outranks every other rule.');
 }
@@ -48,22 +46,25 @@ const minsAgo = m => new Date(NOW - m * 60000).toISOString();
 assert.equal(shouldNotifyAgent({ agentPhone: '923001234567', leadAlreadyNotified: true, now: NOW }).notify, false,
   'An agent already told about this lead is not told again.');
 
-// ── Rule 3: per-agent cooldown across different leads ───────────────────────
-assert.equal(shouldNotifyAgent({ agentPhone: '923001234567', agentLastNotifiedAt: minsAgo(5), now: NOW }).notify, false,
-  'Ten leads at once must not mean ten messages.');
-assert.equal(shouldNotifyAgent({ agentPhone: '923001234567', agentLastNotifiedAt: minsAgo(31), now: NOW }).notify, true,
-  'Past the cooldown, the next lead may notify.');
-assert.equal(shouldNotifyAgent({ agentPhone: '923001234567', agentLastNotifiedAt: minsAgo(29), now: NOW }).notify, false,
-  'Just inside the window still blocks.');
-assert.equal(shouldNotifyAgent({
-  agentPhone: '923001234567', agentLastNotifiedAt: minsAgo(10), now: NOW, cooldownMinutes: 5,
-}).notify, true, 'The cooldown length is configurable.');
+// ── No cross-lead throttling - removed 2026-08-30 on Muhammad's explicit ───
+// decision: every unique lead notifies its agent immediately, even seconds
+// after the last one. Ten DIFFERENT leads landing on the same agent inside a
+// minute must all notify - this is the opposite of what the old cooldown
+// test asserted, and that is the point.
+{
+  const results = [];
+  for (let i = 0; i < 10; i++) {
+    results.push(shouldNotifyAgent({
+      agentPhone: '923001234567', leadAlreadyNotified: false, now: NOW + i * 6000,
+    }).notify);
+  }
+  assert.deepEqual(results, Array(10).fill(true),
+    'Ten different leads arriving within a minute must all notify - no cooldown between distinct leads.');
+}
 
 // ── Failing closed ──────────────────────────────────────────────────────────
 assert.equal(shouldNotifyAgent({ agentPhone: '', now: NOW }).notify, false, 'No phone, no send.');
 assert.equal(shouldNotifyAgent({ agentPhone: null, now: NOW }).notify, false, 'Null phone, no send.');
-assert.equal(shouldNotifyAgent({ agentPhone: '923001234567', agentLastNotifiedAt: 'not-a-date', now: NOW }).notify, false,
-  'An unreadable timestamp must stay quiet rather than be read as "long ago".');
 assert.equal(normalizeNotifyPhone('+92 (300) 123-4567'), '923001234567');
 assert.equal(normalizeNotifyPhone(undefined), '');
 
@@ -71,7 +72,6 @@ assert.equal(normalizeNotifyPhone(undefined), '');
 for (const args of [
   { agentPhone: '' },
   { agentPhone: '923001234567', leadAlreadyNotified: true },
-  { agentPhone: '923001234567', agentLastNotifiedAt: minsAgo(1) },
   { agentPhone: '923009999999', testNumbers: ['923001234567'] },
 ]) {
   const d = shouldNotifyAgent({ ...args, now: NOW });
@@ -79,5 +79,4 @@ for (const args of [
   assert.ok(d.reason && d.reason.length > 5, 'Every block states why, so a silent inbox is explainable.');
 }
 
-assert.equal(DEFAULT_COOLDOWN_MINUTES, 30);
 console.log('agent-notify-policy: all assertions passed.');

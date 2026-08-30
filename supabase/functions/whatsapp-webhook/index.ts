@@ -17,7 +17,7 @@ import {
 } from "../_shared/meta_signature.mjs";
 import { isAllowedPhoneNumberId } from "../_shared/whatsapp_phone_scope.mjs";
 import { isPermanentHandoff } from "../_shared/handoff_permanence.mjs";
-import { shouldNotifyAgent, DEFAULT_COOLDOWN_MINUTES } from "../_shared/agent_notify_policy.mjs";
+import { shouldNotifyAgent } from "../_shared/agent_notify_policy.mjs";
 import { shouldSuppressRePrompt } from "../_shared/unmatched_reprompt_policy.mjs";
 
 const WHATSAPP_VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
@@ -235,7 +235,6 @@ const ESCALATION_NOTIFICATIONS_ENABLED = true;
 // emptying this array is what makes notifications live for the whole team,
 // and that is a deliberate decision to take later, not part of this change.
 const AGENT_NOTIFY_TEST_NUMBERS: string[] = ["923342224925", "923006960632"];
-const AGENT_NOTIFY_COOLDOWN_MINUTES = DEFAULT_COOLDOWN_MINUTES;
 
 let cachedWaToken: string | null = null;
 let cachedWaPhoneId: string | null = null;
@@ -324,18 +323,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // stale is the one thing it must never be. One small query per message is a
   // fair price for a stop button that actually stops.
   _gateCache = null;
-  // Found live, 28 Aug 2026 (Muhammad watched 10 real, distinct new-lead
-  // notifications land 90 seconds to a few minutes apart, despite
-  // AGENT_NOTIFY_COOLDOWN_MINUTES being 30): _rotationCache was never reset
-  // here the way _gateCache is, so on a warm isolate every agent's
-  // last_notified_at stayed frozen at whatever it was when that instance's
-  // first message populated the cache - shouldNotifyAgent kept comparing
-  // against that stale timestamp forever, never seeing the real, fast-moving
-  // updates each notification wrote to the database, so the per-agent
-  // cooldown that exists specifically to prevent a repeat of the July 2026
-  // flood incident was silently doing nothing. Same fix as the gate cache:
-  // clear it every request, one extra query is a fair price for a cooldown
-  // that actually cools down.
+  // Cleared per request for the same reason as _gateCache: a warm isolate
+  // must not keep serving a stale agent-rotation list (e.g. someone toggled
+  // receives_leads in My Team) for minutes after the change. This used to
+  // also matter for a per-agent notification cooldown that read
+  // last_notified_at off this cache - that cooldown is gone (Muhammad's
+  // decision, 2026-08-30: every unique lead notifies its agent immediately,
+  // no throttling across different leads - see agent_notify_policy.mjs), so
+  // this clear is now purely about the rotation list itself, not cooldown
+  // freshness.
   _rotationCache = null;
 
   if (req.method === "GET") {
@@ -645,10 +641,12 @@ function extractUserInput(message: any): UserInput | null {
   return null;
 }
 
-// last_notified_at drives the per-agent notification cooldown. Optional because
-// AGENT_ROTATION_FALLBACK below is a hardcoded degraded list with no database
-// row behind it, and a fallback agent has simply never been notified.
-type RotationAgent = { id: string; name: string; phone: string; last_notified_at?: string | null };
+// Used to also carry last_notified_at for a per-agent notification cooldown,
+// removed 2026-08-30 (Muhammad's decision: every unique lead notifies its
+// agent immediately, no cross-lead throttling). profiles.last_notified_at is
+// still written on every send (see the two sb.from("profiles").update(...)
+// calls below) as a plain audit timestamp - nothing reads it back anymore.
+type RotationAgent = { id: string; name: string; phone: string };
 
 // Agent numbers live in profiles.phone now, not here. This list is only what
 // the function used to hardcode, kept purely as a fallback: if the database
@@ -674,7 +672,7 @@ async function getAgentRotation(sb: SupabaseClient): Promise<RotationAgent[]> {
 
   const { data, error } = await sb
     .from("profiles")
-    .select("id, full_name, phone, last_notified_at")
+    .select("id, full_name, phone")
     .eq("role", "agent")
     .eq("is_active", true)
     .eq("is_suspended", false)
@@ -792,8 +790,6 @@ async function upsertLead(
     const decision = shouldNotifyAgent({
       agentPhone: agent.phone,
       leadAlreadyNotified: false, // brand new lead, nobody has been told yet
-      agentLastNotifiedAt: agent.last_notified_at ?? null,
-      cooldownMinutes: AGENT_NOTIFY_COOLDOWN_MINUTES,
       testNumbers: AGENT_NOTIFY_TEST_NUMBERS,
     });
     if (!decision.notify) {
@@ -1899,12 +1895,10 @@ async function escalate(
     // notification safely, not to switch off a working alert. Passing it here
     // would silently stop every real agent being told a lead needs a human,
     // which is a worse outcome than the flood it was meant to prevent. The
-    // one-per-lead and cooldown rules below still apply to everyone, always.
+    // one-per-lead rule below still applies to everyone, always.
     const decision = shouldNotifyAgent({
       agentPhone: assignedAgent.phone,
       leadAlreadyNotified: (lead.agent_ping_count ?? 0) > 0,
-      agentLastNotifiedAt: assignedAgent.last_notified_at ?? null,
-      cooldownMinutes: AGENT_NOTIFY_COOLDOWN_MINUTES,
     });
 
     if (!decision.notify) {
