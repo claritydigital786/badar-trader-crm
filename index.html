@@ -1123,7 +1123,22 @@
     [data-theme="dark"] .conv-prio-urgent        { background:#3f1d1d; color:#fca5a5; }
     [data-theme="dark"] .conv-prio-wait          { background:#1e2547; color:#a5b4fc; }
     [data-theme="dark"] .conv-prio-closed-window { background:#222d34; color:#aebac1; }
-    .conv-chat-panel { flex:1; display:flex; flex-direction:column; min-width:0; }
+    .conv-chat-panel { flex:1; display:flex; flex-direction:column; min-width:0; position:relative; }
+    /* Drag-and-drop visual feedback - Ehsan's request, 2026-08-31. */
+    .conv-chat-panel.conv-drag-over::after {
+      content: 'Drop file to attach';
+      position: absolute; inset: 8px; z-index: 30;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(37,211,102,.08);
+      border: 2px dashed #25d366;
+      border-radius: 10px;
+      color: #128c53; font-weight: 700; font-size: 0.95rem;
+      pointer-events: none;
+    }
+    [data-theme="dark"] .conv-chat-panel.conv-drag-over::after {
+      background: rgba(37,211,102,.12);
+      color: #6ee7b7;
+    }
     .conv-chat-header { padding:10px 16px; border-bottom:1px solid #d1d7db; display:flex; align-items:center; gap:12px; background:#f0f2f5; min-height:59px; }
     /* The header now carries a countdown pill and an info button as well as
        the tier select and copy-link button, so the name block has to be the
@@ -12784,17 +12799,48 @@ function validateConvAttachment(file) {
   return null;
 }
 
-function onConvAttachPicked(inputEl) {
-  const file = inputEl?.files?.[0];
+// Shared by the file-picker button and drag-and-drop below - one real path
+// for "a file has been chosen," however it got chosen.
+function acceptConvAttachFile(file) {
   const problem = validateConvAttachment(file);
-  if (problem) {
-    showToast(problem, 'err');
-    if (inputEl) inputEl.value = '';   // let the same file be re-picked later
-    return;
-  }
+  if (problem) { showToast(problem, 'err'); return false; }
   _convAttachment = { file, name: file.name, size: file.size, type: file.type };
   renderConvAttachChip();
+  return true;
 }
+
+function onConvAttachPicked(inputEl) {
+  const file = inputEl?.files?.[0];
+  if (!file) return;
+  if (!acceptConvAttachFile(file) && inputEl) inputEl.value = '';   // let the same file be re-picked later
+}
+
+// Drag-and-drop a file straight onto the chat area - Ehsan's request via
+// Muhammad, 2026-08-31: the "+"/paperclip button already worked, dropping a
+// file didn't. One delegated listener on the document covers both the
+// admin and agent chat panels (only one is ever visible at a time, same as
+// every other conv-* global here) rather than re-wiring it per open
+// conversation - .conv-chat-panel itself is static in the page, only its
+// contents change each time a conversation is opened.
+document.addEventListener('dragover', (e) => {
+  const panel = e.target.closest('.conv-chat-panel');
+  if (!panel) return;
+  e.preventDefault();
+  panel.classList.add('conv-drag-over');
+});
+document.addEventListener('dragleave', (e) => {
+  const panel = e.target.closest('.conv-chat-panel');
+  if (!panel) return;
+  panel.classList.remove('conv-drag-over');
+});
+document.addEventListener('drop', (e) => {
+  const panel = e.target.closest('.conv-chat-panel');
+  if (!panel) return;
+  e.preventDefault();
+  panel.classList.remove('conv-drag-over');
+  const file = e.dataTransfer?.files?.[0];
+  if (file) acceptConvAttachFile(file);
+});
 
 function renderConvAttachChip() {
   const chip = document.getElementById('conv-attach-chip');
