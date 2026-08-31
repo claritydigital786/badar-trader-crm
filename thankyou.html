@@ -78,6 +78,7 @@ src="https://www.facebook.com/tr?id=1949685059057675&ev=PageView&noscript=1"
   var phone    = q.get('phone') || '';
   var platform = q.get('platform') || 'other';
   var amount   = q.get('amount') || '';
+  var account  = q.get('account') || '';
 
   var detail = document.getElementById('detail');
   var status = document.getElementById('status');
@@ -85,8 +86,13 @@ src="https://www.facebook.com/tr?id=1949685059057675&ev=PageView&noscript=1"
 
   if (!leadId && !phone) { status.textContent = ''; return; }
 
+  // This repeats the call join.html already made, and repeats again on every
+  // refresh. The hook is idempotent by content hash, so the repeat is recorded
+  // as a replay and changes nothing. account must be included: it is part of
+  // the claim, and leaving it out both split the key and blanked the stored
+  // broker reference.
   var url = HOOK + '?' + new URLSearchParams({
-    lead_id: leadId, phone: phone, platform: platform, amount: amount
+    lead_id: leadId, phone: phone, platform: platform, amount: amount, account: account
   }).toString();
 
   fetch(url).then(function (r) { return r.json(); }).then(function (d) {
