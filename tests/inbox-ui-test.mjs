@@ -257,7 +257,19 @@ const adminTabsEnd = html.indexOf('id="sidebar-user', adminTabsStart);
 assert.ok(adminTabsStart > -1 && adminTabsEnd > adminTabsStart, 'Admin sidebar markup must exist.');
 const adminTabsMarkup = html.slice(adminTabsStart, adminTabsEnd);
 const adminTabNames = [...adminTabsMarkup.matchAll(/data-tab="([^"]+)"/g)].map((match) => match[1]);
-assert.equal(adminTabNames.length, 30, 'The presentation sidebar must expose all 30 Admin data-tab references, including Settings\', Socials\' and Signals\' subgroup items (each repeats its own data-tab once for the parent label, once for its first sub-item), CRM Development Progress, Action Items With Badar, and Connect WhatsApp.');
+// Was 30 before the 2026-08-31 sidebar regroup: the old Socials, Signals and
+// Settings rows did double duty as both fold-toggle and link, so each of those
+// three data-tab values appeared twice - once on the parent label, once on a
+// child. Group headers now only fold and carry no data-tab, so every reference
+// here is a real destination and there are no duplicates. Settings kept its own
+// row (admin-tab-settings is a real panel, and losing the double-duty parent
+// would otherwise have orphaned it).
+assert.equal(adminTabNames.length, 28, 'The Admin sidebar must expose all 28 destinations, one data-tab reference each.');
+assert.equal(
+  new Set(adminTabNames).size,
+  adminTabNames.length,
+  'No Admin destination may appear twice - a group header must never double as a link.',
+);
 for (const tabName of adminTabNames) {
   assert.match(
     html,
