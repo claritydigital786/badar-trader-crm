@@ -257,7 +257,7 @@ const adminTabsEnd = html.indexOf('id="sidebar-user', adminTabsStart);
 assert.ok(adminTabsStart > -1 && adminTabsEnd > adminTabsStart, 'Admin sidebar markup must exist.');
 const adminTabsMarkup = html.slice(adminTabsStart, adminTabsEnd);
 const adminTabNames = [...adminTabsMarkup.matchAll(/data-tab="([^"]+)"/g)].map((match) => match[1]);
-assert.equal(adminTabNames.length, 29, 'The presentation sidebar must expose all 29 Admin data-tab references, including Settings\', Socials\' and Signals\' subgroup items (each repeats its own data-tab once for the parent label, once for its first sub-item), CRM Development Progress, and Action Items With Badar.');
+assert.equal(adminTabNames.length, 30, 'The presentation sidebar must expose all 30 Admin data-tab references, including Settings\', Socials\' and Signals\' subgroup items (each repeats its own data-tab once for the parent label, once for its first sub-item), CRM Development Progress, Action Items With Badar, and Connect WhatsApp.');
 for (const tabName of adminTabNames) {
   assert.match(
     html,

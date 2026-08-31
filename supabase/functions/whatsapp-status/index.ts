@@ -22,6 +22,12 @@ const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN") ?? "";
 const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? "";
+// 3903 (the second, ingest-only line - see whatsapp-webhook's own comment on
+// this same secret) shares the WABA and access token with the primary
+// number, so the one token above authenticates a status check for either
+// phone_number_id. Added 2026-08-31 for the "Connect WhatsApp" sidebar
+// section, which shows both real numbers' health, not just the primary one.
+const WHATSAPP_PHONE_NUMBER_ID_3903 = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID_3903") ?? "";
 
 const GRAPH_VERSION = "v21.0";
 
@@ -46,7 +52,13 @@ function makeServiceClient() {
 
 // Same env-first, settings-fallback lookup send-wa-message and the webhook
 // use, so every WhatsApp-calling function stays configured from one place.
-async function getWaCredentials(): Promise<{ token: string; phoneId: string }> {
+// `which` picks which real number to check: "3903" for the ingest-only line
+// (env-only, it has no settings-table fallback since nothing else needs one
+// today), anything else for the primary line (6541).
+async function getWaCredentials(which: string): Promise<{ token: string; phoneId: string }> {
+  if (which === "3903") {
+    return { token: WHATSAPP_ACCESS_TOKEN, phoneId: WHATSAPP_PHONE_NUMBER_ID_3903 };
+  }
   if (WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID) {
     return { token: WHATSAPP_ACCESS_TOKEN, phoneId: WHATSAPP_PHONE_NUMBER_ID };
   }
@@ -85,9 +97,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error: "Only an admin can view WhatsApp connection health" }, 403);
   }
 
-  const { token, phoneId } = await getWaCredentials();
+  const which = new URL(req.url).searchParams.get("number") || "primary";
+  const { token, phoneId } = await getWaCredentials(which);
   if (!token || !phoneId) {
-    return json({ ok: false, error: "WhatsApp credentials not configured - save them in Meta Integration first" });
+    return json({
+      ok: false,
+      error: which === "3903"
+        ? "3903's credentials are not configured (WHATSAPP_PHONE_NUMBER_ID_3903 secret is missing)."
+        : "WhatsApp credentials not configured - save them in Meta Integration first",
+    });
   }
 
   const fields = "display_phone_number,verified_name,code_verification_status,quality_rating,messaging_limit_tier";

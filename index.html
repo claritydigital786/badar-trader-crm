@@ -1593,6 +1593,7 @@
       <div class="nav-item" data-tab="action-items"><span class="nav-icon" data-nav-icon="calendar" style="background:var(--tint-gold-bg)"></span> Action Items With Badar</div>
       <div class="nav-section-label">WHATSAPP</div>
       <div class="nav-item" data-tab="conversations"><span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Omnichannel Inbox <span id="conv-nav-badge" style="display:none;background:var(--bad);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
+      <div class="nav-item" data-tab="connect-whatsapp"><span class="nav-icon" data-nav-icon="phone" style="background:var(--tint-success-bg)"></span> Connect WhatsApp</div>
       <div class="nav-item" data-tab="bot-manager"><span class="nav-icon" data-nav-icon="bot" style="background:var(--tint-sky-bg)"></span> Bot Manager</div>
       <div class="nav-item" data-tab="meta"><span class="nav-icon" data-nav-icon="link" style="background:var(--tint-gold-bg)"></span> Meta Integration</div>
       <div class="nav-item" data-tab="social-facebook">
@@ -2903,6 +2904,34 @@
   </div>
 
   <!-- Meta Integration -->
+  <div id="admin-tab-connect-whatsapp" class="tab-content">
+    <h3>Connect WhatsApp</h3>
+    <p style="color:var(--text-muted);font-size:0.85rem;margin:2px 0 18px">Real connection health for both WhatsApp numbers, checked live against Meta - nothing here is stored or estimated.</p>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:20px">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <div style="font-weight:700;font-size:0.95rem;color:var(--text-strong)">6541 <span style="font-weight:400;color:var(--text-muted);font-size:0.8rem">&middot; Main line, full bot</span></div>
+        </div>
+        <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:12px">The number the scripted funnel, keyword replies and the AI all send from.</p>
+        <button class="btn btn-secondary btn-sm" id="wa-status-check-btn-6541" onclick="checkWhatsAppStatus('primary','wa-status-check-btn-6541','wa-status-result-6541')">Check Connection</button>
+        <div id="wa-status-result-6541" style="margin-top:14px"></div>
+      </div>
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <div style="font-weight:700;font-size:0.95rem;color:var(--text-strong)">3903 <span style="font-weight:400;color:var(--text-muted);font-size:0.8rem">&middot; Ingest only</span></div>
+        </div>
+        <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:12px">Real leads and messages land in the Inbox from this number, but no automated reply of any kind is sent from it yet.</p>
+        <button class="btn btn-secondary btn-sm" id="wa-status-check-btn-3903" onclick="checkWhatsAppStatus('3903','wa-status-check-btn-3903','wa-status-result-3903')">Check Connection</button>
+        <div id="wa-status-result-3903" style="margin-top:14px"></div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      Adding a new number, disabling one, or removing one aren't built yet - a first design has been reviewed and is waiting on a real decision for what each of those actions should actually do against Meta's API before any of it touches live number management. This page only shows the real, current health of the two numbers already connected.
+    </div>
+  </div>
+
   <div id="admin-tab-meta" class="tab-content">
     <h3>Meta Integration</h3>
     <div class="info-box">
@@ -2911,12 +2940,14 @@
       Settings are saved to the <code>settings</code> table for reference.
     </div>
 
-    <!-- WhatsApp Connection Health -->
+    <!-- WhatsApp Connection Health - moved to its own "Connect WhatsApp"
+         sidebar section 2026-08-31, showing both real numbers side by side
+         instead of just this one. Left as a pointer, not deleted outright,
+         so it isn't found "missing" by anyone used to it being here. -->
     <p class="section-h">WhatsApp Connection Health</p>
     <div class="card">
-      <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:12px">Checks the WhatsApp number's real status directly with Meta - not stored anywhere, always live.</p>
-      <button class="btn btn-secondary btn-sm" id="wa-status-check-btn" onclick="checkWhatsAppStatus()">Check Connection</button>
-      <div id="wa-status-result" style="margin-top:14px"></div>
+      <p style="color:var(--text-muted);font-size:0.85rem">Moved to its own <strong>Connect WhatsApp</strong> section in the sidebar - it now shows both real numbers (6541 and 3903), not just one.</p>
+      <button class="btn btn-secondary btn-sm" onclick="adminTab('connect-whatsapp')" style="margin-top:10px">Open Connect WhatsApp</button>
     </div>
 
     <!-- Meta Lead Ads -->
@@ -4479,7 +4510,8 @@ const CRM_NAV_ICONS = {
   // beside every other nav icon - same convention as every icon above.
   facebook: '<path d="M15 8h2V5h-2a4 4 0 0 0-4 4v2H9v3h2v7h3v-7h2.5l.5-3H14V9a1 1 0 0 1 1-1z"/>',
   instagram: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/>',
-  tiktok: '<path d="M14 4v10.5a3.5 3.5 0 1 1-3-3.46"/><path d="M14 4a5 5 0 0 0 5 5"/>'
+  tiktok: '<path d="M14 4v10.5a3.5 3.5 0 1 1-3-3.46"/><path d="M14 4a5 5 0 0 0 5 5"/>',
+  phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>'
 };
 
 function renderNavigationIcons() {
@@ -6292,16 +6324,19 @@ async function saveSocialSettings() {
 // (not any third-party platform) for the connected number's real, live
 // status - never fabricated, and never cached, so a stale credential shows
 // up as a real error here instead of a silently wrong "Active" badge.
-async function checkWhatsAppStatus() {
-  const btn = document.getElementById('wa-status-check-btn');
-  const box = document.getElementById('wa-status-result');
+// number: 'primary' (6541) or '3903' - which real WhatsApp number to check.
+// btnId/boxId let this run independently for each number's own button and
+// result area on the Connect WhatsApp page (added 2026-08-31).
+async function checkWhatsAppStatus(number = 'primary', btnId = 'wa-status-check-btn', boxId = 'wa-status-result') {
+  const btn = document.getElementById(btnId);
+  const box = document.getElementById(boxId);
   if (demoMode) {
     box.innerHTML = `<div class="info-box">Demo mode - connection health needs a real Meta access token, so this only works signed in for real.</div>`;
     return;
   }
   btn.disabled = true; btn.textContent = 'Checking…';
   box.innerHTML = '';
-  const { data, error } = await sb.functions.invoke('whatsapp-status', { method: 'GET' });
+  const { data, error } = await sb.functions.invoke(`whatsapp-status?number=${encodeURIComponent(number)}`, { method: 'GET' });
   btn.disabled = false; btn.textContent = 'Check Connection';
   if (error || !data?.ok) {
     const msg = data?.error || error?.message || 'Could not check connection.';
