@@ -245,7 +245,14 @@
       min-width: 20px;
       text-align: center;
     }
-    .nav-item.active .nav-badge { background: rgba(230,182,76,0.3); color: #e6b64c; }
+    /* On an active row the pill used to be gold-on-gold - a 30%-gold chip with
+       gold text sitting on the solid gold active background, which made the
+       number effectively invisible exactly when that row was selected (found
+       2026-08-31; it predates the sidebar regroup). Inverted to the same
+       treatment .nav-item.active .nav-icon already uses: the row's own dark
+       ink on a translucent dark chip, so the count stays legible in both
+       states without introducing a colour the palette does not have. */
+    .nav-item.active .nav-badge { background: rgba(26,20,0,.22); color: #1a1400; }
     /* The caret only ever toggles the subgroup below it - its own click
        handler stops propagation so it never also fires the row's own
        navigation, which the delegated #admin-tabs listener would otherwise
@@ -331,17 +338,30 @@
        eye can follow which rows belong to which group without extra borders. */
     .nav-subgroup-inner > .nav-item,
     .nav-subgroup-inner > .nav-group-header {
-      margin-left: 10px;
+      margin-left: 8px;
       border-left: 1px solid var(--line);
       border-radius: 0 10px 10px 0;
-      padding-left: 10px;
+      padding-left: 8px;
     }
+    /* Child rows carry an indent, a spine and a badge, which left the longest
+       label ("Manage Subscribers") wrapping to two lines once its count showed.
+       Reclaimed from the row's own internal spacing rather than by widening the
+       sidebar or shortening the label: a slightly tighter gap, a narrower
+       minimum on the pill, and nowrap so a future long label clips instead of
+       silently reflowing the row to double height. */
+    .nav-subgroup-inner > .nav-item {
+      gap: 6px;
+      padding: 8px 6px 8px 8px;
+      white-space: nowrap;
+    }
+    .nav-subgroup-inner > .nav-item > .nav-badge { min-width: 16px; padding: 1px 4px; margin-left: auto; }
+
     /* Socials nests one level deeper, inside WhatsApp & Channels. */
     .nav-group-header-nested { font-size: 10.5px; }
     .nav-subgroup-inner .nav-subgroup-inner > .nav-item { margin-left: 12px; }
     /* Child icons a touch smaller than the standalone Dashboard row, so the
        top-level destination stays the visually dominant one. */
-    .nav-subgroup-inner .nav-icon { width: 20px; height: 20px; font-size: 11px; }
+    .nav-subgroup-inner .nav-icon { width: 18px; height: 18px; font-size: 11px; }
 
     [data-theme="dark"] .nav-caret { color: #94a3b8; border-color: rgba(255,255,255,.18); }
     [data-theme="dark"] .nav-caret:hover { background: rgba(255,255,255,.08); color: #f1f5f9; border-color: rgba(255,255,255,.35); }
