@@ -984,6 +984,9 @@
          .header-actions .btn above) - wrap the action buttons onto their own
          row instead of letting the last one (Logout) clip off-screen. */
       .content-header { padding: 12px 14px; flex-wrap: wrap; row-gap: 8px; }
+      .ql-chip-btn { font-size: 0.72rem; padding: 5px 8px; }
+      .ql-chip-text { display: none; }
+      .ql-menu { width: 290px; }
       .wa-chan-btn { max-width: 168px; font-size: 0.72rem; padding: 5px 8px; }
       .header-actions { gap: 6px; width: 100%; justify-content: flex-end; }
       .header-actions .btn { font-size: 0.75rem; padding: 5px 8px; text-align: center; white-space: nowrap; }
@@ -1159,6 +1162,40 @@
        one compact dropdown in the page header now, beside the bell: secondary
        to the page title, never overlapping it, and it carries the same counts
        from the same element ids as before. */
+    /* Quick Links, 2026-09-01 (Muhammad). It was a full-width card stacked
+       above the inbox, so every agent paid ~86px of lead-list height for a
+       control they reach for occasionally. It is a utility now: a compact
+       chip beside the channel selector that opens a small panel with the same
+       select, the same URL line and the same copy button. */
+    .ql-chip { position:relative; flex-shrink:0; }
+    .ql-chip-btn {
+      display:flex; align-items:center; gap:6px; cursor:pointer;
+      border:1px solid #e2e8f0; border-radius:8px; background:#fff;
+      padding:6px 10px; font-size:0.76rem; font-weight:600; color:#475569;
+      font-family:inherit; line-height:1.2; white-space:nowrap;
+    }
+    .ql-chip-btn:hover { background:#f8fafc; border-color:#cbd5e1; }
+    .ql-chip-btn:focus-visible { outline:2px solid #0a5ba8; outline-offset:1px; }
+    .ql-chip.open .ql-chip-btn { background:#f1f5f9; border-color:#cbd5e1; }
+    .ql-caret { font-size:0.62rem; color:#94a3b8; }
+    .ql-menu {
+      display:none; position:absolute; right:0; top:calc(100% + 6px); z-index:60;
+      width:340px; padding:10px; border-radius:10px;
+      background:#fff; border:1px solid #e2e8f0;
+      box-shadow:0 12px 28px rgba(15,23,42,.16);
+    }
+    .ql-chip.open .ql-menu { display:flex; flex-direction:column; gap:8px; }
+    .ql-select { width:100%; padding:6px 8px; font-size:0.78rem; }
+    /* The URL can be long; it truncates visually but Copy always copies the
+       full value, which comes from QUICK_LINKS, not from this element. */
+    .ql-value {
+      font-family:monospace; font-size:0.76rem; color:var(--text-strong);
+      background:#f8fafc; border:1px solid #eef2f6; border-radius:6px;
+      padding:6px 8px; min-height:30px;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    .ql-copy { align-self:flex-end; }
+
     .wa-chan { position:relative; flex-shrink:0; }
     .wa-chan-btn {
       display:flex; align-items:center; gap:7px; cursor:pointer;
@@ -1634,6 +1671,12 @@
     [data-theme="dark"] .conv-ops-chip          { background:#202c33; color:#8696a0; border-color:#34434b; }
     [data-theme="dark"] .conv-ops-chip:hover    { background:#2a3942; }
     [data-theme="dark"] .conv-ops-chip.active   { background:#1e1b4b; border-color:#4f46e5; color:#a5b4fc; }
+    [data-theme="dark"] .ql-chip-btn            { background:#111b2e; border-color:#243350; color:#cbd5e1; }
+    [data-theme="dark"] .ql-chip-btn:hover      { background:#16223c; border-color:#2f4266; }
+    [data-theme="dark"] .ql-chip.open .ql-chip-btn { background:#16223c; border-color:#2f4266; }
+    [data-theme="dark"] .ql-caret               { color:#64748b; }
+    [data-theme="dark"] .ql-menu                { background:#111b2e; border-color:#243350; box-shadow:0 12px 28px rgba(0,0,0,.5); }
+    [data-theme="dark"] .ql-value               { background:#0b1220; border-color:#243350; color:#cbd5e1; }
     [data-theme="dark"] .wa-chan-btn            { background:#111b2e; border-color:#243350; color:#cbd5e1; }
     [data-theme="dark"] .wa-chan-btn:hover      { background:#16223c; border-color:#2f4266; }
     [data-theme="dark"] .wa-chan.open .wa-chan-btn { background:#16223c; border-color:#2f4266; }
@@ -1898,6 +1941,21 @@
         <!-- WhatsApp number scope. Lives beside the bell, not in the 350px
              conversation column. The count spans keep their original ids so
              renderConvChannelCounts() writes into them unchanged. -->
+        <!-- Quick Links. Was a full-width card above the inbox, which cost the
+             lead list ~86px of height for a control an agent uses occasionally.
+             Same select, same value element, same copy button, same ids - only
+             the placement changed. -->
+        <div class="ql-chip" id="quick-links" style="display:none">
+          <button type="button" class="ql-chip-btn" id="ql-btn" aria-haspopup="dialog" aria-expanded="false"
+                  title="Copy a referral or signup link without leaving the conversation" onclick="toggleQuickLinksMenu(event,'')">
+            <span class="h-icon" data-nav-icon="link"></span><span class="ql-chip-text">Quick Links</span><span class="ql-caret">▾</span>
+          </button>
+          <div class="ql-menu" id="ql-menu" role="dialog" aria-label="Quick Links">
+            <select id="quick-links-select" onchange="renderQuickLinkValue('')" class="ql-select"></select>
+            <div class="ql-value" id="quick-links-value"></div>
+            <button class="btn btn-secondary btn-sm ql-copy" id="quick-links-copy-btn" onclick="copySelectedQuickLink('')">Copy</button>
+          </div>
+        </div>
         <div class="wa-chan" id="wa-chan" style="display:none">
           <button type="button" class="wa-chan-btn" id="wa-chan-btn" aria-haspopup="listbox" aria-expanded="false"
                   title="Which real WhatsApp number to show conversations from" onclick="toggleWaChannelMenu(event,'')">
@@ -2358,14 +2416,6 @@
     <!-- Quick Links - copy/paste into a chat without leaving the tab. This
          existed for agents only (V1 request from Ehsan/Hanzala) and was
          never built for admin - Muhammad flagged not seeing it in V2. -->
-    <div class="card" id="quick-links" style="margin-bottom:14px;padding:12px 16px">
-      <div style="font-weight:700;font-size:0.85rem;color:var(--text-strong);margin-bottom:10px"><span class="h-icon" data-nav-icon="link"></span>Quick Links</div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <select id="quick-links-select" onchange="renderQuickLinkValue('')" style="flex:1;min-width:160px;padding:6px 8px;font-size:0.78rem"></select>
-        <span id="quick-links-value" style="font-family:monospace;font-size:0.78rem;color:var(--text-strong);flex:2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-        <button class="btn btn-secondary btn-sm" id="quick-links-copy-btn" onclick="copySelectedQuickLink('')">Copy</button>
-      </div>
-    </div>
 
     <div class="conversations-shell" id="conv-shell">
       <!-- Left: Lead List -->
@@ -4300,6 +4350,21 @@
         <!-- WhatsApp number scope. Lives beside the bell, not in the 350px
              conversation column. The count spans keep their original ids so
              renderConvChannelCounts() writes into them unchanged. -->
+        <!-- Quick Links. Was a full-width card above the inbox, which cost the
+             lead list ~86px of height for a control an agent uses occasionally.
+             Same select, same value element, same copy button, same ids - only
+             the placement changed. -->
+        <div class="ql-chip" id="agent-quick-links" style="display:none">
+          <button type="button" class="ql-chip-btn" id="agent-ql-btn" aria-haspopup="dialog" aria-expanded="false"
+                  title="Copy a referral or signup link without leaving the conversation" onclick="toggleQuickLinksMenu(event,'agent-')">
+            <span class="h-icon" data-nav-icon="link"></span><span class="ql-chip-text">Quick Links</span><span class="ql-caret">▾</span>
+          </button>
+          <div class="ql-menu" id="agent-ql-menu" role="dialog" aria-label="Quick Links">
+            <select id="agent-quick-links-select" onchange="renderQuickLinkValue('agent-')" class="ql-select"></select>
+            <div class="ql-value" id="agent-quick-links-value"></div>
+            <button class="btn btn-secondary btn-sm ql-copy" id="agent-quick-links-copy-btn" onclick="copySelectedQuickLink('agent-')">Copy</button>
+          </div>
+        </div>
         <div class="wa-chan" id="agent-wa-chan" style="display:none">
           <button type="button" class="wa-chan-btn" id="agent-wa-chan-btn" aria-haspopup="listbox" aria-expanded="false"
                   title="Which real WhatsApp number to show conversations from" onclick="toggleWaChannelMenu(event,'agent-')">
@@ -4462,15 +4527,6 @@
 
   <!-- Conversations -->
   <div id="agent-tab-conversations" class="tab-content conv-tab">
-    <!-- Quick Links - copy/paste into a chat without leaving the tab -->
-    <div class="card" id="agent-quick-links" style="margin-bottom:14px;padding:12px 16px">
-      <div style="font-weight:700;font-size:0.85rem;color:var(--text-strong);margin-bottom:10px"><span class="h-icon" data-nav-icon="link"></span>Quick Links</div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <select id="agent-quick-links-select" onchange="renderQuickLinkValue('agent-')" style="flex:1;min-width:160px;padding:6px 8px;font-size:0.78rem"></select>
-        <span id="agent-quick-links-value" style="font-family:monospace;font-size:0.78rem;color:var(--text-strong);flex:2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-        <button class="btn btn-secondary btn-sm" id="agent-quick-links-copy-btn" onclick="copySelectedQuickLink('agent-')">Copy</button>
-      </div>
-    </div>
 
     <div class="conversations-shell" id="agent-conv-shell">
       <!-- Left: Lead List -->
@@ -5198,6 +5254,7 @@ function adminTab(name, el) {
   if (name === 'conversations')    { renderConversations(); startConvRealtime(); renderQuickLinks(''); } else { stopConvRealtime(); }
   setSidebarAutoHide(name === 'conversations');
   setWaChannelChip(name === 'conversations');
+  setQuickLinksChip(name === 'conversations');
   if (name === 'agents')           { renderAgentsTable(); updateRoundRobinStatus(); }
   if (name === 'user-manager')     renderAgentsTable('user-manager-tbody');
   if (name === 'settings')         loadGeneralSettings();
@@ -7016,6 +7073,7 @@ function agentTab(name, btn) {
   if (name === 'comm-log') loadCommLog('agent-');
   setSidebarAutoHide(name === 'conversations');
   setWaChannelChip(name === 'conversations', 'agent-');
+  setQuickLinksChip(name === 'conversations', 'agent-');
 }
 
 async function loadAgentLeads() {
@@ -11086,6 +11144,47 @@ function setConvChannel(channel, scope = '') {
   filterConversations(scope);
 }
 
+function closeQuickLinksMenus() {
+  document.querySelectorAll('.ql-chip.open').forEach(w => {
+    w.classList.remove('open');
+    w.querySelector('.ql-chip-btn')?.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function toggleQuickLinksMenu(event, scope = '') {
+  event.stopPropagation();
+  const wrap = document.getElementById(`${scope}quick-links`);
+  if (!wrap) return;
+  const opening = !wrap.classList.contains('open');
+  closeQuickLinksMenus();
+  closeWaChannelMenus();
+  if (opening) {
+    wrap.classList.add('open');
+    wrap.querySelector('.ql-chip-btn')?.setAttribute('aria-expanded', 'true');
+    wrap.querySelector('.ql-select')?.focus();
+  }
+}
+
+// Shown with the Inbox tab and hidden with every other one, exactly as the
+// channel selector and the auto-hiding sidebar already are.
+function setQuickLinksChip(active, scope = '') {
+  const wrap = document.getElementById(`${scope}quick-links`);
+  if (wrap) wrap.style.display = active ? '' : 'none';
+  if (!active) closeQuickLinksMenus();
+}
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest?.('.ql-menu')) return;   // clicks inside the panel keep it open
+  closeQuickLinksMenus();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const open = document.querySelector('.ql-chip.open');
+  if (!open) return;
+  closeQuickLinksMenus();
+  open.querySelector('.ql-chip-btn')?.focus();
+});
+
 function closeWaChannelMenus() {
   document.querySelectorAll('.wa-chan.open').forEach(w => {
     w.classList.remove('open');
@@ -11114,7 +11213,7 @@ function setWaChannelChip(active, scope = '') {
   if (!active) closeWaChannelMenus();
 }
 
-document.addEventListener('click', closeWaChannelMenus);
+document.addEventListener('click', (e) => { if (e.target.closest?.('.ql-menu')) return; closeWaChannelMenus(); });
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   const open = document.querySelector('.wa-chan.open');
