@@ -244,12 +244,21 @@ const ESCALATION_NOTIFICATIONS_ENABLED = true;
 // customer-service-window rule (error 131047, his number hadn't messaged
 // 6541 recently), not a bug in this code.
 //
+// Swapped 2026-08-31 (Muhammad, his laptop, him present): Muhammad's own
+// test number removed - his throwaway test-agent profile's receives_leads
+// was flipped back to false the same day, so it is out of the rotation
+// entirely, not just unnotified. Muhammad Hanzala's real number
+// (+92 323 5163874, profiles.id 2bc20292-76bb-467b-a2a1-7bfa0cad4421, his
+// own receives_leads flipped to true the same day) takes its place, widening
+// the live test from Ehsan alone to Ehsan + Hanzala, per Muhammad's explicit
+// go-ahead.
+//
 // While only these two numbers are listed, every OTHER real agent stays
 // completely unreachable no matter what else happens. Add more agents here
 // once the rhythm on these two phones has been watched and judged right;
 // emptying this array is what makes notifications live for the whole team,
 // and that is a deliberate decision to take later, not part of this change.
-const AGENT_NOTIFY_TEST_NUMBERS: string[] = ["923342224925", "923006960632"];
+const AGENT_NOTIFY_TEST_NUMBERS: string[] = ["923342224925", "923235163874"];
 
 let cachedWaToken: string | null = null;
 let cachedWaPhoneId: string | null = null;
