@@ -1,9 +1,18 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-08-31, same day, continuing from the reconciliation entry
-directly below (which was written by a different session, on a different
-laptop). For a fresh Claude Code session with zero memory of prior
-conversations - including one logged into a different Claude account._
+_Last updated: 2026-08-31, same day, continuing from the entry directly below.
+For a fresh Claude Code session with zero memory of prior conversations -
+including one logged into a different Claude account._
+
+## 2026-08-31 (latest) - Omnichannel Inbox pagination avoided at the root, commit `64df19c`
+
+Muhammad asked directly: "can't we avoid pagination? Has the 1000 rows' limit been exhausted?" Both halves answered by checking live data, not assuming. Yes, actively exhausted: 13,870 real `communications` rows match the Inbox's type filter against PostgREST's hard 1,000-row default, against only 2,024 real leads. Pagination itself is avoidable - the design flaw was bounding the query by MESSAGE count (fast-growing) instead of CONVERSATION/lead count (slow-growing).
+
+**Fix:** new database view `inbox_conversation_list` (migration `20260831040000_conversation_list_view.sql`, also mirrored into `schema.sql` as Phase 38) - a `DISTINCT ON (lead_id)` view returning one row per lead (its latest matching `whatsapp`/`messenger`/`instagram` message, joined with the lead fields the Inbox needs: name, phone, status, unread, bot_stage, needs_human, handoff_reason, manual_tier, language, wa_channel). `security_invoker = true` so it still runs under the querying role's own RLS - agents see only their own leads, admins see everything, exactly as before. `renderConversations()`'s live-mode query in `index.html` now reads this view with `.limit(5000)` instead of querying `communications` directly with no limit, then reshapes the flat view rows back into the `{ ..., leads: {...} }` nesting every other consumer of `_lastConvs` already expects, so nothing downstream needed touching.
+
+**Verified live** (not just "looks right"): the view returns 2,288 conversation rows (203 on 6541, 391 on 3903) via a direct linked-DB query bypassing RLS; the exact PostgREST call the frontend makes (anon key, same columns, same `.limit(5000)`) returns 200 with correct column names (0 rows is expected and correct - RLS blocks unauthenticated reads); `tests/inbox-ui-test.mjs` passes. Could not click-test inside the real app itself - that needs a real login, which this session does not do. This also fully closes the "conversation LIST can drop real, older conversations" gap that the earlier 3903/6541 pill-count fix (below) explicitly left open.
+
+---
 
 ## 2026-08-31 (later) - Signals-Group pricing false claim fixed at its root, a real routing bug that caused it fixed alongside, plus Inbox/Composer fixes
 
