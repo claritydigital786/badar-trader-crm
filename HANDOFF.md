@@ -36,6 +36,86 @@ Muhammad asked whether a second Claude account (`shoaibmazhar1434@gmail.com` - t
 
 ---
 
+## 2026-08-31 (rollout) - targeted production rollout. DB objects applied, notifier deployed, frontend live. TWO ITEMS BLOCKED, both need elevated access.
+
+Minimal-scope rollout for the Pending Approval + deposit-idempotency work. No
+`db push`, no blanket ledger repair, no legacy RLS migration applied.
+
+### What the ledger actually looked like
+
+Documented as 8 legacy migrations without remote rows. The real number was 21
+local-only plus 11 remote-only, and the 21 were a genuine mix: some already
+live (`communication_message_actions`, `additional_whatsapp_numbers`,
+`inbox_conversation_list`), some genuinely absent. So neither `db push` nor a
+blanket `migration repair` was correct, and neither was used.
+
+### Two things that were broken in production and nobody knew
+
+1. **The admin Pending Approval alert had never worked, for two independent
+   reasons.** `pending_approval_notifications` did not exist, AND
+   `notify-admin-pending-approval` had never been deployed at all. The live CRM
+   has been invoking a function that was not there. Both are now fixed.
+2. **`public_form_rate_limits` and `consume_public_form_rate_limit` did not
+   exist**, so the public lead forms had no durable abuse protection.
+
+### Applied, individually, in dependency order
+
+- `pending_approval_notifications` (table, RLS, grants, 2 indexes). Extracted
+  from `20260815102000`, whose `DROP POLICY "settings: agents read wa send
+  creds" ON public.settings` was DELIBERATELY EXCLUDED as an unrelated security
+  change. That policy was verified live before and after and is untouched.
+  Because only part of that migration ran, it is deliberately still marked
+  PENDING in the ledger. Do not mark it applied.
+- `20260814171000` in full (rate limit table + RPC). Self-contained.
+- `20260831041000` in full (Converted guard function + trigger on `leads`).
+- `20260831050000` in full (deposit idempotency table + claim/release RPCs).
+
+Ledger repaired to `applied` for exactly those three that ran verbatim and in
+full, taking pending from 21 to 18. Nothing else was marked.
+
+### Verified against production, not asserted
+
+- All 8 required objects exist.
+- Idempotency RPC, in a rolled-back transaction: first claim `true`, exact
+  replay `false`, different claim `true`.
+- Converted guard, simulating a real non-admin agent in a rolled-back
+  transaction: INTO Converted BLOCKED, OUT OF Converted BLOCKED,
+  `manual_tier='closed'` BLOCKED, and setting Qualified still ALLOWED, so the
+  guard does not over-block.
+- Unrelated state unchanged: policies on `leads` 3, on `settings` 2, the
+  wa-creds policy alive, `settings` 29 rows, `profiles` 9, the single historical
+  `converted` lead still 1 and untouched. Triggers on `leads` went 7 to 8,
+  exactly the one added.
+- Live site byte-identical to committed `index.html`, hierarchy and operational
+  filters and both channel pills present, zero console errors.
+
+### BLOCKED, needs someone with more access
+
+1. **`INTERNAL_FUNCTION_SECRET` could not be set.** The connected account can
+   read secrets and run DB queries but is refused on the secrets write endpoint
+   ("account does not have the necessary privileges"). Until it is set, the
+   form-triggered alert is inert: `conversion-hook` logs `not_configured` and
+   skips it, by design, so deposits still record correctly. The agent-triggered
+   alert from the Inbox is unaffected and now works. Verified live: the function
+   returns 503 "internal function secret is not configured" to an internal call,
+   which is failing closed exactly as intended.
+2. **`conversion-hook` was NOT deployed.** The deploy was refused by the local
+   tooling's permission layer. Production still runs v18, the old code: no
+   idempotency, and still blanking `deposit_account_ref` on the thank-you page's
+   repeat call. The new DB objects it needs are already in place, so deploying
+   it is now a single safe step. `notify-admin-pending-approval` IS deployed
+   (v1) and its `_shared/*.mjs` import bundled fine, which is good evidence the
+   same import in `conversion-hook` will too.
+
+`deno check` still has not run anywhere: Deno is not installed on this laptop.
+
+### No WhatsApp message was sent
+
+Deploying the notifier makes agent-triggered alerts real from now on, which is
+the intended product behaviour. Nothing was triggered from this session. The two
+production checks run against it were an unauthenticated call (401) and a wrong
+internal secret (503), neither of which reaches the send path.
+
 ## 2026-08-31 (later still) - merged main into the branch, and fixed a migration timestamp collision that would have silently skipped a migration
 
 `origin/main` moved six commits while the Pending Approval work was in
