@@ -984,6 +984,7 @@
          .header-actions .btn above) - wrap the action buttons onto their own
          row instead of letting the last one (Logout) clip off-screen. */
       .content-header { padding: 12px 14px; flex-wrap: wrap; row-gap: 8px; }
+      .wa-chan-btn { max-width: 168px; font-size: 0.72rem; padding: 5px 8px; }
       .header-actions { gap: 6px; width: 100%; justify-content: flex-end; }
       .header-actions .btn { font-size: 0.75rem; padding: 5px 8px; text-align: center; white-space: nowrap; }
       .content-body { padding: 12px; }
@@ -1068,10 +1069,9 @@
        lead-stage row the full width it needs. Every row wraps instead of
        scrolling sideways, so nothing is chopped at a smaller laptop width. */
     .conv-search {
-      padding: 9px 14px 8px; display: flex; flex-wrap: wrap; gap: 7px 10px;
+      padding: 9px 12px 8px; display: flex; gap: 8px;
       align-items: center; background:#fff;
     }
-    .conv-search-main { flex: 1 1 190px; min-width: 0; display: flex; gap: 8px; align-items: center; }
     .conv-search input { flex: 1; min-width: 0; }
     .conv-show-list-btn { display: none; }
     .conversations-shell.list-collapsed .conv-chat-header { padding-left: 56px; }
@@ -1080,10 +1080,13 @@
     .conv-search input:focus { background:#fff; border-color:#00a884; }
     .conv-search input::placeholder { color:#8696a0; }
     /* Filter row: WhatsApp's own All / Unread pill style. */
+    /* Six stages in a deliberate 3x2 grid rather than letting the browser wrap
+       them wherever they happen to run out of room. Equal columns mean the two
+       rows line up, so it reads as a designed block instead of a spill. */
     .conv-filter-tabs {
-      display:flex; flex-wrap:wrap; gap:5px 7px;
-      padding:8px 14px 9px; background:#fff;
-      border-top:1px solid #e9edef; border-bottom:1px solid #e9edef;
+      display:grid; grid-template-columns:repeat(3, 1fr); gap:6px;
+      padding:9px 12px 10px; background:#fff;
+      border-top:1px solid #e9edef;
     }
     .conv-list-toggle {
       flex-shrink:0; border:none; background:transparent; border-radius:50%;
@@ -1105,8 +1108,9 @@
     .conv-list-menu button:hover { background:#f0f2f5; }
     .conv-list-menu-separator { height:1px; margin:5px 0; background:#e9edef; }
     .conv-filter-tab {
-      flex-shrink: 0; cursor:pointer; border:none; border-radius:14px;
-      padding:5px 12px; font-size:0.775rem; font-weight:500; white-space:nowrap;
+      cursor:pointer; border:none; border-radius:13px;
+      padding:6px 6px; font-size:0.735rem; font-weight:500; white-space:nowrap;
+      overflow:hidden; text-overflow:ellipsis; text-align:center;
       background:#f0f2f5; color:#54656f;
     }
     .conv-filter-tab:hover  { background:#e9edef; }
@@ -1118,56 +1122,90 @@
        pill; these operational filters are deliberately a different shape
        (square-ish, outlined, check-marked, indigo when on) because they are
        multi-select and stack ON TOP of whatever stage is selected. */
+    /* A labelled block, clearly separated from the stage grid above it: the
+       label sits on its own line and the three chips share one row, each one
+       an equal third so they always fit and always line up. */
     .conv-ops-row {
-      display:flex; flex-wrap:wrap; gap:5px 7px; align-items:center;
-      padding:8px 14px 9px; background:#fff; border-bottom:1px solid #e9edef;
+      padding:8px 12px 10px; background:#f7f9fa;
+      border-top:1px solid #e9edef; border-bottom:1px solid #e9edef;
     }
+    .conv-ops-chips { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-top:5px; }
     .conv-ops-label {
-      flex-shrink:0; font-size:0.63rem; font-weight:700; letter-spacing:.07em;
-      text-transform:uppercase; color:#8696a0; margin-right:4px;
+      display:block; font-size:0.615rem; font-weight:700; letter-spacing:.08em;
+      text-transform:uppercase; color:#8696a0;
     }
     .conv-ops-chip {
-      flex-shrink:0; cursor:pointer; border:1px solid #d1d7db; border-radius:7px;
-      padding:4px 9px; font-size:0.715rem; font-weight:600; white-space:nowrap;
-      background:#fff; color:#54656f; display:flex; align-items:center; gap:5px;
+      cursor:pointer; border:1px solid #d1d7db; border-radius:7px;
+      padding:5px 4px; font-size:0.685rem; font-weight:600; white-space:nowrap;
+      overflow:hidden; text-overflow:ellipsis; text-align:center;
+      background:#fff; color:#54656f; display:block;
     }
     .conv-ops-chip:hover  { background:#f0f2f5; }
     .conv-ops-chip.active { background:#eef2ff; border-color:#a5b4fc; color:#4338ca; }
     /* Added 2026-08-31: bifurcates the Omnichannel Inbox by which real
        WhatsApp number a lead came in on (6541 vs 3903), so Badar can see both
        numbers' campaigns actively populating real leads, side by side. */
-    /* Deliberately lighter than .conv-filter-tab: this is a scope control for
-       which real number a conversation arrived on, not a lead stage, so it
-       reads as secondary. margin-left:auto pins it to the top right and lets
-       it drop onto its own line when the column gets narrow. */
+    /* The channel scope answers "which of the two real numbers did this arrive
+       on", which is a property of the whole Inbox, not of the lead column. It
+       sits in the full-width toolbar above the shell, where there is room for
+       all three options on one line, instead of competing for 350px with the
+       search field and the stage filters. */
     .conv-channel-row {
-      display:flex; flex-wrap:wrap; gap:5px 6px; justify-content:flex-end;
+      display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end;
       margin-left:auto; padding:0; background:transparent;
     }
-    .conv-channel-pill {
-      flex-shrink:0; cursor:pointer; border:1px solid #e4e8ea; border-radius:13px;
-      padding:3px 9px; font-size:0.705rem; font-weight:500; white-space:nowrap;
-      background:#fbfcfc; color:#667781; display:flex; align-items:center; gap:5px;
+    /* WhatsApp number scope, 2026-08-31 (Muhammad). It was three pills in the
+       350px conversation column, which is where the crowding came from. It is
+       one compact dropdown in the page header now, beside the bell: secondary
+       to the page title, never overlapping it, and it carries the same counts
+       from the same element ids as before. */
+    .wa-chan { position:relative; flex-shrink:0; }
+    .wa-chan-btn {
+      display:flex; align-items:center; gap:7px; cursor:pointer;
+      border:1px solid #e2e8f0; border-radius:8px; background:#fff;
+      padding:6px 10px; font-size:0.76rem; font-weight:600; color:#475569;
+      font-family:inherit; line-height:1.2; white-space:nowrap; max-width:210px;
     }
-    .conv-channel-pill:hover  { background:#f0f2f5; }
-    .conv-channel-pill.active { background:#e7f3ff; border-color:#8ec5ff; color:#0a5ba8; }
+    .wa-chan-btn:hover { background:#f8fafc; border-color:#cbd5e1; }
+    .wa-chan-btn:focus-visible { outline:2px solid #0a5ba8; outline-offset:1px; }
+    .wa-chan.open .wa-chan-btn { background:#f1f5f9; border-color:#cbd5e1; }
+    .wa-chan-current { overflow:hidden; text-overflow:ellipsis; }
+    .wa-chan-caret { font-size:0.62rem; color:#94a3b8; flex-shrink:0; }
+    .wa-chan-menu {
+      display:none; position:absolute; right:0; top:calc(100% + 6px); z-index:60;
+      min-width:238px; padding:5px; border-radius:10px;
+      background:#fff; border:1px solid #e2e8f0;
+      box-shadow:0 12px 28px rgba(15,23,42,.16);
+    }
+    .wa-chan.open .wa-chan-menu { display:block; }
+    .wa-chan-opt {
+      display:flex; align-items:center; justify-content:space-between; gap:14px;
+      width:100%; cursor:pointer; border:none; background:none; text-align:left;
+      padding:8px 10px; border-radius:7px; font-family:inherit;
+      font-size:0.79rem; font-weight:500; color:#334155; white-space:nowrap;
+    }
+    .wa-chan-opt:hover { background:#f1f5f9; }
+    .wa-chan-opt.active { background:#e7f3ff; color:#0a5ba8; font-weight:600; }
+    .wa-chan-opt.active .wa-chan-opt-name::after { content:' ✓'; }
+    .wa-chan-opt .conv-channel-count { flex-shrink:0; }
     .conv-channel-count {
-      background:#eef1f3; color:#667781; border-radius:8px; padding:0 5px;
-      font-size:0.66rem; font-weight:700; min-width:14px; text-align:center;
+      background:#eef1f3; color:#667781; border-radius:8px; padding:1px 7px;
+      font-size:0.7rem; font-weight:700; min-width:20px; text-align:center;
     }
-    .conv-channel-pill.active .conv-channel-count { background:#0a5ba8; color:#fff; }
+    .wa-chan-opt.active .conv-channel-count { background:#0a5ba8; color:#fff; }
     /* Short laptop screens (1366x768, 1280x720) have little vertical room to
        spare, and the header wraps onto more lines exactly when the panel is
        narrowest. Tighten the header's vertical rhythm there so the
        conversation list keeps its rows instead of the filters eating them.
        Labels and wrapping are unchanged, only the spacing. */
     @media (max-height: 820px) {
-      .conv-search      { padding:7px 12px 6px; gap:6px 8px; }
-      .conv-filter-tabs { padding:6px 12px 7px; gap:4px 6px; }
-      .conv-ops-row     { padding:6px 12px 7px; gap:4px 6px; }
-      .conv-filter-tab  { padding:4px 11px; }
-      .conv-ops-chip    { padding:3px 8px; }
-      .conv-channel-pill{ padding:2px 8px; }
+      .conv-search      { padding:7px 12px 6px; }
+      .conv-filter-tabs { padding:7px 12px 8px; gap:5px; }
+      .conv-ops-row     { padding:6px 12px 8px; }
+      .conv-ops-chips   { margin-top:4px; gap:5px; }
+      .conv-filter-tab  { padding:5px 5px; }
+      .conv-ops-chip    { padding:4px 3px; }
+      .conv-channel-pill{ padding:3px 10px; }
     }
 
     .conv-list { flex:1 1 0; min-height:0; overflow-y:auto; background:#fff; }
@@ -1531,7 +1569,7 @@
     [data-theme="dark"] .conv-search,
     [data-theme="dark"] .conv-filter-tabs,
     [data-theme="dark"] .conv-list          { background:#111b21; }
-    [data-theme="dark"] .conv-filter-tabs   { border-top-color:#222d34; border-bottom-color:#222d34; }
+    [data-theme="dark"] .conv-filter-tabs   { border-top-color:#222d34; }
     [data-theme="dark"] .conv-list-toggle       { color:#aebac1; }
     [data-theme="dark"] .conv-list-toggle:hover { background:#202c33; }
     [data-theme="dark"] .conv-list-menu         { background:#233138; color:#e9edef; border-color:#34434b; }
@@ -1544,17 +1582,21 @@
     [data-theme="dark"] .conv-filter-tab        { background:#202c33; color:#8696a0; }
     [data-theme="dark"] .conv-filter-tab:hover  { background:#2a3942; }
     [data-theme="dark"] .conv-filter-tab.active { background:#103529; color:#00a884; }
-    [data-theme="dark"] .conv-ops-row           { background:#111b21; border-bottom-color:#222d34; }
+    [data-theme="dark"] .conv-ops-row           { background:#0e171d; border-top-color:#222d34; border-bottom-color:#222d34; }
     [data-theme="dark"] .conv-ops-label         { color:#8696a0; }
     [data-theme="dark"] .conv-ops-chip          { background:#202c33; color:#8696a0; border-color:#34434b; }
     [data-theme="dark"] .conv-ops-chip:hover    { background:#2a3942; }
     [data-theme="dark"] .conv-ops-chip.active   { background:#1e1b4b; border-color:#4f46e5; color:#a5b4fc; }
-    [data-theme="dark"] .conv-channel-row       { background:transparent; }
-    [data-theme="dark"] .conv-channel-pill      { background:#1b262c; color:#8696a0; border-color:#2a3942; }
-    [data-theme="dark"] .conv-channel-pill:hover  { background:#2a3942; }
-    [data-theme="dark"] .conv-channel-pill.active { background:#0c2a44; border-color:#2f6690; color:#6cb2ff; }
-    [data-theme="dark"] .conv-channel-count     { background:#2a3942; color:#8696a0; }
-    [data-theme="dark"] .conv-channel-pill.active .conv-channel-count { background:#2f6690; color:#fff; }
+    [data-theme="dark"] .wa-chan-btn            { background:#111b2e; border-color:#243350; color:#cbd5e1; }
+    [data-theme="dark"] .wa-chan-btn:hover      { background:#16223c; border-color:#2f4266; }
+    [data-theme="dark"] .wa-chan.open .wa-chan-btn { background:#16223c; border-color:#2f4266; }
+    [data-theme="dark"] .wa-chan-caret          { color:#64748b; }
+    [data-theme="dark"] .wa-chan-menu           { background:#111b2e; border-color:#243350; box-shadow:0 12px 28px rgba(0,0,0,.5); }
+    [data-theme="dark"] .wa-chan-opt            { color:#cbd5e1; }
+    [data-theme="dark"] .wa-chan-opt:hover      { background:#16223c; }
+    [data-theme="dark"] .wa-chan-opt.active     { background:#0c2a44; color:#6cb2ff; }
+    [data-theme="dark"] .conv-channel-count     { background:#243350; color:#94a3b8; }
+    [data-theme="dark"] .wa-chan-opt.active .conv-channel-count { background:#2f6690; color:#fff; }
     [data-theme="dark"] .conv-item::after   { background:#222d34; }
     [data-theme="dark"] .conv-item:hover    { background:#202c33; }
     [data-theme="dark"] .conv-item.active   { background:#2a3942; }
@@ -1801,6 +1843,26 @@
       </div>
       <div class="header-actions">
         <span id="user-greeting" style="color:var(--text-muted);font-size:13px;"></span>
+        <!-- WhatsApp number scope. Lives beside the bell, not in the 350px
+             conversation column. The count spans keep their original ids so
+             renderConvChannelCounts() writes into them unchanged. -->
+        <div class="wa-chan" id="wa-chan" style="display:none">
+          <button type="button" class="wa-chan-btn" id="wa-chan-btn" aria-haspopup="listbox" aria-expanded="false"
+                  title="Which real WhatsApp number to show conversations from" onclick="toggleWaChannelMenu(event,'')">
+            <span class="wa-chan-current" id="wa-chan-label">📱 All Numbers</span><span class="wa-chan-caret">▾</span>
+          </button>
+          <div class="wa-chan-menu" id="wa-chan-menu" role="listbox" aria-label="WhatsApp number">
+            <button type="button" role="option" class="wa-chan-opt active" aria-selected="true" data-channel="all" onclick="setConvChannel('all','')">
+              <span class="wa-chan-opt-name">📱 All Numbers</span>
+              <span class="conv-channel-count" id="conv-channel-count-all">0</span></button>
+            <button type="button" role="option" class="wa-chan-opt" data-channel="6541" onclick="setConvChannel('6541','')">
+              <span class="wa-chan-opt-name">🇦🇪 UAE · 6541</span>
+              <span class="conv-channel-count" id="conv-channel-count-6541">0</span></button>
+            <button type="button" role="option" class="wa-chan-opt" data-channel="3903" onclick="setConvChannel('3903','')">
+              <span class="wa-chan-opt-name">🇵🇰 Pakistan · 3903</span>
+              <span class="conv-channel-count" id="conv-channel-count-3903">0</span></button>
+          </div>
+        </div>
         <div class="notif-wrap">
           <button type="button" class="notif-btn" id="notif-btn" title="Notifications" onclick="toggleNotifPanel('')">🔔<span class="notif-badge" id="notif-badge" style="display:none">0</span></button>
           <div class="notif-panel" id="notif-panel" style="display:none"></div>
@@ -2257,26 +2319,19 @@
       <!-- Left: Lead List -->
       <div class="conv-list-panel" id="conv-list-panel">
         <div class="conv-search">
-          <div class="conv-search-main">
-            <div class="conv-list-menu-wrap">
-              <button type="button" class="conv-list-toggle" title="Inbox menu" aria-label="Open inbox menu" aria-haspopup="menu" aria-expanded="false" onclick="toggleInboxMenu(event,'')">☰</button>
-              <div class="conv-list-menu" id="conv-list-menu" role="menu">
-                <button type="button" role="menuitem" onclick="runInboxMenuAction('refresh','')">Refresh inbox</button>
-                <button type="button" role="menuitem" data-conv-sort-label onclick="runInboxMenuAction('toggle-sort','')">Sort: priority (change to newest)</button>
-                <button type="button" role="menuitem" onclick="runInboxMenuAction('all','')">All conversations</button>
-                <button type="button" role="menuitem" onclick="runInboxMenuAction('unread','')">Unread conversations</button>
-                <button type="button" role="menuitem" onclick="runInboxMenuAction('clear-search','')">Clear search</button>
-                <div class="conv-list-menu-separator" role="separator"></div>
-                <button type="button" role="menuitem" onclick="runInboxMenuAction('hide-list','')">Hide lead list</button>
-              </div>
+          <div class="conv-list-menu-wrap">
+            <button type="button" class="conv-list-toggle" title="Inbox menu" aria-label="Open inbox menu" aria-haspopup="menu" aria-expanded="false" onclick="toggleInboxMenu(event,'')">☰</button>
+            <div class="conv-list-menu" id="conv-list-menu" role="menu">
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('refresh','')">Refresh inbox</button>
+              <button type="button" role="menuitem" data-conv-sort-label onclick="runInboxMenuAction('toggle-sort','')">Sort: priority (change to newest)</button>
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('all','')">All conversations</button>
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('unread','')">Unread conversations</button>
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('clear-search','')">Clear search</button>
+              <div class="conv-list-menu-separator" role="separator"></div>
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('hide-list','')">Hide lead list</button>
             </div>
-            <input type="text" id="conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations()" />
           </div>
-          <div class="conv-channel-row" id="conv-channel-row" title="Which real WhatsApp number each conversation came in on">
-          <button class="conv-channel-pill active" data-channel="all" onclick="setConvChannel('all')">All numbers <span class="conv-channel-count" id="conv-channel-count-all">0</span></button>
-          <button class="conv-channel-pill" data-channel="6541" onclick="setConvChannel('6541')">🇦🇪 UAE · 6541 <span class="conv-channel-count" id="conv-channel-count-6541">0</span></button>
-          <button class="conv-channel-pill" data-channel="3903" onclick="setConvChannel('3903')">🇵🇰 Pakistan · 3903 <span class="conv-channel-count" id="conv-channel-count-3903">0</span></button>
-          </div>
+          <input type="text" id="conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations()" />
         </div>
         <div class="conv-filter-tabs" id="conv-filter-tabs" >
           <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all')">All</button>
@@ -2288,9 +2343,11 @@
         </div>
         <div class="conv-ops-row" id="conv-ops-row" title="Operational state - these stack on top of whichever lead stage is selected">
           <span class="conv-ops-label">Needs action</span>
-          <button class="conv-ops-chip" data-op="unread" onclick="toggleConvOps('unread')">📩 Unread</button>
-          <button class="conv-ops-chip" data-op="awaiting" onclick="toggleConvOps('awaiting')">⏳ Waiting on Us</button>
-          <button class="conv-ops-chip" data-op="needshuman" onclick="toggleConvOps('needshuman')">👤 Needs Human</button>
+          <div class="conv-ops-chips">
+            <button class="conv-ops-chip" data-op="unread" onclick="toggleConvOps('unread')">📩 Unread</button>
+            <button class="conv-ops-chip" data-op="awaiting" onclick="toggleConvOps('awaiting')">⏳ Waiting on Us</button>
+            <button class="conv-ops-chip" data-op="needshuman" onclick="toggleConvOps('needshuman')">👤 Needs Human</button>
+          </div>
         </div>
         <div class="conv-list" id="conv-list"></div>
       </div>
@@ -4188,6 +4245,26 @@
         <h2 id="agent-current-tab-title" class="page-title">Dashboard</h2>
       </div>
       <div class="header-actions">
+        <!-- WhatsApp number scope. Lives beside the bell, not in the 350px
+             conversation column. The count spans keep their original ids so
+             renderConvChannelCounts() writes into them unchanged. -->
+        <div class="wa-chan" id="agent-wa-chan" style="display:none">
+          <button type="button" class="wa-chan-btn" id="agent-wa-chan-btn" aria-haspopup="listbox" aria-expanded="false"
+                  title="Which real WhatsApp number to show conversations from" onclick="toggleWaChannelMenu(event,'agent-')">
+            <span class="wa-chan-current" id="agent-wa-chan-label">📱 All Numbers</span><span class="wa-chan-caret">▾</span>
+          </button>
+          <div class="wa-chan-menu" id="agent-wa-chan-menu" role="listbox" aria-label="WhatsApp number">
+            <button type="button" role="option" class="wa-chan-opt active" aria-selected="true" data-channel="all" onclick="setConvChannel('all','agent-')">
+              <span class="wa-chan-opt-name">📱 All Numbers</span>
+              <span class="conv-channel-count" id="agent-conv-channel-count-all">0</span></button>
+            <button type="button" role="option" class="wa-chan-opt" data-channel="6541" onclick="setConvChannel('6541','agent-')">
+              <span class="wa-chan-opt-name">🇦🇪 UAE · 6541</span>
+              <span class="conv-channel-count" id="agent-conv-channel-count-6541">0</span></button>
+            <button type="button" role="option" class="wa-chan-opt" data-channel="3903" onclick="setConvChannel('3903','agent-')">
+              <span class="wa-chan-opt-name">🇵🇰 Pakistan · 3903</span>
+              <span class="conv-channel-count" id="agent-conv-channel-count-3903">0</span></button>
+          </div>
+        </div>
         <div class="notif-wrap">
           <button type="button" class="notif-btn" id="agent-notif-btn" title="Notifications" onclick="toggleNotifPanel('agent-')">🔔<span class="notif-badge" id="agent-notif-badge" style="display:none">0</span></button>
           <div class="notif-panel" id="agent-notif-panel" style="display:none"></div>
@@ -4347,26 +4424,19 @@
       <!-- Left: Lead List -->
       <div class="conv-list-panel" id="agent-conv-list-panel">
         <div class="conv-search">
-          <div class="conv-search-main">
-            <div class="conv-list-menu-wrap">
-              <button type="button" class="conv-list-toggle" title="Inbox menu" aria-label="Open inbox menu" aria-haspopup="menu" aria-expanded="false" onclick="toggleInboxMenu(event,'agent-')">☰</button>
-              <div class="conv-list-menu" id="agent-conv-list-menu" role="menu">
-                <button type="button" role="menuitem" onclick="runInboxMenuAction('refresh','agent-')">Refresh inbox</button>
-                <button type="button" role="menuitem" data-conv-sort-label onclick="runInboxMenuAction('toggle-sort','agent-')">Sort: priority (change to newest)</button>
-                <button type="button" role="menuitem" onclick="runInboxMenuAction('all','agent-')">All conversations</button>
-                <button type="button" role="menuitem" onclick="runInboxMenuAction('unread','agent-')">Unread conversations</button>
-                <button type="button" role="menuitem" onclick="runInboxMenuAction('clear-search','agent-')">Clear search</button>
-                <div class="conv-list-menu-separator" role="separator"></div>
-                <button type="button" role="menuitem" onclick="runInboxMenuAction('hide-list','agent-')">Hide lead list</button>
-              </div>
+          <div class="conv-list-menu-wrap">
+            <button type="button" class="conv-list-toggle" title="Inbox menu" aria-label="Open inbox menu" aria-haspopup="menu" aria-expanded="false" onclick="toggleInboxMenu(event,'agent-')">☰</button>
+            <div class="conv-list-menu" id="agent-conv-list-menu" role="menu">
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('refresh','agent-')">Refresh inbox</button>
+              <button type="button" role="menuitem" data-conv-sort-label onclick="runInboxMenuAction('toggle-sort','agent-')">Sort: priority (change to newest)</button>
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('all','agent-')">All conversations</button>
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('unread','agent-')">Unread conversations</button>
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('clear-search','agent-')">Clear search</button>
+              <div class="conv-list-menu-separator" role="separator"></div>
+              <button type="button" role="menuitem" onclick="runInboxMenuAction('hide-list','agent-')">Hide lead list</button>
             </div>
-            <input type="text" id="agent-conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations('agent-')" />
           </div>
-          <div class="conv-channel-row" id="agent-conv-channel-row" title="Which real WhatsApp number each conversation came in on">
-          <button class="conv-channel-pill active" data-channel="all" onclick="setConvChannel('all','agent-')">All numbers <span class="conv-channel-count" id="agent-conv-channel-count-all">0</span></button>
-          <button class="conv-channel-pill" data-channel="6541" onclick="setConvChannel('6541','agent-')">🇦🇪 UAE · 6541 <span class="conv-channel-count" id="agent-conv-channel-count-6541">0</span></button>
-          <button class="conv-channel-pill" data-channel="3903" onclick="setConvChannel('3903','agent-')">🇵🇰 Pakistan · 3903 <span class="conv-channel-count" id="agent-conv-channel-count-3903">0</span></button>
-          </div>
+          <input type="text" id="agent-conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations('agent-')" />
         </div>
         <div class="conv-filter-tabs" id="agent-conv-filter-tabs" >
           <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all','agent-')">All</button>
@@ -4378,9 +4448,11 @@
         </div>
         <div class="conv-ops-row" id="agent-conv-ops-row" title="Operational state - these stack on top of whichever lead stage is selected">
           <span class="conv-ops-label">Needs action</span>
-          <button class="conv-ops-chip" data-op="unread" onclick="toggleConvOps('unread','agent-')">📩 Unread</button>
-          <button class="conv-ops-chip" data-op="awaiting" onclick="toggleConvOps('awaiting','agent-')">⏳ Waiting on Us</button>
-          <button class="conv-ops-chip" data-op="needshuman" onclick="toggleConvOps('needshuman','agent-')">👤 Needs Human</button>
+          <div class="conv-ops-chips">
+            <button class="conv-ops-chip" data-op="unread" onclick="toggleConvOps('unread','agent-')">📩 Unread</button>
+            <button class="conv-ops-chip" data-op="awaiting" onclick="toggleConvOps('awaiting','agent-')">⏳ Waiting on Us</button>
+            <button class="conv-ops-chip" data-op="needshuman" onclick="toggleConvOps('needshuman','agent-')">👤 Needs Human</button>
+          </div>
         </div>
         <div class="conv-list" id="agent-conv-list"></div>
       </div>
@@ -5072,6 +5144,7 @@ function adminTab(name, el) {
   if (name === 'leads')            loadAdminLeads();
   if (name === 'conversations')    { renderConversations(); startConvRealtime(); renderQuickLinks(''); } else { stopConvRealtime(); }
   setSidebarAutoHide(name === 'conversations');
+  setWaChannelChip(name === 'conversations');
   if (name === 'agents')           { renderAgentsTable(); updateRoundRobinStatus(); }
   if (name === 'user-manager')     renderAgentsTable('user-manager-tbody');
   if (name === 'settings')         loadGeneralSettings();
@@ -6889,6 +6962,7 @@ function agentTab(name, btn) {
   if (name === 'conversations') { renderConversations('agent-'); startConvRealtime('agent-'); renderQuickLinks('agent-'); } else { stopConvRealtime(); }
   if (name === 'comm-log') loadCommLog('agent-');
   setSidebarAutoHide(name === 'conversations');
+  setWaChannelChip(name === 'conversations', 'agent-');
 }
 
 async function loadAgentLeads() {
@@ -10937,13 +11011,64 @@ function syncConvOpsChips() {
 
 // Bifurcates the Omnichannel Inbox by which real WhatsApp number a
 // conversation came in on - 'all' | '6541' | '3903'. Added 2026-08-31.
+// The channel scope moved from three pills in the conversation column to one
+// dropdown beside the bell (2026-08-31). The selection state and the filtering
+// call below are unchanged - only the elements that reflect the selection did.
+const WA_CHANNEL_LABELS = {
+  all:    '\u{1F4F1} All Numbers',
+  '6541': '\u{1F1E6}\u{1F1EA} UAE \u00b7 6541',
+  '3903': '\u{1F1F5}\u{1F1F0} Pakistan \u00b7 3903',
+};
+
 function setConvChannel(channel, scope = '') {
   _activeConvChannel = channel;
-  document.querySelectorAll(`#${scope}conv-channel-row .conv-channel-pill`).forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.channel === channel);
+  document.querySelectorAll(`#${scope}wa-chan-menu .wa-chan-opt`).forEach(btn => {
+    const on = btn.dataset.channel === channel;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-selected', on ? 'true' : 'false');
   });
+  const label = document.getElementById(`${scope}wa-chan-label`);
+  if (label) label.textContent = WA_CHANNEL_LABELS[channel] || WA_CHANNEL_LABELS.all;
+  closeWaChannelMenus();
   filterConversations(scope);
 }
+
+function closeWaChannelMenus() {
+  document.querySelectorAll('.wa-chan.open').forEach(w => {
+    w.classList.remove('open');
+    w.querySelector('.wa-chan-btn')?.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function toggleWaChannelMenu(event, scope = '') {
+  event.stopPropagation();
+  const wrap = document.getElementById(`${scope}wa-chan`);
+  if (!wrap) return;
+  const opening = !wrap.classList.contains('open');
+  closeWaChannelMenus();
+  if (opening) {
+    wrap.classList.add('open');
+    wrap.querySelector('.wa-chan-btn')?.setAttribute('aria-expanded', 'true');
+    wrap.querySelector('.wa-chan-opt.active, .wa-chan-opt')?.focus();
+  }
+}
+
+// Only meaningful on the Inbox, so it is shown with that tab and hidden with
+// every other one, the same way the auto-hiding sidebar already works.
+function setWaChannelChip(active, scope = '') {
+  const wrap = document.getElementById(`${scope}wa-chan`);
+  if (wrap) wrap.style.display = active ? '' : 'none';
+  if (!active) closeWaChannelMenus();
+}
+
+document.addEventListener('click', closeWaChannelMenus);
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const open = document.querySelector('.wa-chan.open');
+  if (!open) return;
+  closeWaChannelMenus();
+  open.querySelector('.wa-chan-btn')?.focus();
+});
 
 function fmtConvTime(isoStr) {
   if (!isoStr) return '';
