@@ -245,7 +245,14 @@
       min-width: 20px;
       text-align: center;
     }
-    .nav-item.active .nav-badge { background: rgba(230,182,76,0.3); color: #e6b64c; }
+    /* On an active row the pill used to be gold-on-gold - a 30%-gold chip with
+       gold text sitting on the solid gold active background, which made the
+       number effectively invisible exactly when that row was selected (found
+       2026-08-31; it predates the sidebar regroup). Inverted to the same
+       treatment .nav-item.active .nav-icon already uses: the row's own dark
+       ink on a translucent dark chip, so the count stays legible in both
+       states without introducing a colour the palette does not have. */
+    .nav-item.active .nav-badge { background: rgba(26,20,0,.22); color: #1a1400; }
     /* The caret only ever toggles the subgroup below it - its own click
        handler stops propagation so it never also fires the row's own
        navigation, which the delegated #admin-tabs listener would otherwise
@@ -272,9 +279,97 @@
        label reads before its items. Scoped to whichever group opts in via
        this modifier, not a change to every collapsible nav group's caret. */
     .nav-caret-leading { margin-left: 0; margin-right: 8px; }
-    .nav-subgroup.collapsed { display: none; }
+    /* ── Collapsible sidebar groups (2026-08-31) ───────────────────────────
+       The fold animates with grid-template-rows 0fr -> 1fr rather than
+       display:none, which cannot transition. That needs the rows wrapped in
+       one .nav-subgroup-inner: `grid-template-rows: 0fr` only collapses the
+       rows the template actually declares, so without a single wrapper every
+       child past the first would sit in an implicit auto row and refuse to
+       fold. overflow:hidden is what clips them on the way down.
+       Anyone who has asked not to see motion gets the instant fold instead. */
+    .nav-subgroup {
+      display: grid;
+      grid-template-rows: 1fr;
+      overflow: hidden;
+      transition: grid-template-rows .18s ease;
+    }
+    .nav-subgroup-inner { min-height: 0; overflow: hidden; }
+    .nav-subgroup.collapsed { grid-template-rows: 0fr; }
+    @media (prefers-reduced-motion: reduce) { .nav-subgroup { transition: none; } }
+
+    /* Group header. Deliberately NOT a .nav-item: it carries no data-tab, so
+       the delegated #admin-tabs navigation listener cannot match it and a
+       click only folds. Sized to read as a quiet label rather than a card -
+       no border, no fill until hovered, so seven of them stacked stay calm. */
+    .nav-group-header {
+      display: flex;
+      align-items: center;
+      /* Tightened 2026-08-31 after measuring: at the sidebar's real 231px,
+         "WHATSAPP & CHANNELS" and "CRM & OPERATIONS" were ellipsing. The gap,
+         letter-spacing and header icon all give back a few px each so every
+         group name fits whole at 1280 and up, rather than renaming the
+         groups to suit the box. */
+      gap: 7px;
+      padding: 7px 7px;
+      margin: 1px 0;
+      border-radius: 10px;
+      cursor: pointer;
+      user-select: none;
+      color: var(--text-muted);
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: .01em;
+      text-transform: uppercase;
+      transition: background .15s, color .15s;
+    }
+    .nav-group-header:hover { background: #f1f5f9; color: #0f172a; }
+    /* Slightly smaller than a destination's icon: a group is a container, not
+       a place you can go, and the size difference says so at a glance. */
+    .nav-group-header > .nav-icon { width: 18px; height: 18px; font-size: 10px; flex-shrink: 0; }
+    .nav-group-header > .nav-caret { width: 18px; height: 18px; font-size: 11px; }
+    .nav-group-header:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .nav-group-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* A collapsed group must still say "you are in here", or folding it loses
+       the only clue to where you are. Gold, matching the active row accent. */
+    .nav-group-header.has-active { color: var(--accent); }
+    .nav-group-header.has-active .nav-caret { color: var(--accent); border-color: var(--accent); }
+
+    /* Children sit indented under their header, with a hairline spine so the
+       eye can follow which rows belong to which group without extra borders. */
+    .nav-subgroup-inner > .nav-item,
+    .nav-subgroup-inner > .nav-group-header {
+      margin-left: 8px;
+      border-left: 1px solid var(--line);
+      border-radius: 0 10px 10px 0;
+      padding-left: 8px;
+    }
+    /* Child rows carry an indent, a spine and a badge, which left the longest
+       label ("Manage Subscribers") wrapping to two lines once its count showed.
+       Reclaimed from the row's own internal spacing rather than by widening the
+       sidebar or shortening the label: a slightly tighter gap, a narrower
+       minimum on the pill, and nowrap so a future long label clips instead of
+       silently reflowing the row to double height. */
+    .nav-subgroup-inner > .nav-item {
+      gap: 6px;
+      padding: 8px 6px 8px 8px;
+      white-space: nowrap;
+    }
+    .nav-subgroup-inner > .nav-item > .nav-badge { min-width: 16px; padding: 1px 4px; margin-left: auto; }
+
+    /* Socials nests one level deeper, inside WhatsApp & Channels. */
+    .nav-group-header-nested { font-size: 10.5px; }
+    .nav-subgroup-inner .nav-subgroup-inner > .nav-item { margin-left: 12px; }
+    /* Child icons a touch smaller than the standalone Dashboard row, so the
+       top-level destination stays the visually dominant one. */
+    .nav-subgroup-inner .nav-icon { width: 18px; height: 18px; font-size: 11px; }
+
     [data-theme="dark"] .nav-caret { color: #94a3b8; border-color: rgba(255,255,255,.18); }
     [data-theme="dark"] .nav-caret:hover { background: rgba(255,255,255,.08); color: #f1f5f9; border-color: rgba(255,255,255,.35); }
+    [data-theme="dark"] .nav-group-header { color: #8696a0; }
+    [data-theme="dark"] .nav-group-header:hover { background: #1c2740; color: #f1f5f9; }
+    [data-theme="dark"] .nav-group-header.has-active { color: var(--accent); }
+    [data-theme="dark"] .nav-subgroup-inner > .nav-item,
+    [data-theme="dark"] .nav-subgroup-inner > .nav-group-header { border-left-color: #243350; }
 
     .sidebar-footer {
       margin-top: auto;
@@ -1935,58 +2030,152 @@
       <p>Lead Management CRM</p>
     </div>
     <div id="admin-tabs" class="sidebar-nav">
-      <div class="nav-section-label">MAIN</div>
-      <div class="nav-item active" data-tab="dashboard"><span class="nav-icon" data-nav-icon="dashboard" style="background:var(--tint-gold-bg)"></span> Dashboard</div>
-      <div class="nav-item" data-tab="progress"><span class="nav-icon" data-nav-icon="chart" style="background:var(--tint-success-bg)"></span> CRM Development Progress</div>
-      <div class="nav-item" data-tab="action-items"><span class="nav-icon" data-nav-icon="calendar" style="background:var(--tint-gold-bg)"></span> Action Items With Badar</div>
-      <div class="nav-section-label">WHATSAPP</div>
-      <div class="nav-item" data-tab="conversations"><span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Omnichannel Inbox <span id="conv-nav-badge" style="display:none;background:var(--bad);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
-      <div class="nav-item" data-tab="connect-whatsapp"><span class="nav-icon" data-nav-icon="phone" style="background:var(--tint-success-bg)"></span> Connect WhatsApp</div>
-      <div class="nav-item" data-tab="bot-manager"><span class="nav-icon" data-nav-icon="bot" style="background:var(--tint-sky-bg)"></span> Bot Manager</div>
-      <div class="nav-item" data-tab="meta"><span class="nav-icon" data-nav-icon="link" style="background:var(--tint-gold-bg)"></span> Meta Integration</div>
-      <div class="nav-item" data-tab="social-facebook">
-        <span class="nav-caret nav-caret-leading" id="socials-caret" title="Show or hide Socials items" onclick="toggleNavSubgroup(event,'socials-subgroup','socials-caret')">▾</span>
-        <span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Socials
+      <!-- Sidebar information architecture, 2026-08-31 (Muhammad). The nav was
+           one flat list of 27 destinations under eight section labels, which is
+           a lot to scan every time. Dashboard stays standalone at the top; the
+           other 26 live in seven collapsible umbrella groups, all collapsed by
+           default so the whole nav fits without scrolling.
+
+           Three rules this markup exists to satisfy, all load-bearing:
+           1. Every destination keeps its exact data-tab, icon, badge and row
+              markup - the rows below are the previous ones verbatim, only
+              re-parented. Nothing was rewritten.
+           2. Group headers are NOT .nav-item and carry NO data-tab, so the
+              delegated #admin-tabs navigation listener ignores them. Clicking a
+              header only folds; it never navigates. (The old Socials/Signals/
+              Settings headers did double duty and would navigate to a child.)
+           3. Groups nest: Socials sits inside WhatsApp & Channels. adminTab()
+              walks up from the active row and opens every .nav-subgroup
+              ancestor, so a deep link to Instagram opens both. -->
+      <div class="nav-item" data-tab="dashboard"><span class="nav-icon" data-nav-icon="dashboard" style="background:var(--tint-gold-bg)"></span> Dashboard</div>
+
+      <div class="nav-group-header" data-group="crm-ops-subgroup" id="crm-ops-caret-header"
+        role="button" tabindex="0" aria-expanded="false" aria-controls="crm-ops-subgroup"
+        title="Show or hide CRM &amp; Operations">
+        <span class="nav-icon" data-nav-icon="chart" style="background:var(--tint-success-bg)"></span>
+        <span class="nav-group-title">CRM &amp; Operations</span>
+        <span class="nav-caret collapsed" id="crm-ops-caret" aria-hidden="true">▾</span>
       </div>
-      <div class="nav-subgroup" id="socials-subgroup">
-        <div class="nav-item" data-tab="social-facebook"><span class="nav-icon" data-nav-icon="facebook" style="background:var(--tint-sky-bg)"></span> Facebook</div>
-        <div class="nav-item" data-tab="social-instagram"><span class="nav-icon" data-nav-icon="instagram" style="background:var(--tint-danger-bg)"></span> Instagram</div>
-        <div class="nav-item" data-tab="social-tiktok"><span class="nav-icon" data-nav-icon="tiktok" style="background:var(--tint-warn-bg)"></span> TikTok</div>
+      <div class="nav-subgroup collapsed" id="crm-ops-subgroup">
+        <div class="nav-subgroup-inner">
+          <div class="nav-item" data-tab="progress"><span class="nav-icon" data-nav-icon="chart" style="background:var(--tint-success-bg)"></span> CRM Development Progress</div>
+          <div class="nav-item" data-tab="action-items"><span class="nav-icon" data-nav-icon="calendar" style="background:var(--tint-gold-bg)"></span> Action Items With Badar</div>
+          <div class="nav-item" data-tab="automation"><span class="nav-icon" data-nav-icon="automation" style="background:var(--tint-danger-bg)"></span> Automation</div>
+          <div class="nav-item" data-tab="appointments"><span class="nav-icon" data-nav-icon="calendar" style="background:var(--tint-danger-bg)"></span> Appointments</div>
+        </div>
       </div>
-      <div class="nav-section-label">LEADS</div>
-      <div class="nav-item" data-tab="leads"><span class="nav-icon" data-nav-icon="users" style="background:var(--tint-sky-bg)"></span> All Leads <span class="nav-badge" id="leads-count-badge"></span></div>
-      <div class="nav-item" data-tab="agents"><span class="nav-icon" data-nav-icon="team" style="background:var(--tint-success-bg)"></span> My Team</div>
-      <div class="nav-item" data-tab="meta-ads"><span class="nav-icon" data-nav-icon="chart" style="background:var(--tint-warn-bg)"></span> Meta Ads</div>
-      <div class="nav-section-label">TOOLS</div>
-      <div class="nav-item" data-tab="add-lead"><span class="nav-icon" data-nav-icon="user-plus" style="background:var(--tint-gold-bg)"></span> Import Leads</div>
-      <div class="nav-item" data-tab="comm-log"><span class="nav-icon" data-nav-icon="history" style="background:var(--tint-success-bg)"></span> Comm Log</div>
-      <div class="nav-item" data-tab="reports"><span class="nav-icon" data-nav-icon="report" style="background:var(--tint-warn-bg)"></span> Reports</div>
-      <div class="nav-item" data-tab="automation"><span class="nav-icon" data-nav-icon="automation" style="background:var(--tint-danger-bg)"></span> Automation</div>
-      <div class="nav-item" data-tab="appointments"><span class="nav-icon" data-nav-icon="calendar" style="background:var(--tint-danger-bg)"></span> Appointments</div>
-      <div class="nav-section-label">FINANCE</div>
-      <div class="nav-item" data-tab="payroll"><span class="nav-icon" data-nav-icon="wallet" style="background:var(--tint-gold-bg)"></span> Payroll</div>
-      <div class="nav-section-label">WHATSAPP SIGNALS</div>
-      <div class="nav-item" data-tab="subscribers">
-        <span class="nav-icon" data-nav-icon="subscriber" style="background:var(--tint-success-bg)"></span> Signals
-        <span class="nav-caret" id="signals-caret" title="Show or hide Signals items" onclick="toggleNavSubgroup(event,'signals-subgroup','signals-caret')">▾</span>
+
+      <div class="nav-group-header" data-group="leads-sales-subgroup" id="leads-sales-caret-header"
+        role="button" tabindex="0" aria-expanded="false" aria-controls="leads-sales-subgroup"
+        title="Show or hide Leads &amp; Sales">
+        <span class="nav-icon" data-nav-icon="users" style="background:var(--tint-sky-bg)"></span>
+        <span class="nav-group-title">Leads &amp; Sales</span>
+        <span class="nav-caret collapsed" id="leads-sales-caret" aria-hidden="true">▾</span>
       </div>
-      <div class="nav-subgroup" id="signals-subgroup">
-        <div class="nav-item" data-tab="subscribers"><span class="nav-icon" data-nav-icon="subscriber" style="background:var(--tint-success-bg)"></span> Manage Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
-        <div class="nav-item" data-tab="signal-broadcast"><span class="nav-icon" data-nav-icon="broadcast" style="background:var(--tint-sky-bg)"></span> Broadcast Signal</div>
-        <div class="nav-item" data-tab="ai-signals"><span class="nav-icon" data-nav-icon="sparkles" style="background:var(--tint-warn-bg)"></span> AI Signals</div>
+      <div class="nav-subgroup collapsed" id="leads-sales-subgroup">
+        <div class="nav-subgroup-inner">
+          <div class="nav-item" data-tab="leads"><span class="nav-icon" data-nav-icon="users" style="background:var(--tint-sky-bg)"></span> All Leads <span class="nav-badge" id="leads-count-badge"></span></div>
+          <div class="nav-item" data-tab="agents"><span class="nav-icon" data-nav-icon="team" style="background:var(--tint-success-bg)"></span> My Team</div>
+          <div class="nav-item" data-tab="meta-ads"><span class="nav-icon" data-nav-icon="chart" style="background:var(--tint-warn-bg)"></span> Meta Ads</div>
+          <div class="nav-item" data-tab="add-lead"><span class="nav-icon" data-nav-icon="user-plus" style="background:var(--tint-gold-bg)"></span> Import Leads</div>
+          <div class="nav-item" data-tab="comm-log"><span class="nav-icon" data-nav-icon="history" style="background:var(--tint-success-bg)"></span> Comm Log</div>
+          <div class="nav-item" data-tab="reports"><span class="nav-icon" data-nav-icon="report" style="background:var(--tint-warn-bg)"></span> Reports</div>
+        </div>
       </div>
-      <div class="nav-section-label">SYSTEM</div>
-      <div class="nav-item" data-tab="user-permission"><span class="nav-icon" data-nav-icon="shield" style="background:var(--tint-danger-bg)"></span> User Permission</div>
-      <div class="nav-item" data-tab="user-manager"><span class="nav-icon" data-nav-icon="id-card" style="background:var(--tint-sky-bg)"></span> User Manager</div>
-      <div class="nav-section-label">SETTINGS</div>
-      <div class="nav-item" data-tab="settings">
-        <span class="nav-icon" data-nav-icon="settings" style="background:var(--tint-gold-bg)"></span> Settings
-        <span class="nav-caret" id="settings-caret" title="Show or hide Settings items" onclick="toggleNavSubgroup(event,'settings-subgroup','settings-caret')">▾</span>
+
+      <div class="nav-group-header" data-group="whatsapp-subgroup" id="whatsapp-caret-header"
+        role="button" tabindex="0" aria-expanded="false" aria-controls="whatsapp-subgroup"
+        title="Show or hide WhatsApp &amp; Channels">
+        <span class="nav-icon" data-nav-icon="message" style="background:var(--tint-gold-bg)"></span>
+        <span class="nav-group-title">WhatsApp &amp; Channels</span>
+        <span class="nav-caret collapsed" id="whatsapp-caret" aria-hidden="true">▾</span>
       </div>
-      <div class="nav-subgroup" id="settings-subgroup">
-        <div class="nav-item" data-tab="notifications"><span class="nav-icon" data-nav-icon="bell" style="background:var(--tint-sky-bg)"></span> Notifications</div>
-        <div class="nav-item" data-tab="sites"><span class="nav-icon" data-nav-icon="globe" style="background:var(--tint-success-bg)"></span> Sites</div>
-        <div class="nav-item" data-tab="guide"><span class="nav-icon" data-nav-icon="book" style="background:var(--tint-warn-bg)"></span> Guide</div>
+      <div class="nav-subgroup collapsed" id="whatsapp-subgroup">
+        <div class="nav-subgroup-inner">
+          <div class="nav-item" data-tab="conversations"><span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Omnichannel Inbox <span id="conv-nav-badge" style="display:none;background:var(--bad);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
+          <div class="nav-item" data-tab="connect-whatsapp"><span class="nav-icon" data-nav-icon="phone" style="background:var(--tint-success-bg)"></span> Connect WhatsApp</div>
+          <div class="nav-item" data-tab="bot-manager"><span class="nav-icon" data-nav-icon="bot" style="background:var(--tint-sky-bg)"></span> Bot Manager</div>
+          <div class="nav-item" data-tab="meta"><span class="nav-icon" data-nav-icon="link" style="background:var(--tint-gold-bg)"></span> Meta Integration</div>
+          <div class="nav-group-header nav-group-header-nested" data-group="socials-subgroup" id="socials-caret-header"
+            role="button" tabindex="0" aria-expanded="false" aria-controls="socials-subgroup"
+            title="Show or hide Socials">
+            <span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span>
+            <span class="nav-group-title">Socials</span>
+            <span class="nav-caret collapsed" id="socials-caret" aria-hidden="true">▾</span>
+          </div>
+          <div class="nav-subgroup collapsed" id="socials-subgroup">
+            <div class="nav-subgroup-inner">
+              <div class="nav-item" data-tab="social-facebook"><span class="nav-icon" data-nav-icon="facebook" style="background:var(--tint-sky-bg)"></span> Facebook</div>
+              <div class="nav-item" data-tab="social-instagram"><span class="nav-icon" data-nav-icon="instagram" style="background:var(--tint-danger-bg)"></span> Instagram</div>
+              <div class="nav-item" data-tab="social-tiktok"><span class="nav-icon" data-nav-icon="tiktok" style="background:var(--tint-warn-bg)"></span> TikTok</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-group-header" data-group="signals-subgroup" id="signals-caret-header"
+        role="button" tabindex="0" aria-expanded="false" aria-controls="signals-subgroup"
+        title="Show or hide Signals">
+        <span class="nav-icon" data-nav-icon="broadcast" style="background:var(--tint-warn-bg)"></span>
+        <span class="nav-group-title">Signals</span>
+        <span class="nav-caret collapsed" id="signals-caret" aria-hidden="true">▾</span>
+      </div>
+      <div class="nav-subgroup collapsed" id="signals-subgroup">
+        <div class="nav-subgroup-inner">
+          <div class="nav-item" data-tab="subscribers"><span class="nav-icon" data-nav-icon="subscriber" style="background:var(--tint-success-bg)"></span> Manage Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
+          <div class="nav-item" data-tab="signal-broadcast"><span class="nav-icon" data-nav-icon="broadcast" style="background:var(--tint-sky-bg)"></span> Broadcast Signal</div>
+          <div class="nav-item" data-tab="ai-signals"><span class="nav-icon" data-nav-icon="sparkles" style="background:var(--tint-warn-bg)"></span> AI Signals</div>
+        </div>
+      </div>
+
+      <div class="nav-group-header" data-group="finance-subgroup" id="finance-caret-header"
+        role="button" tabindex="0" aria-expanded="false" aria-controls="finance-subgroup"
+        title="Show or hide Finance">
+        <span class="nav-icon" data-nav-icon="wallet" style="background:var(--tint-gold-bg)"></span>
+        <span class="nav-group-title">Finance</span>
+        <span class="nav-caret collapsed" id="finance-caret" aria-hidden="true">▾</span>
+      </div>
+      <div class="nav-subgroup collapsed" id="finance-subgroup">
+        <div class="nav-subgroup-inner">
+          <div class="nav-item" data-tab="payroll"><span class="nav-icon" data-nav-icon="wallet" style="background:var(--tint-gold-bg)"></span> Payroll</div>
+        </div>
+      </div>
+
+      <div class="nav-group-header" data-group="team-access-subgroup" id="team-access-caret-header"
+        role="button" tabindex="0" aria-expanded="false" aria-controls="team-access-subgroup"
+        title="Show or hide Team &amp; Access">
+        <span class="nav-icon" data-nav-icon="shield" style="background:var(--tint-danger-bg)"></span>
+        <span class="nav-group-title">Team &amp; Access</span>
+        <span class="nav-caret collapsed" id="team-access-caret" aria-hidden="true">▾</span>
+      </div>
+      <div class="nav-subgroup collapsed" id="team-access-subgroup">
+        <div class="nav-subgroup-inner">
+          <div class="nav-item" data-tab="user-permission"><span class="nav-icon" data-nav-icon="shield" style="background:var(--tint-danger-bg)"></span> User Permission</div>
+          <div class="nav-item" data-tab="user-manager"><span class="nav-icon" data-nav-icon="id-card" style="background:var(--tint-sky-bg)"></span> User Manager</div>
+        </div>
+      </div>
+
+      <div class="nav-group-header" data-group="settings-subgroup" id="settings-caret-header"
+        role="button" tabindex="0" aria-expanded="false" aria-controls="settings-subgroup"
+        title="Show or hide Settings &amp; Support">
+        <span class="nav-icon" data-nav-icon="settings" style="background:var(--tint-gold-bg)"></span>
+        <span class="nav-group-title">Settings &amp; Support</span>
+        <span class="nav-caret collapsed" id="settings-caret" aria-hidden="true">▾</span>
+      </div>
+      <div class="nav-subgroup collapsed" id="settings-subgroup">
+        <div class="nav-subgroup-inner">
+          <!-- Settings itself is a real destination (admin-tab-settings, the
+               Workspace/business-defaults panel), not just a label. In the old
+               flat nav it was reachable only by clicking the Settings GROUP
+               row, which did double duty as both fold-toggle and link. Now
+               that headers only fold, it needs its own row or the panel would
+               be orphaned - no sidebar entry and no other adminTab('settings')
+               caller anywhere in the app. -->
+          <div class="nav-item" data-tab="settings"><span class="nav-icon" data-nav-icon="settings" style="background:var(--tint-gold-bg)"></span> Settings</div>
+          <div class="nav-item" data-tab="notifications"><span class="nav-icon" data-nav-icon="bell" style="background:var(--tint-sky-bg)"></span> Notifications</div>
+          <div class="nav-item" data-tab="sites"><span class="nav-icon" data-nav-icon="globe" style="background:var(--tint-success-bg)"></span> Sites</div>
+          <div class="nav-item" data-tab="guide"><span class="nav-icon" data-nav-icon="book" style="background:var(--tint-warn-bg)"></span> Guide</div>
+        </div>
       </div>
     </div>
     <div class="sidebar-footer" onclick="toggleAccountMenu(event, 'admin')" style="cursor:pointer;position:relative">
@@ -4997,9 +5186,22 @@ window.addEventListener('DOMContentLoaded', () => {
   const adminTabsEl = document.getElementById('admin-tabs');
   if (adminTabsEl) {
     adminTabsEl.addEventListener('click', function(e) {
+      // Group headers fold; they never navigate. They are not .nav-item and
+      // carry no data-tab, so the navigation branch below cannot match them -
+      // this check is what makes the header clickable at all.
+      const header = e.target.closest('.nav-group-header[data-group]');
+      if (header) { toggleNavSubgroup(e, header.dataset.group); return; }
       const item = e.target.closest('.nav-item[data-tab]');
       if (!item) return;
       adminTab(item.dataset.tab, item);
+    });
+    // Keyboard parity: the headers are role="button", so Enter and Space must
+    // fold them the way a real button would.
+    adminTabsEl.addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const header = e.target.closest('.nav-group-header[data-group]');
+      if (!header) return;
+      toggleNavSubgroup(e, header.dataset.group);
     });
   }
 
@@ -5205,28 +5407,62 @@ async function initAdmin() {
   loadNotifications();
 }
 
-// Collapses/expands a group of sidebar nav-items under the row that owns
-// them (currently just Settings). Stops propagation so clicking the caret
-// never also bubbles into the delegated #admin-tabs click listener and
-// navigates to that row's own tab.
-function toggleNavSubgroup(e, groupId, caretId) {
-  e.stopPropagation();
-  e.preventDefault();
+// Collapses/expands one sidebar group. Every group follows the same naming
+// convention - '<name>-subgroup' holds the rows, '<name>-caret' is its chevron
+// and '<name>-caret-header' the clickable header - so the caret id is derived
+// rather than passed, and initNavSubgroups()' existing localStorage keys keep
+// working untouched. Groups nest (Socials inside WhatsApp & Channels); folding
+// one never touches another. stopPropagation keeps a header click from also
+// reaching the navigation branch of the same delegated listener.
+function navCaretIdFor(groupId) { return groupId.replace(/-subgroup$/, '-caret'); }
+
+function setNavGroupCollapsed(groupId, collapsed) {
   const group = document.getElementById(groupId);
   if (!group) return;
-  const collapsed = group.classList.toggle('collapsed');
-  const caret = document.getElementById(caretId);
+  group.classList.toggle('collapsed', collapsed);
+  const caret = document.getElementById(navCaretIdFor(groupId));
   if (caret) caret.classList.toggle('collapsed', collapsed);
+  const header = document.getElementById(navCaretIdFor(groupId) + '-header');
+  if (header) header.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
   try { localStorage.setItem('nav_' + groupId + '_collapsed', collapsed ? '1' : '0'); } catch (err) { /* private mode, ignore */ }
 }
 
-function expandNavSubgroup(groupId, caretId) {
+function toggleNavSubgroup(e, groupId, _legacyCaretId) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  const group = document.getElementById(groupId);
+  if (!group) return;
+  setNavGroupCollapsed(groupId, !group.classList.contains('collapsed'));
+}
+
+function expandNavSubgroup(groupId, _legacyCaretId) {
   const group = document.getElementById(groupId);
   if (!group || !group.classList.contains('collapsed')) return;
-  group.classList.remove('collapsed');
-  const caret = document.getElementById(caretId);
-  if (caret) caret.classList.remove('collapsed');
-  try { localStorage.setItem('nav_' + groupId + '_collapsed', '0'); } catch (err) { /* private mode, ignore */ }
+  setNavGroupCollapsed(groupId, false);
+}
+
+// Opens every group the given row sits inside, outermost included, so a deep
+// link to a nested destination (Instagram, inside Socials, inside WhatsApp &
+// Channels) leaves it actually visible rather than highlighted under two
+// collapsed folds.
+function expandNavGroupsFor(navItem) {
+  let node = navItem?.parentElement;
+  while (node && node.id !== 'admin-tabs') {
+    if (node.classList && node.classList.contains('nav-subgroup')) expandNavSubgroup(node.id);
+    node = node.parentElement;
+  }
+}
+
+// A collapsed group must still show that the current destination lives inside
+// it - otherwise folding the group loses the only clue to where you are.
+function syncNavGroupActiveState() {
+  const root = document.getElementById('admin-tabs');
+  if (!root) return;
+  root.querySelectorAll('.nav-group-header').forEach(header => {
+    // Looked up inside #admin-tabs rather than by document id, so this can
+    // never reach into #agent-tabs even if an id were ever duplicated there.
+    const group = header.dataset.group ? root.querySelector('#' + CSS.escape(header.dataset.group)) : null;
+    header.classList.toggle('has-active', !!group && !!group.querySelector('.nav-item.active'));
+  });
 }
 
 // Restores each subgroup's last open/closed state. Defaults to COLLAPSED
@@ -5237,14 +5473,16 @@ function expandNavSubgroup(groupId, caretId) {
 // especially with the caret itself being a subtle 18px glyph). Explicit
 // '0' in localStorage (the user clicked it open themselves) still wins.
 function initNavSubgroups() {
-  document.querySelectorAll('.nav-subgroup').forEach(group => {
+  document.querySelectorAll('#admin-tabs .nav-subgroup').forEach(group => {
     let collapsed = true;
     try { collapsed = localStorage.getItem('nav_' + group.id + '_collapsed') !== '0'; } catch (err) { /* private mode, ignore */ }
-    if (!collapsed) return;
-    group.classList.add('collapsed');
-    const caret = document.getElementById(group.id.replace(/-subgroup$/, '-caret'));
-    if (caret) caret.classList.add('collapsed');
+    // Applied in both directions now, not just the collapsing one: a group
+    // restored OPEN from localStorage still needs its chevron turned and its
+    // aria-expanded set, or the header would claim to be shut while showing
+    // its rows.
+    setNavGroupCollapsed(group.id, collapsed);
   });
+  syncNavGroupActiveState();
 }
 
 function toggleSidebar(forceOpen) {
@@ -5294,18 +5532,12 @@ function adminTab(name, el) {
     : document.querySelector(`#admin-tabs .nav-item[data-tab="${name}"]`);
   if (navItem) navItem.classList.add('active');
   // A shortcut elsewhere in the app (e.g. the Dashboard's "Open Meta
-  // Integration" button) can land here directly without the sidebar caret
-  // ever being clicked - open the group so the row it just highlighted is
-  // actually visible, not hidden under a collapsed Settings.
-  if (['meta', 'notifications', 'sites', 'guide'].includes(name)) {
-    expandNavSubgroup('settings-subgroup', 'settings-caret');
-  }
-  if (['social-facebook', 'social-instagram', 'social-tiktok'].includes(name)) {
-    expandNavSubgroup('socials-subgroup', 'socials-caret');
-  }
-  if (['subscribers', 'signal-broadcast', 'ai-signals'].includes(name)) {
-    expandNavSubgroup('signals-subgroup', 'signals-caret');
-  }
+  // Integration" button) can land here directly without any group ever having
+  // been opened - so open whatever the highlighted row sits inside. This used
+  // to be three hardcoded name lists, which silently went stale every time a
+  // destination moved between groups; deriving it from the DOM cannot.
+  expandNavGroupsFor(navItem);
+  syncNavGroupActiveState();
   // Update header title
   const titles = {
     dashboard: 'Dashboard', progress: 'CRM Development Progress', 'action-items': 'Action Items With Badar', leads: 'All Leads', agents: 'My Team',
