@@ -10873,17 +10873,42 @@ function convChannelOf(c) {
 // numbers' campaigns actively producing real leads at a glance, not just by
 // clicking through each filter. Demo mode calls this with an empty/undefined
 // list, which safely renders all-zero counts rather than erroring.
-function renderConvChannelCounts(convs, scope = '') {
+// Found live 2026-08-31 (Muhammad asked to verify these, they were wrong):
+// the conversation-list query this Inbox uses has no row limit, so it
+// silently relies on Supabase's default page size (1000 rows) across ALL
+// communications - real total was over 13,000 rows. The pills used to be
+// tallied purely from whatever happened to survive that cut-off, so 6541
+// showed ~11-13 instead of its real 202, and 3903 showed ~274-294 instead
+// of its real 386 - confirmed by comparing against a direct, uncapped
+// COUNT against `leads.wa_channel`. That direct count is what these two
+// pills use now - real, exact, and cheap (a HEAD request, not a data
+// fetch) - independent of whatever the list itself managed to load.
+// "All numbers" still reflects what's actually visible in the list below
+// (a separate, bigger problem: the list itself is subject to the same
+// 1000-row cut-off, so it can be missing real, older conversations
+// entirely, not just miscounting them - flagged to Muhammad, not fixed
+// here since fixing the list itself needs real pagination, a bigger
+// change than correcting these two numbers).
+async function fetchRealChannelCount(channel) {
+  if (demoMode) return 0;
+  const { count, error } = await sb.from('leads').select('id', { count: 'exact', head: true }).eq('wa_channel', channel);
+  if (error) { console.error(`fetchRealChannelCount(${channel}):`, error.message); return null; }
+  return count;
+}
+
+async function renderConvChannelCounts(convs, scope = '') {
   const list = convs || [];
-  const counts = { all: list.length, '6541': 0, '3903': 0 };
-  for (const c of list) {
-    const ch = convChannelOf(c);
-    if (ch === '6541' || ch === '3903') counts[ch]++;
+  const setCount = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = (n === null || n === undefined) ? '?' : n; };
+  setCount(`${scope}conv-channel-count-all`, list.length);
+
+  if (demoMode) {
+    setCount(`${scope}conv-channel-count-6541`, 0);
+    setCount(`${scope}conv-channel-count-3903`, 0);
+    return;
   }
-  const setCount = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n; };
-  setCount(`${scope}conv-channel-count-all`, counts.all);
-  setCount(`${scope}conv-channel-count-6541`, counts['6541']);
-  setCount(`${scope}conv-channel-count-3903`, counts['3903']);
+  const [real6541, real3903] = await Promise.all([fetchRealChannelCount('6541'), fetchRealChannelCount('3903')]);
+  setCount(`${scope}conv-channel-count-6541`, real6541);
+  setCount(`${scope}conv-channel-count-3903`, real3903);
 }
 
 async function renderConversations(scope = '') {
