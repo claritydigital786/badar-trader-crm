@@ -36,6 +36,36 @@ Muhammad asked whether a second Claude account (`shoaibmazhar1434@gmail.com` - t
 
 ---
 
+## 2026-08-31 (rollout complete) - conversion-hook v20 DEPLOYED. The rollout is finished.
+
+Muhammad added `INTERNAL_FUNCTION_SECRET` by hand (the connected account is
+refused on the secrets write endpoint), which cleared the last two blockers.
+
+- Secret verified present, 12 secrets to 13. Value never read or printed.
+- `conversion-hook` deployed to **v20**, `verify_jwt=false` preserved so the
+  public deposit form stays reachable. Downloaded back from production and
+  diffed: byte-identical to what is committed on `main`.
+- `notify-admin-pending-approval` is at **v2**, `verify_jwt=true`.
+- **The internal auth is proven live without any send.** A call carrying a wrong
+  secret used to return `503 internal function secret is not configured`; it now
+  returns `401 internal function secret is invalid`. That transition only
+  happens if the secret is loaded and actually being compared, and it proves it
+  without anyone needing to know the value.
+- Production-safe checks on the new hook: missing params `400`, unknown lead
+  `404`. Both return before the claim, the update, the activity line and the
+  notification, so neither wrote anything nor alerted anyone. Row counts before
+  and after are identical.
+
+No WhatsApp message was sent at any point in this rollout. The single historical
+`converted` lead is untouched.
+
+Still outstanding and deliberately not part of this work: the 18 remaining
+pending migrations (including `20260815102000`, which stays pending because only
+its table portion was applied and its `DROP POLICY` was excluded), and the
+separate pre-existing exposure that deployed `nudge-agents` v12 is
+`verify_jwt=false` with no internal-secret check and no send gate. Nothing
+invokes it (0 cron jobs), so it is dormant, and it does not read the new secret.
+
 ## 2026-08-31 (rollout) - targeted production rollout. DB objects applied, notifier deployed, frontend live. TWO ITEMS BLOCKED, both need elevated access.
 
 Minimal-scope rollout for the Pending Approval + deposit-idempotency work. No
