@@ -1030,6 +1030,10 @@
 
     /* ── Agent tab content padding ── */
     #agent-dashboard .tab-content.active { padding: 24px; }
+    /* .content-body already pads the page by 24px, so the Agent Inbox was
+       paying it twice: 48px of dead space under the composer that the message
+       history could have used. Every other agent tab keeps its padding. */
+    #agent-dashboard .tab-content.conv-tab.active { padding: 0; }
 
     /* ── Conversations ──
        Skinned to match WhatsApp Web closely, Muhammad's explicit request
@@ -1037,12 +1041,25 @@
        both light and dark, rather than this CRM's navy/gold - the inbox is
        treated as its own surface, the way WhatsApp is its own app. Every other
        tab keeps the CRM theme. */
+    /* Inbox layout, fixed 2026-08-31 (Hanzala, via Muhammad).
+       The Inbox tab is a flex column that fills the content area exactly, so
+       the page itself never scrolls here and only the message history does.
+       The shell used to be `height: calc(100vh - 160px)`, a magic number that
+       could not know what sat above it - on the Agent tab the Quick Links card
+       does, so the shell overran the bottom of .content-body and pushed the
+       composer below the fold until the agent scrolled down. */
+    .tab-content.conv-tab.active {
+      display: flex; flex-direction: column;
+      height: 100%; min-height: 0; overflow: hidden;
+    }
+    /* Anything above the shell in that column keeps its natural height. */
+    .tab-content.conv-tab.active > *:not(.conversations-shell) { flex: 0 0 auto; }
     .conversations-shell {
-      display: flex; height: calc(100vh - 160px); position: relative;
+      display: flex; flex: 1 1 auto; min-height: 0; position: relative;
       border: 1px solid #d1d7db; border-radius: 6px; overflow: hidden;
       background: #fff; box-shadow: 0 1px 3px rgba(11,20,26,.13);
     }
-    .conv-list-panel { width: 30%; min-width: 300px; max-width: 420px; border-right: 1px solid #d1d7db; display: flex; flex-direction: column; flex-shrink: 0; background:#fff; }
+    .conv-list-panel { width: 30%; min-width: 300px; max-width: 420px; border-right: 1px solid #d1d7db; display: flex; flex-direction: column; flex-shrink: 0; min-height: 0; background:#fff; }
     .conv-search { padding: 7px 12px; display: flex; gap: 8px; align-items: center; background:#fff; }
     .conv-search input { flex: 1; min-width: 0; }
     .conv-show-list-btn { display: none; }
@@ -1123,7 +1140,7 @@
       font-size:0.68rem; font-weight:700; min-width:14px; text-align:center;
     }
     .conv-channel-pill.active .conv-channel-count { background:#0a5ba8; color:#fff; }
-    .conv-list { flex:1; overflow-y:auto; background:#fff; }
+    .conv-list { flex:1 1 0; min-height:0; overflow-y:auto; background:#fff; }
     /* 72px row with the divider starting after the avatar, as WhatsApp does. */
     .conv-item { display:flex; align-items:center; gap:13px; padding:0 13px; height:72px; cursor:pointer; transition:background .12s; position:relative; }
     .conv-item::after { content:''; position:absolute; left:68px; right:0; bottom:0; height:1px; background:#e9edef; }
@@ -1145,7 +1162,11 @@
     [data-theme="dark"] .conv-prio-urgent        { background:#3f1d1d; color:#fca5a5; }
     [data-theme="dark"] .conv-prio-wait          { background:#1e2547; color:#a5b4fc; }
     [data-theme="dark"] .conv-prio-closed-window { background:#222d34; color:#aebac1; }
-    .conv-chat-panel { flex:1; display:flex; flex-direction:column; min-width:0; position:relative; }
+    .conv-chat-panel { flex:1; display:flex; flex-direction:column; min-width:0; min-height:0; overflow:hidden; position:relative; }
+    /* Header, the 24h warning, the reply preview, the attachment chip and the
+       composer all keep their own height. .conv-messages is the only child
+       allowed to flex, so it is the only thing that scrolls. */
+    .conv-chat-panel > *:not(.conv-messages):not(.conv-empty-chat) { flex:0 0 auto; }
     /* Drag-and-drop visual feedback - Ehsan's request, 2026-08-31. */
     .conv-chat-panel.conv-drag-over::after {
       content: 'Drop file to attach';
@@ -1161,7 +1182,7 @@
       background: rgba(37,211,102,.12);
       color: #6ee7b7;
     }
-    .conv-chat-header { padding:10px 16px; border-bottom:1px solid #d1d7db; display:flex; align-items:center; gap:12px; background:#f0f2f5; min-height:59px; }
+    .conv-chat-header { flex:0 0 auto; padding:8px 16px; border-bottom:1px solid #d1d7db; display:flex; align-items:center; gap:12px; background:#f0f2f5; min-height:0; }
     /* The header now carries a countdown pill and an info button as well as
        the tier select and copy-link button, so the name block has to be the
        thing that gives way rather than the controls getting clipped. */
@@ -1177,7 +1198,7 @@
        artwork is a Meta asset, so this is a self-contained approximation at
        the same tone rather than a hotlinked image. */
     .conv-messages {
-      flex:1; overflow-y:auto; padding:12px 5%; display:flex; flex-direction:column; gap:2px;
+      flex:1 1 0; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:12px 5%; display:flex; flex-direction:column; gap:2px;
       background-color:#efeae2;
       background-image:
         radial-gradient(circle at 20% 30%, rgba(11,20,26,.030) 0 2px, transparent 2px),
@@ -1211,7 +1232,7 @@
        and made even a one-word message more than 100px tall. */
     .msg-bubble { max-width:min(55%, 380px); padding:6px 7px 8px 9px; border-radius:7.5px; font-size:0.8885rem; line-height:1.34; word-break:break-word; white-space:normal; box-shadow:0 1px .5px rgba(11,20,26,.13); position:relative; }
     .msg-body { white-space:pre-wrap; }
-    .conv-msg-textarea { width:100%; resize:none; overflow-y:auto; min-height:64px; max-height:320px; padding:9px 12px; border-radius:8px; border:1px solid transparent; background:#fff; color:#111b21; font-family:inherit; font-size:0.9375rem; line-height:1.4; outline:none; }
+    .conv-msg-textarea { width:100%; resize:none; overflow-y:auto; min-height:40px; max-height:320px; padding:9px 12px; border-radius:8px; border:1px solid transparent; background:#fff; color:#111b21; font-family:inherit; font-size:0.9375rem; line-height:1.4; outline:none; }
     /* Delivery ticks (B3/B4). Outbound only - WhatsApp never shows a tick on
        a message the customer sent. Sizes and colours are WhatsApp's own: grey
        for sent/delivered, #53bdeb blue for read, red for a failure. */
@@ -1403,7 +1424,7 @@
       float:right; font-size:0.6875rem; color:rgba(17,27,33,.45);
       margin:6px 0 -3px 8px; line-height:1; white-space:nowrap;
     }
-    .conv-input-bar { padding:10px 16px; border-top:1px solid #d1d7db; display:flex; gap:10px; align-items:flex-end; background:#f0f2f5; }
+    .conv-input-bar { flex:0 0 auto; padding:8px 16px; border-top:1px solid #d1d7db; display:flex; gap:10px; align-items:flex-end; background:#f0f2f5; }
     /* :not([type=file]) so the hidden attachment picker never picks up the
        visible text-input styling, which would give it a flex slot in the bar. */
     .conv-input-bar input:not([type="file"]) { flex:1; border:1px solid transparent; border-radius:8px; padding:9px 14px; font-size:0.9375rem; outline:none; color:#111b21; background:#fff; }
@@ -2189,7 +2210,7 @@
   </div>
 
   <!-- Conversations -->
-  <div id="admin-tab-conversations" class="tab-content">
+  <div id="admin-tab-conversations" class="tab-content conv-tab">
     <!-- Quick Links - copy/paste into a chat without leaving the tab. This
          existed for agents only (V1 request from Ehsan/Hanzala) and was
          never built for admin - Muhammad flagged not seeing it in V2. -->
@@ -4279,7 +4300,7 @@
   </div>
 
   <!-- Conversations -->
-  <div id="agent-tab-conversations" class="tab-content">
+  <div id="agent-tab-conversations" class="tab-content conv-tab">
     <!-- Quick Links - copy/paste into a chat without leaving the tab -->
     <div class="card" id="agent-quick-links" style="margin-bottom:14px;padding:12px 16px">
       <div style="font-weight:700;font-size:0.85rem;color:var(--text-strong);margin-bottom:10px"><span class="h-icon" data-nav-icon="link"></span>Quick Links</div>
@@ -12150,7 +12171,7 @@ function autoGrowConvInput(el) {
   el.style.height = 'auto';
   const panel = el.closest('.conv-chat-panel');
   const dynamicMax = panel ? Math.max(160, Math.floor(panel.clientHeight * 0.45)) : 320;
-  el.style.height = Math.min(Math.max(el.scrollHeight, 64), Math.min(dynamicMax, 320)) + 'px';
+  el.style.height = Math.min(Math.max(el.scrollHeight, 40), Math.min(dynamicMax, 320)) + 'px';
 }
 
 // ── In-app notifications ──────────────────────────────────────
