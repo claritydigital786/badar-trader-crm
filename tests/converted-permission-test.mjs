@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const html      = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-const migration = readFileSync(new URL('../supabase/migrations/20260831040000_restrict_converted_to_admins.sql', import.meta.url), 'utf8');
+const migration = readFileSync(new URL('../supabase/migrations/20260831041000_restrict_converted_to_admins.sql', import.meta.url), 'utf8');
 const schema    = readFileSync(new URL('../supabase/schema.sql', import.meta.url), 'utf8');
 const hook      = readFileSync(new URL('../supabase/functions/conversion-hook/index.ts', import.meta.url), 'utf8');
 const webhook   = readFileSync(new URL('../supabase/functions/whatsapp-webhook/index.ts', import.meta.url), 'utf8');

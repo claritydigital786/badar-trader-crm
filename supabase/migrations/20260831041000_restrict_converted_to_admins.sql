@@ -1,5 +1,12 @@
--- Phase 38 - Converted is a verified business outcome, not a tier anyone picks
--- (Muhammad, 2026-08-31)
+-- Phase 38 (continued) - Converted is a verified business outcome, not a tier
+-- anyone picks (Muhammad, 2026-08-31)
+--
+-- Renamed from 20260831040000 to 20260831041000: a concurrent session landed
+-- 20260831040000_conversation_list_view.sql on main under the same timestamp.
+-- Supabase's migration ledger keys on that version string, so two files sharing
+-- it means only one can ever be recorded and the other is silently skipped by a
+-- push. This file's contents are unchanged; only its version moved, and it still
+-- runs after 040000 and before 050000, which is the order it needs.
 --
 -- Before this, any agent could mark any lead assigned to them Converted: the
 -- Inbox tier picker and the lead-detail Status dropdown both offered it to

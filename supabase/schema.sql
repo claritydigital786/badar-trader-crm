@@ -2175,8 +2175,48 @@ ALTER TABLE public.leads ADD CONSTRAINT leads_manual_tier_check
 -- =============================================================
 
 -- =============================================================
--- Phase 38 - Converted is a verified business outcome (Muhammad, 2026-08-31)
--- Corresponds to supabase/migrations/20260831040000_restrict_converted_to_admins.sql
+-- Phase 38 - Inbox conversation list bounded by lead, not message
+-- (Muhammad, 2026-08-31)
+-- Corresponds to supabase/migrations/20260831040000_conversation_list_view.sql
+-- The Omnichannel Inbox's conversation-list query had no .limit() and read
+-- `communications` directly (one row per message, 13,870+ and growing fast),
+-- so it silently hit PostgREST's default 1,000-row cap - the root cause of
+-- the wrong 3903/6541 pill counts and a real risk of dropped conversations.
+-- This view is one row per LEAD instead (its latest matching message),
+-- bounded by lead count (~2,024, growing far slower), so the frontend can
+-- fetch the whole thing in one un-paginated call with a generous .limit().
+-- =============================================================
+
+CREATE OR REPLACE VIEW public.inbox_conversation_list AS
+SELECT DISTINCT ON (c.lead_id)
+  c.lead_id,
+  c.type,
+  c.body,
+  c.direction,
+  c.created_at,
+  l.full_name,
+  l.phone,
+  l.status,
+  l.is_unread,
+  l.bot_stage,
+  l.needs_human,
+  l.handoff_reason,
+  l.manual_tier,
+  l.language,
+  l.wa_channel
+FROM public.communications c
+JOIN public.leads l ON l.id = c.lead_id
+WHERE c.type IN ('whatsapp', 'messenger', 'instagram')
+  AND (c.subject IS NULL OR c.subject <> 'Qualified lead summary')
+ORDER BY c.lead_id, c.created_at DESC;
+
+ALTER VIEW public.inbox_conversation_list SET (security_invoker = true);
+GRANT SELECT ON public.inbox_conversation_list TO authenticated;
+
+-- =============================================================
+-- Phase 38 (continued) - Converted is a verified business outcome
+-- (Muhammad, 2026-08-31)
+-- Corresponds to supabase/migrations/20260831041000_restrict_converted_to_admins.sql
 --
 -- Converted means leads.status = 'converted', reached through the deposit
 -- approval flow. It is never a manual classification: agents classify up to
@@ -2232,4 +2272,94 @@ CREATE TRIGGER trg_leads_converted_admin_only
   FOR EACH ROW EXECUTE FUNCTION public.enforce_converted_admin_only();
 
 -- DONE (Phase 38)
+-- =============================================================
+
+-- =============================================================
+-- Phase 39 - deterministic idempotency for deposit-confirmation submissions
+-- (Muhammad, 2026-08-31)
+-- Corresponds to supabase/migrations/20260831050000_deposit_submission_idempotency.sql
+--
+-- conversion-hook is called more than once per real submission by design of
+-- the pages themselves: join.html posts the form, then redirects to
+-- thankyou.html, whose own script calls the same hook again on load, and again
+-- on every refresh. One row per distinct accepted claim, identified by a
+-- content hash rather than by a timer, is what makes the state transition, the
+-- activity line and the admin alert happen exactly once while a genuinely
+-- different claim still goes through.
+--
+-- Recorded here because schema.sql is the rebuild reference and these objects
+-- are what conversion-hook calls: a rebuild without them leaves the deployed
+-- function throwing on every live deposit submission.
+-- =============================================================
+
+CREATE TABLE IF NOT EXISTS public.deposit_submissions (
+  submission_key TEXT PRIMARY KEY CHECK (length(submission_key) = 64),
+  lead_id UUID NOT NULL REFERENCES public.leads(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  amount NUMERIC(15,2) NOT NULL DEFAULT 0,
+  account_ref TEXT,
+  first_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  replay_count INTEGER NOT NULL DEFAULT 0 CHECK (replay_count >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS deposit_submissions_lead_id_idx
+  ON public.deposit_submissions (lead_id, first_seen_at DESC);
+
+ALTER TABLE public.deposit_submissions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.deposit_submissions FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.deposit_submissions TO service_role;
+
+CREATE OR REPLACE FUNCTION public.claim_deposit_submission(
+  p_submission_key TEXT,
+  p_lead_id UUID,
+  p_platform TEXT,
+  p_amount NUMERIC,
+  p_account_ref TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_inserted BOOLEAN;
+BEGIN
+  IF p_submission_key IS NULL OR length(p_submission_key) <> 64 THEN
+    RAISE EXCEPTION 'p_submission_key must be a SHA-256 hex digest';
+  END IF;
+
+  INSERT INTO public.deposit_submissions AS d (
+    submission_key, lead_id, platform, amount, account_ref
+  )
+  VALUES (p_submission_key, p_lead_id, p_platform, COALESCE(p_amount, 0), p_account_ref)
+  ON CONFLICT (submission_key) DO UPDATE
+    SET last_seen_at = now(),
+        replay_count = d.replay_count + 1
+  RETURNING (xmax = 0) INTO v_inserted;
+
+  RETURN COALESCE(v_inserted, FALSE);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.release_deposit_submission(p_submission_key TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  DELETE FROM public.deposit_submissions
+   WHERE submission_key = p_submission_key
+     AND replay_count = 0;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.claim_deposit_submission(TEXT, UUID, TEXT, NUMERIC, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_deposit_submission(TEXT, UUID, TEXT, NUMERIC, TEXT) TO service_role;
+
+REVOKE ALL ON FUNCTION public.release_deposit_submission(TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.release_deposit_submission(TEXT) TO service_role;
+
+-- DONE (Phase 39)
 -- =============================================================

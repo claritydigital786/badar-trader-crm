@@ -242,7 +242,7 @@ test('7: admin approval still results in Converted', () => {
 
 // ── 8. Agents still cannot move a lead into or out of Converted ─
 test('8: an agent still cannot move a lead into or out of Converted', () => {
-  const guard = read('../supabase/migrations/20260831040000_restrict_converted_to_admins.sql');
+  const guard = read('../supabase/migrations/20260831041000_restrict_converted_to_admins.sql');
   assert.match(guard, /NEW\.status = 'converted' AND old_status IS DISTINCT FROM 'converted'/,
     'moving INTO Converted is still blocked for a non-admin');
   assert.match(guard, /old_status = 'converted' AND NEW\.status IS DISTINCT FROM 'converted'/,

@@ -1,11 +1,99 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-08-31, by a session on a different laptop from the one that
-did 30-31 August's building. That work was committed, pushed and deployed but
-never written into this file, so the entry directly below reconciles the whole
-day against git, the live Supabase project and the live site, and says plainly
-which checks could not run here. For a fresh Claude Code session with zero
-memory of prior conversations._
+_Last updated: 2026-08-31, same day, continuing from the entry directly below.
+For a fresh Claude Code session with zero memory of prior conversations -
+including one logged into a different Claude account._
+
+## 2026-08-31 (latest) - Omnichannel Inbox pagination avoided at the root, commit `64df19c`
+
+Muhammad asked directly: "can't we avoid pagination? Has the 1000 rows' limit been exhausted?" Both halves answered by checking live data, not assuming. Yes, actively exhausted: 13,870 real `communications` rows match the Inbox's type filter against PostgREST's hard 1,000-row default, against only 2,024 real leads. Pagination itself is avoidable - the design flaw was bounding the query by MESSAGE count (fast-growing) instead of CONVERSATION/lead count (slow-growing).
+
+**Fix:** new database view `inbox_conversation_list` (migration `20260831040000_conversation_list_view.sql`, also mirrored into `schema.sql` as Phase 38) - a `DISTINCT ON (lead_id)` view returning one row per lead (its latest matching `whatsapp`/`messenger`/`instagram` message, joined with the lead fields the Inbox needs: name, phone, status, unread, bot_stage, needs_human, handoff_reason, manual_tier, language, wa_channel). `security_invoker = true` so it still runs under the querying role's own RLS - agents see only their own leads, admins see everything, exactly as before. `renderConversations()`'s live-mode query in `index.html` now reads this view with `.limit(5000)` instead of querying `communications` directly with no limit, then reshapes the flat view rows back into the `{ ..., leads: {...} }` nesting every other consumer of `_lastConvs` already expects, so nothing downstream needed touching.
+
+**Verified live** (not just "looks right"): the view returns 2,288 conversation rows (203 on 6541, 391 on 3903) via a direct linked-DB query bypassing RLS; the exact PostgREST call the frontend makes (anon key, same columns, same `.limit(5000)`) returns 200 with correct column names (0 rows is expected and correct - RLS blocks unauthenticated reads); `tests/inbox-ui-test.mjs` passes. Could not click-test inside the real app itself - that needs a real login, which this session does not do. This also fully closes the "conversation LIST can drop real, older conversations" gap that the earlier 3903/6541 pill-count fix (below) explicitly left open.
+
+---
+
+## 2026-08-31 (later) - Signals-Group pricing false claim fixed at its root, a real routing bug that caused it fixed alongside, plus Inbox/Composer fixes
+
+**Why this entry exists.** Everything below happened in one continuous session, after the reconciliation entry immediately below this one (which stops at `CHATBOT_TRAINING.md`, `99fed4b`). Commits `40651c3` through `0f14c41`.
+
+1. **The AI was telling real customers the Premium Signals Group is free with no condition - fixed everywhere it lived, deploy v110** (`40651c3`). Caught live in a real transcript (Hanzala's test lead): "premium signals group free hai," no mention of the $500 deposit. The real rule: the course AND the signals group share the exact same one condition - Badar's own referral link, $500 deposited into the customer's own broker account. Three places said or implied otherwise: (a) `[PROMPT]` `ai_knowledge_base.knowledge_notes`'s own "PREMIUM SIGNALLING GROUP" section directly contradicted the system prompt's correct "WHAT WE OFFER" section - rewritten to match; (b) `[PROMPT]` a new CRITICAL paragraph added to the system prompt itself, naming the real transcript; (c) `[PRINCIPLE]` the scripted main-menu's "Premium Signalling Group" row text (`sendMainMenuCard`) said "no deposit required" in both languages, shown to every customer before they picked anything - fixed to state the real condition. Prompt/knowledge-base change applied via `supabase db query --linked`, confirmed live via REST read-back.
+2. **A real, distinct routing bug found and fixed in the same pass, same deploy.** Once a lead is escalated to a human, its `bot_stage` freezes, but the dispatch code was still running a loose keyword match against that frozen stage - a genuine question merely *containing* the word "signal" ("kaisay signal group join kar sakta hoon," a real question, not a menu pick) got misread as a menu selection, routing it into the scripted funnel instead of the AI. The funnel's own escalated-lead check then silently returned nothing - correct behavior for a stale, abandoned handoff, wrongly firing on an active one. This is what went silent on Hanzala's conversation, then separately on Muhammad's own brother's, in the same session, provoking real anger. Fixed by skipping that stage-match entirely once a lead is escalated (the 24h+-dormant funnel-restart path, which deliberately still needs to fire for a genuinely abandoned escalation, is untouched).
+3. **A mislabeled "Converted" badge on merely-qualified leads, fixed** (`716a7bc`). Muhammad caught his own brother Junaid's real test lead showing a green "Converted" badge while its actual status was still `qualified` (account_balance $0, converted_at null). `computeLeadTier()` had lumped `qualified` (said yes, escalated, awaiting an admin's approval) in with `converted` under one `closed` tier, whose badge always reads CONVERTED. Split into a real, distinct `qualified` tier with its own blue badge; added the missing option to the chat header's tier picker; widened the `manual_tier` CHECK constraint (migration `20260831030000_leads_manual_tier_qualified.sql`) so it can actually be saved.
+4. **Auto-hiding sidebar, Omnichannel Inbox only** (`716a7bc`, same commit). From Hanzala: the permanent sidebar was eating space the message composer needed. Collapses to a thin 14px strip with a small arrow, expands as a hover overlay (never pushes the conversation content), stays fully normal everywhere else. Scoped via a new `setSidebarAutoHide()` called from both `adminTab()` and `agentTab()`.
+5. **Drag-and-drop file upload added, then a real regression in it fixed immediately after** (`9e143f2`, `679a393`). From Ehsan: the paperclip button worked, dropping a file didn't. First fix shared `acceptConvAttachFile()` between the picker and a new drop listener on `.conv-chat-panel` - but Muhammad immediately dropped a real screenshot and it replaced the ENTIRE app with the raw image, full-screen: Chrome's own default "navigate this tab to the dropped file" behavior, because `preventDefault()` was only being called when the drag was directly over the panel at that instant. Fixed properly with a `window`-level, unconditional `dragover`/`drop` listener that blocks the browser default everywhere in the app, with the actual attach-to-composer logic still only firing inside `.conv-chat-panel`.
+6. **A separate concurrent session's work merged in cleanly**: `0f14c41` labels the Inbox's "6541 / 3903" filter pills with their country, not built by this session, mentioned here only so the description matches what `main` actually contains.
+7. **Chatbot training tooling, delivered outside the repo.** `Chatbot_Prompt_and_Principles.docx` (chat attachment + saved to `~/Downloads`): the live prompt/knowledge base verbatim, plus every coding-level policy rule in plain English with a "Your change" line, then a "Part 0 - Quick Replacements" table added on request so Muhammad never has to know whether a sentence lives in the prompt or the code before proposing a fix. **Then superseded by something more direct, same day**: a live, editable Claude Artifact page at `https://claude.ai/code/artifact/48b7ebdb-baa3-406a-bf2f-2538129e21ca` ("Chatbot Quick Replacements") - Muhammad types a row (what the bot said / what he wants instead) and hits Submit, which calls the page's own `artifact.publish()`; this session is watching that artifact and gets notified the moment a new version lands, applies the change for real, and republishes with the status column filled in. This lives outside the CRM's own codebase (a separate Claude Artifact, not a repo file) - **whichever Claude session picks this up next needs to either already be watching that artifact URL, or run `Artifact` with `action: "read"` against it to see what Muhammad has submitted since**, since artifact watches are session-local and do not persist across a different Claude account or a fresh session on a different machine.
+
+### Still open, unchanged
+
+Real agents (Farwa, Hanzala, Bilal, Faisal) are still out of lead rotation with `receives_leads = false`, waiting on Muhammad's go-ahead. The live OpenAI API key still wants rotating (passed through a diagnostic command on 08-30). **Junaid's admin access**: he asked to be given full admin rights matching Muhammad's, but no `profiles` row exists under his name or any `junaid` email - nothing to promote yet. Still needs Muhammad to say which real login Junaid actually signs in with, or confirm a new one should be created.
+
+### On "picking up ongoing work from a different Claude account" - answered directly, 2026-08-31
+
+Muhammad asked whether a second Claude account (`shoaibmazhar1434@gmail.com` - the same email already in `profiles` as "Muhammad (Test)") can be added to a shared "fleet" so a fresh Claude Code session under that account automatically continues exactly where another account's session left off. The honest answer given: **there is no mechanism that carries live conversation memory or session state between different Claude accounts** - that is precisely why this project has run on `HANDOFF.md` and `REMAINING_TODOS.md` since day one (see this file's own opening line, "personal memory files do not travel between machines or accounts"). The real, working substitute is exactly this file: **any Claude Code session, under any of the three people's accounts, opened in this repo, reads this file first per `CLAUDE.md`'s own standing instruction and picks up from here** - which is why it is kept current after every stretch of work, not just at the end of a long session. For Junaid specifically, sitting idle on a usage-limit wait: open Claude Code under his own account in this same repo and say "continue" - it will read this file and `REMAINING_TODOS.md` and have full context, no different account-linking needed or possible.
+
+---
+
+## 2026-08-31 (later still) - merged main into the branch, and fixed a migration timestamp collision that would have silently skipped a migration
+
+`origin/main` moved six commits while the Pending Approval work was in
+progress. Merging it in surfaced two content conflicts and one thing that was
+not a conflict at all and mattered more.
+
+### The collision, which git could not see
+
+A concurrent session landed `20260831040000_conversation_list_view.sql` on
+main. This branch already had `20260831040000_restrict_converted_to_admins.sql`.
+Two DIFFERENT migrations, same version prefix, both calling themselves
+"Phase 38". Git merged them happily because the filenames differ, so nothing
+conflicted and nothing warned. Supabase's ledger keys on that version string,
+so only one could ever be recorded and a `db push` would have silently skipped
+the other. Renamed ours to `20260831041000`, confirmed unused across every ref
+and every file first, contents unchanged, and it still sorts after 040000 and
+before 050000 which is the order it needs. Updated all three references
+(`tests/converted-permission-test.mjs`, `tests/deposit-idempotency-test.mjs`,
+`supabase/schema.sql`).
+
+This does NOT fix the older ledger drift already flagged above. Eight
+migrations still have no matching remote row. That reconciliation is still
+owed before anyone runs a push.
+
+### Conflicts resolved, both sides kept
+
+- `REMAINING_TODOS.md`: append-versus-append at the end of the Questions Log.
+  Both entries kept, main's first.
+- `supabase/schema.sql`: both sides added a Phase 38 block in the same slot.
+  They are independent objects, a view over `communications` and a trigger on
+  `leads`, so both were kept and ours relabelled "Phase 38 (continued)".
+  Neither feature was dropped.
+
+### Also closed while here
+
+`schema.sql` had no record of the Phase 39 deposit-idempotency objects. Since
+`schema.sql` is the rebuild reference and `conversion-hook` calls
+`claim_deposit_submission()`, a rebuild from it would have produced a database
+where the deployed function throws on every live deposit submission. Added
+`deposit_submissions` and both functions to it.
+
+### Verified after the merge
+
+39 of 39 node suites pass. Re-checked in demo preview against the MERGED
+`index.html`, not the pre-merge one: the hierarchy renders All / New / Engaged
+/ Deposit Ready / Qualified / Converted, the three operational filters still AND
+together and narrow, the UAE and Pakistan channel pills are present with main's
+lead-bounded counts from `inbox_conversation_list`, `pending_approval` still
+resolves to Qualified, and a `manual_tier` of `closed` still cannot fake a
+conversion. Console errors are the two pre-existing TradingView CDN embeds,
+unreachable in a sandbox and unchanged from baseline.
+
+Note on `stash@{0}`: it holds an earlier local variant of the country labels
+using a `conv-channel-geo` span. Main shipped the same idea more simply, so the
+stash is now a superseded duplicate. Left untouched as instructed; it is safe to
+drop once someone confirms they want main's version.
+
+Still NOT deployed, migrations still NOT applied, `main` still untouched.
 
 ## 2026-08-31 (later) - Pending Approval now actually alerts someone, and one deposit submission is processed exactly once. BUILT AND TESTED, NOT DEPLOYED, MIGRATION NOT APPLIED.
 
