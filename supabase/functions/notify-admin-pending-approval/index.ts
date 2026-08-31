@@ -1,19 +1,33 @@
 // Authenticated server-side notification for a lead entering Pending Approval.
 // The browser supplies only the lead id. Recipient, message copy, credentials,
 // caller identity, assignment, and deduplication are all decided server-side.
+//
+// 2026-08-31 (Phase 39): this is now reached two ways, and stays ONE mechanism
+// with one ledger and one dedup rule rather than growing a parallel notifier.
+//   * A signed-in agent or admin in the Inbox, as before: JWT, permission check,
+//     "<agent> marked <lead> as closed and awaiting approval".
+//   * conversion-hook, when a customer's deposit-confirmation form is accepted.
+//     That is a public endpoint with no user, so it authenticates over the
+//     repo's existing server-to-server secret instead of a JWT, and the alert
+//     says the customer submitted it rather than naming an agent who did not.
+// Everything after the caller is identified is deliberately shared: the same
+// pending_approval_notifications claim, the same credentials, the same send,
+// the same failure handling.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyInternalRequest } from "../_shared/internal_auth.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const INTERNAL_FUNCTION_SECRET = Deno.env.get("INTERNAL_FUNCTION_SECRET") ?? "";
 const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN") ?? "";
 const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? "";
 const GRAPH_VERSION = "v21.0";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, x-internal-function-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -59,15 +73,31 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error: "Method not allowed" }, 405);
   }
 
-  const authHeader = req.headers.get("Authorization") ?? "";
-  const authClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { persistSession: false },
-    global: { headers: { Authorization: authHeader } },
-  });
-  const { data: userData, error: userError } = await authClient.auth.getUser();
-  const user = userData?.user;
-  if (userError || !user) {
-    return json({ ok: false, error: "Not signed in" }, 401);
+  // Two accepted callers. The internal one is checked first and only counts
+  // when the shared secret is both configured and correct, so a browser that
+  // simply omits its JWT can never fall through into the internal path.
+  const internalAttempt = req.headers.get("x-internal-function-secret") !== null;
+  let isInternalCaller = false;
+  if (internalAttempt) {
+    const internalAuth = verifyInternalRequest(req, INTERNAL_FUNCTION_SECRET);
+    if (!internalAuth.authorized) {
+      return json({ ok: false, error: internalAuth.reason }, internalAuth.status);
+    }
+    isInternalCaller = true;
+  }
+
+  let user: { id: string } | null = null;
+  if (!isInternalCaller) {
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const authClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: false },
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userError } = await authClient.auth.getUser();
+    if (userError || !userData?.user) {
+      return json({ ok: false, error: "Not signed in" }, 401);
+    }
+    user = userData.user;
   }
 
   const contentLength = Number(req.headers.get("content-length") ?? "0");
@@ -91,22 +121,30 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const sb = serviceClient();
-  const [{ data: profile }, { data: lead, error: leadError }] = await Promise.all([
-    sb.from("profiles").select("full_name, email, role, is_suspended").eq("id", user.id).maybeSingle(),
+  const [profileResult, { data: lead, error: leadError }] = await Promise.all([
+    user
+      ? sb.from("profiles").select("full_name, email, role, is_suspended").eq("id", user.id).maybeSingle()
+      : Promise.resolve({ data: null }),
     sb.from("leads")
       .select("id, full_name, status, status_changed_at, assigned_agent_id")
       .eq("id", leadId)
       .maybeSingle(),
   ]);
+  const profile = profileResult?.data ?? null;
   if (leadError || !lead) {
     return json({ ok: false, error: "Lead not found" }, 404);
   }
 
-  const isAdmin = profile?.role === "admin" && !profile?.is_suspended;
-  const isAssignedAgent = profile?.role === "agent" && !profile?.is_suspended
-    && lead.assigned_agent_id === user.id;
-  if (!isAdmin && !isAssignedAgent) {
-    return json({ ok: false, error: "Your account cannot notify for this lead" }, 403);
+  // The internal caller is trusted server code that has already decided this
+  // lead belongs in Pending Approval, so there is no per-user permission to
+  // check. The browser path is unchanged.
+  if (!isInternalCaller) {
+    const isAdmin = profile?.role === "admin" && !profile?.is_suspended;
+    const isAssignedAgent = profile?.role === "agent" && !profile?.is_suspended
+      && lead.assigned_agent_id === user?.id;
+    if (!isAdmin && !isAssignedAgent) {
+      return json({ ok: false, error: "Your account cannot notify for this lead" }, 403);
+    }
   }
   if (lead.status !== "pending_approval" || !lead.status_changed_at) {
     return json({ ok: false, error: "The lead is not awaiting approval" }, 409);
@@ -116,7 +154,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const claim = {
     lead_id: leadId,
     status_changed_at: statusChangedAt,
-    requested_by: user.id,
+    requested_by: user?.id ?? null,
     state: "pending",
     claimed_at: new Date().toISOString(),
     sent_at: null,
@@ -139,7 +177,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     const { data: reclaimed, error: reclaimError } = await sb.from("pending_approval_notifications")
       .update({
-        requested_by: user.id,
+        requested_by: user?.id ?? null,
         state: "pending",
         claimed_at: new Date().toISOString(),
         sent_at: null,
@@ -170,9 +208,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error }, 503);
   }
 
-  const agentName = profile?.full_name || profile?.email || "An agent";
   const leadName = lead.full_name || "Unknown lead";
-  const message = `Pending approval\n\n${agentName} marked ${leadName} as closed and awaiting approval.\n\nReview it at crm.badartrader.com`;
+  // The internal caller is the customer's own deposit-confirmation form, so the
+  // alert must not claim an agent did this. Naming a real person for something
+  // they did not do is how an admin loses trust in the alert.
+  const message = isInternalCaller
+    ? `Pending approval\n\n${leadName} submitted a deposit confirmation and is awaiting approval.\n\nReview it at crm.badartrader.com`
+    : `Pending approval\n\n${profile?.full_name || profile?.email || "An agent"} marked ${leadName} as closed and awaiting approval.\n\nReview it at crm.badartrader.com`;
 
   try {
     const response = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneId}/messages`, {

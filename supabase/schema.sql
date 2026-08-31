@@ -2213,5 +2213,153 @@ ORDER BY c.lead_id, c.created_at DESC;
 ALTER VIEW public.inbox_conversation_list SET (security_invoker = true);
 GRANT SELECT ON public.inbox_conversation_list TO authenticated;
 
+-- =============================================================
+-- Phase 38 (continued) - Converted is a verified business outcome
+-- (Muhammad, 2026-08-31)
+-- Corresponds to supabase/migrations/20260831041000_restrict_converted_to_admins.sql
+--
+-- Converted means leads.status = 'converted', reached through the deposit
+-- approval flow. It is never a manual classification: agents classify up to
+-- Qualified and may move a lead neither INTO nor OUT of Converted, and
+-- manual_tier='closed' is retired as a way to express it (the value stays in
+-- the CHECK constraint - 0 rows use it - but no signed-in client may write it
+-- and computeLeadTier() ignores it). Admins and service-role paths are exempt
+-- where appropriate. RLS is intentionally unchanged.
+-- =============================================================
+
+CREATE OR REPLACE FUNCTION public.enforce_converted_admin_only()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE
+  old_tier   TEXT := CASE WHEN TG_OP = 'UPDATE' THEN OLD.manual_tier ELSE NULL END;
+  old_status TEXT := CASE WHEN TG_OP = 'UPDATE' THEN OLD.status      ELSE NULL END;
+  is_backend BOOLEAN := auth.uid() IS NULL;
+BEGIN
+  IF is_backend THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.manual_tier = 'closed' AND old_tier IS DISTINCT FROM 'closed' THEN
+    RAISE EXCEPTION
+      'Converted is not a manual tier. It is set by the deposit approval flow (leads.status), never by picking a tier.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF public.is_admin() THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.status = 'converted' AND old_status IS DISTINCT FROM 'converted' THEN
+    RAISE EXCEPTION
+      'Only an admin can convert a lead. Set it to Pending Approval so an admin can approve the deposit.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF old_status = 'converted' AND NEW.status IS DISTINCT FROM 'converted' THEN
+    RAISE EXCEPTION
+      'Only an admin can move a lead out of Converted.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.enforce_converted_admin_only() FROM PUBLIC, anon;
+
+DROP TRIGGER IF EXISTS trg_leads_converted_admin_only ON public.leads;
+CREATE TRIGGER trg_leads_converted_admin_only
+  BEFORE INSERT OR UPDATE OF manual_tier, status ON public.leads
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_converted_admin_only();
+
 -- DONE (Phase 38)
+-- =============================================================
+
+-- =============================================================
+-- Phase 39 - deterministic idempotency for deposit-confirmation submissions
+-- (Muhammad, 2026-08-31)
+-- Corresponds to supabase/migrations/20260831050000_deposit_submission_idempotency.sql
+--
+-- conversion-hook is called more than once per real submission by design of
+-- the pages themselves: join.html posts the form, then redirects to
+-- thankyou.html, whose own script calls the same hook again on load, and again
+-- on every refresh. One row per distinct accepted claim, identified by a
+-- content hash rather than by a timer, is what makes the state transition, the
+-- activity line and the admin alert happen exactly once while a genuinely
+-- different claim still goes through.
+--
+-- Recorded here because schema.sql is the rebuild reference and these objects
+-- are what conversion-hook calls: a rebuild without them leaves the deployed
+-- function throwing on every live deposit submission.
+-- =============================================================
+
+CREATE TABLE IF NOT EXISTS public.deposit_submissions (
+  submission_key TEXT PRIMARY KEY CHECK (length(submission_key) = 64),
+  lead_id UUID NOT NULL REFERENCES public.leads(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  amount NUMERIC(15,2) NOT NULL DEFAULT 0,
+  account_ref TEXT,
+  first_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  replay_count INTEGER NOT NULL DEFAULT 0 CHECK (replay_count >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS deposit_submissions_lead_id_idx
+  ON public.deposit_submissions (lead_id, first_seen_at DESC);
+
+ALTER TABLE public.deposit_submissions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.deposit_submissions FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.deposit_submissions TO service_role;
+
+CREATE OR REPLACE FUNCTION public.claim_deposit_submission(
+  p_submission_key TEXT,
+  p_lead_id UUID,
+  p_platform TEXT,
+  p_amount NUMERIC,
+  p_account_ref TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_inserted BOOLEAN;
+BEGIN
+  IF p_submission_key IS NULL OR length(p_submission_key) <> 64 THEN
+    RAISE EXCEPTION 'p_submission_key must be a SHA-256 hex digest';
+  END IF;
+
+  INSERT INTO public.deposit_submissions AS d (
+    submission_key, lead_id, platform, amount, account_ref
+  )
+  VALUES (p_submission_key, p_lead_id, p_platform, COALESCE(p_amount, 0), p_account_ref)
+  ON CONFLICT (submission_key) DO UPDATE
+    SET last_seen_at = now(),
+        replay_count = d.replay_count + 1
+  RETURNING (xmax = 0) INTO v_inserted;
+
+  RETURN COALESCE(v_inserted, FALSE);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.release_deposit_submission(p_submission_key TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  DELETE FROM public.deposit_submissions
+   WHERE submission_key = p_submission_key
+     AND replay_count = 0;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.claim_deposit_submission(TEXT, UUID, TEXT, NUMERIC, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_deposit_submission(TEXT, UUID, TEXT, NUMERIC, TEXT) TO service_role;
+
+REVOKE ALL ON FUNCTION public.release_deposit_submission(TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.release_deposit_submission(TEXT) TO service_role;
+
+-- DONE (Phase 39)
 -- =============================================================

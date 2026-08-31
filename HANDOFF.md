@@ -36,6 +36,151 @@ Muhammad asked whether a second Claude account (`shoaibmazhar1434@gmail.com` - t
 
 ---
 
+## 2026-08-31 (later still) - merged main into the branch, and fixed a migration timestamp collision that would have silently skipped a migration
+
+`origin/main` moved six commits while the Pending Approval work was in
+progress. Merging it in surfaced two content conflicts and one thing that was
+not a conflict at all and mattered more.
+
+### The collision, which git could not see
+
+A concurrent session landed `20260831040000_conversation_list_view.sql` on
+main. This branch already had `20260831040000_restrict_converted_to_admins.sql`.
+Two DIFFERENT migrations, same version prefix, both calling themselves
+"Phase 38". Git merged them happily because the filenames differ, so nothing
+conflicted and nothing warned. Supabase's ledger keys on that version string,
+so only one could ever be recorded and a `db push` would have silently skipped
+the other. Renamed ours to `20260831041000`, confirmed unused across every ref
+and every file first, contents unchanged, and it still sorts after 040000 and
+before 050000 which is the order it needs. Updated all three references
+(`tests/converted-permission-test.mjs`, `tests/deposit-idempotency-test.mjs`,
+`supabase/schema.sql`).
+
+This does NOT fix the older ledger drift already flagged above. Eight
+migrations still have no matching remote row. That reconciliation is still
+owed before anyone runs a push.
+
+### Conflicts resolved, both sides kept
+
+- `REMAINING_TODOS.md`: append-versus-append at the end of the Questions Log.
+  Both entries kept, main's first.
+- `supabase/schema.sql`: both sides added a Phase 38 block in the same slot.
+  They are independent objects, a view over `communications` and a trigger on
+  `leads`, so both were kept and ours relabelled "Phase 38 (continued)".
+  Neither feature was dropped.
+
+### Also closed while here
+
+`schema.sql` had no record of the Phase 39 deposit-idempotency objects. Since
+`schema.sql` is the rebuild reference and `conversion-hook` calls
+`claim_deposit_submission()`, a rebuild from it would have produced a database
+where the deployed function throws on every live deposit submission. Added
+`deposit_submissions` and both functions to it.
+
+### Verified after the merge
+
+39 of 39 node suites pass. Re-checked in demo preview against the MERGED
+`index.html`, not the pre-merge one: the hierarchy renders All / New / Engaged
+/ Deposit Ready / Qualified / Converted, the three operational filters still AND
+together and narrow, the UAE and Pakistan channel pills are present with main's
+lead-bounded counts from `inbox_conversation_list`, `pending_approval` still
+resolves to Qualified, and a `manual_tier` of `closed` still cannot fake a
+conversion. Console errors are the two pre-existing TradingView CDN embeds,
+unreachable in a sandbox and unchanged from baseline.
+
+Note on `stash@{0}`: it holds an earlier local variant of the country labels
+using a `conv-channel-geo` span. Main shipped the same idea more simply, so the
+stash is now a superseded duplicate. Left untouched as instructed; it is safe to
+drop once someone confirms they want main's version.
+
+Still NOT deployed, migrations still NOT applied, `main` still untouched.
+
+## 2026-08-31 (later) - Pending Approval now actually alerts someone, and one deposit submission is processed exactly once. BUILT AND TESTED, NOT DEPLOYED, MIGRATION NOT APPLIED.
+
+Continues the Converted-is-a-verified-outcome work at `db87ecd`. Two gaps were
+left open there and are closed here. Nothing in this entry is live.
+
+### What was actually wrong, checked in the code rather than assumed
+
+1. **`conversion-hook` told nobody.** A customer completing the deposit form
+   moved the lead to `pending_approval` and stopped. The alert an agent triggers
+   from the Inbox (`notify-admin-pending-approval`) was never called on this
+   path, so a form submission sat unseen until an admin happened to look.
+
+2. **One submission was processed repeatedly, on the normal path, not as a rare
+   refresh edge case.** `join.html` posts the form and then redirects to
+   `thankyou.html`, whose own script calls the same hook AGAIN on load, and
+   again on every refresh. Each call re-ran the whole side effect set.
+
+3. **A live data-loss bug found while reading that path.** The redirect
+   forwarded `lead_id`, `phone`, `platform` and `amount` but NOT `account`, so
+   the second call reached the hook with an empty broker account ref and wrote
+   `deposit_account_ref = NULL` over the value the customer had just typed. The
+   evidence an admin needs to check the IB portal was being destroyed seconds
+   after capture, on every single submission. Confirmed by reading the redirect
+   in `join.html` against `acct || null` in the hook, and reproduced in a local
+   harness before fixing.
+
+### How it works now
+
+- **Idempotency key**: `sha256("v1|lead_id|platform|amount|account_ref")`, with
+  the amount fixed to 2 decimals and the account ref trimmed and lowercased, so
+  "500" and "500.00" are one claim rather than two. Content-based and
+  deterministic, deliberately NOT a timer or an in-memory cooldown, because an
+  Edge Function is stateless and may cold start on any request.
+- **The claim is won in the database**, not in the function: `INSERT ... ON
+  CONFLICT (submission_key) DO UPDATE ... RETURNING (xmax = 0)` inside
+  `claim_deposit_submission()`. Exactly one caller gets TRUE per key even under
+  a race, because uniqueness is the primary key inside one statement. A claim
+  that is won but cannot be completed is released so the customer can retry.
+- **The alert reuses the ONE existing mechanism.** `conversion-hook` calls
+  `notify-admin-pending-approval` over this repo's existing server-to-server
+  path (`x-internal-function-secret`, the same `_shared/internal_auth.mjs`
+  helper `nudge-agents`, `fire-automation` and `send-follow-ups` use), because
+  that function authenticates a browser JWT and this hook is a public endpoint
+  with no user. No second notifier and no second ledger: dedup stays
+  `pending_approval_notifications` keyed `(lead_id, status_changed_at)`, so it
+  is one alert per pending-approval episode. The copy differs by caller, since
+  the form is the customer acting and naming an agent for it would be a lie.
+- The browser path is unchanged: JWT still required, suspended admins still
+  refused, an agent still restricted to an assigned lead.
+
+### Verified here
+
+- 39 of 39 node suites pass (20 pre-existing plus 19 new). Baseline before the
+  work was 20 of 20.
+- Real browser pass against a local harness that serves the actual `join.html`
+  and `thankyou.html` with only the endpoint URL repointed at a local stub, so
+  production was never contacted: submitting the form and refreshing the
+  thank-you page four times produced **5 HTTP calls but 1 transition, 1 activity
+  entry and 1 alert**, with both of the first two calls hashing to the same key
+  (which is the proof `account` now survives the redirect). Distinct claims
+  (different amount, account, platform) each got their own key and were
+  processed. A call carrying no account did not blank the stored one.
+- Inbox re-checked in demo preview: hierarchy renders All / New / Engaged /
+  Deposit Ready / Qualified / Converted; `pending_approval` still computes to
+  Qualified; a `manual_tier` of `closed` still cannot fake a conversion; the
+  three operational filters still AND together and always narrow.
+- **Not run here: `deno check`.** Deno is not installed on this laptop. Both
+  changed functions parse clean under `node --experimental-strip-types --check`,
+  which is a syntax check and NOT a type check. Someone with Deno must run it
+  before the deploy.
+- **Not run here: any SQL.** The migration is unapplied and untested against a
+  real Postgres. `xmax = 0` and the `SECURITY DEFINER` grants are written from
+  the existing `public_form_rate_limits` precedent, not verified by execution.
+
+### Rollout order, and why it cannot be reordered
+
+`20260831050000` MUST be applied before `conversion-hook` is deployed. The
+deployed function calls `claim_deposit_submission()`; if that RPC does not exist
+yet the hook throws and every live deposit submission 500s. The frontend can lag
+safely either way, because the hook no longer blanks a missing account.
+
+`INTERNAL_FUNCTION_SECRET` must exist on `conversion-hook` (it already exists
+for the other three functions). Without it the hook logs `not_configured` and
+skips the alert, silently, which is a fail-open worth catching before rollout
+rather than after.
+
 ## 2026-08-31 - a full day of chatbot and Inbox work reconciled into this file, with every "it is live" claim re-checked against what is actually live
 
 **Why this entry exists.** Thirteen commits landed between 2026-08-30 18:00 and
