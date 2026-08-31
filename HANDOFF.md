@@ -1,10 +1,53 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-08-30 (later still, same session as the "notification
-cooldown removed by design" entry below - continuing in the same window, not
-a new session). The entry directly below is this session's, written with its
-verification actually run. For a fresh Claude Code session with zero memory
-of prior conversations._
+_Last updated: 2026-08-31, by a session on a different laptop from the one that
+did 30-31 August's building. That work was committed, pushed and deployed but
+never written into this file, so the entry directly below reconciles the whole
+day against git, the live Supabase project and the live site, and says plainly
+which checks could not run here. For a fresh Claude Code session with zero
+memory of prior conversations._
+
+## 2026-08-31 - a full day of chatbot and Inbox work reconciled into this file, with every "it is live" claim re-checked against what is actually live
+
+**Why this entry exists.** Thirteen commits landed between 2026-08-30 18:00 and
+2026-08-31 13:23: six live `whatsapp-webhook` deploys (v103 through v108), a
+`whatsapp-status` v3, two migrations, a new sidebar section, and a new
+`CHATBOT_TRAINING.md`. All of it was logged request by request in
+`REMAINING_TODOS.md`, none of it here. This session built nothing. It pulled,
+verified, and wrote it down.
+
+### Verification actually run here
+
+- `git pull origin main` before trusting any local state. Working tree clean, local `main` level with `origin/main` at `99fed4b`.
+- All 19 dependency-free node suites pass: 12 in `supabase/functions/tests`, 7 in `tests`.
+- `whatsapp-webhook` is ACTIVE at **version 108**. Downloaded from the live project and diffed against committed `main`: `index.ts` and all nine `_shared` modules byte-identical. The only difference anywhere in that tree is `whatsapp-webhook/README.md`, which lives in the repo and is not part of a deploy.
+- `whatsapp-status` is ACTIVE at **version 3**, likewise byte-identical to the repo.
+- The live frontend matches the committed one exactly: `https://crm.badartrader.com/` returns 762,906 bytes, sha256 `f3f5e0d4620b842617430ff17f8fe9d506c8680ecaf3d22dbff5e558d878d643`, identical to `index.html` on `main`.
+- **Not run here, and deliberately not skipped quietly: `deno check`.** Deno is not installed on this laptop. Each Edge Function change below was type-checked by the session that made it before deploying, so it rests on that session's own record rather than on an independent re-run here.
+- **Not run here: any SQL against the live database.** A read-only schema query was blocked from this session, so the two new database objects are confirmed only indirectly (see the ledger note below), not by looking at the schema.
+
+### What shipped, in order
+
+1. **Dashboard and sidebar polish** (`044296d`, `105a5f1`, `4ce2942`, `eb90964`, `be75ec2`, 08-30 evening). The lopsided four-box gauge row fixed, serial numbers on the Progress lists, quick-action tiles moved above the gauges, Manage Subscribers / Broadcast Signal / AI Signals folded into one collapsible "Signals" group, gold stat-trend labels bolded, TikTok / Socials / Chatbot rollout items added to In Progress.
+2. **The AI reply cap after escalation removed, deploy v103** (`a0d1e16`). Muhammad's instruction was that the AI should keep a lead engaged for as long as the lead is there, and close leads itself once broker API access exists. The three-reply cap in `escalated_reply_policy.mjs` went; the "never talk over an agent who is actively replying" rule stayed, and its test suite was rewritten around the new shape.
+3. **The bot never reveals itself as an AI, and stops repeating itself, deploy v104** (`a87341c`). New `_shared/nudge_reply_policy.mjs`: a burst of same-topic messages gets one combined answer, and a further impatient nudge after an answered one gets something short and different rather than the same script again.
+4. **The handover line stopped being appended to every escalated AI answer, deploy v105** (`9dc7aba`). Muhammad's catch, and a fair one: the line promising a team member was itself the most bot-like part of the message, minutes after the "never sound like a chatbot" rule went in. The real safeguards are unchanged and enforced in the backend (human sign-off before a deposit counts as converted, the agent still pinged, the bot still deferring to an active agent); only the customer-facing restatement on every message is gone. A team member is now mentioned when the system prompt's own rules call for one: a deposit question, a discount ask, a complaint, genuine uncertainty.
+5. **Handoff triggers made real, and the AI given actual conversation memory, deploy v106** (`61c1501`). Answering "what makes the bot hand over to a human?" exposed a real gap: the AI-decided handoffs (discount ask, complaint, uncertainty) were only words in a prompt, so the model would say "I have forwarded your query" while nothing in the backend flagged a lead or told anyone. New `_shared/flag_reply_policy.mjs` parses the AI's own `[[FLAG:...]]` tag; `escalate()` was refactored into a reusable `markEscalated()` plus a new `notifyAgentOfFlag()` for the silent first-flag case. Complaints now get the AI's own warm first-contact apology plus a real silent flag, escalating for real only if the same lead flags again within 45 minutes. Discount asks still hand off, because no discount policy exists yet. Found in the same pass: the OpenAI call had never sent any conversation history at all, only the current message, so the prompt's own "do not repeat yourself" rules could never work. New `_shared/conversation_history.mjs` builds real history from the communications log. 23 new tests across three policy files.
+6. **The Omnichannel Inbox split by real WhatsApp number, deploy v107, migration `20260831000000_leads_wa_channel.sql`** (`12361fd`). Badar wanted 6541 and 3903 stats separately. Neither `leads` nor `communications` had ever recorded which number a message arrived on, so `leads.wa_channel` was added and tagged at every lead-creation call site, with an opportunistic backfill once a later message confirms a legacy lead's channel. 199 pre-2026-08-27 leads were backfilled to 6541 with certainty (3903 did not exist before that date); anything since with no signal is left honestly unattributed rather than guessed. An "All numbers / 6541 / 3903" pill row sits above the existing tier filters for both admin and agent.
+7. **The AI going silent again, root-caused and fixed, deploy v108** (`174ee06`). A real thread stalled on three messages. Rather than guess, the failing call was reproduced directly against OpenAI with the live system prompt: `gpt-5-mini` was spending its entire 1000-token budget on hidden reasoning and had nothing left for the visible reply (`finish_reason: "length"`, empty content, 1000/1000 reasoning tokens). It is the same wall hit on 2026-08-25, back again because that day's own correct changes (real conversation history, the longer FLAG-tagging prompt) made every prompt bigger. `max_completion_tokens` raised 1000 to 3000, confirmed by re-running the identical real prompt twice. Deployed immediately, since it was blocking a live conversation.
+8. **A real "Connect WhatsApp" section, `whatsapp-status` v3** (`3f98c0a`, `a4c571a`). The single-number connection health check moved out of Meta Integration into its own sidebar section showing both real numbers side by side, each with its own live check against Meta's Graph API. `whatsapp-status` now accepts `?number=3903` (same WABA and token, the other `phone_number_id`, whose secret already existed project-wide).
+9. **The full Connect WhatsApp management page, migration `20260831020000_additional_whatsapp_numbers.sql`** (`5360ff6`). Built against Muhammad's own WhatChimp reference screenshots: four summary tiles, "Connect Another WhatsApp Business Account", a Business Accounts card for the one real WABA expanding into a Phone Numbers table with live Status / Quality / Messaging Limit for both numbers, and an "Add Phone Number" that genuinely saves a row while saying plainly that wiring a number to actually send and receive still needs Muhammad's laptop. "Manage" links into Meta's own tools. "Disable" on 6541 is the existing reversible `BOT_REPLIES_ENABLED` gate, not a Meta-side deregistration; on 3903 it explains what would really be required instead of faking a button. Deleting a phone number was deliberately not built: deregistering a live, billed, actively advertised number needs a decision, not a guess.
+10. **`CHATBOT_TRAINING.md` added** (`99fed4b`), with its rule written into `CLAUDE.md`: any proposed change to how the chatbot talks or decides gets logged there the moment it is mentioned, tagged `[PROMPT]` (knowledge base, live on the next message) or `[PRINCIPLE]` (policy or dispatch code, needs checks, tests and a deploy), and reconciled at end of session like this file. Its Requested section is currently empty.
+
+### Migration ledger note, worth someone's attention
+
+`supabase migration list --linked` shows both of today's migrations, `20260831000000` and `20260831020000`, present locally with no matching remote row. This is not new and not unique to today: 0810, 0814, 0815, 0822, 0825 and 0827 sit the same way, the residue of applying SQL directly rather than through the migration runner. The objects themselves are almost certainly live, since the `wa_channel` backfill ran over 199 real leads and the Add Phone Number flow really saves rows, but this session could not query the schema to prove it. Two things follow: someone with database access should confirm both objects exist, and the ledger drift should be reconciled before anyone runs a `db push` or tries to rebuild this schema from migrations alone.
+
+### Still open
+
+Nothing from this day is waiting to be deployed. The open items are the ones already in `REMAINING_TODOS.md`, and the two most cost-bearing are unchanged: real agents (Farwa, Hanzala, Bilal, Faisal) are still out of lead rotation with `receives_leads = false` from the 08-27 notification test, so real leads keep landing on a test profile nobody works, waiting on Muhammad's go-ahead to flip them back; and the live OpenAI API key still wants rotating after it passed through a diagnostic command on 08-30.
+
+---
 
 ## 2026-08-30 (continued) - Dashboard filter, Action Items tab, Socials/TikTok split, Guide rewrite, and a live merge with a concurrent cloud session
 
