@@ -10964,28 +10964,45 @@ async function renderConversations(scope = '') {
   // conversations related to the signed-in Agent's assigned leads.
   listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">Loading…</div>';
   try {
-    const { data: comms, error } = await sb
-      .from('communications')
-      .select('lead_id, type, body, direction, created_at, leads(full_name, phone, status, is_unread, bot_stage, needs_human, handoff_reason, manual_tier, language, wa_channel)')
-      // Messenger/Instagram added 2026-08-27 (staged, ingest-only connection -
-      // see messenger-webhook) - these leads have no phone/WhatsApp thread at
-      // all, so without this they simply never appeared here even though the
-      // webhook was creating them correctly.
-      .in('type', ['whatsapp', 'messenger', 'instagram'])
-      // Excludes the internal "Qualified lead summary" note the webhook logs
-      // for itself (whatsapp-webhook/index.ts) - never sent to the customer,
-      // so it must never appear as a conversation's preview text either.
-      // CRITICAL: a plain .neq() compiles to SQL "<>", and "NULL <> 'x'" is
-      // NULL (not true) in SQL's three-valued logic - so it silently excluded
-      // every ordinary message, since real customer messages all have
-      // subject: null. Found 2026-08-25 after a real agent (Ehsan) reported
-      // a real conversation showing in Comm Log but not here at all - this
-      // was true for every conversation, for every agent, since this filter
-      // was added, not just his. The .or() below is the null-safe equivalent:
-      // keep a row if its subject is null OR it's some other real value.
-      .or('subject.is.null,subject.neq.Qualified lead summary')
-      .order('created_at', { ascending: false });
+    // Reads from inbox_conversation_list (added 2026-08-31), a view that is
+    // already one row per LEAD (its latest matching message), not one row
+    // per message. The old query here read `communications` directly with
+    // no .limit() - that's one row per message (13,870+ and growing with
+    // every reply), so it silently hit PostgREST's default 1,000-row cap.
+    // Bounding by conversation instead (~2,024 leads, growing much slower)
+    // means a single generous .limit() reliably covers every real
+    // conversation without needing pagination UI. The messenger/instagram
+    // type filter and the null-safe "Qualified lead summary" exclusion that
+    // used to live here are now baked into the view itself - see the
+    // migration for why each one exists.
+    const { data: rows, error } = await sb
+      .from('inbox_conversation_list')
+      .select('lead_id, type, body, direction, created_at, full_name, phone, status, is_unread, bot_stage, needs_human, handoff_reason, manual_tier, language, wa_channel')
+      .order('created_at', { ascending: false })
+      .limit(5000);
     if (error) throw error;
+    // Reshape flat view rows back into the { ..., leads: {...} } nesting the
+    // rest of this function (and every other consumer of _lastConvs) already
+    // expects, so nothing downstream has to change.
+    const comms = (rows || []).map(r => ({
+      lead_id: r.lead_id,
+      type: r.type,
+      body: r.body,
+      direction: r.direction,
+      created_at: r.created_at,
+      leads: {
+        full_name: r.full_name,
+        phone: r.phone,
+        status: r.status,
+        is_unread: r.is_unread,
+        bot_stage: r.bot_stage,
+        needs_human: r.needs_human,
+        handoff_reason: r.handoff_reason,
+        manual_tier: r.manual_tier,
+        language: r.language,
+        wa_channel: r.wa_channel,
+      },
+    }));
     if (!comms || !comms.length) {
       listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">No conversations yet.<br><span style="font-size:0.75rem;opacity:.7">Messages received via webhook will appear here.</span></div>';
       return;

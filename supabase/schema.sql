@@ -2173,3 +2173,45 @@ ALTER TABLE public.leads ADD CONSTRAINT leads_manual_tier_check
 
 -- DONE (Phase 37)
 -- =============================================================
+
+-- =============================================================
+-- Phase 38 - Inbox conversation list bounded by lead, not message
+-- (Muhammad, 2026-08-31)
+-- Corresponds to supabase/migrations/20260831040000_conversation_list_view.sql
+-- The Omnichannel Inbox's conversation-list query had no .limit() and read
+-- `communications` directly (one row per message, 13,870+ and growing fast),
+-- so it silently hit PostgREST's default 1,000-row cap - the root cause of
+-- the wrong 3903/6541 pill counts and a real risk of dropped conversations.
+-- This view is one row per LEAD instead (its latest matching message),
+-- bounded by lead count (~2,024, growing far slower), so the frontend can
+-- fetch the whole thing in one un-paginated call with a generous .limit().
+-- =============================================================
+
+CREATE OR REPLACE VIEW public.inbox_conversation_list AS
+SELECT DISTINCT ON (c.lead_id)
+  c.lead_id,
+  c.type,
+  c.body,
+  c.direction,
+  c.created_at,
+  l.full_name,
+  l.phone,
+  l.status,
+  l.is_unread,
+  l.bot_stage,
+  l.needs_human,
+  l.handoff_reason,
+  l.manual_tier,
+  l.language,
+  l.wa_channel
+FROM public.communications c
+JOIN public.leads l ON l.id = c.lead_id
+WHERE c.type IN ('whatsapp', 'messenger', 'instagram')
+  AND (c.subject IS NULL OR c.subject <> 'Qualified lead summary')
+ORDER BY c.lead_id, c.created_at DESC;
+
+ALTER VIEW public.inbox_conversation_list SET (security_invoker = true);
+GRANT SELECT ON public.inbox_conversation_list TO authenticated;
+
+-- DONE (Phase 38)
+-- =============================================================
