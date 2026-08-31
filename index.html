@@ -7124,9 +7124,17 @@ async function openDetail(leadId, ctx) {
         <div class="detail-row">
           <span class="detail-label">Status</span>
           <select id="det-status" class="inline-select">
-            ${['new','contacted','qualified','proposal_sent','pending_approval','converted','lost'].map(s =>
-              `<option value="${s}" ${lead.status===s?'selected':''}>${statusLabel(s)}</option>`
-            ).join('')}
+            ${['new','contacted','qualified','proposal_sent','pending_approval','converted','lost']
+              // Converted is admin-only. An agent moves a lead to Pending
+              // Approval instead; approveConversion() is what actually
+              // converts it, and it already demands a deposit screenshot.
+              // A lead that IS converted keeps showing Converted, disabled,
+              // so the agent sees the truth without being able to set it.
+              .filter(s => s !== 'converted' || isAdmin || lead.status === 'converted')
+              .map(s => {
+                const lock = (s === 'converted' && !isAdmin) ? ' disabled' : '';
+                return `<option value="${s}" ${lead.status===s?'selected':''}${lock}>${statusLabel(s)}${lock ? ' (admin only)' : ''}</option>`;
+              }).join('')}
           </select>
         </div>
         <div class="detail-row">
@@ -10641,6 +10649,16 @@ function hiddenMessagesNoticeHtml() {
     <button type="button" onclick="restoreHiddenMessages()">Restore</button></div>` : '';
 }
 
+// Converted is admin/system-only (Muhammad, 2026-08-31). An agent classifies
+// a lead up to Qualified; declaring an actual conversion is an admin action or
+// a trusted backend one (conversion-hook, on the service role key). This is
+// the display half only - the real control is the leads trigger
+// enforce_converted_admin_only(), which rejects the write whether it comes
+// from this UI, the console, or a direct API call.
+function canMarkConverted() {
+  return currentProfile?.role === 'admin';
+}
+
 // Classifies a lead into one of: new, warm, hot, qualified, closed. These are
 // the stored values and they are NOT renamed here; the Inbox shows warm as
 // "Engaged" and hot as "Deposit Ready". Operational state (is_unread,
@@ -11494,7 +11512,15 @@ async function openConversation(convId, scope = '') {
           <option value="warm" ${currentTier==='warm'?'selected':''}>💬 Engaged</option>
           <option value="hot" ${currentTier==='hot'?'selected':''}>💰 Deposit Ready</option>
           <option value="qualified" ${currentTier==='qualified'?'selected':''}>📋 Qualified (awaiting deposit confirmation)</option>
-          <option value="closed" ${currentTier==='closed'?'selected':''}>✅ Converted</option>
+          ${canMarkConverted()
+            ? `<option value="closed" ${currentTier==='closed'?'selected':''}>✅ Converted</option>`
+            : currentTier==='closed'
+              // Already converted by an admin or the deposit form: an agent
+              // still has to SEE the real state, so the option is shown and
+              // disabled rather than dropped, which would silently display
+              // the wrong tier.
+              ? `<option value="closed" selected disabled>✅ Converted (admin only)</option>`
+              : ''}
         </select>
         <button type="button" class="conv-copy-link-btn" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--text-body);font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
       </div>
