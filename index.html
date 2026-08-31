@@ -1082,6 +1082,28 @@
     }
     .conv-filter-tab:hover  { background:#e9edef; }
     .conv-filter-tab.active { background:#d9fdd3; color:#04785a; }
+    /* Added 2026-08-31: the Inbox filter bar used to mix three different kinds
+       of thing in one row - a lead's stage (New/Warm/Hot), an operational
+       message state (Unread), and nothing for priority at all - so they all
+       read as the same kind of switch. The stage row above stays a WhatsApp
+       pill; these operational filters are deliberately a different shape
+       (square-ish, outlined, check-marked, indigo when on) because they are
+       multi-select and stack ON TOP of whatever stage is selected. */
+    .conv-ops-row {
+      display:flex; flex-wrap:nowrap; overflow-x:auto; gap:6px; align-items:center;
+      padding:0 12px 8px; background:#fff; border-bottom:1px solid #e9edef;
+    }
+    .conv-ops-label {
+      flex-shrink:0; font-size:0.62rem; font-weight:700; letter-spacing:.06em;
+      text-transform:uppercase; color:#8696a0; margin-right:2px;
+    }
+    .conv-ops-chip {
+      flex-shrink:0; cursor:pointer; border:1px solid #d1d7db; border-radius:6px;
+      padding:4px 9px; font-size:0.72rem; font-weight:600; white-space:nowrap;
+      background:#fff; color:#54656f; display:flex; align-items:center; gap:5px;
+    }
+    .conv-ops-chip:hover  { background:#f0f2f5; }
+    .conv-ops-chip.active { background:#eef2ff; border-color:#a5b4fc; color:#4338ca; }
     /* Added 2026-08-31: bifurcates the Omnichannel Inbox by which real
        WhatsApp number a lead came in on (6541 vs 3903), so Badar can see both
        numbers' campaigns actively populating real leads, side by side. */
@@ -1471,6 +1493,11 @@
     [data-theme="dark"] .conv-filter-tab        { background:#202c33; color:#8696a0; }
     [data-theme="dark"] .conv-filter-tab:hover  { background:#2a3942; }
     [data-theme="dark"] .conv-filter-tab.active { background:#103529; color:#00a884; }
+    [data-theme="dark"] .conv-ops-row           { background:#111b21; border-bottom-color:#222d34; }
+    [data-theme="dark"] .conv-ops-label         { color:#8696a0; }
+    [data-theme="dark"] .conv-ops-chip          { background:#202c33; color:#8696a0; border-color:#34434b; }
+    [data-theme="dark"] .conv-ops-chip:hover    { background:#2a3942; }
+    [data-theme="dark"] .conv-ops-chip.active   { background:#1e1b4b; border-color:#4f46e5; color:#a5b4fc; }
     [data-theme="dark"] .conv-channel-row       { background:#111b21; }
     [data-theme="dark"] .conv-channel-pill      { background:#202c33; color:#8696a0; border-color:#34434b; }
     [data-theme="dark"] .conv-channel-pill:hover  { background:#2a3942; }
@@ -2201,10 +2228,16 @@
         <div class="conv-filter-tabs" id="conv-filter-tabs" >
           <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all')">All</button>
           <button class="conv-filter-tab" data-tier="new" onclick="setConvFilter('new')">🆕 New</button>
-          <button class="conv-filter-tab" data-tier="unread" onclick="setConvFilter('unread')">📩 Unread</button>
-          <button class="conv-filter-tab" data-tier="warm" onclick="setConvFilter('warm')">🌤 Warm</button>
-          <button class="conv-filter-tab" data-tier="hot" onclick="setConvFilter('hot')">🔥 Hot</button>
+          <button class="conv-filter-tab" data-tier="warm" onclick="setConvFilter('warm')">💬 Engaged</button>
+          <button class="conv-filter-tab" data-tier="hot" onclick="setConvFilter('hot')">💰 Deposit Ready</button>
+          <button class="conv-filter-tab" data-tier="qualified" onclick="setConvFilter('qualified')">📋 Qualified</button>
           <button class="conv-filter-tab" data-tier="closed" onclick="setConvFilter('closed')">✅ Converted</button>
+        </div>
+        <div class="conv-ops-row" id="conv-ops-row" title="Operational state - these stack on top of whichever lead stage is selected">
+          <span class="conv-ops-label">Needs action</span>
+          <button class="conv-ops-chip" data-op="unread" onclick="toggleConvOps('unread')">📩 Unread</button>
+          <button class="conv-ops-chip" data-op="awaiting" onclick="toggleConvOps('awaiting')">⏳ Waiting on Us</button>
+          <button class="conv-ops-chip" data-op="needshuman" onclick="toggleConvOps('needshuman')">👤 Needs Human</button>
         </div>
         <div class="conv-list" id="conv-list"></div>
       </div>
@@ -4283,10 +4316,16 @@
         <div class="conv-filter-tabs" id="agent-conv-filter-tabs" >
           <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all','agent-')">All</button>
           <button class="conv-filter-tab" data-tier="new" onclick="setConvFilter('new','agent-')">🆕 New</button>
-          <button class="conv-filter-tab" data-tier="unread" onclick="setConvFilter('unread','agent-')">📩 Unread</button>
-          <button class="conv-filter-tab" data-tier="warm" onclick="setConvFilter('warm','agent-')">🌤 Warm</button>
-          <button class="conv-filter-tab" data-tier="hot" onclick="setConvFilter('hot','agent-')">🔥 Hot</button>
+          <button class="conv-filter-tab" data-tier="warm" onclick="setConvFilter('warm','agent-')">💬 Engaged</button>
+          <button class="conv-filter-tab" data-tier="hot" onclick="setConvFilter('hot','agent-')">💰 Deposit Ready</button>
+          <button class="conv-filter-tab" data-tier="qualified" onclick="setConvFilter('qualified','agent-')">📋 Qualified</button>
           <button class="conv-filter-tab" data-tier="closed" onclick="setConvFilter('closed','agent-')">✅ Converted</button>
+        </div>
+        <div class="conv-ops-row" id="agent-conv-ops-row" title="Operational state - these stack on top of whichever lead stage is selected">
+          <span class="conv-ops-label">Needs action</span>
+          <button class="conv-ops-chip" data-op="unread" onclick="toggleConvOps('unread','agent-')">📩 Unread</button>
+          <button class="conv-ops-chip" data-op="awaiting" onclick="toggleConvOps('awaiting','agent-')">⏳ Waiting on Us</button>
+          <button class="conv-ops-chip" data-op="needshuman" onclick="toggleConvOps('needshuman','agent-')">👤 Needs Human</button>
         </div>
         <div class="conv-list" id="agent-conv-list"></div>
       </div>
@@ -7085,9 +7124,17 @@ async function openDetail(leadId, ctx) {
         <div class="detail-row">
           <span class="detail-label">Status</span>
           <select id="det-status" class="inline-select">
-            ${['new','contacted','qualified','proposal_sent','pending_approval','converted','lost'].map(s =>
-              `<option value="${s}" ${lead.status===s?'selected':''}>${statusLabel(s)}</option>`
-            ).join('')}
+            ${['new','contacted','qualified','proposal_sent','pending_approval','converted','lost']
+              // There is exactly ONE way to convert a lead: approveConversion(),
+              // which refuses without a deposit screenshot on file. This generic
+              // dropdown must not be a second, unverified route to the same
+              // state - for an admin either. Converted appears only when the
+              // lead already IS converted, and then only to show the truth.
+              .filter(s => s !== 'converted' || lead.status === 'converted')
+              .map(s => {
+                const lock = (s === 'converted') ? ' disabled' : '';
+                return `<option value="${s}" ${lead.status===s?'selected':''}${lock}>${statusLabel(s)}${lock ? ' (set by deposit approval)' : ''}</option>`;
+              }).join('')}
           </select>
         </div>
         <div class="detail-row">
@@ -10536,6 +10583,16 @@ let _activeConvScope = '';
 let _convRealtimeSub = null;
 let _convRealtimeScope = '';
 let _activeConvFilter = 'all';
+// Operational state filters, added 2026-08-31. Deliberately a Set and not a
+// second single-select: these are NOT lead stages, they describe what a
+// conversation needs from an agent right now, so any of them can be true of a
+// lead at any stage. They AND together with each other and with the stage
+// filter - turning one on always narrows, never widens.
+//   'unread'     -> leads.is_unread
+//   'awaiting'   -> the customer's latest message has had no outbound reply
+//   'needshuman' -> leads.needs_human
+// All three read flags the list query already returns. Nothing here writes.
+let _activeConvOps = new Set();
 // Which real WhatsApp number's conversations are shown - '6541' (the main
 // automated-bot line) or '3903' (the second, ingest-only line, connected
 // 2026-08-27). 'all' shows every channel (WhatsApp on either number, plus
@@ -10592,25 +10649,30 @@ function hiddenMessagesNoticeHtml() {
     <button type="button" onclick="restoreHiddenMessages()">Restore</button></div>` : '';
 }
 
-// Classifies a lead into one of: new, warm, hot, closed. "unread" is checked
-// separately (is_unread) since it can apply on top of any of these.
+// Classifies a lead into one of: new, warm, hot, qualified, closed. These are
+// the stored values and they are NOT renamed here; the Inbox shows warm as
+// "Engaged" and hot as "Deposit Ready". Operational state (is_unread,
+// needs_human, awaiting a reply) is checked separately, since any of it can be
+// true of a lead at any stage.
 function computeLeadTier(lead) {
-  // Agents set this themselves now (Badar, 2026-07-14: "the agent should be
-  // the one putting those into each of the sections... they know the exact
-  // situation"). Falls back to the old auto-computed guess only for leads
-  // nobody has manually classified yet.
-  if (lead?.manual_tier) return lead.manual_tier;
   const status = lead?.status || 'new';
-  // Found live 2026-08-31: a real 'qualified' lead (said yes to the $500
-  // deposit, escalated, awaiting an admin's approval against a screenshot -
-  // see the deposit-accuracy mechanism) was showing a green "CONVERTED"
-  // badge, because this used to lump 'qualified' in with 'closed' - the
-  // exact same badge as a lead that has genuinely converted. Muhammad
-  // caught this from a real screenshot (Junaid's own test lead, status
-  // still 'qualified', account_balance still $0). Split apart: only a
-  // truly converted lead is 'closed' now.
+  // Converted is a VERIFIED BUSINESS OUTCOME, not a classification anyone can
+  // pick (Muhammad, 2026-08-31). It is derived from leads.status alone and is
+  // checked before manual_tier, so no manual selection can ever claim a
+  // conversion the approval flow did not grant.
   if (status === 'converted') return 'closed';
-  if (status === 'qualified') return 'qualified';
+  // Agents set this themselves (Badar, 2026-07-14: "the agent should be the
+  // one putting those into each of the sections... they know the exact
+  // situation"), but a stored 'closed' is deliberately ignored: the value is
+  // kept in the CHECK constraint for compatibility (0 rows use it in
+  // production) and no UI writes it any more, so it must not be able to
+  // masquerade as a conversion on a lead whose status says otherwise.
+  if (lead?.manual_tier && lead.manual_tier !== 'closed') return lead.manual_tier;
+  // A submitted deposit-confirmation form parks a lead at 'pending_approval'
+  // (see conversion-hook): the money is claimed but not verified, which is
+  // exactly Qualified - awaiting real confirmation - and explicitly not
+  // Converted.
+  if (status === 'qualified' || status === 'pending_approval') return 'qualified';
   const botStage = lead?.bot_stage || 'awaiting_language';
   const needsHuman = !!lead?.needs_human;
   const handoffReason = lead?.handoff_reason || '';
@@ -10777,14 +10839,18 @@ function updateConvSortLabels() {
 function tierBadge(tier) {
   const map = {
     new:    '<span style="background:#e0e7ff;color:#4338ca;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">NEW</span>',
-    warm:   '<span style="background:#fef3c7;color:#b45309;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">WARM</span>',
-    hot:    '<span style="background:#fee2e2;color:#b91c1c;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">🔥 HOT</span>',
+    warm:   '<span style="background:#fef3c7;color:#b45309;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">ENGAGED</span>',
+    hot:    '<span style="background:#fee2e2;color:#b91c1c;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">DEPOSIT READY</span>',
     qualified: '<span style="background:#dbeafe;color:#1d4ed8;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">QUALIFIED</span>',
     closed: '<span style="background:#dcfce7;color:#15803d;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">CONVERTED</span>',
   };
   return map[tier] || '';
 }
 
+// Single-select LEAD STAGE filter: 'all' | 'new' | 'warm' | 'hot' |
+// 'qualified' | 'closed'. The agent-facing wording (Engaged / Deposit Ready)
+// differs from these internal values on purpose - renaming the stored values
+// would be a migration against real leads and manual tiers for no gain.
 function setConvFilter(tier, scope = '') {
   _activeConvFilter = tier;
   // Styling moved to the .conv-filter-tab / .active CSS rules so the pills
@@ -10794,6 +10860,24 @@ function setConvFilter(tier, scope = '') {
     btn.classList.toggle('active', btn.dataset.tier === tier);
   });
   filterConversations(scope);
+}
+
+// Multi-select operational filter. Unlike the stage row this does not clear the
+// others - an agent narrowing to "unread AND waiting on us" is a real worklist.
+// The active set is shared by both inboxes (as the stage and channel filters
+// already are), so every ops row on the page is re-synced, not just this scope's:
+// otherwise switching between the admin and agent inbox would show chips that
+// disagree with the filtering actually being applied.
+function toggleConvOps(op, scope = '') {
+  if (_activeConvOps.has(op)) _activeConvOps.delete(op); else _activeConvOps.add(op);
+  syncConvOpsChips();
+  filterConversations(scope);
+}
+
+function syncConvOpsChips() {
+  document.querySelectorAll('.conv-ops-row .conv-ops-chip').forEach(btn => {
+    btn.classList.toggle('active', _activeConvOps.has(btn.dataset.op));
+  });
 }
 
 // Bifurcates the Omnichannel Inbox by which real WhatsApp number a
@@ -10933,7 +11017,7 @@ async function renderConversations(scope = '') {
       const demoLead = _DEMO_LEADS.find(l => l.id === c.leadId) || {};
       const lastFrom = c.messages?.length ? c.messages[c.messages.length - 1].from : null;
       const sig = convPrioritySignals(
-        { manual_tier: tier, needs_human: demoLead.needs_human, handoff_reason: demoLead.handoff_reason, is_unread: !!c.unread },
+        { status: c.status, manual_tier: tier, needs_human: demoLead.needs_human, handoff_reason: demoLead.handoff_reason, is_unread: !!c.unread },
         { direction: lastFrom === 'lead' ? 'inbound' : 'outbound', hoursAgo: c.inboundHoursAgo },
       );
       return { c, tier, sig, _prio: convPriority(sig), _sortTime: -(c.inboundHoursAgo ?? 0) };
@@ -10942,7 +11026,7 @@ async function renderConversations(scope = '') {
     listEl.innerHTML = ordered.map(({ c, tier, sig, _prio }) => {
       const initials = c.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
       return `
-        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${!!c.unread}" data-priority="${_prio.score}" data-channel="unattributed" onclick="openConversation('${c.id}','${scope}')">
+        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${!!c.unread}" data-awaiting="${sig.awaitingReply}" data-needshuman="${sig.needsHuman}" data-priority="${_prio.score}" data-channel="unattributed" onclick="openConversation('${c.id}','${scope}')">
           <div class="conv-avatar" style="background:${avatarColor(c.id)}">${initials}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(c.name)}${c.unread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
@@ -11037,7 +11121,7 @@ async function renderConversations(scope = '') {
       // show the channel name in that line instead of leaving it blank.
       const phone = c.leads?.phone || (c.type === 'messenger' ? 'Messenger' : c.type === 'instagram' ? 'Instagram' : '');
       return `
-        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" data-priority="${_prio.score}" data-channel="${convChannelOf(c)}" onclick="openConversation('${c.lead_id}','${scope}')">
+        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" data-awaiting="${sig.awaitingReply}" data-needshuman="${sig.needsHuman}" data-priority="${_prio.score}" data-channel="${convChannelOf(c)}" onclick="openConversation('${c.lead_id}','${scope}')">
           <div class="conv-avatar" style="background:${avatarColor(c.lead_id)};position:relative">${initials}${channelBadge(c.type)}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(name)}${isUnread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
@@ -11063,13 +11147,20 @@ function filterConversations(scope = '') {
   let visibleCount = 0;
   listEl?.querySelectorAll('.conv-item').forEach(el => {
     const matchesText = el.textContent.toLowerCase().includes(q);
+    // Lead stage - single-select, and 'all' means every stage.
     const matchesTier = _activeConvFilter === 'all'
       ? true
-      : _activeConvFilter === 'unread'
-        ? el.dataset.unread === 'true'
-        : el.dataset.tier === _activeConvFilter;
+      : el.dataset.tier === _activeConvFilter;
+    // Operational state - each active chip narrows further, on top of the
+    // stage. "Deposit Ready + Needs Human" is Deposit Ready leads that also
+    // need a person, not the union of the two.
+    const matchesOps = [..._activeConvOps].every(op =>
+      op === 'unread'     ? el.dataset.unread === 'true'
+      : op === 'awaiting'   ? el.dataset.awaiting === 'true'
+      : op === 'needshuman' ? el.dataset.needshuman === 'true'
+      : true);
     const matchesChannel = _activeConvChannel === 'all' ? true : el.dataset.channel === _activeConvChannel;
-    const show = matchesText && matchesTier && matchesChannel;
+    const show = matchesText && matchesTier && matchesOps && matchesChannel;
     el.style.display = show ? '' : 'none';
     if (show) visibleCount++;
   });
@@ -11452,10 +11543,16 @@ async function openConversation(convId, scope = '') {
         <button type="button" class="conv-header-btn" title="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
         <select class="conv-tier-select" title="Set this lead's tier yourself - you know the real situation" onchange="setLeadTier('${convId}', this.value, '${scope}')" style="border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;font-size:0.78rem;color:var(--text-body);background:#fff">
           <option value="new" ${currentTier==='new'?'selected':''}>🆕 New</option>
-          <option value="warm" ${currentTier==='warm'?'selected':''}>🌤 Warm</option>
-          <option value="hot" ${currentTier==='hot'?'selected':''}>🔥 Hot</option>
-          <option value="qualified" ${currentTier==='qualified'?'selected':''}>✅ Qualified (awaiting deposit confirmation)</option>
-          <option value="closed" ${currentTier==='closed'?'selected':''}>✅ Converted</option>
+          <option value="warm" ${currentTier==='warm'?'selected':''}>💬 Engaged</option>
+          <option value="hot" ${currentTier==='hot'?'selected':''}>💰 Deposit Ready</option>
+          <option value="qualified" ${currentTier==='qualified'?'selected':''}>📋 Qualified (awaiting deposit confirmation)</option>
+          ${currentTier==='closed'
+            // Converted is not a tier anyone picks - it is derived from
+            // leads.status === 'converted' via the approval flow. It is shown
+            // here, disabled, only so a genuinely converted lead displays its
+            // true state instead of silently showing the wrong tier.
+            ? `<option value="closed" selected disabled>✅ Converted (verified outcome)</option>`
+            : ''}
         </select>
         <button type="button" class="conv-copy-link-btn" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--text-body);font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
       </div>
@@ -11703,9 +11800,15 @@ async function runInboxMenuAction(action, scope) {
     setConvSort(_convSort === 'priority' ? 'recent' : 'priority', scope);
     return;
   }
+  // 'Unread conversations' predates the stage/operational split - it used to
+  // set the one filter to 'unread'. Same outcome now: every stage, narrowed to
+  // unread. 'All conversations' clears the operational chips too, so it really
+  // does mean everything.
   if (action === 'all' || action === 'unread') {
     if (search) search.value = '';
-    setConvFilter(action, scope);
+    _activeConvOps = action === 'unread' ? new Set(['unread']) : new Set();
+    syncConvOpsChips();
+    setConvFilter('all', scope);
     return;
   }
   if (action === 'clear-search') {

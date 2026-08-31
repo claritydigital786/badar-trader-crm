@@ -67,9 +67,12 @@ assert.match(
   /profile\?\.role === "admin" && !profile\?\.is_suspended/,
   'A suspended Admin must not be allowed to send a pending-approval alert.',
 );
+// `user` became nullable when conversion-hook gained a server-to-server path
+// into this function (Phase 39), so the identity read is optional-chained. The
+// rule it enforces is unchanged: an Agent may notify only for an assigned lead.
 assert.match(
   notificationFunction,
-  /isAssignedAgent[\s\S]{0,180}lead\.assigned_agent_id === user\.id/,
+  /isAssignedAgent[\s\S]{0,180}lead\.assigned_agent_id === user\??\.id/,
   'An Agent may notify only for an assigned lead.',
 );
 assert.match(

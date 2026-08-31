@@ -36,6 +36,231 @@ Muhammad asked whether a second Claude account (`shoaibmazhar1434@gmail.com` - t
 
 ---
 
+## 2026-08-31 (rollout) - targeted production rollout. DB objects applied, notifier deployed, frontend live. TWO ITEMS BLOCKED, both need elevated access.
+
+Minimal-scope rollout for the Pending Approval + deposit-idempotency work. No
+`db push`, no blanket ledger repair, no legacy RLS migration applied.
+
+### What the ledger actually looked like
+
+Documented as 8 legacy migrations without remote rows. The real number was 21
+local-only plus 11 remote-only, and the 21 were a genuine mix: some already
+live (`communication_message_actions`, `additional_whatsapp_numbers`,
+`inbox_conversation_list`), some genuinely absent. So neither `db push` nor a
+blanket `migration repair` was correct, and neither was used.
+
+### Two things that were broken in production and nobody knew
+
+1. **The admin Pending Approval alert had never worked, for two independent
+   reasons.** `pending_approval_notifications` did not exist, AND
+   `notify-admin-pending-approval` had never been deployed at all. The live CRM
+   has been invoking a function that was not there. Both are now fixed.
+2. **`public_form_rate_limits` and `consume_public_form_rate_limit` did not
+   exist**, so the public lead forms had no durable abuse protection.
+
+### Applied, individually, in dependency order
+
+- `pending_approval_notifications` (table, RLS, grants, 2 indexes). Extracted
+  from `20260815102000`, whose `DROP POLICY "settings: agents read wa send
+  creds" ON public.settings` was DELIBERATELY EXCLUDED as an unrelated security
+  change. That policy was verified live before and after and is untouched.
+  Because only part of that migration ran, it is deliberately still marked
+  PENDING in the ledger. Do not mark it applied.
+- `20260814171000` in full (rate limit table + RPC). Self-contained.
+- `20260831041000` in full (Converted guard function + trigger on `leads`).
+- `20260831050000` in full (deposit idempotency table + claim/release RPCs).
+
+Ledger repaired to `applied` for exactly those three that ran verbatim and in
+full, taking pending from 21 to 18. Nothing else was marked.
+
+### Verified against production, not asserted
+
+- All 8 required objects exist.
+- Idempotency RPC, in a rolled-back transaction: first claim `true`, exact
+  replay `false`, different claim `true`.
+- Converted guard, simulating a real non-admin agent in a rolled-back
+  transaction: INTO Converted BLOCKED, OUT OF Converted BLOCKED,
+  `manual_tier='closed'` BLOCKED, and setting Qualified still ALLOWED, so the
+  guard does not over-block.
+- Unrelated state unchanged: policies on `leads` 3, on `settings` 2, the
+  wa-creds policy alive, `settings` 29 rows, `profiles` 9, the single historical
+  `converted` lead still 1 and untouched. Triggers on `leads` went 7 to 8,
+  exactly the one added.
+- Live site byte-identical to committed `index.html`, hierarchy and operational
+  filters and both channel pills present, zero console errors.
+
+### BLOCKED, needs someone with more access
+
+1. **`INTERNAL_FUNCTION_SECRET` could not be set.** The connected account can
+   read secrets and run DB queries but is refused on the secrets write endpoint
+   ("account does not have the necessary privileges"). Until it is set, the
+   form-triggered alert is inert: `conversion-hook` logs `not_configured` and
+   skips it, by design, so deposits still record correctly. The agent-triggered
+   alert from the Inbox is unaffected and now works. Verified live: the function
+   returns 503 "internal function secret is not configured" to an internal call,
+   which is failing closed exactly as intended.
+2. **`conversion-hook` was NOT deployed.** The deploy was refused by the local
+   tooling's permission layer. Production still runs v18, the old code: no
+   idempotency, and still blanking `deposit_account_ref` on the thank-you page's
+   repeat call. The new DB objects it needs are already in place, so deploying
+   it is now a single safe step. `notify-admin-pending-approval` IS deployed
+   (v1) and its `_shared/*.mjs` import bundled fine, which is good evidence the
+   same import in `conversion-hook` will too.
+
+`deno check` still has not run anywhere: Deno is not installed on this laptop.
+
+### No WhatsApp message was sent
+
+Deploying the notifier makes agent-triggered alerts real from now on, which is
+the intended product behaviour. Nothing was triggered from this session. The two
+production checks run against it were an unauthenticated call (401) and a wrong
+internal secret (503), neither of which reaches the send path.
+
+## 2026-08-31 (later still) - merged main into the branch, and fixed a migration timestamp collision that would have silently skipped a migration
+
+`origin/main` moved six commits while the Pending Approval work was in
+progress. Merging it in surfaced two content conflicts and one thing that was
+not a conflict at all and mattered more.
+
+### The collision, which git could not see
+
+A concurrent session landed `20260831040000_conversation_list_view.sql` on
+main. This branch already had `20260831040000_restrict_converted_to_admins.sql`.
+Two DIFFERENT migrations, same version prefix, both calling themselves
+"Phase 38". Git merged them happily because the filenames differ, so nothing
+conflicted and nothing warned. Supabase's ledger keys on that version string,
+so only one could ever be recorded and a `db push` would have silently skipped
+the other. Renamed ours to `20260831041000`, confirmed unused across every ref
+and every file first, contents unchanged, and it still sorts after 040000 and
+before 050000 which is the order it needs. Updated all three references
+(`tests/converted-permission-test.mjs`, `tests/deposit-idempotency-test.mjs`,
+`supabase/schema.sql`).
+
+This does NOT fix the older ledger drift already flagged above. Eight
+migrations still have no matching remote row. That reconciliation is still
+owed before anyone runs a push.
+
+### Conflicts resolved, both sides kept
+
+- `REMAINING_TODOS.md`: append-versus-append at the end of the Questions Log.
+  Both entries kept, main's first.
+- `supabase/schema.sql`: both sides added a Phase 38 block in the same slot.
+  They are independent objects, a view over `communications` and a trigger on
+  `leads`, so both were kept and ours relabelled "Phase 38 (continued)".
+  Neither feature was dropped.
+
+### Also closed while here
+
+`schema.sql` had no record of the Phase 39 deposit-idempotency objects. Since
+`schema.sql` is the rebuild reference and `conversion-hook` calls
+`claim_deposit_submission()`, a rebuild from it would have produced a database
+where the deployed function throws on every live deposit submission. Added
+`deposit_submissions` and both functions to it.
+
+### Verified after the merge
+
+39 of 39 node suites pass. Re-checked in demo preview against the MERGED
+`index.html`, not the pre-merge one: the hierarchy renders All / New / Engaged
+/ Deposit Ready / Qualified / Converted, the three operational filters still AND
+together and narrow, the UAE and Pakistan channel pills are present with main's
+lead-bounded counts from `inbox_conversation_list`, `pending_approval` still
+resolves to Qualified, and a `manual_tier` of `closed` still cannot fake a
+conversion. Console errors are the two pre-existing TradingView CDN embeds,
+unreachable in a sandbox and unchanged from baseline.
+
+Note on `stash@{0}`: it holds an earlier local variant of the country labels
+using a `conv-channel-geo` span. Main shipped the same idea more simply, so the
+stash is now a superseded duplicate. Left untouched as instructed; it is safe to
+drop once someone confirms they want main's version.
+
+Still NOT deployed, migrations still NOT applied, `main` still untouched.
+
+## 2026-08-31 (later) - Pending Approval now actually alerts someone, and one deposit submission is processed exactly once. BUILT AND TESTED, NOT DEPLOYED, MIGRATION NOT APPLIED.
+
+Continues the Converted-is-a-verified-outcome work at `db87ecd`. Two gaps were
+left open there and are closed here. Nothing in this entry is live.
+
+### What was actually wrong, checked in the code rather than assumed
+
+1. **`conversion-hook` told nobody.** A customer completing the deposit form
+   moved the lead to `pending_approval` and stopped. The alert an agent triggers
+   from the Inbox (`notify-admin-pending-approval`) was never called on this
+   path, so a form submission sat unseen until an admin happened to look.
+
+2. **One submission was processed repeatedly, on the normal path, not as a rare
+   refresh edge case.** `join.html` posts the form and then redirects to
+   `thankyou.html`, whose own script calls the same hook AGAIN on load, and
+   again on every refresh. Each call re-ran the whole side effect set.
+
+3. **A live data-loss bug found while reading that path.** The redirect
+   forwarded `lead_id`, `phone`, `platform` and `amount` but NOT `account`, so
+   the second call reached the hook with an empty broker account ref and wrote
+   `deposit_account_ref = NULL` over the value the customer had just typed. The
+   evidence an admin needs to check the IB portal was being destroyed seconds
+   after capture, on every single submission. Confirmed by reading the redirect
+   in `join.html` against `acct || null` in the hook, and reproduced in a local
+   harness before fixing.
+
+### How it works now
+
+- **Idempotency key**: `sha256("v1|lead_id|platform|amount|account_ref")`, with
+  the amount fixed to 2 decimals and the account ref trimmed and lowercased, so
+  "500" and "500.00" are one claim rather than two. Content-based and
+  deterministic, deliberately NOT a timer or an in-memory cooldown, because an
+  Edge Function is stateless and may cold start on any request.
+- **The claim is won in the database**, not in the function: `INSERT ... ON
+  CONFLICT (submission_key) DO UPDATE ... RETURNING (xmax = 0)` inside
+  `claim_deposit_submission()`. Exactly one caller gets TRUE per key even under
+  a race, because uniqueness is the primary key inside one statement. A claim
+  that is won but cannot be completed is released so the customer can retry.
+- **The alert reuses the ONE existing mechanism.** `conversion-hook` calls
+  `notify-admin-pending-approval` over this repo's existing server-to-server
+  path (`x-internal-function-secret`, the same `_shared/internal_auth.mjs`
+  helper `nudge-agents`, `fire-automation` and `send-follow-ups` use), because
+  that function authenticates a browser JWT and this hook is a public endpoint
+  with no user. No second notifier and no second ledger: dedup stays
+  `pending_approval_notifications` keyed `(lead_id, status_changed_at)`, so it
+  is one alert per pending-approval episode. The copy differs by caller, since
+  the form is the customer acting and naming an agent for it would be a lie.
+- The browser path is unchanged: JWT still required, suspended admins still
+  refused, an agent still restricted to an assigned lead.
+
+### Verified here
+
+- 39 of 39 node suites pass (20 pre-existing plus 19 new). Baseline before the
+  work was 20 of 20.
+- Real browser pass against a local harness that serves the actual `join.html`
+  and `thankyou.html` with only the endpoint URL repointed at a local stub, so
+  production was never contacted: submitting the form and refreshing the
+  thank-you page four times produced **5 HTTP calls but 1 transition, 1 activity
+  entry and 1 alert**, with both of the first two calls hashing to the same key
+  (which is the proof `account` now survives the redirect). Distinct claims
+  (different amount, account, platform) each got their own key and were
+  processed. A call carrying no account did not blank the stored one.
+- Inbox re-checked in demo preview: hierarchy renders All / New / Engaged /
+  Deposit Ready / Qualified / Converted; `pending_approval` still computes to
+  Qualified; a `manual_tier` of `closed` still cannot fake a conversion; the
+  three operational filters still AND together and always narrow.
+- **Not run here: `deno check`.** Deno is not installed on this laptop. Both
+  changed functions parse clean under `node --experimental-strip-types --check`,
+  which is a syntax check and NOT a type check. Someone with Deno must run it
+  before the deploy.
+- **Not run here: any SQL.** The migration is unapplied and untested against a
+  real Postgres. `xmax = 0` and the `SECURITY DEFINER` grants are written from
+  the existing `public_form_rate_limits` precedent, not verified by execution.
+
+### Rollout order, and why it cannot be reordered
+
+`20260831050000` MUST be applied before `conversion-hook` is deployed. The
+deployed function calls `claim_deposit_submission()`; if that RPC does not exist
+yet the hook throws and every live deposit submission 500s. The frontend can lag
+safely either way, because the hook no longer blanks a missing account.
+
+`INTERNAL_FUNCTION_SECRET` must exist on `conversion-hook` (it already exists
+for the other three functions). Without it the hook logs `not_configured` and
+skips the alert, silently, which is a fail-open worth catching before rollout
+rather than after.
+
 ## 2026-08-31 - a full day of chatbot and Inbox work reconciled into this file, with every "it is live" claim re-checked against what is actually live
 
 **Why this entry exists.** Thirteen commits landed between 2026-08-30 18:00 and

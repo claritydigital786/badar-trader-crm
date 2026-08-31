@@ -91,8 +91,13 @@
           btn.disabled = false; btn.textContent = 'Submit for Verification';
           return;
         }
+        // account is forwarded deliberately. thankyou.html calls the same hook
+        // again on load, and without it that second call arrived with an empty
+        // account and overwrote the broker reference this submission had just
+        // saved. Carrying it makes both calls one identical claim, which is
+        // what the hook's idempotency key is computed from.
         location.href = 'thankyou.html?' + new URLSearchParams({
-          lead_id: d.lead_id || '', phone: phone, platform: platform, amount: amount
+          lead_id: d.lead_id || '', phone: phone, platform: platform, amount: amount, account: account
         }).toString();
       })
       .catch(function () {
