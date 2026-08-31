@@ -408,6 +408,17 @@
       padding: 24px;
       background: #f8fafc;
     }
+    /* The market ticker belongs on the Dashboard, not in the Inbox (Muhammad,
+       2026-09-01): forex and crypto prices tell an agent nothing while they are
+       answering a lead, and the strip costs the conversation list 46px (74px in
+       the widget's two-row mode below ~1280px).
+       This is not a visual hide with the space kept: every layout offset
+       (.app-shell, .sidebar, .main-content) is derived from --ticker-h, and
+       syncTickerHeight() already computes that from the tickers that are
+       actually visible, so with none visible it resolves to 0px and the whole
+       reservation collapses. The Dashboard's ticker is untouched. */
+    body.inbox-hides-ticker .market-ticker { display: none; }
+
     /* ── Fixed market ticker (bottom bar) ── */
     .market-ticker {
       position: fixed; top: 0; left: 0; right: 0; z-index: 40;
@@ -5255,6 +5266,7 @@ function adminTab(name, el) {
   setSidebarAutoHide(name === 'conversations');
   setWaChannelChip(name === 'conversations');
   setQuickLinksChip(name === 'conversations');
+  setInboxTickerHidden(name === 'conversations');
   if (name === 'agents')           { renderAgentsTable(); updateRoundRobinStatus(); }
   if (name === 'user-manager')     renderAgentsTable('user-manager-tbody');
   if (name === 'settings')         loadGeneralSettings();
@@ -7074,6 +7086,7 @@ function agentTab(name, btn) {
   setSidebarAutoHide(name === 'conversations');
   setWaChannelChip(name === 'conversations', 'agent-');
   setQuickLinksChip(name === 'conversations', 'agent-');
+  setInboxTickerHidden(name === 'conversations');
 }
 
 async function loadAgentLeads() {
@@ -11144,6 +11157,13 @@ function setConvChannel(channel, scope = '') {
   filterConversations(scope);
 }
 
+// Dashboard => ticker rendered. Omnichannel Inbox => not rendered, and the
+// height it reserved is released rather than left as an empty strip.
+function setInboxTickerHidden(hidden) {
+  document.body.classList.toggle('inbox-hides-ticker', !!hidden);
+  window.syncTickerHeight?.();
+}
+
 function closeQuickLinksMenus() {
   document.querySelectorAll('.ql-chip.open').forEach(w => {
     w.classList.remove('open');
@@ -14828,6 +14848,10 @@ function syncAccuracyTracker() {
     });
     document.documentElement.style.setProperty('--ticker-h', Math.round(h) + 'px');
   }
+  // Exposed so the tab router can settle --ticker-h the moment the Inbox is
+  // opened or left, rather than waiting for the poll below. Same function,
+  // same computation.
+  window.syncTickerHeight = syncTickerHeight;
   const ro = new ResizeObserver(syncTickerHeight);
   function watchIframes() {
     document.querySelectorAll('.market-ticker iframe').forEach(function (f) { ro.observe(f); });
