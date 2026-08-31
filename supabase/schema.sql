@@ -2161,3 +2161,15 @@ CREATE POLICY "additional_whatsapp_numbers: admin full access" ON public.additio
 
 -- DONE (Phase 36)
 -- =============================================================
+
+-- =============================================================
+-- Phase 37 - manual_tier gains a real 'qualified' value (Muhammad, 2026-08-31)
+-- Corresponds to supabase/migrations/20260831030000_leads_manual_tier_qualified.sql
+-- =============================================================
+
+ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_manual_tier_check;
+ALTER TABLE public.leads ADD CONSTRAINT leads_manual_tier_check
+  CHECK (manual_tier IS NULL OR manual_tier IN ('new','warm','hot','qualified','closed'));
+
+-- DONE (Phase 37)
+-- =============================================================

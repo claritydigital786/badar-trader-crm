@@ -327,7 +327,51 @@
       height: calc(100vh - var(--ticker-h));
       overflow: hidden;
       min-width: 0;
+      transition: margin-left 0.18s ease;
     }
+    /* Auto-hiding sidebar, Omnichannel Inbox only - Hanzala's request via
+       Muhammad, 2026-08-31: the permanent sidebar was eating space the
+       message composer needed. .sidebar is already position:fixed (out of
+       normal flow), so shrinking it doesn't reclaim space on its own -
+       .main-content's margin-left has to shrink to match, and grow back
+       the moment the mouse leaves. Hovering re-expands the sidebar as an
+       OVERLAY (it stays position:fixed, z-index already above the content)
+       rather than pushing .main-content back out, so hovering to peek at
+       the menu never shifts the conversation underneath. */
+    .sidebar.autohide {
+      width: 14px;
+      overflow: hidden;
+      transition: width 0.18s ease;
+    }
+    .sidebar.autohide::after {
+      content: '';
+      position: absolute;
+      top: 50%; right: 3px;
+      width: 0; height: 0;
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      border-left: 6px solid #94a3b8;
+      transform: translateY(-50%);
+    }
+    .sidebar.autohide .sidebar-brand,
+    .sidebar.autohide .sidebar-nav,
+    .sidebar.autohide .sidebar-footer {
+      opacity: 0;
+      transition: opacity 0.1s ease;
+    }
+    .sidebar.autohide:hover {
+      width: 232px;
+      overflow: visible;
+      box-shadow: 6px 0 24px rgba(0,0,0,.18);
+    }
+    .sidebar.autohide:hover::after { display: none; }
+    .sidebar.autohide:hover .sidebar-brand,
+    .sidebar.autohide:hover .sidebar-nav,
+    .sidebar.autohide:hover .sidebar-footer {
+      opacity: 1;
+      transition: opacity 0.15s ease 0.05s;
+    }
+    .main-content.sidebar-autohide-active { margin-left: 14px; }
     .content-header {
       background: #fff;
       padding: 16px 24px;
@@ -4852,6 +4896,15 @@ function toggleSidebar(forceOpen) {
   overlays.forEach(o => o.classList.toggle('open', open));
 }
 
+// Auto-hides the sidebar down to a thin, hoverable strip - only while the
+// Omnichannel Inbox is the active tab, per Hanzala's request via Muhammad,
+// 2026-08-31 (the permanent sidebar was eating space the message composer
+// needed). Every other tab keeps the sidebar exactly as it always was.
+function setSidebarAutoHide(active) {
+  document.querySelectorAll('.sidebar').forEach(s => s.classList.toggle('autohide', active));
+  document.querySelectorAll('.main-content').forEach(m => m.classList.toggle('sidebar-autohide-active', active));
+}
+
 // Create Flow, Train AI, Follow-ups and Message Templates are no longer
 // top-level tabs - they live inside Bot Manager now. Anything still asking for
 // them by an old bookmark lands on the right section of Bot Manager instead of
@@ -4909,6 +4962,7 @@ function adminTab(name, el) {
   if (name === 'action-items')     renderActionItemsTab();
   if (name === 'leads')            loadAdminLeads();
   if (name === 'conversations')    { renderConversations(); startConvRealtime(); renderQuickLinks(''); } else { stopConvRealtime(); }
+  setSidebarAutoHide(name === 'conversations');
   if (name === 'agents')           { renderAgentsTable(); updateRoundRobinStatus(); }
   if (name === 'user-manager')     renderAgentsTable('user-manager-tbody');
   if (name === 'settings')         loadGeneralSettings();
@@ -6725,6 +6779,7 @@ function agentTab(name, btn) {
   if (name === 'my-leads') loadAgentLeads();
   if (name === 'conversations') { renderConversations('agent-'); startConvRealtime('agent-'); renderQuickLinks('agent-'); } else { stopConvRealtime(); }
   if (name === 'comm-log') loadCommLog('agent-');
+  setSidebarAutoHide(name === 'conversations');
 }
 
 async function loadAgentLeads() {
@@ -10531,7 +10586,16 @@ function computeLeadTier(lead) {
   // nobody has manually classified yet.
   if (lead?.manual_tier) return lead.manual_tier;
   const status = lead?.status || 'new';
-  if (status === 'qualified' || status === 'converted') return 'closed';
+  // Found live 2026-08-31: a real 'qualified' lead (said yes to the $500
+  // deposit, escalated, awaiting an admin's approval against a screenshot -
+  // see the deposit-accuracy mechanism) was showing a green "CONVERTED"
+  // badge, because this used to lump 'qualified' in with 'closed' - the
+  // exact same badge as a lead that has genuinely converted. Muhammad
+  // caught this from a real screenshot (Junaid's own test lead, status
+  // still 'qualified', account_balance still $0). Split apart: only a
+  // truly converted lead is 'closed' now.
+  if (status === 'converted') return 'closed';
+  if (status === 'qualified') return 'qualified';
   const botStage = lead?.bot_stage || 'awaiting_language';
   const needsHuman = !!lead?.needs_human;
   const handoffReason = lead?.handoff_reason || '';
@@ -10567,7 +10631,7 @@ const CONV_PRIORITY_REASONS = [
   { test: /complain|angry|upset|refund|scam|objection/i,       bonus: 30, label: 'Complaint' },
   { test: /human|agent|person|talk|speak|call me/i,            bonus: 25, label: 'Wants agent' },
 ];
-const CONV_TIER_WEIGHT = { hot: 40, warm: 15, new: 10, closed: -100 };
+const CONV_TIER_WEIGHT = { qualified: 45, hot: 40, warm: 15, new: 10, closed: -100 };
 
 // Escalation is a band, not a bonus: anything the bot handed to a human sorts
 // above everything it did not, whatever the other signals say. The reason is
@@ -10700,6 +10764,7 @@ function tierBadge(tier) {
     new:    '<span style="background:#e0e7ff;color:#4338ca;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">NEW</span>',
     warm:   '<span style="background:#fef3c7;color:#b45309;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">WARM</span>',
     hot:    '<span style="background:#fee2e2;color:#b91c1c;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">🔥 HOT</span>',
+    qualified: '<span style="background:#dbeafe;color:#1d4ed8;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">QUALIFIED</span>',
     closed: '<span style="background:#dcfce7;color:#15803d;font-size:0.65rem;font-weight:700;border-radius:8px;padding:1px 6px">CONVERTED</span>',
   };
   return map[tier] || '';
@@ -11332,6 +11397,7 @@ async function openConversation(convId, scope = '') {
           <option value="new" ${currentTier==='new'?'selected':''}>🆕 New</option>
           <option value="warm" ${currentTier==='warm'?'selected':''}>🌤 Warm</option>
           <option value="hot" ${currentTier==='hot'?'selected':''}>🔥 Hot</option>
+          <option value="qualified" ${currentTier==='qualified'?'selected':''}>✅ Qualified (awaiting deposit confirmation)</option>
           <option value="closed" ${currentTier==='closed'?'selected':''}>✅ Converted</option>
         </select>
         <button type="button" class="conv-copy-link-btn" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--text-body);font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
