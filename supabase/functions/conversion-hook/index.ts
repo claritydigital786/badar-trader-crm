@@ -1,8 +1,19 @@
 // Badar Trader CRM - Conversion Hook (deposit-into-own-account model)
-// Called by the deposit-confirmation form / thank-you page on load. Marks the lead
-// converted but UNVERIFIED (verified=false) - agents flip verified=true after
-// checking the broker IB portal. Stores platform, amount, broker account ref, and
-// stamps revenue (leads.account_balance, summed for Dashboard Total Revenue).
+// Called by the deposit-confirmation form / thank-you page on load.
+//
+// 2026-08-31, Muhammad: this used to write status='converted' with
+// verified=false, i.e. it declared a conversion purely because a customer
+// filled in a form, before anyone had checked the broker IB portal. Converted
+// is a VERIFIED business outcome, not a claim, so this now records the
+// submission and parks the lead at 'pending_approval' - it shows in the Inbox
+// under Qualified, and an admin turns it into a real conversion through
+// approveConversion(), which demands a deposit screenshot on file.
+//
+// Everything the form reports is still captured (platform, amount, broker
+// account ref, account_balance) so the admin has the evidence in front of
+// them; only the claim that this IS a conversion is withheld. converted_at is
+// deliberately NOT stamped here - it means "when this genuinely converted",
+// and approveConversion() is what stamps it.
 //
 // Query params: lead_id (UUID) OR phone ; name ; platform ; amount ; account (broker acct ref)
 //
@@ -62,13 +73,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const nowIso = new Date().toISOString();
     const { error: ue } = await sb.from("leads").update({
-      status: "converted",
+      status: "pending_approval",
       verified: false,
       deposit_platform: platform,
       deposit_amount: amount,
       deposit_account_ref: acct || null,
       account_balance: amount,
-      converted_at: nowIso,
       updated_at: nowIso,
     }).eq("id", leadRowId);
     if (ue) throw new Error(ue.message);
@@ -80,12 +90,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const { error: logErr } = await sb.from("communication_logs").insert({
       lead_id: leadRowId,
       type: "note",
-      message: `Deposit confirmation submitted - ${platform} $${amount}${acct ? ", acct " + acct : ""} (pending IB-portal verification)`,
+      message: `Deposit confirmation submitted - ${platform} $${amount}${acct ? ", acct " + acct : ""} (awaiting admin approval and IB-portal verification)`,
       created_by: null,
     });
     if (logErr) console.error("communication_logs insert failed:", logErr.message);
 
-    return new Response(JSON.stringify({ ok: true, lead_id: leadRowId, platform, amount, verified: false }), { headers: CORS });
+    return new Response(JSON.stringify({ ok: true, lead_id: leadRowId, platform, amount, verified: false, status: "pending_approval" }), { headers: CORS });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500, headers: CORS });
   }

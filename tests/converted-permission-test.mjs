@@ -19,30 +19,45 @@ const hook      = readFileSync(new URL('../supabase/functions/conversion-hook/in
 const webhook   = readFileSync(new URL('../supabase/functions/whatsapp-webhook/index.ts', import.meta.url), 'utf8');
 
 // ── UI: the Inbox tier picker ──────────────────────────────
+// Converted is derived from leads.status, never from a picked tier.
 assert.match(
   html,
-  /function canMarkConverted\(\)\s*\{\s*return currentProfile\?\.role === 'admin';/,
-  'canMarkConverted() must gate on the real profile role, not on which inbox scope is open.',
+  /if \(status === 'converted'\) return 'closed';/,
+  'computeLeadTier must derive Converted from leads.status.',
+);
+assert.match(
+  html,
+  /if \(lead\?\.manual_tier && lead\.manual_tier !== 'closed'\) return lead\.manual_tier;/,
+  'A stored manual_tier of closed must never be able to masquerade as a conversion.',
+);
+const tierFnStart = html.indexOf('function computeLeadTier');
+const tierFn = html.slice(tierFnStart, html.indexOf('\n}', tierFnStart));
+// Compare the real statements, not prose - a comment mentioning manual_tier
+// above the status check must not count as the check itself.
+assert.ok(
+  tierFn.indexOf("if (status === 'converted') return 'closed';") <
+  tierFn.indexOf('return lead.manual_tier;'),
+  'Status must be checked BEFORE manual_tier, so no manual value can outrank the real outcome.',
+);
+assert.match(
+  tierFn,
+  /status === 'qualified' \|\| status === 'pending_approval'/,
+  'A deposit form submission parked at pending_approval must show as Qualified, not Converted.',
 );
 const tierSelect = html.slice(
   html.indexOf('<select class="conv-tier-select"'),
   html.indexOf('</select>', html.indexOf('<select class="conv-tier-select"')),
 );
 assert.ok(tierSelect.length > 0, 'The Inbox tier picker must still exist.');
-assert.match(
-  tierSelect,
-  /canMarkConverted\(\)/,
-  'The Converted option in the tier picker must be gated behind canMarkConverted().',
-);
 assert.doesNotMatch(
   tierSelect,
-  /^\s*<option value="closed"(?![^>]*disabled)/m,
-  'Converted must never be an unconditional, enabled option in the tier picker.',
+  /<option value="closed"(?![^>]*disabled)/,
+  'Converted must never be a selectable tier option, for any role.',
 );
 assert.match(
   tierSelect,
   /value="closed" selected disabled/,
-  'An already-converted lead must still show its real tier to an agent, disabled rather than hidden.',
+  'A genuinely converted lead must still show its real state, disabled rather than hidden.',
 );
 for (const tier of ['new', 'warm', 'hot', 'qualified']) {
   assert.match(
@@ -60,8 +75,13 @@ const statusSelect = html.slice(
 assert.ok(statusSelect.length > 0, 'The lead-detail Status dropdown must still exist.');
 assert.match(
   statusSelect,
-  /filter\(s => s !== 'converted' \|\| isAdmin \|\| lead\.status === 'converted'\)/,
-  'Converted must be filtered out of the Status dropdown for non-admins.',
+  /filter\(s => s !== 'converted' \|\| lead\.status === 'converted'\)/,
+  'Converted must be filtered out of the generic Status dropdown for every role - approveConversion is the only route.',
+);
+assert.match(
+  statusSelect,
+  /const lock = \(s === 'converted'\) \? ' disabled' : '';/,
+  'Where Converted is shown at all it must be disabled, never selectable.',
 );
 assert.match(
   statusSelect,
@@ -75,12 +95,17 @@ for (const [name, sql] of [['migration', migration], ['schema.sql', schema]]) {
     `${name} must define the guard function.`);
   assert.match(sql, /BEFORE INSERT OR UPDATE OF manual_tier, status ON public\.leads/,
     `${name} must attach the guard to both INSERT and UPDATE of the two protected columns.`);
-  assert.match(sql, /IF auth\.uid\(\) IS NULL OR public\.is_admin\(\) THEN\s*\n\s*RETURN NEW;/,
-    `${name} must exempt admins and trusted backend (service-role) writes.`);
+  assert.match(sql, /IF is_backend THEN\s*\n\s*RETURN NEW;/,
+    `${name} must exempt trusted backend (service-role) writes, including a future broker-verification path.`);
   assert.match(sql, /NEW\.manual_tier = 'closed' AND old_tier IS DISTINCT FROM 'closed'/,
-    `${name} must block only the transition INTO closed, so unrelated updates on an already-converted lead still work.`);
+    `${name} must stop any signed-in client writing manual_tier='closed'.`);
+  assert.ok(
+    sql.indexOf("NEW.manual_tier = 'closed'") < sql.indexOf('IF public.is_admin() THEN'),
+    `${name} must block manual_tier='closed' BEFORE the admin exemption - it is retired for everyone, not just agents.`);
   assert.match(sql, /NEW\.status = 'converted' AND old_status IS DISTINCT FROM 'converted'/,
-    `${name} must block the transition INTO status=converted the same way.`);
+    `${name} must block an agent moving a lead INTO Converted.`);
+  assert.match(sql, /old_status = 'converted' AND NEW\.status IS DISTINCT FROM 'converted'/,
+    `${name} must block an agent moving a lead OUT of Converted.`);
 }
 assert.doesNotMatch(
   migration,
@@ -94,11 +119,24 @@ assert.match(
   /SUPABASE_SERVICE_ROLE_KEY/,
   'conversion-hook must keep using the service role key, which is what exempts it from the guard.',
 );
-assert.match(
+assert.doesNotMatch(
   hook,
   /status: "converted"/,
-  'conversion-hook remains a legitimate system conversion path.',
+  'An unverified deposit-confirmation form must NOT declare a conversion.',
 );
+assert.match(
+  hook,
+  /status: "pending_approval"/,
+  'conversion-hook must park an unverified deposit submission at pending_approval.',
+);
+assert.doesNotMatch(
+  hook,
+  /converted_at: nowIso/,
+  'converted_at means "when this genuinely converted" - only approveConversion may stamp it.',
+);
+for (const field of ['deposit_platform', 'deposit_amount', 'deposit_account_ref', 'account_balance']) {
+  assert.match(hook, new RegExp(field), `conversion-hook must still record ${field} as evidence for the admin.`);
+}
 assert.match(
   html,
   /document_type', 'deposit_screenshot'[\s\S]{0,400}?Cannot approve - no Deposit Screenshot/,
@@ -118,7 +156,7 @@ assert.doesNotMatch(
 );
 assert.match(
   html,
-  /if \(status === 'qualified'\) return 'qualified';/,
+  /if \(status === 'qualified' \|\| status === 'pending_approval'\) return 'qualified';/,
   'computeLeadTier must keep qualified as its own tier, never folded into closed.',
 );
 

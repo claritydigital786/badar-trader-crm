@@ -7125,15 +7125,15 @@ async function openDetail(leadId, ctx) {
           <span class="detail-label">Status</span>
           <select id="det-status" class="inline-select">
             ${['new','contacted','qualified','proposal_sent','pending_approval','converted','lost']
-              // Converted is admin-only. An agent moves a lead to Pending
-              // Approval instead; approveConversion() is what actually
-              // converts it, and it already demands a deposit screenshot.
-              // A lead that IS converted keeps showing Converted, disabled,
-              // so the agent sees the truth without being able to set it.
-              .filter(s => s !== 'converted' || isAdmin || lead.status === 'converted')
+              // There is exactly ONE way to convert a lead: approveConversion(),
+              // which refuses without a deposit screenshot on file. This generic
+              // dropdown must not be a second, unverified route to the same
+              // state - for an admin either. Converted appears only when the
+              // lead already IS converted, and then only to show the truth.
+              .filter(s => s !== 'converted' || lead.status === 'converted')
               .map(s => {
-                const lock = (s === 'converted' && !isAdmin) ? ' disabled' : '';
-                return `<option value="${s}" ${lead.status===s?'selected':''}${lock}>${statusLabel(s)}${lock ? ' (admin only)' : ''}</option>`;
+                const lock = (s === 'converted') ? ' disabled' : '';
+                return `<option value="${s}" ${lead.status===s?'selected':''}${lock}>${statusLabel(s)}${lock ? ' (set by deposit approval)' : ''}</option>`;
               }).join('')}
           </select>
         </div>
@@ -10649,38 +10649,30 @@ function hiddenMessagesNoticeHtml() {
     <button type="button" onclick="restoreHiddenMessages()">Restore</button></div>` : '';
 }
 
-// Converted is admin/system-only (Muhammad, 2026-08-31). An agent classifies
-// a lead up to Qualified; declaring an actual conversion is an admin action or
-// a trusted backend one (conversion-hook, on the service role key). This is
-// the display half only - the real control is the leads trigger
-// enforce_converted_admin_only(), which rejects the write whether it comes
-// from this UI, the console, or a direct API call.
-function canMarkConverted() {
-  return currentProfile?.role === 'admin';
-}
-
 // Classifies a lead into one of: new, warm, hot, qualified, closed. These are
 // the stored values and they are NOT renamed here; the Inbox shows warm as
 // "Engaged" and hot as "Deposit Ready". Operational state (is_unread,
 // needs_human, awaiting a reply) is checked separately, since any of it can be
 // true of a lead at any stage.
 function computeLeadTier(lead) {
-  // Agents set this themselves now (Badar, 2026-07-14: "the agent should be
-  // the one putting those into each of the sections... they know the exact
-  // situation"). Falls back to the old auto-computed guess only for leads
-  // nobody has manually classified yet.
-  if (lead?.manual_tier) return lead.manual_tier;
   const status = lead?.status || 'new';
-  // Found live 2026-08-31: a real 'qualified' lead (said yes to the $500
-  // deposit, escalated, awaiting an admin's approval against a screenshot -
-  // see the deposit-accuracy mechanism) was showing a green "CONVERTED"
-  // badge, because this used to lump 'qualified' in with 'closed' - the
-  // exact same badge as a lead that has genuinely converted. Muhammad
-  // caught this from a real screenshot (Junaid's own test lead, status
-  // still 'qualified', account_balance still $0). Split apart: only a
-  // truly converted lead is 'closed' now.
+  // Converted is a VERIFIED BUSINESS OUTCOME, not a classification anyone can
+  // pick (Muhammad, 2026-08-31). It is derived from leads.status alone and is
+  // checked before manual_tier, so no manual selection can ever claim a
+  // conversion the approval flow did not grant.
   if (status === 'converted') return 'closed';
-  if (status === 'qualified') return 'qualified';
+  // Agents set this themselves (Badar, 2026-07-14: "the agent should be the
+  // one putting those into each of the sections... they know the exact
+  // situation"), but a stored 'closed' is deliberately ignored: the value is
+  // kept in the CHECK constraint for compatibility (0 rows use it in
+  // production) and no UI writes it any more, so it must not be able to
+  // masquerade as a conversion on a lead whose status says otherwise.
+  if (lead?.manual_tier && lead.manual_tier !== 'closed') return lead.manual_tier;
+  // A submitted deposit-confirmation form parks a lead at 'pending_approval'
+  // (see conversion-hook): the money is claimed but not verified, which is
+  // exactly Qualified - awaiting real confirmation - and explicitly not
+  // Converted.
+  if (status === 'qualified' || status === 'pending_approval') return 'qualified';
   const botStage = lead?.bot_stage || 'awaiting_language';
   const needsHuman = !!lead?.needs_human;
   const handoffReason = lead?.handoff_reason || '';
@@ -11000,7 +10992,7 @@ async function renderConversations(scope = '') {
       const demoLead = _DEMO_LEADS.find(l => l.id === c.leadId) || {};
       const lastFrom = c.messages?.length ? c.messages[c.messages.length - 1].from : null;
       const sig = convPrioritySignals(
-        { manual_tier: tier, needs_human: demoLead.needs_human, handoff_reason: demoLead.handoff_reason, is_unread: !!c.unread },
+        { status: c.status, manual_tier: tier, needs_human: demoLead.needs_human, handoff_reason: demoLead.handoff_reason, is_unread: !!c.unread },
         { direction: lastFrom === 'lead' ? 'inbound' : 'outbound', hoursAgo: c.inboundHoursAgo },
       );
       return { c, tier, sig, _prio: convPriority(sig), _sortTime: -(c.inboundHoursAgo ?? 0) };
@@ -11512,15 +11504,13 @@ async function openConversation(convId, scope = '') {
           <option value="warm" ${currentTier==='warm'?'selected':''}>💬 Engaged</option>
           <option value="hot" ${currentTier==='hot'?'selected':''}>💰 Deposit Ready</option>
           <option value="qualified" ${currentTier==='qualified'?'selected':''}>📋 Qualified (awaiting deposit confirmation)</option>
-          ${canMarkConverted()
-            ? `<option value="closed" ${currentTier==='closed'?'selected':''}>✅ Converted</option>`
-            : currentTier==='closed'
-              // Already converted by an admin or the deposit form: an agent
-              // still has to SEE the real state, so the option is shown and
-              // disabled rather than dropped, which would silently display
-              // the wrong tier.
-              ? `<option value="closed" selected disabled>✅ Converted (admin only)</option>`
-              : ''}
+          ${currentTier==='closed'
+            // Converted is not a tier anyone picks - it is derived from
+            // leads.status === 'converted' via the approval flow. It is shown
+            // here, disabled, only so a genuinely converted lead displays its
+            // true state instead of silently showing the wrong tier.
+            ? `<option value="closed" selected disabled>✅ Converted (verified outcome)</option>`
+            : ''}
         </select>
         <button type="button" class="conv-copy-link-btn" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--text-body);font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
       </div>

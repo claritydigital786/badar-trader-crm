@@ -2175,14 +2175,16 @@ ALTER TABLE public.leads ADD CONSTRAINT leads_manual_tier_check
 -- =============================================================
 
 -- =============================================================
--- Phase 38 - Converted is admin/system-only (Muhammad, 2026-08-31)
+-- Phase 38 - Converted is a verified business outcome (Muhammad, 2026-08-31)
 -- Corresponds to supabase/migrations/20260831040000_restrict_converted_to_admins.sql
 --
--- Agents classify a lead up to Qualified. Only an admin, or a trusted backend
--- path on the service role key (conversion-hook, the deposit-confirmation
--- form), may declare an actual conversion. RLS is intentionally unchanged -
--- `leads: agent update own` still gives an agent every other column on their
--- own leads; this narrows two specific value transitions only.
+-- Converted means leads.status = 'converted', reached through the deposit
+-- approval flow. It is never a manual classification: agents classify up to
+-- Qualified and may move a lead neither INTO nor OUT of Converted, and
+-- manual_tier='closed' is retired as a way to express it (the value stays in
+-- the CHECK constraint - 0 rows use it - but no signed-in client may write it
+-- and computeLeadTier() ignores it). Admins and service-role paths are exempt
+-- where appropriate. RLS is intentionally unchanged.
 -- =============================================================
 
 CREATE OR REPLACE FUNCTION public.enforce_converted_admin_only()
@@ -2190,20 +2192,31 @@ RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
   old_tier   TEXT := CASE WHEN TG_OP = 'UPDATE' THEN OLD.manual_tier ELSE NULL END;
   old_status TEXT := CASE WHEN TG_OP = 'UPDATE' THEN OLD.status      ELSE NULL END;
+  is_backend BOOLEAN := auth.uid() IS NULL;
 BEGIN
-  IF auth.uid() IS NULL OR public.is_admin() THEN
+  IF is_backend THEN
     RETURN NEW;
   END IF;
 
   IF NEW.manual_tier = 'closed' AND old_tier IS DISTINCT FROM 'closed' THEN
     RAISE EXCEPTION
-      'Only an admin can mark a lead Converted. Set the lead to Qualified and ask an admin to approve the deposit.'
+      'Converted is not a manual tier. It is set by the deposit approval flow (leads.status), never by picking a tier.'
       USING ERRCODE = '42501';
+  END IF;
+
+  IF public.is_admin() THEN
+    RETURN NEW;
   END IF;
 
   IF NEW.status = 'converted' AND old_status IS DISTINCT FROM 'converted' THEN
     RAISE EXCEPTION
-      'Only an admin can set a lead to Converted. Use Pending Approval so an admin can approve the deposit.'
+      'Only an admin can convert a lead. Set it to Pending Approval so an admin can approve the deposit.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF old_status = 'converted' AND NEW.status IS DISTINCT FROM 'converted' THEN
+    RAISE EXCEPTION
+      'Only an admin can move a lead out of Converted.'
       USING ERRCODE = '42501';
   END IF;
 
