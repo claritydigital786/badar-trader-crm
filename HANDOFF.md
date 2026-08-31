@@ -4,6 +4,24 @@ _Last updated: 2026-08-31, same day, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
 
+## 2026-08-31 (later still) - Hanzala unblocked and added to the live agent test, Muhammad taken out, commit `1e8e8eb`
+
+Hanzala sent a real screenshot of a genuine WhatsApp CRM send failure ("Your account does not have access to send messages") while trying to reply to a real customer - a tense moment for him. Traced to the actual code rather than guessed: `send-wa-message`'s own permission check (`index.ts:301`) correctly refuses to let an agent send on a lead assigned to someone else; that specific lead (`acb251b2-df52-4a03-bcfc-c68c654323e0`, matched by his own distinctive follow-up text) had auto-assigned to Muhammad's own throwaway test-agent profile, not to Hanzala, because Hanzala's `receives_leads` was still `false` (the same open item flagged since 08-27). Not a bug, working as designed, but exactly the wrong moment for it.
+
+Muhammad's decision, given directly in chat: extract himself from the agent rotation entirely, and widen the live notification/round-robin test from Ehsan alone to Ehsan + Hanzala. Done:
+1. Reassigned the stuck lead to Hanzala directly so he could reply.
+2. Muhammad's test-agent profile's `receives_leads` flipped to `false` - fully out, not just unnotified.
+3. Hanzala's `receives_leads` flipped to `true` - in rotation now.
+4. `AGENT_NOTIFY_TEST_NUMBERS` in `whatsapp-webhook/index.ts` swapped Muhammad's test number for Hanzala's real one.
+
+`deno check` clean, all suites pass, deployed `whatsapp-webhook` v112.
+
+**Separately, earlier the same stretch:** traced why new-lead WhatsApp pings were failing for both test numbers - confirmed via the live `communications` log, every single ping attempt in the preceding hour hit WhatsApp's own `131047` "24 hour re-engagement window" rejection, not a bug in the assignment/notify code itself. The durable fix (a Meta-approved notification template, works regardless of the 24h window) is still a real, separate piece of work, not built.
+
+**Also flagged as a real incident, not glossed over:** while chasing the Inbox's 1000-row cap (see the entry below - the real cap turned out to be the Supabase project's own `max_rows` API setting, not the query), a `supabase config push` was run to raise it and instead pushed several stale, unrelated local-dev values from `supabase/config.toml` onto live Auth settings (MFA enroll/verify, email confirmation) before failing partway on an unrelated Storage/paid-tier error - the `max_rows` change itself never even landed. Stopped immediately, told Muhammad plainly, and asked him to verify and restore the real Auth settings himself in the dashboard rather than risk another blind CLI push. **Still needs someone to confirm this session's fully resolved** - Muhammad was mid-check (Confirm Email showed off, matching the concern) when this entry was written; Multi-Factor still needs the same check.
+
+---
+
 ## 2026-08-31 (latest) - Omnichannel Inbox pagination avoided at the root, commit `64df19c`
 
 Muhammad asked directly: "can't we avoid pagination? Has the 1000 rows' limit been exhausted?" Both halves answered by checking live data, not assuming. Yes, actively exhausted: 13,870 real `communications` rows match the Inbox's type filter against PostgREST's hard 1,000-row default, against only 2,024 real leads. Pagination itself is avoidable - the design flaw was bounding the query by MESSAGE count (fast-growing) instead of CONVERSATION/lead count (slow-growing).
@@ -28,7 +46,7 @@ Muhammad asked directly: "can't we avoid pagination? Has the 1000 rows' limit be
 
 ### Still open, unchanged
 
-Real agents (Farwa, Hanzala, Bilal, Faisal) are still out of lead rotation with `receives_leads = false`, waiting on Muhammad's go-ahead. The live OpenAI API key still wants rotating (passed through a diagnostic command on 08-30). **Junaid's admin access**: he asked to be given full admin rights matching Muhammad's, but no `profiles` row exists under his name or any `junaid` email - nothing to promote yet. Still needs Muhammad to say which real login Junaid actually signs in with, or confirm a new one should be created.
+Real agents (Farwa, Bilal, Faisal) are still out of lead rotation with `receives_leads = false`, waiting on Muhammad's go-ahead. **Hanzala flipped to `receives_leads = true` on 2026-08-31**, alongside Ehsan (Muhammad's own explicit go-ahead, widening the live notification/round-robin test to the two of them - Muhammad's own test-agent profile was removed from rotation in the same change, see the entry below). The live OpenAI API key still wants rotating (passed through a diagnostic command on 08-30). **Junaid's admin access - RESOLVED 2026-08-31**: Muhammad clarified Junaid signs into the CRM through Badar's own login (`syedbadartk@gmail.com`, confirmed `role: admin` in `profiles`), not a separate account - so he already has full admin access to everything. Nothing to promote or create; this is not an open item.
 
 ### On "picking up ongoing work from a different Claude account" - answered directly, 2026-08-31
 
