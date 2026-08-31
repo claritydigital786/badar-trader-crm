@@ -1299,18 +1299,58 @@
       background: rgba(37,211,102,.12);
       color: #6ee7b7;
     }
-    .conv-chat-header { flex:0 0 auto; padding:8px 16px; border-bottom:1px solid #d1d7db; display:flex; align-items:center; gap:12px; background:#f0f2f5; min-height:0; }
+    /* Conversation header, rebuilt 2026-09-01 (Muhammad). The identity block
+       was flex:1 min-width:0 while the stage <select> was flex-shrink:0 with no
+       width cap, so the select sized itself off its longest option
+       ("Qualified (awaiting deposit confirmation)") and ellipsised the lead's
+       name down to nothing - which is why only the avatar read clearly. The
+       select is now width-banded and the identity gets a real minimum, so the
+       order is identity, timer, stage, spacer, actions. */
+    .conv-chat-header {
+      flex:0 0 auto; display:flex; align-items:center; gap:10px;
+      padding:7px 14px; min-height:0;
+      border-bottom:1px solid #d1d7db; background:#f0f2f5;
+    }
     /* The header now carries a countdown pill and an info button as well as
        the tier select and copy-link button, so the name block has to be the
        thing that gives way rather than the controls getting clipped. */
-    .conv-chat-header-info { flex:1; min-width:0; }
+    /* Enough room that a normal full name is never truncated, and it is the
+       element that grows when there is spare width. */
+    .conv-chat-header-info { flex:1 1 auto; min-width:168px; }
     .conv-chat-header-info h3,
     .conv-chat-header-info p { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .conv-chat-header > button,
     .conv-chat-header > select,
     .conv-chat-header > .conv-window-pill { flex-shrink:0; }
-    .conv-chat-header-info h3 { color:#111b21; font-size:1rem; font-weight:500; margin:0 0 1px; }
-    .conv-chat-header-info p { color:#667781; font-size:0.8125rem; margin:0; display:flex; align-items:center; gap:8px; }
+    .conv-chat-header-info h3 { color:#111b21; font-size:0.98rem; font-weight:600; margin:0 0 1px; line-height:1.25; }
+    .conv-chat-header-info p { color:#667781; font-size:0.76rem; margin:0; display:flex; align-items:center; gap:7px; line-height:1.2; }
+    .conv-header-phone { color:#8696a0; font-variant-numeric:tabular-nums; }
+
+    /* Stage selector: banded rather than intrinsic, so a long option can no
+       longer steal the header. */
+    .conv-tier-select {
+      flex:0 1 300px; width:300px; min-width:210px; max-width:320px;
+      border:1px solid #cbd5e1; border-radius:8px; padding:6px 8px;
+      font-size:0.78rem; color:var(--text-body); background:#fff;
+      font-family:inherit;
+    }
+
+    /* The three utility actions plus Copy Link, pinned to the far right.
+       margin-left:auto is the flexible spacer. */
+    .conv-header-actions {
+      display:flex; align-items:center; gap:4px;
+      margin-left:auto; flex-shrink:0;
+    }
+    /* Retained deliberately: copyConvLink() is still defined, so this styling
+       stays with it for whenever the action is given a home. Nothing renders
+       with this class today - the conversation header's action group is Search,
+       Mark as Unread and Contact Info only (Muhammad, 2026-09-01). */
+    .conv-copy-link-btn {
+      border:1px solid #cbd5e1; background:#fff; border-radius:8px;
+      padding:6px 10px; cursor:pointer; color:var(--text-body);
+      font-size:0.78rem; white-space:nowrap; font-family:inherit;
+    }
+    .conv-copy-link-btn:hover { background:#f0f2f5; }
     /* WhatsApp's wallpaper: the beige base plus a faint doodle. The real
        artwork is a Meta asset, so this is a self-contained approximation at
        the same tone rather than a hotlinked image. */
@@ -1624,9 +1664,27 @@
     .conv-contact-row + .conv-contact-row { margin-top: 12px; }
     .conv-header-btn {
       border: none; background: transparent; border-radius: 50%;
-      width: 34px; height: 34px; cursor: pointer; color: #54656f; font-size: 0.95rem; flex-shrink: 0;
+      width: 38px; height: 38px; cursor: pointer; color: #54656f;
+      font-size: 0.95rem; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .12s;
     }
-    .conv-header-btn:hover { background: #e9edef; }
+    .conv-header-btn:hover { background: #e2e7ea; }
+    .conv-header-btn:active { background: #d6dde1; }
+    .conv-header-btn:focus-visible { outline: 2px solid #00a884; outline-offset: -2px; }
+
+    /* Degrade in the order asked for: the secondary phone line goes first,
+       then the gaps, then the stage selector narrows. The lead's name and the
+       action group never move. */
+    @media (max-width: 1340px) {
+      .conv-chat-header { gap:8px; padding:7px 12px; }
+      .conv-chat-header-info p { display:none; }
+      .conv-header-actions { gap:2px; }
+    }
+    /* 300px is what the longest option actually needs at this font (measured:
+       254px of text plus 18px of padding/border plus the native arrow), so the
+       select keeps that width at every desktop size and the secondary phone
+       line gives way instead. */
 
     /* ── 24-hour window pill (catalog C2) ── */
     .conv-window-pill {
@@ -1644,7 +1702,12 @@
     [data-theme="dark"] .conv-contact-value   { color: #e9edef; }
     [data-theme="dark"] .conv-contact-sub     { color: #8696a0; }
     [data-theme="dark"] .conv-header-btn        { color: #aebac1; }
-    [data-theme="dark"] .conv-header-btn:hover  { background: #202c33; }
+    [data-theme="dark"] .conv-header-btn:hover  { background: #2a3942; }
+    [data-theme="dark"] .conv-header-btn:active { background: #33444e; }
+    [data-theme="dark"] .conv-header-phone      { color: #8696a0; }
+    [data-theme="dark"] .conv-tier-select       { background:#2a3942; border-color:#34434b; color:#d1d7db; }
+    [data-theme="dark"] .conv-copy-link-btn     { background:#2a3942; border-color:#34434b; color:#d1d7db; }
+    [data-theme="dark"] .conv-copy-link-btn:hover { background:#33444e; }
     [data-theme="dark"] .conv-window-pill        { background: #103529; color: #00a884; }
     [data-theme="dark"] .conv-window-pill.warn   { background: #3f2d0a; color: #fbbf24; }
     [data-theme="dark"] .conv-window-pill.closed { background: #4a1717; color: #f87171; }
@@ -11769,15 +11832,16 @@ async function openConversation(convId, scope = '') {
       <div class="conv-chat-header">
         <div class="conv-avatar" style="background:${avatarColor(conv.id)}">${initials}</div>
         <div class="conv-chat-header-info">
-          <h3>${esc(conv.name)}</h3>
-          <p>${esc(conv.phone)}&nbsp;&nbsp;${statusBadge(conv.status)}</p>
+          <h3 title="${esc(conv.name || conv.phone || 'Unknown')}">${esc(conv.name || conv.phone || 'Unknown')}</h3>
+          <p>${conv.name ? `<span class="conv-header-phone">${esc(conv.phone)}</span>` : ''}${statusBadge(conv.status)}</p>
         </div>
         <span class="conv-window-pill${demoWindow.tone === 'ok' ? '' : ' ' + demoWindow.tone}" id="${scope}conv-window-pill"
           title="How long WhatsApp will still accept a free-form reply on this conversation">${esc(demoWindow.label)}</span>
-        <button type="button" class="conv-header-btn" title="Search in this conversation" onclick="toggleConvMsgSearch()">🔍</button>
-        <button type="button" class="conv-header-btn" title="Mark as unread and go back to the list" onclick="markConversationUnread('${convId}','${scope}')">📩</button>
-        <button type="button" class="conv-header-btn" title="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
-        <button type="button" class="conv-copy-link-btn" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--text-body);font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
+        <div class="conv-header-actions">
+          <button type="button" class="conv-header-btn" title="Search in this conversation" aria-label="Search in this conversation" onclick="toggleConvMsgSearch()">🔍</button>
+          <button type="button" class="conv-header-btn" title="Mark as unread and go back to the list" aria-label="Mark as unread" onclick="markConversationUnread('${convId}','${scope}')">📩</button>
+          <button type="button" class="conv-header-btn" title="Contact info" aria-label="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
+        </div>
       </div>
       <div class="conv-msg-search" id="conv-msg-search" style="display:none">
         <input type="text" id="conv-msg-search-input" placeholder="Search in this conversation…"
@@ -11886,15 +11950,12 @@ async function openConversation(convId, scope = '') {
       <div class="conv-chat-header">
         <div class="conv-avatar" style="background:${avatarColor(convId)}">${initials}</div>
         <div class="conv-chat-header-info">
-          <h3>${esc(lead?.full_name || 'Unknown')}</h3>
-          <p>${esc(lead?.phone || '')} ${statusBadge(lead?.status || 'new')}</p>
+          <h3 title="${esc(lead?.full_name || lead?.phone || 'Unknown')}">${esc(lead?.full_name || lead?.phone || 'Unknown')}</h3>
+          <p>${lead?.full_name ? `<span class="conv-header-phone">${esc(lead?.phone || '')}</span>` : ''}${statusBadge(lead?.status || 'new')}</p>
         </div>
         <span class="conv-window-pill${waWindow.tone === 'ok' ? '' : ' ' + waWindow.tone}" id="${scope}conv-window-pill"
           title="How long WhatsApp will still accept a free-form reply on this conversation">${esc(waWindow.label)}</span>
-        <button type="button" class="conv-header-btn" title="Search in this conversation" onclick="toggleConvMsgSearch()">🔍</button>
-        <button type="button" class="conv-header-btn" title="Mark as unread and go back to the list" onclick="markConversationUnread('${convId}','${scope}')">📩</button>
-        <button type="button" class="conv-header-btn" title="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
-        <select class="conv-tier-select" title="Set this lead's tier yourself - you know the real situation" onchange="setLeadTier('${convId}', this.value, '${scope}')" style="border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;font-size:0.78rem;color:var(--text-body);background:#fff">
+        <select class="conv-tier-select" title="Set this lead's tier yourself - you know the real situation" onchange="setLeadTier('${convId}', this.value, '${scope}')">
           <option value="new" ${currentTier==='new'?'selected':''}>🆕 New</option>
           <option value="warm" ${currentTier==='warm'?'selected':''}>💬 Engaged</option>
           <option value="hot" ${currentTier==='hot'?'selected':''}>💰 Deposit Ready</option>
@@ -11907,7 +11968,11 @@ async function openConversation(convId, scope = '') {
             ? `<option value="closed" selected disabled>✅ Converted (verified outcome)</option>`
             : ''}
         </select>
-        <button type="button" class="conv-copy-link-btn" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--text-body);font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
+        <div class="conv-header-actions">
+          <button type="button" class="conv-header-btn" title="Search in this conversation" aria-label="Search in this conversation" onclick="toggleConvMsgSearch()">🔍</button>
+          <button type="button" class="conv-header-btn" title="Mark as unread and go back to the list" aria-label="Mark as unread" onclick="markConversationUnread('${convId}','${scope}')">📩</button>
+          <button type="button" class="conv-header-btn" title="Contact info" aria-label="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
+        </div>
       </div>
       <div class="conv-msg-search" id="conv-msg-search" style="display:none">
         <input type="text" id="conv-msg-search-input" placeholder="Search in this conversation…"
