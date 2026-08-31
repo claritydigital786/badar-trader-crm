@@ -630,7 +630,23 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         const hoursIdle = Number.isFinite(lastTouchMs) ? (Date.now() - lastTouchMs) / 3600000 : 0;
         const needsStaleRestart = !wasCreated && !input.selectionId && hoursIdle >= DECLINED_RESTART_HOURS &&
           (MIDFLOW_RESTART_STAGES.includes(lead.bot_stage) || lead.bot_stage === "declined");
-        const isStageAnswer = wasCreated || needsStaleRestart || matchesCurrentStage(lead, input);
+        // Found live, 2026-08-31 (real customer, real anger - Hanzala's test
+        // lead went silent on a genuine question): once a lead is escalated,
+        // its bot_stage is frozen and meaningless, but matchesCurrentStage()
+        // was still being evaluated against it - a message that merely
+        // CONTAINS a matched keyword ("signal" anywhere in "kaisay signal
+        // group join kar sakta hoon", a real question, not a menu pick) got
+        // misread as "the answer to the stage the funnel is stuck on," which
+        // sent it into runBotStep() instead of the AI. runBotStep's very
+        // first line then silently returns for an escalated, not-yet-stale
+        // lead - exactly the "answer nothing" behavior the whole 2026-08-30
+        // escalated-reply redesign was built to stop, undone by this one
+        // routing check running before that policy ever got a say.
+        // needsStaleRestart is deliberately still allowed to force this true
+        // - a genuinely 24h+ dormant escalated lead SHOULD still hit the
+        // funnel's own restart logic (MIDFLOW_RESTART_STAGES includes
+        // "qualified"), that mechanism is untouched.
+        const isStageAnswer = wasCreated || needsStaleRestart || (!lead.needs_human && matchesCurrentStage(lead, input));
 
         // Logging the inbound message doesn't need to finish before the bot
         // can respond - neither depends on the other's result, so they run
@@ -2297,6 +2313,15 @@ async function sendLanguageCard(to: string): Promise<SendResult> {
   );
 }
 
+// The "Premium Signalling Group" row used to read "join for free, no deposit
+// required" - a real, false claim, caught live on 2026-08-31 in a real
+// customer's transcript (Muhammad's own brother tested it) and confirmed
+// against Exness's own partner-tier incentive for Badar. The true rule,
+// same for both menu rows: the $500 deposit through Badar's own referral
+// link is the one condition for either reward (the free course or free
+// signals access) - it is never free-standing, and the $500 is always the
+// customer's own money staying in their own broker account, never sent to
+// Badar. See the matching fix in the AI's own system prompt/knowledge base.
 async function sendMainMenuCard(to: string, lang: Lang): Promise<SendResult> {
   if (lang === "ur") {
     return await sendList(
@@ -2305,8 +2330,8 @@ async function sendMainMenuCard(to: string, lang: Lang): Promise<SendResult> {
       "Aaj hum aap ki kaise madad kar sakte hain.\n\nBraye meherbani neeche main menu se apna pasandeeda option chunein:",
       "Menu",
       [
-        { id: "menu_start_trading", title: "Trading Shuru Karein", description: "$500 offer + free mentorship course" },
-        { id: "menu_free_signals", title: "Premium Signalling Group", description: "Join karein - By Badar Tanvir, bilkul free, deposit zaroori nahi" },
+        { id: "menu_start_trading", title: "Trading Shuru Karein", description: "Badar ke referral se $500 deposit - free $250 course unlock hoga" },
+        { id: "menu_free_signals", title: "Premium Signalling Group", description: "Badar ke referral se $500 deposit - free access unlock hoga" },
         { id: "menu_talk_agent", title: "Agent se Baat Karein", description: "Hamari team se rabta karein" },
         { id: "menu_faqs", title: "FAQs", description: "Aam sawalat ke jawabat" },
         { id: "nav_back", title: "Peeche Jayein", description: "Language selection par wapas jayein" },
@@ -2320,8 +2345,8 @@ async function sendMainMenuCard(to: string, lang: Lang): Promise<SendResult> {
     "Here's how we can help you today.\n\nPlease select your preferred option from the main menu below:",
     "Menu",
     [
-      { id: "menu_start_trading", title: "Start Trading", description: "$500 offer + free mentorship course" },
-      { id: "menu_free_signals", title: "Premium Signalling Group", description: "By Badar Tanvir, join for free, no deposit required" },
+      { id: "menu_start_trading", title: "Start Trading", description: "Deposit $500 via Badar's own referral link - unlocks the free $250 course" },
+      { id: "menu_free_signals", title: "Premium Signalling Group", description: "Deposit $500 via Badar's own referral link - unlocks free access" },
       { id: "menu_talk_agent", title: "Talk to an Agent", description: "Connect with our team" },
       { id: "menu_faqs", title: "FAQs", description: "Common questions answered" },
       { id: "nav_back", title: "Go Back", description: "Back to language selection" },
