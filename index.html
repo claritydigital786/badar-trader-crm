@@ -2906,29 +2906,61 @@
   <!-- Meta Integration -->
   <div id="admin-tab-connect-whatsapp" class="tab-content">
     <h3>Connect WhatsApp</h3>
-    <p style="color:var(--text-muted);font-size:0.85rem;margin:2px 0 18px">Real connection health for both WhatsApp numbers, checked live against Meta - nothing here is stored or estimated.</p>
+    <p style="color:var(--text-muted);font-size:0.85rem;margin:2px 0 18px">Manage numbers, sync info, and connection health - real data, checked live against Meta.</p>
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:20px">
-      <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <div style="font-weight:700;font-size:0.95rem;color:var(--text-strong)">6541 <span style="font-weight:400;color:var(--text-muted);font-size:0.8rem">&middot; Main line, full bot</span></div>
-        </div>
-        <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:12px">The number the scripted funnel, keyword replies and the AI all send from.</p>
-        <button class="btn btn-secondary btn-sm" id="wa-status-check-btn-6541" onclick="checkWhatsAppStatus('primary','wa-status-check-btn-6541','wa-status-result-6541')">Check Connection</button>
-        <div id="wa-status-result-6541" style="margin-top:14px"></div>
+    <!-- Summary tiles -->
+    <div class="stat-grid" id="cw-summary-tiles" style="margin-bottom:20px">
+      <div class="stat-card">
+        <div class="stat-label">Business Accounts</div>
+        <div class="stat-value" id="cw-tile-accounts">1</div>
+        <div class="stat-trend">Trade Campus</div>
       </div>
-      <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <div style="font-weight:700;font-size:0.95rem;color:var(--text-strong)">3903 <span style="font-weight:400;color:var(--text-muted);font-size:0.8rem">&middot; Ingest only</span></div>
-        </div>
-        <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:12px">Real leads and messages land in the Inbox from this number, but no automated reply of any kind is sent from it yet.</p>
-        <button class="btn btn-secondary btn-sm" id="wa-status-check-btn-3903" onclick="checkWhatsAppStatus('3903','wa-status-check-btn-3903','wa-status-result-3903')">Check Connection</button>
-        <div id="wa-status-result-3903" style="margin-top:14px"></div>
+      <div class="stat-card">
+        <div class="stat-label">Phone Numbers</div>
+        <div class="stat-value" id="cw-tile-numbers">-</div>
+        <div class="stat-trend">Across all connected accounts</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Expiring Soon</div>
+        <div class="stat-value" id="cw-tile-expiring">0</div>
+        <div class="stat-trend">Not tracked yet - System User tokens don't expire the same way</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Disconnected</div>
+        <div class="stat-value" id="cw-tile-disconnected">-</div>
+        <div class="stat-trend">Based on the last check below</div>
       </div>
     </div>
 
-    <div class="info-box">
-      Adding a new number, disabling one, or removing one aren't built yet - a first design has been reviewed and is waiting on a real decision for what each of those actions should actually do against Meta's API before any of it touches live number management. This page only shows the real, current health of the two numbers already connected.
+    <!-- Connect Another Account -->
+    <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px">
+      <div>
+        <div style="font-weight:700;color:var(--text-strong)">Connect Another WhatsApp Business Account</div>
+        <p style="color:var(--text-muted);font-size:0.82rem;margin-top:2px;max-width:52ch">Saves a new number for reference. Making it actually send or receive real messages is a separate step (real Meta credentials + a code change) that still needs Muhammad's own laptop, the same way 6541 and 3903 were each really connected.</p>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openAddWaNumberForm()" style="white-space:nowrap">+ Add Phone Number</button>
+    </div>
+
+    <!-- Add Phone Number form -->
+    <div class="card" id="cw-add-form" style="display:none;margin-bottom:20px">
+      <p class="section-h" style="margin-top:0">Add Phone Number (reference only)</p>
+      <label>Label <span style="color:var(--text-muted);font-weight:400">(e.g. "Support Line 2")</span></label>
+      <input type="text" id="cw-add-label" placeholder="Label" />
+      <label>Phone Number ID <span style="color:var(--text-muted);font-weight:400">(from Meta WhatsApp Manager)</span></label>
+      <input type="text" id="cw-add-phone-id" placeholder="e.g. 123456789012345" />
+      <label>Notes (optional)</label>
+      <textarea id="cw-add-notes" rows="2" placeholder="What this number is for, who owns it, etc."></textarea>
+      <div class="form-actions">
+        <button class="btn btn-primary btn-inline" onclick="saveAddWaNumber()">Save</button>
+        <button class="btn btn-secondary btn-inline" onclick="closeAddWaNumberForm()">Cancel</button>
+        <span class="success-msg" id="cw-add-msg"></span>
+      </div>
+    </div>
+
+    <!-- Business Accounts -->
+    <p class="section-h">Business Accounts</p>
+    <div class="card" style="padding:0" id="cw-business-accounts">
+      <div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">Loading…</div>
     </div>
   </div>
 
@@ -4881,6 +4913,7 @@ function adminTab(name, el) {
   if (name === 'user-manager')     renderAgentsTable('user-manager-tbody');
   if (name === 'settings')         loadGeneralSettings();
   if (name === 'meta')             loadMetaSettings();
+  if (name === 'connect-whatsapp') renderConnectWhatsappTab();
   if (name === 'social-facebook')  loadSocialSettings();
   if (name === 'social-instagram') loadInstagramStatus();
   if (name === 'meta-ads')         initMetaAnalytics();
@@ -6354,6 +6387,176 @@ async function checkWhatsAppStatus(number = 'primary', btnId = 'wa-status-check-
       <div><div class="stat-label">Verification</div><div style="font-weight:600">${esc(data.code_verification_status || '-')}</div></div>
       <div><div class="stat-label">Checked</div><div style="font-weight:600">just now</div></div>
     </div>`;
+}
+
+// ── CONNECT WHATSAPP (full management page, 2026-08-31) ─────────────────
+// Muhammad asked for the WhatChimp-style "WhatsApp Integration" page built
+// for real, not just the single-number health check. Only one real WABA
+// exists (Trade Campus, 1342908727797643, confirmed live in WhatsApp
+// Manager 2026-08-17), so "Business Accounts" is exactly that one entry -
+// this is not a guess or a placeholder, it is the real count.
+//
+// What's real here: both numbers' live status (via whatsapp-status),
+// "Manage"/"Manage Account" (real external links into Meta's own WhatsApp
+// Manager/Business Settings for this WABA - the user clicks through
+// themselves, this session navigates nowhere), and "Add Phone Number"
+// (a genuine reference row in additional_whatsapp_numbers).
+//
+// What's deliberately NOT a live Meta action: "Disable" on 6541 toggles the
+// same BOT_REPLIES_ENABLED gate Bot Manager already exposes (real,
+// reversible, already-existing capability, just surfaced here too) - it
+// does not deregister the number with Meta. "Disable" on 3903 can't be a
+// real one-click action at all: that number stays recognised only because
+// WHATSAPP_PHONE_NUMBER_ID_3903 is set as a real secret, and only a session
+// on Muhammad's own laptop can change a secret - so this says that plainly
+// instead of wiring a fake button. "Delete phone number" for either real
+// number is not built - deregistering a live, billed, actively-advertised
+// number is exactly the kind of action this repo's standing rules require a
+// real, deliberate decision on first, not a guess.
+const CONNECT_WA_WABA_ID = '1342908727797643';
+const CONNECT_WA_NUMBERS = [
+  { key: 'primary', label: '6541', sub: 'Main line, full bot' },
+  { key: '3903',    label: '3903', sub: 'Ingest only' },
+];
+
+function openAddWaNumberForm() {
+  document.getElementById('cw-add-form').style.display = '';
+  document.getElementById('cw-add-label').focus();
+}
+function closeAddWaNumberForm() {
+  document.getElementById('cw-add-form').style.display = 'none';
+  ['cw-add-label', 'cw-add-phone-id', 'cw-add-notes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  setMsg(document.getElementById('cw-add-msg'), '', 'ok');
+}
+
+async function saveAddWaNumber() {
+  const label = v('cw-add-label').trim();
+  const phoneId = v('cw-add-phone-id').trim();
+  const notes = v('cw-add-notes').trim();
+  const msgEl = document.getElementById('cw-add-msg');
+  if (!label || !phoneId) { setMsg(msgEl, 'Label and Phone Number ID are both required.', 'err'); return; }
+  if (demoMode) { setMsg(msgEl, 'Saved. (demo)', 'ok'); closeAddWaNumberForm(); return; }
+  const { error } = await sb.from('additional_whatsapp_numbers').insert({
+    label, phone_number_id: phoneId, notes: notes || null, added_by: currentUser.id,
+  });
+  if (error) { setMsg(msgEl, error.message, 'err'); return; }
+  closeAddWaNumberForm();
+  showToast(`${label} saved for reference. Wiring it to actually send/receive messages is a separate step.`);
+  await renderConnectWhatsappTab();
+}
+
+async function removeAdditionalWaNumber(id, label) {
+  if (!confirm(`Remove "${label}" from this reference list?\n\nThis only removes the CRM's own note about this number - it does not touch anything on Meta.`)) return;
+  if (demoMode) { showToast('Removed. (demo)'); return; }
+  const { error } = await sb.from('additional_whatsapp_numbers').delete().eq('id', id);
+  if (error) { showToast('Could not remove: ' + error.message, 'err'); return; }
+  await renderConnectWhatsappTab();
+}
+
+function manageNumber(numberKey) {
+  window.open(`https://business.facebook.com/wa/manage/phone-numbers/?waba_id=${CONNECT_WA_WABA_ID}`, '_blank');
+}
+function manageWaAccount() {
+  window.open(`https://business.facebook.com/settings/whatsapp-business-accounts/${CONNECT_WA_WABA_ID}`, '_blank');
+}
+
+async function disableWaNumber(numberKey) {
+  if (numberKey === 'primary') {
+    // The real, existing, reversible gate - same one Bot Manager exposes.
+    await toggleReplyGate('BOT_REPLIES_ENABLED', false);
+    await renderConnectWhatsappTab();
+    return;
+  }
+  // 3903 never had automated replies to begin with - the only thing
+  // "disable" could mean for it is un-recognising the number entirely,
+  // which needs its WHATSAPP_PHONE_NUMBER_ID_3903 secret removed. Only a
+  // session on Muhammad's own laptop can change a secret - never guess at
+  // this or pretend a button here can do it.
+  alert('3903 already sends no automated replies of any kind - there is nothing here to disable.\n\nTo fully disconnect this number, its WHATSAPP_PHONE_NUMBER_ID_3903 secret needs to be removed - that has to be done from Muhammad\'s own laptop, not from this page.');
+}
+
+async function fetchWaHealth(numberKey) {
+  if (demoMode) return { ok: false, error: 'Demo mode - needs a real Meta access token.' };
+  const { data, error } = await sb.functions.invoke(`whatsapp-status?number=${encodeURIComponent(numberKey)}`, { method: 'GET' });
+  if (error || !data?.ok) return { ok: false, error: data?.error || error?.message || 'Could not check connection.' };
+  return { ok: true, ...data };
+}
+
+function waStatusCell(health) {
+  if (!health) return '<span style="color:var(--text-muted)">Not checked</span>';
+  if (!health.ok) return `<span style="color:var(--bad)" title="${esc(health.error || '')}">&#9679; Error</span>`;
+  return '<span style="color:var(--ok)">&#9679; Active</span>';
+}
+function waQualityCell(health) {
+  if (!health || !health.ok) return '-';
+  const q = health.quality_rating || 'UNKNOWN';
+  const color = q === 'GREEN' ? 'var(--ok)' : q === 'RED' ? 'var(--bad)' : 'var(--warn)';
+  return `<span style="color:${color};font-weight:600">${esc(q)}</span>`;
+}
+
+async function renderConnectWhatsappTab() {
+  const box = document.getElementById('cw-business-accounts');
+  if (!box) return;
+
+  let additional = [];
+  if (!demoMode) {
+    const { data, error } = await sb.from('additional_whatsapp_numbers').select('*').order('created_at', { ascending: false });
+    if (!error) additional = data || [];
+  }
+
+  const numbersTotal = CONNECT_WA_NUMBERS.length + additional.length;
+  setElText('cw-tile-numbers', numbersTotal);
+
+  // Real numbers checked live (in parallel); reference-only numbers never
+  // had a live health check to run - they aren't wired to anything yet.
+  const healthResults = await Promise.all(CONNECT_WA_NUMBERS.map(n => fetchWaHealth(n.key)));
+  const disconnectedCount = healthResults.filter(h => !h.ok).length;
+  setElText('cw-tile-disconnected', demoMode ? '-' : disconnectedCount);
+
+  const realRows = CONNECT_WA_NUMBERS.map((n, i) => {
+    const health = healthResults[i];
+    return `
+      <tr>
+        <td style="white-space:nowrap">
+          <strong style="color:var(--text-strong)">${esc(n.label)}</strong><br>
+          <span style="font-size:0.75rem;color:var(--text-muted)">${esc(n.sub)}</span>
+        </td>
+        <td>${waStatusCell(health)}</td>
+        <td>${waQualityCell(health)}</td>
+        <td>${health?.ok ? esc(health.messaging_limit_tier || '-') : '-'}</td>
+        <td style="font-size:0.8rem;color:var(--text-muted)">${health ? (health.ok ? 'just now' : '-') : '-'}</td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-secondary btn-sm" onclick="manageNumber('${n.key}')">Manage</button>
+          <button class="btn btn-danger btn-sm" style="margin-left:6px" onclick="disableWaNumber('${n.key}')">Disable</button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  const additionalRows = additional.map(row => `
+    <tr>
+      <td><strong style="color:var(--text-strong)">${esc(row.label)}</strong><br>
+        <span style="font-size:0.75rem;color:var(--text-muted)">Reference only - not wired to live messaging</span></td>
+      <td><span style="color:var(--text-muted)">&#9679; Not connected</span></td>
+      <td>-</td><td>-</td>
+      <td style="font-size:0.8rem;color:var(--text-muted)">${fmtDate(row.created_at)}</td>
+      <td><button class="btn btn-secondary btn-sm" onclick="removeAdditionalWaNumber('${row.id}','${esc(row.label)}')">Remove</button></td>
+    </tr>`).join('');
+
+  box.innerHTML = `
+    <div style="padding:16px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-weight:700;color:var(--text-strong)">Trade Campus</div>
+        <div style="font-size:0.78rem;color:var(--text-muted)">Business Account ID: ${CONNECT_WA_WABA_ID}</div>
+      </div>
+      <div>
+        <button class="btn btn-secondary btn-sm" onclick="manageWaAccount()">Manage Account</button>
+        <button class="btn btn-primary btn-sm" style="margin-left:6px" onclick="openAddWaNumberForm()">+ Add Phone Number</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>Phone Number</th><th>Status</th><th>Quality</th><th>Messaging Limit</th><th>Last Checked</th><th>Actions</th></tr></thead>
+      <tbody>${realRows}${additionalRows || ''}</tbody>
+    </table>`;
 }
 
 // Screenshots on 2026-08-23 showed the Meta access token, WhatsApp access

@@ -2138,3 +2138,26 @@ CREATE INDEX IF NOT EXISTS idx_leads_wa_channel ON public.leads(wa_channel);
 
 -- DONE (Phase 35)
 -- =============================================================
+
+-- =============================================================
+-- Phase 36 - Additional WhatsApp numbers, reference-only (Muhammad, 2026-08-31)
+-- Corresponds to supabase/migrations/20260831020000_additional_whatsapp_numbers.sql
+-- =============================================================
+
+CREATE TABLE IF NOT EXISTS public.additional_whatsapp_numbers (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  label           TEXT        NOT NULL,
+  phone_number_id TEXT        NOT NULL,
+  notes           TEXT,
+  added_by        UUID        REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.additional_whatsapp_numbers ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "additional_whatsapp_numbers: admin full access" ON public.additional_whatsapp_numbers;
+CREATE POLICY "additional_whatsapp_numbers: admin full access" ON public.additional_whatsapp_numbers
+  FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- DONE (Phase 36)
+-- =============================================================
