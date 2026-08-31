@@ -28,7 +28,7 @@ Muhammad asked directly: "can't we avoid pagination? Has the 1000 rows' limit be
 
 ### Still open, unchanged
 
-Real agents (Farwa, Hanzala, Bilal, Faisal) are still out of lead rotation with `receives_leads = false`, waiting on Muhammad's go-ahead. The live OpenAI API key still wants rotating (passed through a diagnostic command on 08-30). **Junaid's admin access**: he asked to be given full admin rights matching Muhammad's, but no `profiles` row exists under his name or any `junaid` email - nothing to promote yet. Still needs Muhammad to say which real login Junaid actually signs in with, or confirm a new one should be created.
+Real agents (Farwa, Hanzala, Bilal, Faisal) are still out of lead rotation with `receives_leads = false`, waiting on Muhammad's go-ahead. The live OpenAI API key still wants rotating (passed through a diagnostic command on 08-30). **Junaid's admin access - RESOLVED 2026-08-31**: Muhammad clarified Junaid signs into the CRM through Badar's own login (`syedbadartk@gmail.com`, confirmed `role: admin` in `profiles`), not a separate account - so he already has full admin access to everything. Nothing to promote or create; this is not an open item.
 
 ### On "picking up ongoing work from a different Claude account" - answered directly, 2026-08-31
 
