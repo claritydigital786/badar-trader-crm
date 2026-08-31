@@ -12822,10 +12822,23 @@ function onConvAttachPicked(inputEl) {
 // every other conv-* global here) rather than re-wiring it per open
 // conversation - .conv-chat-panel itself is static in the page, only its
 // contents change each time a conversation is opened.
+// Found live, 2026-08-31, right after shipping: dropping a real file
+// replaced the ENTIRE app with the raw image, full-screen - Chrome's own
+// default "navigate this tab to the dropped file" behavior, because
+// preventDefault() was only ever called when the drag happened to be
+// directly over .conv-chat-panel at that exact instant. Anywhere else on
+// the page (even briefly, mid-drag) and the browser's default took over on
+// drop. The fix has to be two-layered: prevent the browser default
+// EVERYWHERE in the app, unconditionally, so it can never hijack the page -
+// then, separately, only actually accept the file as an attachment when the
+// drop genuinely lands inside .conv-chat-panel. Dropping elsewhere in the
+// app is now a harmless no-op instead of a broken-looking full-page replace.
+window.addEventListener('dragover', (e) => { e.preventDefault(); });
+window.addEventListener('drop', (e) => { e.preventDefault(); });
+
 document.addEventListener('dragover', (e) => {
   const panel = e.target.closest('.conv-chat-panel');
   if (!panel) return;
-  e.preventDefault();
   panel.classList.add('conv-drag-over');
 });
 document.addEventListener('dragleave', (e) => {
@@ -12836,7 +12849,6 @@ document.addEventListener('dragleave', (e) => {
 document.addEventListener('drop', (e) => {
   const panel = e.target.closest('.conv-chat-panel');
   if (!panel) return;
-  e.preventDefault();
   panel.classList.remove('conv-drag-over');
   const file = e.dataTransfer?.files?.[0];
   if (file) acceptConvAttachFile(file);
