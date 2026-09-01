@@ -9,7 +9,14 @@ enabled = true
 port = 54321
 schemas = ["public", "graphql_public"]
 extra_search_path = ["public", "extensions"]
-max_rows = 1000
+# Raised from 1000 to 5000 on 2026-08-31: this is the REAL cap behind the
+# Omnichannel Inbox's "1000" ceiling, not the query's own .limit(). PostgREST
+# enforces this project-wide server-side setting on every response regardless
+# of what a client's own .limit() asks for - confirmed live: a direct request
+# with .limit(5000) against inbox_conversation_list (2,314 real rows) still
+# came back truncated at exactly 1000 (HTTP 206, Content-Range 0-999/2314)
+# until this was raised. See supabase/migrations/20260831040000_conversation_list_view.sql.
+max_rows = 5000
 
 [db]
 port = 54322
