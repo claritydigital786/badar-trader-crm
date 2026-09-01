@@ -241,10 +241,17 @@ test('6: pending_approval still displays under Qualified', () => {
 
 // ── 7. Admin approval still converts ───────────────────────────
 test('7: admin approval still results in Converted', () => {
-  assert.match(html, /document_type', 'deposit_screenshot'[\s\S]{0,400}?Cannot approve - no Deposit Screenshot/,
-    'approval must still require a deposit screenshot');
-  assert.match(html, /\.update\(\{ status: 'converted', converted_at: new Date\(\)\.toISOString\(\), balance_locked: true \}\)/,
+  // The screenshot requirement is now the weakest of several checks rather than
+  // the only one (2026-09-01): a screenshot alone used to be enough, which would
+  // have converted a lead carrying an orphan document and no deposit at all.
+  assert.match(html, /document_type', 'deposit_screenshot'[\s\S]{0,400}?agent_reviewed_at/,
+    'approval must still require a deposit screenshot, and now an agent-escalated one');
+  assert.match(html, /if \(!doc\) out\.push\('no deposit screenshot is on file'\)/,
+    'a missing screenshot is still refused');
+  assert.match(html, /status: 'converted',\n\s*converted_at: new Date\(\)\.toISOString\(\),\n\s*balance_locked: true,/,
     'approveConversion must still be the path that sets Converted and stamps converted_at');
+  assert.match(html, /account_balance: approved,/,
+    'and it is now also the ONLY path that writes account_balance');
 });
 
 // ── 8. Agents still cannot move a lead into or out of Converted ─

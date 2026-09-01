@@ -10,10 +10,12 @@
 // approveConversion(), which demands a deposit screenshot on file.
 //
 // Everything the form reports is still captured (platform, amount, broker
-// account ref, account_balance) so the admin has the evidence in front of
-// them; only the claim that this IS a conversion is withheld. converted_at is
+// account ref) so the agent and the admin have the evidence in front of them;
+// only the claim that this IS a conversion is withheld. converted_at is
 // deliberately NOT stamped here - it means "when this genuinely converted",
-// and approveConversion() is what stamps it.
+// and approveConversion() is what stamps it. The client's account_balance is
+// NOT written here either: a submitted amount is not an approved balance, and
+// approveConversion() is what copies it across. See the note at the update.
 //
 // 2026-08-31 (Phase 39): two things this hook was missing.
 //   1. It never told anyone. A lead landing in Pending Approval from the form
@@ -210,12 +212,28 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const nowIso = new Date().toISOString();
+    // A SUBMITTED amount is not an APPROVED balance (Muhammad, 2026-09-01).
+    //
+    // This used to write account_balance = amount here, at submission time,
+    // which was wrong twice over. Business-wise it recorded an unverified
+    // customer claim as the client's real balance before anyone had opened the
+    // IB portal. Mechanically it also made this endpoint impossible: the
+    // leads_guard_admin_columns trigger refuses any account_balance change from
+    // a caller that is not an admin, and an Edge Function on the service role
+    // key has auth.uid() = NULL, so is_admin() is false and every real
+    // submission died on "Only admins may change account_balance or kyc_status".
+    //
+    // deposit_amount already carries the customer's claim, and it is what the
+    // agent and Ehsan review. account_balance is now written exactly once, by
+    // approveConversion(), when Ehsan approves - by which point a real admin is
+    // signed in, the guard is satisfied on its own terms, and the balance audit
+    // log records the change with a real actor. No trigger, policy or grant was
+    // weakened to make this work; the write simply moved to where it belonged.
     const update: Record<string, unknown> = {
       status: "pending_approval",
       verified: false,
       deposit_platform: platform,
       deposit_amount: amount,
-      account_balance: amount,
       updated_at: nowIso,
     };
     // Only write the broker account ref when this submission actually carried
@@ -235,15 +253,31 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // or column is needed. Nothing here marks the lead converted or verified.
     // This runs AFTER the idempotency gate, so a replayed submission never
     // uploads a second copy of the same image.
+    // ---- Compensating cleanup --------------------------------------------
+    // A submission spans three stores that cannot share one transaction: the
+    // idempotency claim, the storage bucket and two Postgres tables. The old
+    // code unwound only some of them, and a real failed test on 2026-09-01
+    // proved the cost: the leads update was rejected, the claim was handed back,
+    // but the uploaded screenshot and its kyc_documents row were left behind.
+    // The lead showed no deposit at all while an orphan document sat against it
+    // that was, on its own, enough to satisfy the old approval check - and every
+    // retry added another pair.
+    //
+    // So every side effect registers its own undo the moment it succeeds, and
+    // any later failure runs them all in reverse before throwing. Each undo is
+    // best-effort and independent: one that fails must not stop the others.
+    const undo: Array<() => Promise<void>> = [];
+    undo.push(async () => {
+      await sb.rpc("release_deposit_submission", { p_submission_key: key }).then(() => {}, () => {});
+    });
+    const rollbackAndThrow = async (message: string): Promise<never> => {
+      for (const step of undo.reverse()) {
+        try { await step(); } catch (e) { console.error("submission rollback step failed:", String(e)); }
+      }
+      throw new Error(message);
+    };
+
     if (screenshot) {
-      // The claim has already been won at this point. Any failure here has to
-      // hand it back before throwing, exactly as the leads update below does -
-      // otherwise the key stays consumed, the customer's retry is judged a
-      // replay, and their submission is lost with no evidence and no record.
-      const releaseAndThrow = async (message: string): Promise<never> => {
-        await sb.rpc("release_deposit_submission", { p_submission_key: key }).then(() => {}, () => {});
-        throw new Error(message);
-      };
       const ext = (screenshot.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
       const path = `${leadRowId}/${Date.now()}_deposit_screenshot.${ext}`;
       const bytes = new Uint8Array(await screenshot.arrayBuffer());
@@ -251,28 +285,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
         contentType: screenshot.type,
         upsert: false,
       });
-      if (upErr) await releaseAndThrow(`screenshot upload failed: ${upErr.message}`);
-      const { error: docErr } = await sb.from("kyc_documents").insert({
+      if (upErr) await rollbackAndThrow(`screenshot upload failed: ${upErr.message}`);
+      undo.push(async () => {
+        await sb.storage.from("deposit-screenshots").remove([path]).then(() => {}, () => {});
+      });
+
+      const { data: doc, error: docErr } = await sb.from("kyc_documents").insert({
         client_id: leadRowId,
         document_type: "deposit_screenshot",
         status: "pending",
         file_path: path,
         uploaded_at: nowIso,
+      }).select("id").single();
+      if (docErr) await rollbackAndThrow(`kyc_documents insert failed: ${docErr.message}`);
+      undo.push(async () => {
+        await sb.from("kyc_documents").delete().eq("id", doc.id).then(() => {}, () => {});
       });
-      if (docErr) {
-        // Do not leave an orphan object in the bucket if the row fails.
-        await sb.storage.from("deposit-screenshots").remove([path]).then(() => {}, () => {});
-        await releaseAndThrow(`kyc_documents insert failed: ${docErr.message}`);
-      }
     }
+
     const { error: ue } = await sb.from("leads").update(update).eq("id", leadRowId);
-    if (ue) {
-      // The claim was won but the work did not land. Hand the key back so the
-      // customer's retry is treated as a first submission rather than a replay,
-      // otherwise this claim could never be recorded at all.
-      await sb.rpc("release_deposit_submission", { p_submission_key: key }).then(() => {}, () => {});
-      throw new Error(ue.message);
-    }
+    if (ue) await rollbackAndThrow(ue.message);
 
     // communication_logs, not communications - the latter's type check only
     // allows email/whatsapp/call/sms, not 'note'. This insert was silently
