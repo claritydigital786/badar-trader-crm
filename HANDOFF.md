@@ -4,6 +4,17 @@ _Last updated: 2026-09-01, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
 
+## 2026-09-01 (even later) - Two corrections on the same day's channel-split work, commits `38f65bc` and `fccf75e`
+
+Directly continuing the entry below - both problems surfaced from real, live sends failing while the channel-split fix was still fresh.
+
+1. **A bug in my own just-shipped fix, caught same-day** (`38f65bc`): the frontend fix below defaulted a null-channel message (one with no recorded channel) to "6541," on the assumption every such row predates 3903's existence. That assumption was wrong - 3903 went live 2026-08-26, well before the `channel` column existed, so plenty of rows logged in between could genuinely be either number. That bad guess is exactly what made the UI show Nashit's window as open while WhatsApp's real rejection kept correctly saying otherwise - three more real sends failed live before this was caught. Fixed: a null-channel row is now treated as genuinely unknown, not assumed to be 6541 - shown only under "All," never counted as proof a specific number's window is open.
+2. **Manual agent replies now work on 3903, not just 6541** (`fccf75e`), Muhammad's direct instruction after those repeated live failures. New `resolveSendChannel()` in `send-wa-message` looks at a lead's recent inbound history for an explicit, real channel and sends via that number's own real credentials (3903's secret was already configured) instead of always defaulting to 6541. Deliberately scoped to manual, human-typed replies only - the scripted bot/AI's own 3903 gate (`isIngestOnlyNumber`, the WhatChimp-double-reply precaution) is untouched, since that risk is about automation, not a human sending one message on purpose. **Known limitation, not hidden**: only resolves correctly for messages logged after this deploy - a conversation whose recent history predates the channel column (like Nashit's) still defaults to 6541 until the customer sends one more message under the new tracking.
+
+`deno check` clean on both, all suites pass, both deployed.
+
+---
+
 ## 2026-09-01 (later) - Real per-message WhatsApp channel split, backend and frontend, commit `ead58cb`
 
 Two real, confusing bugs shown to Muhammad live: an agent blocked from replying (assigned-agent permission gate, expected behavior, just an inconvenient lead), and a genuinely wrong-looking failure - a reply to "Nashit" failed WhatsApp's own 131047 ("24h since last reply") despite the thread showing a message 50 minutes earlier.
