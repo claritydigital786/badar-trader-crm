@@ -6458,32 +6458,55 @@ async function loadAdminLeads() {
     return;
   }
 
-  let q = sb.from('leads').select('*').order('created_at', { ascending: false });
-  if (f.status) q = q.eq('status', f.status);
-  if (f.agent === LEAD_FILTER_UNASSIGNED) q = q.is('assigned_agent_id', null);
-  else if (f.agent) q = q.eq('assigned_agent_id', f.agent);
-  if (f.source) q = q.eq('source', f.source);
-  if (f.human === '1') q = q.eq('needs_human', true);
-  if (f.human === '0') q = q.eq('needs_human', false);
-  const since = leadDateSince(f.date);
-  if (since) q = q.gte('created_at', since.toISOString());
-  // The search box used to only ever filter cachedLeads client-side, which
-  // PostgREST silently caps at 1000 rows - so searching for a lead older
-  // than the newest 1000 (anything before the WhatChimp import) could come
-  // back empty even though the lead genuinely exists. Pushing the term into
-  // the query means the database does the matching against the real table,
-  // not a truncated in-memory copy of it.
-  if (f.search) q = q.or(buildLeadSearchOr(f.search));
+  // Builds a FRESH query every call, filters applied, so the same filter set
+  // can be paged through with .range() below - a Supabase query builder is
+  // single-use, it cannot be re-issued with a different range once awaited.
+  const buildQuery = () => {
+    // Tiebreaker on id matters here, not just style: paginating via .range()
+    // needs a fully deterministic order, or two rows sharing the exact same
+    // created_at (real, common after a bulk CSV/CSV-style import) can land on
+    // either side of a page boundary inconsistently between requests -
+    // found live during this same-day sweep: a raw created_at-only pagination
+    // test against the real table returned 7,433 rows for a table that
+    // actually holds 7,433, but only 7,424 of them were unique ids.
+    let q = sb.from('leads').select('*').order('created_at', { ascending: false }).order('id', { ascending: true });
+    if (f.status) q = q.eq('status', f.status);
+    if (f.agent === LEAD_FILTER_UNASSIGNED) q = q.is('assigned_agent_id', null);
+    else if (f.agent) q = q.eq('assigned_agent_id', f.agent);
+    if (f.source) q = q.eq('source', f.source);
+    if (f.human === '1') q = q.eq('needs_human', true);
+    if (f.human === '0') q = q.eq('needs_human', false);
+    const since = leadDateSince(f.date);
+    if (since) q = q.gte('created_at', since.toISOString());
+    // The search box used to only ever filter cachedLeads client-side, which
+    // PostgREST silently caps at 1000 rows - so searching for a lead older
+    // than the newest 1000 (anything before the WhatChimp import) could come
+    // back empty even though the lead genuinely exists. Pushing the term into
+    // the query means the database does the matching against the real table,
+    // not a truncated in-memory copy of it.
+    if (f.search) q = q.or(buildLeadSearchOr(f.search));
+    return q;
+  };
 
-  // The filtered rows and the unfiltered head count are independent, so they go
-  // out together rather than one after the other - the count is only there to
-  // say "of N" honestly and should not add a round-trip to every filter change.
-  const [{ data, error }, { count, error: countError }] = await Promise.all([
-    q,
-    sb.from('leads').select('id', { count: 'exact', head: true }),
-  ]);
-  if (error) { console.error('loadAdminLeads:', error); return; }
-  cachedLeads = data || [];
+  // Real pagination, not a bigger cap. This table hit the exact same silent
+  // undercount the Dashboard did on 2026-08-24 and the Inbox did on 2026-09-01
+  // - an unbounded select relying on PostgREST's server-side max_rows, which
+  // is a moving target (1000, then 5000) rather than a real fix. 7,432 real
+  // leads already exceed 5000, so the previous raise just delayed this same
+  // bug, it didn't close it. Pages through in genuine 1000-row batches via
+  // .range() until exhausted, matching fetchAllLeadsForDashboard's own
+  // pattern, so this stops depending on whatever the server cap happens to
+  // be today.
+  // The filtered rows and the unfiltered head count are independent, so the
+  // count query fires alongside the page loop rather than after it - it is
+  // only there to say "of N" honestly and should not add extra latency on
+  // top of however many pages the loop needs.
+  const countPromise = sb.from('leads').select('id', { count: 'exact', head: true });
+  const { data: allData, error: fetchError } = await fetchAllRows(buildQuery);
+
+  const { count, error: countError } = await countPromise;
+  if (fetchError) { console.error('loadAdminLeads:', fetchError); return; }
+  cachedLeads = allData || [];
   if (countError) console.warn('loadAdminLeads count:', countError);
   _leadsTotalCount = (typeof count === 'number') ? count : cachedLeads.length;
 
@@ -6644,7 +6667,13 @@ async function confirmImportCSV() {
   // Without this a re-run after any failure silently doubles every lead.
   let existingPhones = new Set();
   try {
-    const { data, error } = await sb.from('leads').select('phone').not('phone', 'is', null);
+    // Was unbounded - with 7,433 real leads now past the 5000-row server cap,
+    // this was silently missing over 2,000 real phone numbers, so importing
+    // a CSV right now could create real duplicate leads for anyone outside
+    // whatever slice the server happened to return. Found during the same-day
+    // full sweep for this bug class. fetchAllRows pages through the real
+    // table so the dedup check is actually complete, not a partial guess.
+    const { data, error } = await fetchAllRows(() => sb.from('leads').select('phone').not('phone', 'is', null).order('id', { ascending: true }));
     if (error) throw error;
     existingPhones = new Set((data || []).map(r => normalizePhone(r.phone || '')).filter(Boolean));
   } catch (err) {
@@ -10113,7 +10142,13 @@ async function loadReports() {
       // 2026-08-24, none of them contacted yet) so the funnel reflects the
       // real, live click-to-WhatsApp campaign only - mixing in the dormant
       // import would make every real bucket below look microscopic.
-      sb.from('leads').select('bot_stage, status, handoff_reason').neq('source', 'whatchimp'),
+      // Was unbounded - not yet over the server cap (2,291 real rows today),
+      // but the exact same fragile pattern that already broke three other
+      // pages this same day. Paginated now, before it breaks too. Ordered
+      // by id purely to give .range() a deterministic tiebreaker - this
+      // query never had any ordering at all before, which is even riskier
+      // for pagination than an unstable one.
+      fetchAllRows(() => sb.from('leads').select('bot_stage, status, handoff_reason').neq('source', 'whatchimp').order('id', { ascending: true })),
     ]);
 
   if (e1) console.error('report_agent_performance:', e1);
@@ -10538,19 +10573,45 @@ async function updateRoundRobinStatus() {
 // window and vanished from every stat without any error being thrown.
 // Fetches everything in real 1000-row pages until exhausted, so Dashboard
 // totals stay correct regardless of how large the table grows.
-async function fetchAllLeadsForDashboard() {
-  const pageSize = 1000;
+// Generic real-pagination helper, added 2026-09-01 during a full sweep for
+// this exact bug class: an unbounded .select() silently relies on
+// PostgREST's server-side max_rows cap, which is a moving target (1000,
+// then raised to 5000 the same day) rather than a real fix - the moment a
+// table's real row count crosses whatever the cap happens to be, data goes
+// missing with no error thrown. Found and fixed one at a time today
+// (Dashboard 2026-08-24, the Inbox 2026-09-01, then All Leads, the CSV
+// import's duplicate check, and the Comm Log below, all the same day) -
+// this centralizes the fix so the next one doesn't need its own hand-rolled
+// loop. buildQuery must return a FRESH query builder every call (a Supabase
+// query builder is single-use, it cannot be re-issued with a different
+// range once awaited) - .range() is applied here, buildQuery should not
+// call it itself.
+async function fetchAllRows(buildQuery, pageSize = 1000) {
   let all = [];
   for (let start = 0; ; start += pageSize) {
-    const { data, error } = await sb
-      .from('leads')
-      .select('status, account_balance, deposit_platform, created_at, needs_human')
-      .range(start, start + pageSize - 1);
-    if (error) { console.error('fetchAllLeadsForDashboard:', error); break; }
+    const { data, error } = await buildQuery().range(start, start + pageSize - 1);
+    if (error) return { data: null, error };
     all = all.concat(data || []);
-    if (!data || data.length < pageSize) break;
+    if (!data || data.length < pageSize) return { data: all, error: null };
   }
-  return all;
+}
+
+async function fetchAllLeadsForDashboard() {
+  // Refactored onto the shared fetchAllRows helper during the same-day sweep,
+  // and given a stable order it never had before - this had NO .order() at
+  // all, which is even riskier for .range()-based pagination than an
+  // unstable one (Postgres makes no ordering promise across separate
+  // requests without one), risking a lead's balance being double-counted or
+  // silently dropped from these sums. Ordered by id purely for a
+  // deterministic tiebreaker; the actual sort these numbers care about
+  // (by created_at, for the trend chart) already happens client-side in
+  // filterLeadsByDashRange below.
+  const { data, error } = await fetchAllRows(() => sb
+    .from('leads')
+    .select('status, account_balance, deposit_platform, created_at, needs_human')
+    .order('id', { ascending: true }));
+  if (error) { console.error('fetchAllLeadsForDashboard:', error); return []; }
+  return data || [];
 }
 
 // Time-frame filter for the Dashboard (Muhammad's request, 2026-08-30):
@@ -14408,13 +14469,26 @@ async function loadCommLog(scope = '') {
   // Live mode - RLS scopes this to all rows for Admins and assigned-lead rows
   // for Agents. communication_logs.created_by has no declared profile foreign
   // key, so resolve creator names from profiles already visible to this user.
+  //
+  // Both were unbounded. communications is the single biggest, fastest-growing
+  // table in this whole app (13,870+ rows and rising with every reply) - an
+  // admin opening Comm Log was silently seeing only whatever slice of that
+  // fit under the server's row cap, potentially missing most of the real
+  // history, with no error or hint that anything was cut off. Found during
+  // the same-day full sweep for this exact bug class. Both now page through
+  // the real tables via fetchAllRows.
+  // Both need a tiebreaker on id, not just created_at - paginating via
+  // .range() needs a fully deterministic order or rows sharing an identical
+  // timestamp can land inconsistently across page boundaries between
+  // requests. Found live during this same-day sweep on the leads table
+  // (7,433 rows fetched, only 7,424 unique ids without one).
   const [manualRes, autoRes] = await Promise.all([
-    sb.from('communication_logs')
+    fetchAllRows(() => sb.from('communication_logs')
       .select('*, lead:leads!lead_id(full_name, status)')
-      .order('created_at', { ascending: false }),
-    sb.from('communications')
+      .order('created_at', { ascending: false }).order('id', { ascending: true })),
+    fetchAllRows(() => sb.from('communications')
       .select('id, lead_id, type, body, direction, created_at, leads(full_name, status)')
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false }).order('id', { ascending: true })),
   ]);
   if (manualRes.error) console.error('loadCommLog (manual):', manualRes.error);
   if (autoRes.error)   console.error('loadCommLog (auto):', autoRes.error);
