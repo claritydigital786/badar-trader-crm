@@ -729,16 +729,29 @@ const ROTATION_BATCH_SIZE = 10;
 let _rotationCache: RotationAgent[] | null = null;
 
 // Ordered by created_at so the round-robin index is stable across invocations.
-// Only agents who are active, not suspended, and actually have a number can be
+// Only staff who are active, not suspended, and actually have a number can be
 // in rotation - assigning a lead to someone unreachable is worse than skipping
 // them.
+//
+// role IN ('agent','admin') rather than just 'agent', added 2026-09-01: Ehsan
+// moved to role 'admin' the same day (Phase 40, the new super_admin
+// hierarchy), which silently dropped him out of round-robin entirely - his
+// last new lead landed at the moment his role changed, not because anyone
+// decided he should stop selling. Muhammad's explicit call: "Ehsan will also
+// fulfill his responsibilities as a Sales agent... Keep Ehsan into the loop.
+// Don't expel him." Deliberately does NOT include 'super_admin' - Badar is
+// not meant to be swept into the sales rotation just by outranking 'agent';
+// only someone who is BOTH admin-or-agent AND still explicitly marked
+// receives_leads=true with a real phone (the same guard rails as before)
+// ever lands in this list, so a typical non-sales admin stays excluded on
+// its own regardless of role.
 async function getAgentRotation(sb: SupabaseClient): Promise<RotationAgent[]> {
   if (_rotationCache) return _rotationCache;
 
   const { data, error } = await sb
     .from("profiles")
     .select("id, full_name, phone")
-    .eq("role", "agent")
+    .in("role", ["agent", "admin"])
     .eq("is_active", true)
     .eq("is_suspended", false)
     // Observers keep full access but are not in the sales rotation, so the bot
