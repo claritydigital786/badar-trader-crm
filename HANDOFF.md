@@ -4,6 +4,26 @@ _Last updated: 2026-09-01, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
 
+## 2026-09-01 (latest) - Full sweep for the row-cap bug class across the whole app, commit `28d9517`
+
+The same bug (an unbounded `.select()` silently relying on PostgREST's server-side row cap) had now broken three separate pages the same day - Dashboard (2026-08-24, already fixed), the Inbox (earlier today), and All Leads (7,433 real leads past the 5,000 cap, "Showing all 5000 leads"). Muhammad's direct instruction: stop patching one spot at a time, sweep the whole app for this pattern in one pass.
+
+Found and fixed:
+- **All Leads** - genuinely paginated now instead of relying on the cap.
+- **CSV import's duplicate-phone check** - this one was ACTIVELY BROKEN, not just fragile: silently missing 2,000+ real phone numbers, meaning any CSV import done today could have created real duplicate leads.
+- **Reports' campaign funnel query** - not yet over the cap (2,291 rows) but the same pattern, fixed pre-emptively.
+- **Comm Log's two queries** - the single biggest risk found: `communications` has 13,870+ rows and grows with every reply, so an admin opening Comm Log was silently seeing only a partial slice of real history with zero indication anything was missing.
+
+New shared `fetchAllRows()` helper centralizes the fix.
+
+**A real bug found in my own same-day work, caught before it caused harm**: the pagination fixes shipped earlier today (Inbox, then All Leads) paginated by `created_at` alone, with no tiebreaker - proven live against the real `leads` table that this can skip or duplicate rows across page boundaries when multiple records share an identical timestamp (7,433 rows fetched, only 7,424 unique ids). Every paginated query, including the original 2026-08-24 Dashboard fix (which had no order at all), now sorts by `id` as a deterministic secondary key. Re-verified live afterward: 7,433 fetched, 7,433 unique, zero gaps.
+
+**Left alone, deliberately**: the Messenger/Instagram lead-count query on the Social Media tab has the same unbounded pattern, but that feature isn't deployed yet (0 real data) - not worth fixing dead code over real, active risks.
+
+All suites pass. Verified against live data directly via real pagination tests, not just the demo preview.
+
+---
+
 ## 2026-09-01 (even later) - Two corrections on the same day's channel-split work, commits `38f65bc` and `fccf75e`
 
 Directly continuing the entry below - both problems surfaced from real, live sends failing while the channel-split fix was still fresh.
