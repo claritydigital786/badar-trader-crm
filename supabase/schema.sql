@@ -425,6 +425,15 @@ CREATE POLICY "automation_rules: admin only" ON public.automation_rules
 -- agents/leads/transactions despite per-row RLS, but each checks is_admin()
 -- first so a non-admin calling the RPC directly still gets rejected.
 
+-- Deliberately role-agnostic, added 2026-09-01 (Phase 43): a profile is
+-- included if it's role = 'agent' (unchanged - shows every agent even at
+-- zero leads) OR it actually has at least one real lead assigned to it,
+-- regardless of role. Found live: the moment Ehsan moved to role = 'admin'
+-- (Phase 40) he vanished from this report entirely, despite still working
+-- as a real sales agent day to day - Muhammad's explicit call was to keep
+-- him counted here. Counting by real assignment rather than hardcoding his
+-- name means anyone who actually works leads shows up, and a pure
+-- admin/owner with no assigned leads doesn't clutter a sales report.
 CREATE OR REPLACE FUNCTION public.report_agent_performance()
 RETURNS TABLE(agent_id UUID, agent_name TEXT, leads_assigned BIGINT, converted BIGINT)
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
@@ -439,6 +448,7 @@ BEGIN
     FROM public.profiles p
     LEFT JOIN public.leads l ON l.assigned_agent_id = p.id
     WHERE p.role = 'agent'
+       OR EXISTS (SELECT 1 FROM public.leads l2 WHERE l2.assigned_agent_id = p.id)
     GROUP BY p.id, p.full_name
     ORDER BY p.full_name;
 END;
