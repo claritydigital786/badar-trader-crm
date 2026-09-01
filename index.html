@@ -1527,6 +1527,16 @@
        and made even a one-word message more than 100px tall. */
     .msg-bubble { max-width:min(55%, 380px); padding:6px 7px 8px 9px; border-radius:7.5px; font-size:0.8885rem; line-height:1.34; word-break:break-word; white-space:normal; box-shadow:0 1px .5px rgba(11,20,26,.13); position:relative; }
     .msg-body { white-space:pre-wrap; }
+    /* A bubble whose only real content is an attachment (no caption of its
+       own) drops the text padding entirely so the image/video fills the
+       bubble edge-to-edge, the way a real WhatsApp media bubble looks -
+       added 2026-09-02, Muhammad's direct ask ("padding from the sides"
+       should also be fixed, image "shown in its full capacity"). Widened
+       past the normal text max-width too, since a photo cramped to the same
+       width as a one-line text bubble looks small for no reason. */
+    .msg-bubble.media-only { max-width:min(75%, 320px); padding:3px; overflow:hidden; }
+    .msg-bubble.media-only .msg-attachment { margin-top:0 !important; }
+    .msg-bubble.media-only .msg-time { position:absolute; right:8px; bottom:6px; background:rgba(11,20,26,.55); color:#fff; padding:1px 6px; border-radius:8px; font-size:0.7rem; }
     .conv-msg-textarea {
       flex:1 1 auto; min-width:0; width:auto; resize:none; overflow-y:auto;
       min-height:48px; max-height:120px; padding:13px 18px;
@@ -9476,6 +9486,20 @@ function isFailedSend(text) {
   return /^\[DELIVERY FAILED:/.test(String(text ?? ''));
 }
 
+// True when the stored body is one of the webhook's own plain, caption-less
+// attachment labels (describeUnsupportedMessage() in whatsapp-webhook -
+// "[image]", "[video]", etc., with nothing appended). When a real
+// attachment is showing right below it, this text is pure redundancy - the
+// picture/file already says what it is. Deliberately exact-match only: the
+// moment a customer's real typed caption is appended ("[video] nice one"),
+// this returns false and the text still shows, since that's real content,
+// not a placeholder. Matches Muhammad's own follow-up ask: the caption
+// disappearing entirely when the media renders, not just reworded.
+const GENERIC_ATTACHMENT_LABELS = new Set(['[image]', '[video]', '[voice note]', '[audio file]', '[document]', '[sticker]']);
+function isGenericAttachmentLabel(text) {
+  return GENERIC_ATTACHMENT_LABELS.has(String(text ?? '').trim());
+}
+
 // ── AUTOMATION RULES (admin only) ──────────────────────────────
 let cachedAutomationRules = [];
 let cachedAiKb           = [];
@@ -12940,12 +12964,17 @@ async function openConversation(convId, scope = '') {
               const sep = (day && day !== lastDay) ? `<div class="msg-day-sep">${esc(day)}</div>` : '';
               lastDay = day || lastDay;
               const failedSend = m.direction === 'outbound' && isFailedSend(m.body);
+              // Redundant to show "[image]" as text right above the actual
+              // image - the attachment already says what it is. Only true
+              // when there's a real attachment AND the body is exactly one
+              // of the plain generic labels (no real typed caption).
+              const mediaOnly = !!m.attachment_path && isGenericAttachmentLabel(m.body);
               return `${sep}
               <div class="msg-wrapper${m.direction === 'outbound' ? ' outgoing' : ''}"${m.wa_message_id ? ` data-wamid="${esc(m.wa_message_id)}"` : ''}>
-                <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}${failedSend ? ' send-failed' : ''}" style="position:relative">
+                <div class="msg-bubble ${m.direction === 'outbound' ? 'outgoing' : 'incoming'}${failedSend ? ' send-failed' : ''}${mediaOnly ? ' media-only' : ''}" style="position:relative">
                   ${messageActionButtonHtml({ id:m.id, waMessageId:m.wa_message_id || '', text:m.body || '', direction:m.direction, createdAt:m.created_at, status:m.delivery_status || '' })}
                   ${failedSend ? '<span class="send-failed-badge">⚠ Not delivered - customer never received this</span>' : ''}
-                  <span class="msg-body">${esc(displayMsgText(m.body))}</span>
+                  ${mediaOnly ? '' : `<span class="msg-body">${esc(displayMsgText(m.body))}</span>`}
                   ${m.attachment_path ? `<div class="msg-attachment" id="conv-att-${convId}-${m._renderIndex}" data-path="${esc(m.attachment_path)}" style="margin-top:8px;cursor:pointer;color:inherit">📎 Loading attachment…</div>` : ''}
                   <span class="msg-time">${messageActionMarksHtml(m.id)}${fmtConvMessageTime(m.created_at)}${deliveryTickHtml(m.direction, m.delivery_status)}</span>
                 </div>
@@ -13022,6 +13051,38 @@ function attachmentKindFromPath(path) {
   return 'file';
 }
 
+// Same rendering as loadConvAttachmentThumbs's own per-message branch, but
+// for exactly one attachment keyed by its real message id (conv-att-rt-<id>)
+// rather than an array-position id - used only by the realtime INSERT
+// handler, where several attachments could land in one open session and an
+// index-based id would collide between them.
+async function loadRealtimeAttachmentThumb(messageId, attachmentPath) {
+  const el = document.getElementById(`conv-att-rt-${messageId}`);
+  if (!el) return;
+  const { data, error } = await sb.storage.from('deposit-screenshots').createSignedUrl(attachmentPath, 300);
+  if (error || !data) {
+    el.textContent = '📎 Attachment (failed to load - tap to retry)';
+    el.onclick = () => loadRealtimeAttachmentThumb(messageId, attachmentPath);
+    return;
+  }
+  const url = data.signedUrl;
+  const kind = attachmentKindFromPath(attachmentPath);
+  const name = String(attachmentPath).split('/').pop();
+  if (kind === 'image') {
+    el.innerHTML = `<img src="${esc(url)}" alt="Attachment" style="width:100%;max-height:420px;object-fit:contain;border-radius:inherit;display:block" />`;
+    el.onclick = () => window.open(url, '_blank');
+  } else if (kind === 'audio') {
+    el.innerHTML = `<audio controls preload="none" src="${esc(url)}" style="max-width:240px;display:block"></audio>`;
+    el.onclick = null;
+  } else if (kind === 'video') {
+    el.innerHTML = `<video controls preload="metadata" src="${esc(url)}" style="max-width:240px;border-radius:8px;display:block"></video>`;
+    el.onclick = null;
+  } else {
+    el.innerHTML = `<span style="text-decoration:underline">📄 ${esc(name)}</span>`;
+    el.onclick = () => window.open(url, '_blank');
+  }
+}
+
 async function loadConvAttachmentThumbs(convId, messages) {
   await Promise.all(messages.map(async (m, i) => {
     if (!m.attachment_path) return;
@@ -13038,7 +13099,12 @@ async function loadConvAttachmentThumbs(convId, messages) {
     const name = String(m.attachment_path).split('/').pop();
 
     if (kind === 'image') {
-      el.innerHTML = `<img src="${esc(url)}" alt="Attachment" style="max-width:220px;max-height:220px;border-radius:8px;display:block" />`;
+      // Shown at the bubble's own full width, not a cramped small thumbnail -
+      // Muhammad's direct ask ("the image should be shown in its full
+      // capacity"). max-height caps it so one unusually tall photo can't
+      // dominate the whole thread; width is left to fill whatever the
+      // bubble's max-width already is (see .msg-bubble.media-only below).
+      el.innerHTML = `<img src="${esc(url)}" alt="Attachment" style="width:100%;max-height:420px;object-fit:contain;border-radius:inherit;display:block" />`;
       el.onclick = () => window.open(url, '_blank');
     } else if (kind === 'audio') {
       // Playable inline - a voice note the agent has to download first is
@@ -14545,14 +14611,27 @@ function startConvRealtime(scope = '') {
           // bubble again when its delivery status changes.
           if (payload.new.wa_message_id) div.dataset.wamid = payload.new.wa_message_id;
           const failedSend = payload.new.direction === 'outbound' && isFailedSend(payload.new.body);
-          div.innerHTML = `<div class="msg-bubble ${payload.new.direction === 'outbound' ? 'outgoing' : 'incoming'}${failedSend ? ' send-failed' : ''}">
+          // This handler never rendered attachments at all before - a real
+          // image arriving live would show none of what the main render
+          // (openConversation) already does for one loaded from the
+          // database. Matches that same mediaOnly logic now.
+          const mediaOnly = !!payload.new.attachment_path && isGenericAttachmentLabel(payload.new.body);
+          div.innerHTML = `<div class="msg-bubble ${payload.new.direction === 'outbound' ? 'outgoing' : 'incoming'}${failedSend ? ' send-failed' : ''}${mediaOnly ? ' media-only' : ''}" style="position:relative">
             ${messageActionButtonHtml({ id:payload.new.id, waMessageId:payload.new.wa_message_id || '', text:payload.new.body || '', direction:payload.new.direction, createdAt:payload.new.created_at, status:payload.new.delivery_status || '' })}
             ${failedSend ? '<span class="send-failed-badge">⚠ Not delivered - customer never received this</span>' : ''}
-            <span class="msg-body">${esc(displayMsgText(payload.new.body))}</span>
+            ${mediaOnly ? '' : `<span class="msg-body">${esc(displayMsgText(payload.new.body))}</span>`}
+            ${payload.new.attachment_path ? `<div class="msg-attachment" id="conv-att-rt-${payload.new.id}" data-path="${esc(payload.new.attachment_path)}" style="margin-top:8px;cursor:pointer;color:inherit">📎 Loading attachment…</div>` : ''}
             <span class="msg-time">${fmtConvMessageTime(payload.new.created_at)}${deliveryTickHtml(payload.new.direction, payload.new.delivery_status)}</span>
           </div>`;
           msgArea.appendChild(div);
           msgArea.scrollTop = msgArea.scrollHeight;
+          if (payload.new.attachment_path) {
+            // Keyed by the message's own real id (conv-att-rt-<id>), not a
+            // shared array index like loadConvAttachmentThumbs uses -
+            // several realtime attachments can arrive in one open session,
+            // and reusing an index-based id would collide between them.
+            loadRealtimeAttachmentThumb(payload.new.id, payload.new.attachment_path);
+          }
         }
       }
     })
