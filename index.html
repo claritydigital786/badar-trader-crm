@@ -2414,7 +2414,7 @@
       <div class="stat-card stat-card-accent">
         <div class="stat-label">Client Account Balances</div>
         <div class="stat-value" id="dash-revenue">-</div>
-        <div class="stat-trend">Current recorded balances</div>
+        <div class="stat-trend">Approved deposits only</div>
         <div class="stat-trend" id="dash-rev-platform" style="margin-top:6px;color:var(--text-muted);line-height:1.6"></div>
       </div>
     </div>
@@ -4793,7 +4793,7 @@
       <div class="card">
         <div style="font-weight:700;font-size:0.95rem;color:var(--text-strong);margin-bottom:14px">My Performance</div>
         <table>
-          <thead><tr><th>Leads Assigned</th><th>Converted</th><th>Conversion %</th><th>Recorded Deposits</th></tr></thead>
+          <thead><tr><th>Leads Assigned</th><th>Converted</th><th>Conversion %</th><th>Approved Deposits</th></tr></thead>
           <tbody id="agent-performance-tbody"><tr><td colspan="4" class="empty-state">Loading…</td></tr></tbody>
         </table>
       </div>
@@ -7545,7 +7545,8 @@ async function loadAgentLeads() {
   const total = cachedLeads.length;
   const newCount = cachedLeads.filter(l => l.status === 'new').length;
   const converted = cachedLeads.filter(l => l.status === 'converted').length;
-  const revenue = cachedLeads.reduce((s, l) => s + (Number(l.account_balance) || 0), 0);
+  // Approved deposits only - see approvedAum(). A pending submission contributes 0.
+  const revenue = approvedAum(cachedLeads);
   const setS = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   setS('agent-stat-total', total);
   setS('agent-stat-new', newCount);
@@ -7685,7 +7686,7 @@ async function loadAgentPayrollEstimate(revenue) {
   const bodyEl = document.getElementById('agent-payroll-body');
   if (!bodyEl) return;
   if (demoMode) {
-    bodyEl.innerHTML = `Base <strong>$500</strong> + 5% of $${fmtMoney(revenue)} in recorded deposits &asymp; <strong style="color:var(--ok)">$${fmtMoney(500 + revenue * 0.05)}</strong> this month. <span style="color:var(--text-muted)">(demo estimate)</span>`;
+    bodyEl.innerHTML = `Base <strong>$500</strong> + 5% of $${fmtMoney(revenue)} in approved deposits &asymp; <strong style="color:var(--ok)">$${fmtMoney(500 + revenue * 0.05)}</strong> this month. <span style="color:var(--text-muted)">(demo estimate)</span>`;
     return;
   }
   const { data, error } = await sb.from('payroll_settings').select('base_salary_monthly, commission_percent').eq('agent_id', currentUser.id).maybeSingle();
@@ -7693,7 +7694,7 @@ async function loadAgentPayrollEstimate(revenue) {
   const base = Number(data?.base_salary_monthly ?? 500);
   const commPct = Number(data?.commission_percent ?? 5);
   const commission = revenue * (commPct / 100);
-  bodyEl.innerHTML = `Base <strong>$${fmtMoney(base)}</strong>/month + <strong>${commPct}%</strong> of $${fmtMoney(revenue)} in recorded deposits &asymp; <strong style="color:var(--ok)">$${fmtMoney(base + commission)}</strong> estimated this period. <span style="color:var(--text-muted)">Admin finalizes the real payroll run.</span>`;
+  bodyEl.innerHTML = `Base <strong>$${fmtMoney(base)}</strong>/month + <strong>${commPct}%</strong> of $${fmtMoney(revenue)} in approved deposits &asymp; <strong style="color:var(--ok)">$${fmtMoney(base + commission)}</strong> estimated this period. <span style="color:var(--text-muted)">Admin finalizes the real payroll run.</span>`;
 }
 
 async function logActivityStandalone() {
@@ -8961,6 +8962,41 @@ function channelLabel(s) {
 }
 function fmtMoney(n) {
   return Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ── APPROVED DEPOSITS / AUM ────────────────────────────────────
+// A deposit only counts toward AUM once an admin has actually approved it.
+//
+// Found during the Phase 1 deposit-form verification (2026-09-01): conversion-hook
+// writes account_balance = the amount the CUSTOMER typed into the form, at the moment
+// they submit it, while the lead is still only 'pending_approval'. Every AUM figure
+// summed account_balance with no status filter, so a deposit nobody had verified yet
+// showed up in a stat card literally labelled "Approved deposits".
+//
+// status = 'converted' is the authoritative approval signal in this schema, and the
+// only one that actually works:
+//   - it is what approveConversion() writes, and approveConversion() already refuses
+//     to run without a deposit screenshot on file;
+//   - the live trg_leads_converted_admin_only trigger restricts it to admins in BOTH
+//     directions, so an agent can neither declare nor undo it;
+//   - leads.verified is written false by conversion-hook and set true by NOTHING in
+//     this repo - it is vestigial, and gating on it would zero out every real figure;
+//   - leads.balance_locked is true for no lead in production, because the one real
+//     converted lead predates the approval gate - gating on it would silently drop it.
+// It also keeps AUM coherent with the Converted counts beside it, which key on the
+// same field.
+//
+// The submitted amount is NOT destroyed by any of this. leads.deposit_amount keeps
+// what the customer claimed and account_balance keeps the recorded figure, both still
+// shown in the lead detail panel, so Ehsan has the number in front of him while he
+// verifies it in the IB portal. Only the AGGREGATES change.
+function isApprovedDeposit(lead) {
+  return (lead && lead.status) === 'converted';
+}
+// Sum of account_balance across approved deposits only. Anything pending, rejected,
+// unverified or incomplete contributes exactly 0.
+function approvedAum(leads) {
+  return (leads || []).reduce((sum, l) => sum + (isApprovedDeposit(l) ? (Number(l.account_balance) || 0) : 0), 0);
 }
 function transactionTotalsByCurrency(rows, type) {
   return (rows || []).reduce((totals, row) => {
@@ -10714,9 +10750,10 @@ function renderDashboardStats() {
     if (el('dash-new-leads'))   el('dash-new-leads').textContent   = leads.filter(l => l.status === 'new').length;
     if (el('dash-converted'))   el('dash-converted').textContent   = leads.filter(l => l.status === 'converted').length;
     renderDashboardCharts(leads);
-    const revenue = leads.reduce((s, l) => s + (Number(l.account_balance) || 0), 0);
+    // Approved deposits only - see approvedAum(). Super Admin shares this view.
+    const revenue = approvedAum(leads);
     if (el('dash-revenue'))     el('dash-revenue').textContent     = '$' + fmtMoney(revenue);
-    { const bp={}; leads.forEach(l=>{ if(l.deposit_platform && Number(l.account_balance)){ bp[l.deposit_platform]=(bp[l.deposit_platform]||0)+Number(l.account_balance);} }); const pl=Object.entries(bp).map(([k,v])=>k.toUpperCase()+': $'+fmtMoney(v)).join('   ·   '); if(el('dash-rev-platform')) el('dash-rev-platform').textContent = pl ? 'By platform - '+pl : ''; }
+    { const bp={}; leads.forEach(l=>{ if(l.deposit_platform && Number(l.account_balance) && isApprovedDeposit(l)){ bp[l.deposit_platform]=(bp[l.deposit_platform]||0)+Number(l.account_balance);} }); const pl=Object.entries(bp).map(([k,v])=>k.toUpperCase()+': $'+fmtMoney(v)).join('   ·   '); if(el('dash-rev-platform')) el('dash-rev-platform').textContent = pl ? 'By platform - '+pl : ''; }
   });
   // Load upcoming follow-ups from lead_activity
   loadUpcomingFollowups();
