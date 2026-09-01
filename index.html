@@ -245,7 +245,14 @@
       min-width: 20px;
       text-align: center;
     }
-    .nav-item.active .nav-badge { background: rgba(230,182,76,0.3); color: #e6b64c; }
+    /* On an active row the pill used to be gold-on-gold - a 30%-gold chip with
+       gold text sitting on the solid gold active background, which made the
+       number effectively invisible exactly when that row was selected (found
+       2026-08-31; it predates the sidebar regroup). Inverted to the same
+       treatment .nav-item.active .nav-icon already uses: the row's own dark
+       ink on a translucent dark chip, so the count stays legible in both
+       states without introducing a colour the palette does not have. */
+    .nav-item.active .nav-badge { background: rgba(26,20,0,.22); color: #1a1400; }
     /* The caret only ever toggles the subgroup below it - its own click
        handler stops propagation so it never also fires the row's own
        navigation, which the delegated #admin-tabs listener would otherwise
@@ -272,9 +279,97 @@
        label reads before its items. Scoped to whichever group opts in via
        this modifier, not a change to every collapsible nav group's caret. */
     .nav-caret-leading { margin-left: 0; margin-right: 8px; }
-    .nav-subgroup.collapsed { display: none; }
+    /* ── Collapsible sidebar groups (2026-08-31) ───────────────────────────
+       The fold animates with grid-template-rows 0fr -> 1fr rather than
+       display:none, which cannot transition. That needs the rows wrapped in
+       one .nav-subgroup-inner: `grid-template-rows: 0fr` only collapses the
+       rows the template actually declares, so without a single wrapper every
+       child past the first would sit in an implicit auto row and refuse to
+       fold. overflow:hidden is what clips them on the way down.
+       Anyone who has asked not to see motion gets the instant fold instead. */
+    .nav-subgroup {
+      display: grid;
+      grid-template-rows: 1fr;
+      overflow: hidden;
+      transition: grid-template-rows .18s ease;
+    }
+    .nav-subgroup-inner { min-height: 0; overflow: hidden; }
+    .nav-subgroup.collapsed { grid-template-rows: 0fr; }
+    @media (prefers-reduced-motion: reduce) { .nav-subgroup { transition: none; } }
+
+    /* Group header. Deliberately NOT a .nav-item: it carries no data-tab, so
+       the delegated #admin-tabs navigation listener cannot match it and a
+       click only folds. Sized to read as a quiet label rather than a card -
+       no border, no fill until hovered, so seven of them stacked stay calm. */
+    .nav-group-header {
+      display: flex;
+      align-items: center;
+      /* Tightened 2026-08-31 after measuring: at the sidebar's real 231px,
+         "WHATSAPP & CHANNELS" and "CRM & OPERATIONS" were ellipsing. The gap,
+         letter-spacing and header icon all give back a few px each so every
+         group name fits whole at 1280 and up, rather than renaming the
+         groups to suit the box. */
+      gap: 7px;
+      padding: 7px 7px;
+      margin: 1px 0;
+      border-radius: 10px;
+      cursor: pointer;
+      user-select: none;
+      color: var(--text-muted);
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: .01em;
+      text-transform: uppercase;
+      transition: background .15s, color .15s;
+    }
+    .nav-group-header:hover { background: #f1f5f9; color: #0f172a; }
+    /* Slightly smaller than a destination's icon: a group is a container, not
+       a place you can go, and the size difference says so at a glance. */
+    .nav-group-header > .nav-icon { width: 18px; height: 18px; font-size: 10px; flex-shrink: 0; }
+    .nav-group-header > .nav-caret { width: 18px; height: 18px; font-size: 11px; }
+    .nav-group-header:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .nav-group-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* A collapsed group must still say "you are in here", or folding it loses
+       the only clue to where you are. Gold, matching the active row accent. */
+    .nav-group-header.has-active { color: var(--accent); }
+    .nav-group-header.has-active .nav-caret { color: var(--accent); border-color: var(--accent); }
+
+    /* Children sit indented under their header, with a hairline spine so the
+       eye can follow which rows belong to which group without extra borders. */
+    .nav-subgroup-inner > .nav-item,
+    .nav-subgroup-inner > .nav-group-header {
+      margin-left: 8px;
+      border-left: 1px solid var(--line);
+      border-radius: 0 10px 10px 0;
+      padding-left: 8px;
+    }
+    /* Child rows carry an indent, a spine and a badge, which left the longest
+       label ("Manage Subscribers") wrapping to two lines once its count showed.
+       Reclaimed from the row's own internal spacing rather than by widening the
+       sidebar or shortening the label: a slightly tighter gap, a narrower
+       minimum on the pill, and nowrap so a future long label clips instead of
+       silently reflowing the row to double height. */
+    .nav-subgroup-inner > .nav-item {
+      gap: 6px;
+      padding: 8px 6px 8px 8px;
+      white-space: nowrap;
+    }
+    .nav-subgroup-inner > .nav-item > .nav-badge { min-width: 16px; padding: 1px 4px; margin-left: auto; }
+
+    /* Socials nests one level deeper, inside WhatsApp & Channels. */
+    .nav-group-header-nested { font-size: 10.5px; }
+    .nav-subgroup-inner .nav-subgroup-inner > .nav-item { margin-left: 12px; }
+    /* Child icons a touch smaller than the standalone Dashboard row, so the
+       top-level destination stays the visually dominant one. */
+    .nav-subgroup-inner .nav-icon { width: 18px; height: 18px; font-size: 11px; }
+
     [data-theme="dark"] .nav-caret { color: #94a3b8; border-color: rgba(255,255,255,.18); }
     [data-theme="dark"] .nav-caret:hover { background: rgba(255,255,255,.08); color: #f1f5f9; border-color: rgba(255,255,255,.35); }
+    [data-theme="dark"] .nav-group-header { color: #8696a0; }
+    [data-theme="dark"] .nav-group-header:hover { background: #1c2740; color: #f1f5f9; }
+    [data-theme="dark"] .nav-group-header.has-active { color: var(--accent); }
+    [data-theme="dark"] .nav-subgroup-inner > .nav-item,
+    [data-theme="dark"] .nav-subgroup-inner > .nav-group-header { border-left-color: #243350; }
 
     .sidebar-footer {
       margin-top: auto;
@@ -408,6 +503,17 @@
       padding: 24px;
       background: #f8fafc;
     }
+    /* The market ticker belongs on the Dashboard, not in the Inbox (Muhammad,
+       2026-09-01): forex and crypto prices tell an agent nothing while they are
+       answering a lead, and the strip costs the conversation list 46px (74px in
+       the widget's two-row mode below ~1280px).
+       This is not a visual hide with the space kept: every layout offset
+       (.app-shell, .sidebar, .main-content) is derived from --ticker-h, and
+       syncTickerHeight() already computes that from the tickers that are
+       actually visible, so with none visible it resolves to 0px and the whole
+       reservation collapses. The Dashboard's ticker is untouched. */
+    body.inbox-hides-ticker .market-ticker { display: none; }
+
     /* ── Fixed market ticker (bottom bar) ── */
     .market-ticker {
       position: fixed; top: 0; left: 0; right: 0; z-index: 40;
@@ -677,6 +783,48 @@
        their own, and the boxes that had been pinned light were made
        theme-aware in the same pass, so nothing needs exempting by ID. */
     td { color: #334155; }
+
+    /* ── Payroll > Salary Setup table (2026-08-31) ─────────────────────────
+       The two number fields read as raw browser controls: the shared input
+       rule above only matches text/email/password/date, so type="number" was
+       picking up none of the CRM's background, border, radius or padding, and
+       the value sat hard left in a field far wider than a 3-digit salary
+       needs. These give the column a real control: fixed compact width,
+       centred in its cell, value centred in the field, and the same surface
+       treatment every other input in the app already has. Layout only - the
+       ids, values, min/max/step and handlers are untouched. */
+    .payroll-setup-table th:nth-child(2),
+    .payroll-setup-table th:nth-child(3),
+    .payroll-setup-table td:nth-child(2),
+    .payroll-setup-table td:nth-child(3) { text-align: center; }
+    .payroll-setup-table th:first-child,
+    .payroll-setup-table td:first-child  { text-align: left; }
+    .payroll-num {
+      width: 130px;
+      height: 38px;
+      display: inline-flex;
+      text-align: center;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      color: #0f172a;
+      padding: 0 10px;
+      font-size: 0.875rem;
+      font-variant-numeric: tabular-nums;
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .payroll-num-comm { width: 110px; }
+    .payroll-num:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(230,182,76,.18); }
+    /* The spinner sits inside the content box and pushes the digits off
+       centre, which is the whole complaint here. Hidden for appearance only -
+       type="number" is unchanged, so validation, the numeric keypad on mobile
+       and the arrow-key step all still work. */
+    .payroll-num::-webkit-outer-spin-button,
+    .payroll-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .payroll-num { -moz-appearance: textfield; appearance: textfield; }
+    [data-theme="dark"] .payroll-num { background: #0f172a; border-color: #243350; color: #f1f5f9; }
+    [data-theme="dark"] .payroll-num:focus { border-color: var(--accent); }
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: #f8fafc; }
     /* Bug found 2026-08-05: this hover rule was never scoped per-theme, unlike
@@ -985,6 +1133,10 @@
          .header-actions .btn above) - wrap the action buttons onto their own
          row instead of letting the last one (Logout) clip off-screen. */
       .content-header { padding: 12px 14px; flex-wrap: wrap; row-gap: 8px; }
+      .ql-chip-btn { font-size: 0.72rem; padding: 5px 8px; }
+      .ql-chip-text { display: none; }
+      .ql-menu { width: 290px; }
+      .wa-chan-btn { max-width: 168px; font-size: 0.72rem; padding: 5px 8px; }
       .header-actions { gap: 6px; width: 100%; justify-content: flex-end; }
       .header-actions .btn { font-size: 0.75rem; padding: 5px 8px; text-align: center; white-space: nowrap; }
       .content-body { padding: 12px; }
@@ -1031,6 +1183,10 @@
 
     /* ── Agent tab content padding ── */
     #agent-dashboard .tab-content.active { padding: 24px; }
+    /* .content-body already pads the page by 24px, so the Agent Inbox was
+       paying it twice: 48px of dead space under the composer that the message
+       history could have used. Every other agent tab keeps its padding. */
+    #agent-dashboard .tab-content.conv-tab.active { padding: 0; }
 
     /* ── Conversations ──
        Skinned to match WhatsApp Web closely, Muhammad's explicit request
@@ -1038,13 +1194,36 @@
        both light and dark, rather than this CRM's navy/gold - the inbox is
        treated as its own surface, the way WhatsApp is its own app. Every other
        tab keeps the CRM theme. */
+    /* Inbox layout, fixed 2026-08-31 (Hanzala, via Muhammad).
+       The Inbox tab is a flex column that fills the content area exactly, so
+       the page itself never scrolls here and only the message history does.
+       The shell used to be `height: calc(100vh - 160px)`, a magic number that
+       could not know what sat above it - on the Agent tab the Quick Links card
+       does, so the shell overran the bottom of .content-body and pushed the
+       composer below the fold until the agent scrolled down. */
+    .tab-content.conv-tab.active {
+      display: flex; flex-direction: column;
+      height: 100%; min-height: 0; overflow: hidden;
+    }
+    /* Anything above the shell in that column keeps its natural height. */
+    .tab-content.conv-tab.active > *:not(.conversations-shell) { flex: 0 0 auto; }
     .conversations-shell {
-      display: flex; height: calc(100vh - 160px); position: relative;
+      display: flex; flex: 1 1 auto; min-height: 0; position: relative;
       border: 1px solid #d1d7db; border-radius: 6px; overflow: hidden;
       background: #fff; box-shadow: 0 1px 3px rgba(11,20,26,.13);
     }
-    .conv-list-panel { width: 30%; min-width: 300px; max-width: 420px; border-right: 1px solid #d1d7db; display: flex; flex-direction: column; flex-shrink: 0; background:#fff; }
-    .conv-search { padding: 7px 12px; display: flex; gap: 8px; align-items: center; background:#fff; }
+    .conv-list-panel { width: 30%; min-width: 300px; max-width: 420px; border-right: 1px solid #d1d7db; display: flex; flex-direction: column; flex-shrink: 0; min-height: 0; background:#fff; }
+    /* Inbox list header, reorganised 2026-08-31 (Muhammad): the channel pills
+       used to sit in their own band between the search field and the lead
+       stages, so a 300px column carried three competing pill rows and every
+       label fought for width. The channel scope now shares the top row with
+       the search field, right-aligned and visually lighter, which gives the
+       lead-stage row the full width it needs. Every row wraps instead of
+       scrolling sideways, so nothing is chopped at a smaller laptop width. */
+    .conv-search {
+      padding: 9px 12px 8px; display: flex; gap: 8px;
+      align-items: center; background:#fff;
+    }
     .conv-search input { flex: 1; min-width: 0; }
     .conv-show-list-btn { display: none; }
     .conversations-shell.list-collapsed .conv-chat-header { padding-left: 56px; }
@@ -1053,9 +1232,13 @@
     .conv-search input:focus { background:#fff; border-color:#00a884; }
     .conv-search input::placeholder { color:#8696a0; }
     /* Filter row: WhatsApp's own All / Unread pill style. */
+    /* Six stages in a deliberate 3x2 grid rather than letting the browser wrap
+       them wherever they happen to run out of room. Equal columns mean the two
+       rows line up, so it reads as a designed block instead of a spill. */
     .conv-filter-tabs {
-      display:flex; flex-wrap:nowrap; overflow-x:auto; gap:6px;
-      padding:0 12px 8px; background:#fff; border-bottom:1px solid #e9edef;
+      display:grid; grid-template-columns:repeat(3, 1fr); gap:6px;
+      padding:9px 12px 10px; background:#fff;
+      border-top:1px solid #e9edef;
     }
     .conv-list-toggle {
       flex-shrink:0; border:none; background:transparent; border-radius:50%;
@@ -1077,8 +1260,9 @@
     .conv-list-menu button:hover { background:#f0f2f5; }
     .conv-list-menu-separator { height:1px; margin:5px 0; background:#e9edef; }
     .conv-filter-tab {
-      flex-shrink: 0; cursor:pointer; border:none; border-radius:14px;
-      padding:5px 12px; font-size:0.78rem; font-weight:500;
+      cursor:pointer; border:none; border-radius:13px;
+      padding:6px 6px; font-size:0.735rem; font-weight:500; white-space:nowrap;
+      overflow:hidden; text-overflow:ellipsis; text-align:center;
       background:#f0f2f5; color:#54656f;
     }
     .conv-filter-tab:hover  { background:#e9edef; }
@@ -1090,41 +1274,128 @@
        pill; these operational filters are deliberately a different shape
        (square-ish, outlined, check-marked, indigo when on) because they are
        multi-select and stack ON TOP of whatever stage is selected. */
+    /* A labelled block, clearly separated from the stage grid above it: the
+       label sits on its own line and the three chips share one row, each one
+       an equal third so they always fit and always line up. */
     .conv-ops-row {
-      display:flex; flex-wrap:nowrap; overflow-x:auto; gap:6px; align-items:center;
-      padding:0 12px 8px; background:#fff; border-bottom:1px solid #e9edef;
+      padding:8px 12px 10px; background:#f7f9fa;
+      border-top:1px solid #e9edef; border-bottom:1px solid #e9edef;
     }
+    .conv-ops-chips { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-top:5px; }
     .conv-ops-label {
-      flex-shrink:0; font-size:0.62rem; font-weight:700; letter-spacing:.06em;
-      text-transform:uppercase; color:#8696a0; margin-right:2px;
+      display:block; font-size:0.615rem; font-weight:700; letter-spacing:.08em;
+      text-transform:uppercase; color:#8696a0;
     }
     .conv-ops-chip {
-      flex-shrink:0; cursor:pointer; border:1px solid #d1d7db; border-radius:6px;
-      padding:4px 9px; font-size:0.72rem; font-weight:600; white-space:nowrap;
-      background:#fff; color:#54656f; display:flex; align-items:center; gap:5px;
+      cursor:pointer; border:1px solid #d1d7db; border-radius:7px;
+      padding:5px 4px; font-size:0.685rem; font-weight:600; white-space:nowrap;
+      overflow:hidden; text-overflow:ellipsis; text-align:center;
+      background:#fff; color:#54656f; display:block;
     }
     .conv-ops-chip:hover  { background:#f0f2f5; }
     .conv-ops-chip.active { background:#eef2ff; border-color:#a5b4fc; color:#4338ca; }
     /* Added 2026-08-31: bifurcates the Omnichannel Inbox by which real
        WhatsApp number a lead came in on (6541 vs 3903), so Badar can see both
        numbers' campaigns actively populating real leads, side by side. */
+    /* The channel scope answers "which of the two real numbers did this arrive
+       on", which is a property of the whole Inbox, not of the lead column. It
+       sits in the full-width toolbar above the shell, where there is room for
+       all three options on one line, instead of competing for 350px with the
+       search field and the stage filters. */
     .conv-channel-row {
-      display:flex; flex-wrap:nowrap; overflow-x:auto; gap:6px;
-      padding:0 12px 8px; background:#fff;
+      display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end;
+      margin-left:auto; padding:0; background:transparent;
     }
-    .conv-channel-pill {
-      flex-shrink:0; cursor:pointer; border:1px solid #d1d7db; border-radius:14px;
-      padding:4px 10px; font-size:0.74rem; font-weight:600;
-      background:#fff; color:#54656f; display:flex; align-items:center; gap:5px;
+    /* WhatsApp number scope, 2026-08-31 (Muhammad). It was three pills in the
+       350px conversation column, which is where the crowding came from. It is
+       one compact dropdown in the page header now, beside the bell: secondary
+       to the page title, never overlapping it, and it carries the same counts
+       from the same element ids as before. */
+    /* Quick Links, 2026-09-01 (Muhammad). It was a full-width card stacked
+       above the inbox, so every agent paid ~86px of lead-list height for a
+       control they reach for occasionally. It is a utility now: a compact
+       chip beside the channel selector that opens a small panel with the same
+       select, the same URL line and the same copy button. */
+    .ql-chip { position:relative; flex-shrink:0; }
+    .ql-chip-btn {
+      display:flex; align-items:center; gap:6px; cursor:pointer;
+      border:1px solid #e2e8f0; border-radius:8px; background:#fff;
+      padding:6px 10px; font-size:0.76rem; font-weight:600; color:#475569;
+      font-family:inherit; line-height:1.2; white-space:nowrap;
     }
-    .conv-channel-pill:hover  { background:#f0f2f5; }
-    .conv-channel-pill.active { background:#e7f3ff; border-color:#8ec5ff; color:#0a5ba8; }
+    .ql-chip-btn:hover { background:#f8fafc; border-color:#cbd5e1; }
+    .ql-chip-btn:focus-visible { outline:2px solid #0a5ba8; outline-offset:1px; }
+    .ql-chip.open .ql-chip-btn { background:#f1f5f9; border-color:#cbd5e1; }
+    .ql-caret { font-size:0.62rem; color:#94a3b8; }
+    .ql-menu {
+      display:none; position:absolute; right:0; top:calc(100% + 6px); z-index:60;
+      width:340px; padding:10px; border-radius:10px;
+      background:#fff; border:1px solid #e2e8f0;
+      box-shadow:0 12px 28px rgba(15,23,42,.16);
+    }
+    .ql-chip.open .ql-menu { display:flex; flex-direction:column; gap:8px; }
+    .ql-select { width:100%; padding:6px 8px; font-size:0.78rem; }
+    /* The URL can be long; it truncates visually but Copy always copies the
+       full value, which comes from QUICK_LINKS, not from this element. */
+    .ql-value {
+      font-family:monospace; font-size:0.76rem; color:var(--text-strong);
+      background:#f8fafc; border:1px solid #eef2f6; border-radius:6px;
+      padding:6px 8px; min-height:30px;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    .ql-copy { align-self:flex-end; }
+
+    .wa-chan { position:relative; flex-shrink:0; }
+    .wa-chan-btn {
+      display:flex; align-items:center; gap:7px; cursor:pointer;
+      border:1px solid #e2e8f0; border-radius:8px; background:#fff;
+      padding:6px 10px; font-size:0.76rem; font-weight:600; color:#475569;
+      font-family:inherit; line-height:1.2; white-space:nowrap; max-width:210px;
+    }
+    .wa-chan-btn:hover { background:#f8fafc; border-color:#cbd5e1; }
+    .wa-chan-btn:focus-visible { outline:2px solid #0a5ba8; outline-offset:1px; }
+    .wa-chan.open .wa-chan-btn { background:#f1f5f9; border-color:#cbd5e1; }
+    .wa-chan-current { overflow:hidden; text-overflow:ellipsis; }
+    .wa-chan-caret { font-size:0.62rem; color:#94a3b8; flex-shrink:0; }
+    .wa-chan-menu {
+      display:none; position:absolute; right:0; top:calc(100% + 6px); z-index:60;
+      min-width:238px; padding:5px; border-radius:10px;
+      background:#fff; border:1px solid #e2e8f0;
+      box-shadow:0 12px 28px rgba(15,23,42,.16);
+    }
+    .wa-chan.open .wa-chan-menu { display:block; }
+    .wa-chan-opt {
+      display:flex; align-items:center; justify-content:space-between; gap:14px;
+      width:100%; cursor:pointer; border:none; background:none; text-align:left;
+      padding:8px 10px; border-radius:7px; font-family:inherit;
+      font-size:0.79rem; font-weight:500; color:#334155; white-space:nowrap;
+    }
+    .wa-chan-opt:hover { background:#f1f5f9; }
+    .wa-chan-opt.active { background:#e7f3ff; color:#0a5ba8; font-weight:600; }
+    .wa-chan-opt.active .wa-chan-opt-name::after { content:' ✓'; }
+    .wa-chan-opt .conv-channel-count { flex-shrink:0; }
     .conv-channel-count {
-      background:#f0f2f5; color:#54656f; border-radius:8px; padding:0 5px;
-      font-size:0.68rem; font-weight:700; min-width:14px; text-align:center;
+      background:#eef1f3; color:#667781; border-radius:8px; padding:1px 7px;
+      font-size:0.7rem; font-weight:700; min-width:20px; text-align:center;
     }
-    .conv-channel-pill.active .conv-channel-count { background:#0a5ba8; color:#fff; }
-    .conv-list { flex:1; overflow-y:auto; background:#fff; }
+    .wa-chan-opt.active .conv-channel-count { background:#0a5ba8; color:#fff; }
+    /* Short laptop screens (1366x768, 1280x720) have little vertical room to
+       spare, and the header wraps onto more lines exactly when the panel is
+       narrowest. Tighten the header's vertical rhythm there so the
+       conversation list keeps its rows instead of the filters eating them.
+       Labels and wrapping are unchanged, only the spacing. */
+    @media (max-height: 820px) {
+      .conv-search      { padding:7px 12px 6px; }
+      .conv-filter-tabs { padding:7px 12px 8px; gap:5px; }
+      .conv-ops-row     { padding:6px 12px 8px; }
+      .conv-ops-chips   { margin-top:4px; gap:5px; }
+      .conv-filter-tab  { padding:5px 5px; }
+      .conv-ops-chip    { padding:4px 3px; }
+      .conv-input-bar   { min-height:58px; padding:7px 10px; }
+      .conv-channel-pill{ padding:3px 10px; }
+    }
+
+    .conv-list { flex:1 1 0; min-height:0; overflow-y:auto; background:#fff; }
     /* 72px row with the divider starting after the avatar, as WhatsApp does. */
     .conv-item { display:flex; align-items:center; gap:13px; padding:0 13px; height:72px; cursor:pointer; transition:background .12s; position:relative; }
     .conv-item::after { content:''; position:absolute; left:68px; right:0; bottom:0; height:1px; background:#e9edef; }
@@ -1146,7 +1417,11 @@
     [data-theme="dark"] .conv-prio-urgent        { background:#3f1d1d; color:#fca5a5; }
     [data-theme="dark"] .conv-prio-wait          { background:#1e2547; color:#a5b4fc; }
     [data-theme="dark"] .conv-prio-closed-window { background:#222d34; color:#aebac1; }
-    .conv-chat-panel { flex:1; display:flex; flex-direction:column; min-width:0; position:relative; }
+    .conv-chat-panel { flex:1; display:flex; flex-direction:column; min-width:0; min-height:0; overflow:hidden; position:relative; }
+    /* Header, the 24h warning, the reply preview, the attachment chip and the
+       composer all keep their own height. .conv-messages is the only child
+       allowed to flex, so it is the only thing that scrolls. */
+    .conv-chat-panel > *:not(.conv-messages):not(.conv-empty-chat) { flex:0 0 auto; }
     /* Drag-and-drop visual feedback - Ehsan's request, 2026-08-31. */
     .conv-chat-panel.conv-drag-over::after {
       content: 'Drop file to attach';
@@ -1162,23 +1437,63 @@
       background: rgba(37,211,102,.12);
       color: #6ee7b7;
     }
-    .conv-chat-header { padding:10px 16px; border-bottom:1px solid #d1d7db; display:flex; align-items:center; gap:12px; background:#f0f2f5; min-height:59px; }
+    /* Conversation header, rebuilt 2026-09-01 (Muhammad). The identity block
+       was flex:1 min-width:0 while the stage <select> was flex-shrink:0 with no
+       width cap, so the select sized itself off its longest option
+       ("Qualified (awaiting deposit confirmation)") and ellipsised the lead's
+       name down to nothing - which is why only the avatar read clearly. The
+       select is now width-banded and the identity gets a real minimum, so the
+       order is identity, timer, stage, spacer, actions. */
+    .conv-chat-header {
+      flex:0 0 auto; display:flex; align-items:center; gap:10px;
+      padding:7px 14px; min-height:0;
+      border-bottom:1px solid #d1d7db; background:#f0f2f5;
+    }
     /* The header now carries a countdown pill and an info button as well as
        the tier select and copy-link button, so the name block has to be the
        thing that gives way rather than the controls getting clipped. */
-    .conv-chat-header-info { flex:1; min-width:0; }
+    /* Enough room that a normal full name is never truncated, and it is the
+       element that grows when there is spare width. */
+    .conv-chat-header-info { flex:1 1 auto; min-width:168px; }
     .conv-chat-header-info h3,
     .conv-chat-header-info p { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .conv-chat-header > button,
     .conv-chat-header > select,
     .conv-chat-header > .conv-window-pill { flex-shrink:0; }
-    .conv-chat-header-info h3 { color:#111b21; font-size:1rem; font-weight:500; margin:0 0 1px; }
-    .conv-chat-header-info p { color:#667781; font-size:0.8125rem; margin:0; display:flex; align-items:center; gap:8px; }
+    .conv-chat-header-info h3 { color:#111b21; font-size:0.98rem; font-weight:600; margin:0 0 1px; line-height:1.25; }
+    .conv-chat-header-info p { color:#667781; font-size:0.76rem; margin:0; display:flex; align-items:center; gap:7px; line-height:1.2; }
+    .conv-header-phone { color:#8696a0; font-variant-numeric:tabular-nums; }
+
+    /* Stage selector: banded rather than intrinsic, so a long option can no
+       longer steal the header. */
+    .conv-tier-select {
+      flex:0 1 300px; width:300px; min-width:210px; max-width:320px;
+      border:1px solid #cbd5e1; border-radius:8px; padding:6px 8px;
+      font-size:0.78rem; color:var(--text-body); background:#fff;
+      font-family:inherit;
+    }
+
+    /* The three utility actions plus Copy Link, pinned to the far right.
+       margin-left:auto is the flexible spacer. */
+    .conv-header-actions {
+      display:flex; align-items:center; gap:4px;
+      margin-left:auto; flex-shrink:0;
+    }
+    /* Retained deliberately: copyConvLink() is still defined, so this styling
+       stays with it for whenever the action is given a home. Nothing renders
+       with this class today - the conversation header's action group is Search,
+       Mark as Unread and Contact Info only (Muhammad, 2026-09-01). */
+    .conv-copy-link-btn {
+      border:1px solid #cbd5e1; background:#fff; border-radius:8px;
+      padding:6px 10px; cursor:pointer; color:var(--text-body);
+      font-size:0.78rem; white-space:nowrap; font-family:inherit;
+    }
+    .conv-copy-link-btn:hover { background:#f0f2f5; }
     /* WhatsApp's wallpaper: the beige base plus a faint doodle. The real
        artwork is a Meta asset, so this is a self-contained approximation at
        the same tone rather than a hotlinked image. */
     .conv-messages {
-      flex:1; overflow-y:auto; padding:12px 5%; display:flex; flex-direction:column; gap:2px;
+      flex:1 1 0; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:12px 5%; display:flex; flex-direction:column; gap:2px;
       background-color:#efeae2;
       background-image:
         radial-gradient(circle at 20% 30%, rgba(11,20,26,.030) 0 2px, transparent 2px),
@@ -1212,7 +1527,17 @@
        and made even a one-word message more than 100px tall. */
     .msg-bubble { max-width:min(55%, 380px); padding:6px 7px 8px 9px; border-radius:7.5px; font-size:0.8885rem; line-height:1.34; word-break:break-word; white-space:normal; box-shadow:0 1px .5px rgba(11,20,26,.13); position:relative; }
     .msg-body { white-space:pre-wrap; }
-    .conv-msg-textarea { width:100%; resize:none; overflow-y:auto; min-height:64px; max-height:320px; padding:9px 12px; border-radius:8px; border:1px solid transparent; background:#fff; color:#111b21; font-family:inherit; font-size:0.9375rem; line-height:1.4; outline:none; }
+    .conv-msg-textarea {
+      flex:1 1 auto; min-width:0; width:auto; resize:none; overflow-y:auto;
+      min-height:48px; max-height:120px; padding:13px 18px;
+      border-radius:24px; border:1px solid transparent;
+      background:#fff; color:#111b21; font-family:inherit;
+      font-size:0.9375rem; line-height:1.4; outline:none;
+      transition:border-color .12s;
+    }
+    .conv-msg-textarea:focus { border-color:#00a884; }
+    .conv-msg-textarea::placeholder { color:#8696a0; }
+    .conv-msg-textarea:disabled { opacity:.6; cursor:not-allowed; }
     /* Delivery ticks (B3/B4). Outbound only - WhatsApp never shows a tick on
        a message the customer sent. Sizes and colours are WhatsApp's own: grey
        for sent/delivered, #53bdeb blue for read, red for a failure. */
@@ -1404,13 +1729,49 @@
       float:right; font-size:0.6875rem; color:rgba(17,27,33,.45);
       margin:6px 0 -3px 8px; line-height:1; white-space:nowrap;
     }
-    .conv-input-bar { padding:10px 16px; border-top:1px solid #d1d7db; display:flex; gap:10px; align-items:flex-end; background:#f0f2f5; }
+    /* Composer, rebuilt 2026-09-01 to WhatsApp Web's proportions (Muhammad):
+       it was a tall bordered block with a rectangular Send button, which made
+       the bottom of the panel feel heavy. Now one compact row about 64px tall:
+       round icon buttons, a pill input that sits on one line at rest, and a
+       circular send action. align-items:flex-end keeps everything on the
+       baseline while the input grows upward. */
+    .conv-input-bar {
+      flex:0 0 auto; display:flex; gap:8px; align-items:flex-end;
+      padding:7px 12px; min-height:60px;
+      border-top:1px solid #d1d7db; background:#f0f2f5;
+    }
     /* :not([type=file]) so the hidden attachment picker never picks up the
        visible text-input styling, which would give it a flex slot in the bar. */
     .conv-input-bar input:not([type="file"]) { flex:1; border:1px solid transparent; border-radius:8px; padding:9px 14px; font-size:0.9375rem; outline:none; color:#111b21; background:#fff; }
     .conv-input-bar input:not([type="file"]):focus { border-color:#00a884; }
-    .conv-attach-btn { flex:0 0 auto; background:none; border:none; cursor:pointer; font-size:1.15rem; line-height:1; padding:8px 4px; opacity:.65; }
-    .conv-attach-btn:hover { opacity:1; }
+    .conv-icon-btn {
+      flex:0 0 auto; width:42px; height:42px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      background:none; border:none; cursor:pointer;
+      font-size:1.15rem; line-height:1; color:#54656f; opacity:.75;
+      transition:background .12s, opacity .12s;
+    }
+    .conv-icon-btn:hover { background:rgba(11,20,26,.06); opacity:1; }
+    .conv-icon-btn:focus-visible { outline:2px solid #00a884; outline-offset:-2px; }
+    /* The template picker is a real action but a secondary one, so it reads
+       quieter than the paperclip rather than competing with it. */
+    .conv-icon-btn-secondary { opacity:.55; }
+    .conv-icon-btn-secondary:hover { opacity:.9; }
+    .conv-icon-btn-secondary svg { width:17px; height:17px; }
+    .conv-send-btn {
+      flex:0 0 auto; width:46px; height:46px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      border:none; cursor:pointer; background:#00a884; color:#fff;
+      transition:background .12s, opacity .12s;
+    }
+    .conv-send-btn:hover:not(:disabled) { background:#029c7c; }
+    .conv-send-btn:focus-visible { outline:2px solid #00a884; outline-offset:2px; }
+    .conv-send-btn:disabled { opacity:.55; cursor:default; }
+    /* Busy state is a class now, not a text swap - overwriting textContent
+       would have deleted the icon mid-send. */
+    .conv-send-btn.is-sending { opacity:.55; cursor:progress; }
+    .conv-send-btn.is-sending svg { animation:conv-send-pulse .9s ease-in-out infinite; }
+    @keyframes conv-send-pulse { 0%,100% { opacity:.45; } 50% { opacity:1; } }
     #conv-attach-chip { display:flex; align-items:center; gap:8px; padding:8px 16px; background:#f0f2f5; border-top:1px solid #d1d7db; font-size:0.8rem; color:#3b4a54; }
     #conv-attach-chip .name { font-weight:600; word-break:break-all; }
     #conv-attach-chip .size { color:#667781; }
@@ -1441,9 +1802,27 @@
     .conv-contact-row + .conv-contact-row { margin-top: 12px; }
     .conv-header-btn {
       border: none; background: transparent; border-radius: 50%;
-      width: 34px; height: 34px; cursor: pointer; color: #54656f; font-size: 0.95rem; flex-shrink: 0;
+      width: 38px; height: 38px; cursor: pointer; color: #54656f;
+      font-size: 0.95rem; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .12s;
     }
-    .conv-header-btn:hover { background: #e9edef; }
+    .conv-header-btn:hover { background: #e2e7ea; }
+    .conv-header-btn:active { background: #d6dde1; }
+    .conv-header-btn:focus-visible { outline: 2px solid #00a884; outline-offset: -2px; }
+
+    /* Degrade in the order asked for: the secondary phone line goes first,
+       then the gaps, then the stage selector narrows. The lead's name and the
+       action group never move. */
+    @media (max-width: 1340px) {
+      .conv-chat-header { gap:8px; padding:7px 12px; }
+      .conv-chat-header-info p { display:none; }
+      .conv-header-actions { gap:2px; }
+    }
+    /* 300px is what the longest option actually needs at this font (measured:
+       254px of text plus 18px of padding/border plus the native arrow), so the
+       select keeps that width at every desktop size and the secondary phone
+       line gives way instead. */
 
     /* ── 24-hour window pill (catalog C2) ── */
     .conv-window-pill {
@@ -1461,7 +1840,12 @@
     [data-theme="dark"] .conv-contact-value   { color: #e9edef; }
     [data-theme="dark"] .conv-contact-sub     { color: #8696a0; }
     [data-theme="dark"] .conv-header-btn        { color: #aebac1; }
-    [data-theme="dark"] .conv-header-btn:hover  { background: #202c33; }
+    [data-theme="dark"] .conv-header-btn:hover  { background: #2a3942; }
+    [data-theme="dark"] .conv-header-btn:active { background: #33444e; }
+    [data-theme="dark"] .conv-header-phone      { color: #8696a0; }
+    [data-theme="dark"] .conv-tier-select       { background:#2a3942; border-color:#34434b; color:#d1d7db; }
+    [data-theme="dark"] .conv-copy-link-btn     { background:#2a3942; border-color:#34434b; color:#d1d7db; }
+    [data-theme="dark"] .conv-copy-link-btn:hover { background:#33444e; }
     [data-theme="dark"] .conv-window-pill        { background: #103529; color: #00a884; }
     [data-theme="dark"] .conv-window-pill.warn   { background: #3f2d0a; color: #fbbf24; }
     [data-theme="dark"] .conv-window-pill.closed { background: #4a1717; color: #f87171; }
@@ -1481,7 +1865,7 @@
     [data-theme="dark"] .conv-search,
     [data-theme="dark"] .conv-filter-tabs,
     [data-theme="dark"] .conv-list          { background:#111b21; }
-    [data-theme="dark"] .conv-filter-tabs   { border-bottom-color:#222d34; }
+    [data-theme="dark"] .conv-filter-tabs   { border-top-color:#222d34; }
     [data-theme="dark"] .conv-list-toggle       { color:#aebac1; }
     [data-theme="dark"] .conv-list-toggle:hover { background:#202c33; }
     [data-theme="dark"] .conv-list-menu         { background:#233138; color:#e9edef; border-color:#34434b; }
@@ -1494,17 +1878,27 @@
     [data-theme="dark"] .conv-filter-tab        { background:#202c33; color:#8696a0; }
     [data-theme="dark"] .conv-filter-tab:hover  { background:#2a3942; }
     [data-theme="dark"] .conv-filter-tab.active { background:#103529; color:#00a884; }
-    [data-theme="dark"] .conv-ops-row           { background:#111b21; border-bottom-color:#222d34; }
+    [data-theme="dark"] .conv-ops-row           { background:#0e171d; border-top-color:#222d34; border-bottom-color:#222d34; }
     [data-theme="dark"] .conv-ops-label         { color:#8696a0; }
     [data-theme="dark"] .conv-ops-chip          { background:#202c33; color:#8696a0; border-color:#34434b; }
     [data-theme="dark"] .conv-ops-chip:hover    { background:#2a3942; }
     [data-theme="dark"] .conv-ops-chip.active   { background:#1e1b4b; border-color:#4f46e5; color:#a5b4fc; }
-    [data-theme="dark"] .conv-channel-row       { background:#111b21; }
-    [data-theme="dark"] .conv-channel-pill      { background:#202c33; color:#8696a0; border-color:#34434b; }
-    [data-theme="dark"] .conv-channel-pill:hover  { background:#2a3942; }
-    [data-theme="dark"] .conv-channel-pill.active { background:#0c2a44; border-color:#2f6690; color:#6cb2ff; }
-    [data-theme="dark"] .conv-channel-count     { background:#2a3942; color:#8696a0; }
-    [data-theme="dark"] .conv-channel-pill.active .conv-channel-count { background:#2f6690; color:#fff; }
+    [data-theme="dark"] .ql-chip-btn            { background:#111b2e; border-color:#243350; color:#cbd5e1; }
+    [data-theme="dark"] .ql-chip-btn:hover      { background:#16223c; border-color:#2f4266; }
+    [data-theme="dark"] .ql-chip.open .ql-chip-btn { background:#16223c; border-color:#2f4266; }
+    [data-theme="dark"] .ql-caret               { color:#64748b; }
+    [data-theme="dark"] .ql-menu                { background:#111b2e; border-color:#243350; box-shadow:0 12px 28px rgba(0,0,0,.5); }
+    [data-theme="dark"] .ql-value               { background:#0b1220; border-color:#243350; color:#cbd5e1; }
+    [data-theme="dark"] .wa-chan-btn            { background:#111b2e; border-color:#243350; color:#cbd5e1; }
+    [data-theme="dark"] .wa-chan-btn:hover      { background:#16223c; border-color:#2f4266; }
+    [data-theme="dark"] .wa-chan.open .wa-chan-btn { background:#16223c; border-color:#2f4266; }
+    [data-theme="dark"] .wa-chan-caret          { color:#64748b; }
+    [data-theme="dark"] .wa-chan-menu           { background:#111b2e; border-color:#243350; box-shadow:0 12px 28px rgba(0,0,0,.5); }
+    [data-theme="dark"] .wa-chan-opt            { color:#cbd5e1; }
+    [data-theme="dark"] .wa-chan-opt:hover      { background:#16223c; }
+    [data-theme="dark"] .wa-chan-opt.active     { background:#0c2a44; color:#6cb2ff; }
+    [data-theme="dark"] .conv-channel-count     { background:#243350; color:#94a3b8; }
+    [data-theme="dark"] .wa-chan-opt.active .conv-channel-count { background:#2f6690; color:#fff; }
     [data-theme="dark"] .conv-item::after   { background:#222d34; }
     [data-theme="dark"] .conv-item:hover    { background:#202c33; }
     [data-theme="dark"] .conv-item.active   { background:#2a3942; }
@@ -1530,6 +1924,11 @@
     [data-theme="dark"] .msg-bubble.outgoing::before { background:#005c4b; }
     [data-theme="dark"] .msg-time           { color:rgba(233,237,239,.5); }
     [data-theme="dark"] .conv-input-bar     { background:#202c33; border-top-color:#222d34; }
+    [data-theme="dark"] .conv-icon-btn      { color:#aebac1; }
+    [data-theme="dark"] .conv-icon-btn:hover { background:rgba(233,237,239,.08); }
+    [data-theme="dark"] .conv-msg-textarea::placeholder { color:#8696a0; }
+    [data-theme="dark"] .conv-send-btn      { background:#00a884; color:#0b141a; }
+    [data-theme="dark"] .conv-send-btn:hover:not(:disabled) { background:#06cf9c; }
     [data-theme="dark"] .conv-input-bar input,
     [data-theme="dark"] .conv-msg-textarea  { background:#2a3942; color:#d1d7db; }
     [data-theme="dark"] .conv-empty-chat    { background:#222e35; color:#8696a0; }
@@ -1674,58 +2073,152 @@
       <p>Lead Management CRM</p>
     </div>
     <div id="admin-tabs" class="sidebar-nav">
-      <div class="nav-section-label">MAIN</div>
-      <div class="nav-item active" data-tab="dashboard"><span class="nav-icon" data-nav-icon="dashboard" style="background:var(--tint-gold-bg)"></span> Dashboard</div>
-      <div class="nav-item" data-tab="progress"><span class="nav-icon" data-nav-icon="chart" style="background:var(--tint-success-bg)"></span> CRM Development Progress</div>
-      <div class="nav-item" data-tab="action-items"><span class="nav-icon" data-nav-icon="calendar" style="background:var(--tint-gold-bg)"></span> Action Items With Badar</div>
-      <div class="nav-section-label">WHATSAPP</div>
-      <div class="nav-item" data-tab="conversations"><span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Omnichannel Inbox <span id="conv-nav-badge" style="display:none;background:var(--bad);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
-      <div class="nav-item" data-tab="connect-whatsapp"><span class="nav-icon" data-nav-icon="phone" style="background:var(--tint-success-bg)"></span> Connect WhatsApp</div>
-      <div class="nav-item" data-tab="bot-manager"><span class="nav-icon" data-nav-icon="bot" style="background:var(--tint-sky-bg)"></span> Bot Manager</div>
-      <div class="nav-item" data-tab="meta"><span class="nav-icon" data-nav-icon="link" style="background:var(--tint-gold-bg)"></span> Meta Integration</div>
-      <div class="nav-item" data-tab="social-facebook">
-        <span class="nav-caret nav-caret-leading" id="socials-caret" title="Show or hide Socials items" onclick="toggleNavSubgroup(event,'socials-subgroup','socials-caret')">▾</span>
-        <span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Socials
+      <!-- Sidebar information architecture, 2026-08-31 (Muhammad). The nav was
+           one flat list of 27 destinations under eight section labels, which is
+           a lot to scan every time. Dashboard stays standalone at the top; the
+           other 26 live in seven collapsible umbrella groups, all collapsed by
+           default so the whole nav fits without scrolling.
+
+           Three rules this markup exists to satisfy, all load-bearing:
+           1. Every destination keeps its exact data-tab, icon, badge and row
+              markup - the rows below are the previous ones verbatim, only
+              re-parented. Nothing was rewritten.
+           2. Group headers are NOT .nav-item and carry NO data-tab, so the
+              delegated #admin-tabs navigation listener ignores them. Clicking a
+              header only folds; it never navigates. (The old Socials/Signals/
+              Settings headers did double duty and would navigate to a child.)
+           3. Groups nest: Socials sits inside WhatsApp & Channels. adminTab()
+              walks up from the active row and opens every .nav-subgroup
+              ancestor, so a deep link to Instagram opens both. -->
+      <div class="nav-item" data-tab="dashboard"><span class="nav-icon" data-nav-icon="dashboard" style="background:var(--tint-gold-bg)"></span> Dashboard</div>
+
+      <div class="nav-group-header" data-group="crm-ops-subgroup" id="crm-ops-caret-header"
+        role="button" tabindex="0" aria-expanded="false" aria-controls="crm-ops-subgroup"
+        title="Show or hide CRM &amp; Operations">
+        <span class="nav-icon" data-nav-icon="chart" style="background:var(--tint-success-bg)"></span>
+        <span class="nav-group-title">CRM &amp; Operations</span>
+        <span class="nav-caret collapsed" id="crm-ops-caret" aria-hidden="true">▾</span>
       </div>
-      <div class="nav-subgroup" id="socials-subgroup">
-        <div class="nav-item" data-tab="social-facebook"><span class="nav-icon" data-nav-icon="facebook" style="background:var(--tint-sky-bg)"></span> Facebook</div>
-        <div class="nav-item" data-tab="social-instagram"><span class="nav-icon" data-nav-icon="instagram" style="background:var(--tint-danger-bg)"></span> Instagram</div>
-        <div class="nav-item" data-tab="social-tiktok"><span class="nav-icon" data-nav-icon="tiktok" style="background:var(--tint-warn-bg)"></span> TikTok</div>
+      <div class="nav-subgroup collapsed" id="crm-ops-subgroup">
+        <div class="nav-subgroup-inner">
+          <div class="nav-item" data-tab="progress"><span class="nav-icon" data-nav-icon="chart" style="background:var(--tint-success-bg)"></span> CRM Development Progress</div>
+          <div class="nav-item" data-tab="action-items"><span class="nav-icon" data-nav-icon="calendar" style="background:var(--tint-gold-bg)"></span> Action Items With Badar</div>
+          <div class="nav-item" data-tab="automation"><span class="nav-icon" data-nav-icon="automation" style="background:var(--tint-danger-bg)"></span> Automation</div>
+          <div class="nav-item" data-tab="appointments"><span class="nav-icon" data-nav-icon="calendar" style="background:var(--tint-danger-bg)"></span> Appointments</div>
+        </div>
       </div>
-      <div class="nav-section-label">LEADS</div>
-      <div class="nav-item" data-tab="leads"><span class="nav-icon" data-nav-icon="users" style="background:var(--tint-sky-bg)"></span> All Leads <span class="nav-badge" id="leads-count-badge"></span></div>
-      <div class="nav-item" data-tab="agents"><span class="nav-icon" data-nav-icon="team" style="background:var(--tint-success-bg)"></span> My Team</div>
-      <div class="nav-item" data-tab="meta-ads"><span class="nav-icon" data-nav-icon="chart" style="background:var(--tint-warn-bg)"></span> Meta Ads</div>
-      <div class="nav-section-label">TOOLS</div>
-      <div class="nav-item" data-tab="add-lead"><span class="nav-icon" data-nav-icon="user-plus" style="background:var(--tint-gold-bg)"></span> Import Leads</div>
-      <div class="nav-item" data-tab="comm-log"><span class="nav-icon" data-nav-icon="history" style="background:var(--tint-success-bg)"></span> Comm Log</div>
-      <div class="nav-item" data-tab="reports"><span class="nav-icon" data-nav-icon="report" style="background:var(--tint-warn-bg)"></span> Reports</div>
-      <div class="nav-item" data-tab="automation"><span class="nav-icon" data-nav-icon="automation" style="background:var(--tint-danger-bg)"></span> Automation</div>
-      <div class="nav-item" data-tab="appointments"><span class="nav-icon" data-nav-icon="calendar" style="background:var(--tint-danger-bg)"></span> Appointments</div>
-      <div class="nav-section-label">FINANCE</div>
-      <div class="nav-item" data-tab="payroll"><span class="nav-icon" data-nav-icon="wallet" style="background:var(--tint-gold-bg)"></span> Payroll</div>
-      <div class="nav-section-label">WHATSAPP SIGNALS</div>
-      <div class="nav-item" data-tab="subscribers">
-        <span class="nav-icon" data-nav-icon="subscriber" style="background:var(--tint-success-bg)"></span> Signals
-        <span class="nav-caret" id="signals-caret" title="Show or hide Signals items" onclick="toggleNavSubgroup(event,'signals-subgroup','signals-caret')">▾</span>
+
+      <div class="nav-group-header" data-group="leads-sales-subgroup" id="leads-sales-caret-header"
+        role="button" tabindex="0" aria-expanded="false" aria-controls="leads-sales-subgroup"
+        title="Show or hide Leads &amp; Sales">
+        <span class="nav-icon" data-nav-icon="users" style="background:var(--tint-sky-bg)"></span>
+        <span class="nav-group-title">Leads &amp; Sales</span>
+        <span class="nav-caret collapsed" id="leads-sales-caret" aria-hidden="true">▾</span>
       </div>
-      <div class="nav-subgroup" id="signals-subgroup">
-        <div class="nav-item" data-tab="subscribers"><span class="nav-icon" data-nav-icon="subscriber" style="background:var(--tint-success-bg)"></span> Manage Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
-        <div class="nav-item" data-tab="signal-broadcast"><span class="nav-icon" data-nav-icon="broadcast" style="background:var(--tint-sky-bg)"></span> Broadcast Signal</div>
-        <div class="nav-item" data-tab="ai-signals"><span class="nav-icon" data-nav-icon="sparkles" style="background:var(--tint-warn-bg)"></span> AI Signals</div>
+      <div class="nav-subgroup collapsed" id="leads-sales-subgroup">
+        <div class="nav-subgroup-inner">
+          <div class="nav-item" data-tab="leads"><span class="nav-icon" data-nav-icon="users" style="background:var(--tint-sky-bg)"></span> All Leads <span class="nav-badge" id="leads-count-badge"></span></div>
+          <div class="nav-item" data-tab="agents"><span class="nav-icon" data-nav-icon="team" style="background:var(--tint-success-bg)"></span> My Team</div>
+          <div class="nav-item" data-tab="meta-ads"><span class="nav-icon" data-nav-icon="chart" style="background:var(--tint-warn-bg)"></span> Meta Ads</div>
+          <div class="nav-item" data-tab="add-lead"><span class="nav-icon" data-nav-icon="user-plus" style="background:var(--tint-gold-bg)"></span> Import Leads</div>
+          <div class="nav-item" data-tab="comm-log"><span class="nav-icon" data-nav-icon="history" style="background:var(--tint-success-bg)"></span> Comm Log</div>
+          <div class="nav-item" data-tab="reports"><span class="nav-icon" data-nav-icon="report" style="background:var(--tint-warn-bg)"></span> Reports</div>
+        </div>
       </div>
-      <div class="nav-section-label">SYSTEM</div>
-      <div class="nav-item" data-tab="user-permission"><span class="nav-icon" data-nav-icon="shield" style="background:var(--tint-danger-bg)"></span> User Permission</div>
-      <div class="nav-item" data-tab="user-manager"><span class="nav-icon" data-nav-icon="id-card" style="background:var(--tint-sky-bg)"></span> User Manager</div>
-      <div class="nav-section-label">SETTINGS</div>
-      <div class="nav-item" data-tab="settings">
-        <span class="nav-icon" data-nav-icon="settings" style="background:var(--tint-gold-bg)"></span> Settings
-        <span class="nav-caret" id="settings-caret" title="Show or hide Settings items" onclick="toggleNavSubgroup(event,'settings-subgroup','settings-caret')">▾</span>
+
+      <div class="nav-group-header" data-group="whatsapp-subgroup" id="whatsapp-caret-header"
+        role="button" tabindex="0" aria-expanded="false" aria-controls="whatsapp-subgroup"
+        title="Show or hide WhatsApp &amp; Channels">
+        <span class="nav-icon" data-nav-icon="message" style="background:var(--tint-gold-bg)"></span>
+        <span class="nav-group-title">WhatsApp &amp; Channels</span>
+        <span class="nav-caret collapsed" id="whatsapp-caret" aria-hidden="true">▾</span>
       </div>
-      <div class="nav-subgroup" id="settings-subgroup">
-        <div class="nav-item" data-tab="notifications"><span class="nav-icon" data-nav-icon="bell" style="background:var(--tint-sky-bg)"></span> Notifications</div>
-        <div class="nav-item" data-tab="sites"><span class="nav-icon" data-nav-icon="globe" style="background:var(--tint-success-bg)"></span> Sites</div>
-        <div class="nav-item" data-tab="guide"><span class="nav-icon" data-nav-icon="book" style="background:var(--tint-warn-bg)"></span> Guide</div>
+      <div class="nav-subgroup collapsed" id="whatsapp-subgroup">
+        <div class="nav-subgroup-inner">
+          <div class="nav-item" data-tab="conversations"><span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span> Omnichannel Inbox <span id="conv-nav-badge" style="display:none;background:var(--bad);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></div>
+          <div class="nav-item" data-tab="connect-whatsapp"><span class="nav-icon" data-nav-icon="phone" style="background:var(--tint-success-bg)"></span> Connect WhatsApp</div>
+          <div class="nav-item" data-tab="bot-manager"><span class="nav-icon" data-nav-icon="bot" style="background:var(--tint-sky-bg)"></span> Bot Manager</div>
+          <div class="nav-item" data-tab="meta"><span class="nav-icon" data-nav-icon="link" style="background:var(--tint-gold-bg)"></span> Meta Integration</div>
+          <div class="nav-group-header nav-group-header-nested" data-group="socials-subgroup" id="socials-caret-header"
+            role="button" tabindex="0" aria-expanded="false" aria-controls="socials-subgroup"
+            title="Show or hide Socials">
+            <span class="nav-icon" data-nav-icon="message" style="background:var(--tint-sky-bg)"></span>
+            <span class="nav-group-title">Socials</span>
+            <span class="nav-caret collapsed" id="socials-caret" aria-hidden="true">▾</span>
+          </div>
+          <div class="nav-subgroup collapsed" id="socials-subgroup">
+            <div class="nav-subgroup-inner">
+              <div class="nav-item" data-tab="social-facebook"><span class="nav-icon" data-nav-icon="facebook" style="background:var(--tint-sky-bg)"></span> Facebook</div>
+              <div class="nav-item" data-tab="social-instagram"><span class="nav-icon" data-nav-icon="instagram" style="background:var(--tint-danger-bg)"></span> Instagram</div>
+              <div class="nav-item" data-tab="social-tiktok"><span class="nav-icon" data-nav-icon="tiktok" style="background:var(--tint-warn-bg)"></span> TikTok</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-group-header" data-group="signals-subgroup" id="signals-caret-header"
+        role="button" tabindex="0" aria-expanded="false" aria-controls="signals-subgroup"
+        title="Show or hide Signals">
+        <span class="nav-icon" data-nav-icon="broadcast" style="background:var(--tint-warn-bg)"></span>
+        <span class="nav-group-title">Signals</span>
+        <span class="nav-caret collapsed" id="signals-caret" aria-hidden="true">▾</span>
+      </div>
+      <div class="nav-subgroup collapsed" id="signals-subgroup">
+        <div class="nav-subgroup-inner">
+          <div class="nav-item" data-tab="subscribers"><span class="nav-icon" data-nav-icon="subscriber" style="background:var(--tint-success-bg)"></span> Manage Subscribers <span class="nav-badge" id="sub-count-badge">0</span></div>
+          <div class="nav-item" data-tab="signal-broadcast"><span class="nav-icon" data-nav-icon="broadcast" style="background:var(--tint-sky-bg)"></span> Broadcast Signal</div>
+          <div class="nav-item" data-tab="ai-signals"><span class="nav-icon" data-nav-icon="sparkles" style="background:var(--tint-warn-bg)"></span> AI Signals</div>
+        </div>
+      </div>
+
+      <div class="nav-group-header" data-group="finance-subgroup" id="finance-caret-header"
+        role="button" tabindex="0" aria-expanded="false" aria-controls="finance-subgroup"
+        title="Show or hide Finance">
+        <span class="nav-icon" data-nav-icon="wallet" style="background:var(--tint-gold-bg)"></span>
+        <span class="nav-group-title">Finance</span>
+        <span class="nav-caret collapsed" id="finance-caret" aria-hidden="true">▾</span>
+      </div>
+      <div class="nav-subgroup collapsed" id="finance-subgroup">
+        <div class="nav-subgroup-inner">
+          <div class="nav-item" data-tab="payroll"><span class="nav-icon" data-nav-icon="wallet" style="background:var(--tint-gold-bg)"></span> Payroll</div>
+        </div>
+      </div>
+
+      <div class="nav-group-header" data-group="team-access-subgroup" id="team-access-caret-header"
+        role="button" tabindex="0" aria-expanded="false" aria-controls="team-access-subgroup"
+        title="Show or hide Team &amp; Access">
+        <span class="nav-icon" data-nav-icon="shield" style="background:var(--tint-danger-bg)"></span>
+        <span class="nav-group-title">Team &amp; Access</span>
+        <span class="nav-caret collapsed" id="team-access-caret" aria-hidden="true">▾</span>
+      </div>
+      <div class="nav-subgroup collapsed" id="team-access-subgroup">
+        <div class="nav-subgroup-inner">
+          <div class="nav-item" data-tab="user-permission"><span class="nav-icon" data-nav-icon="shield" style="background:var(--tint-danger-bg)"></span> User Permission</div>
+          <div class="nav-item" data-tab="user-manager"><span class="nav-icon" data-nav-icon="id-card" style="background:var(--tint-sky-bg)"></span> User Manager</div>
+        </div>
+      </div>
+
+      <div class="nav-group-header" data-group="settings-subgroup" id="settings-caret-header"
+        role="button" tabindex="0" aria-expanded="false" aria-controls="settings-subgroup"
+        title="Show or hide Settings &amp; Support">
+        <span class="nav-icon" data-nav-icon="settings" style="background:var(--tint-gold-bg)"></span>
+        <span class="nav-group-title">Settings &amp; Support</span>
+        <span class="nav-caret collapsed" id="settings-caret" aria-hidden="true">▾</span>
+      </div>
+      <div class="nav-subgroup collapsed" id="settings-subgroup">
+        <div class="nav-subgroup-inner">
+          <!-- Settings itself is a real destination (admin-tab-settings, the
+               Workspace/business-defaults panel), not just a label. In the old
+               flat nav it was reachable only by clicking the Settings GROUP
+               row, which did double duty as both fold-toggle and link. Now
+               that headers only fold, it needs its own row or the panel would
+               be orphaned - no sidebar entry and no other adminTab('settings')
+               caller anywhere in the app. -->
+          <div class="nav-item" data-tab="settings"><span class="nav-icon" data-nav-icon="settings" style="background:var(--tint-gold-bg)"></span> Settings</div>
+          <div class="nav-item" data-tab="notifications"><span class="nav-icon" data-nav-icon="bell" style="background:var(--tint-sky-bg)"></span> Notifications</div>
+          <div class="nav-item" data-tab="sites"><span class="nav-icon" data-nav-icon="globe" style="background:var(--tint-success-bg)"></span> Sites</div>
+          <div class="nav-item" data-tab="guide"><span class="nav-icon" data-nav-icon="book" style="background:var(--tint-warn-bg)"></span> Guide</div>
+        </div>
       </div>
     </div>
     <div class="sidebar-footer" onclick="toggleAccountMenu(event, 'admin')" style="cursor:pointer;position:relative">
@@ -1751,6 +2244,41 @@
       </div>
       <div class="header-actions">
         <span id="user-greeting" style="color:var(--text-muted);font-size:13px;"></span>
+        <!-- WhatsApp number scope. Lives beside the bell, not in the 350px
+             conversation column. The count spans keep their original ids so
+             renderConvChannelCounts() writes into them unchanged. -->
+        <!-- Quick Links. Was a full-width card above the inbox, which cost the
+             lead list ~86px of height for a control an agent uses occasionally.
+             Same select, same value element, same copy button, same ids - only
+             the placement changed. -->
+        <div class="ql-chip" id="quick-links" style="display:none">
+          <button type="button" class="ql-chip-btn" id="ql-btn" aria-haspopup="dialog" aria-expanded="false"
+                  title="Copy a referral or signup link without leaving the conversation" onclick="toggleQuickLinksMenu(event,'')">
+            <span class="h-icon" data-nav-icon="link"></span><span class="ql-chip-text">Quick Links</span><span class="ql-caret">▾</span>
+          </button>
+          <div class="ql-menu" id="ql-menu" role="dialog" aria-label="Quick Links">
+            <select id="quick-links-select" onchange="renderQuickLinkValue('')" class="ql-select"></select>
+            <div class="ql-value" id="quick-links-value"></div>
+            <button class="btn btn-secondary btn-sm ql-copy" id="quick-links-copy-btn" onclick="copySelectedQuickLink('')">Copy</button>
+          </div>
+        </div>
+        <div class="wa-chan" id="wa-chan" style="display:none">
+          <button type="button" class="wa-chan-btn" id="wa-chan-btn" aria-haspopup="listbox" aria-expanded="false"
+                  title="Which real WhatsApp number to show conversations from" onclick="toggleWaChannelMenu(event,'')">
+            <span class="wa-chan-current" id="wa-chan-label">📱 All Numbers</span><span class="wa-chan-caret">▾</span>
+          </button>
+          <div class="wa-chan-menu" id="wa-chan-menu" role="listbox" aria-label="WhatsApp number">
+            <button type="button" role="option" class="wa-chan-opt active" aria-selected="true" data-channel="all" onclick="setConvChannel('all','')">
+              <span class="wa-chan-opt-name">📱 All Numbers</span>
+              <span class="conv-channel-count" id="conv-channel-count-all">0</span></button>
+            <button type="button" role="option" class="wa-chan-opt" data-channel="6541" onclick="setConvChannel('6541','')">
+              <span class="wa-chan-opt-name">🇦🇪 UAE · 6541</span>
+              <span class="conv-channel-count" id="conv-channel-count-6541">0</span></button>
+            <button type="button" role="option" class="wa-chan-opt" data-channel="3903" onclick="setConvChannel('3903','')">
+              <span class="wa-chan-opt-name">🇵🇰 Pakistan · 3903</span>
+              <span class="conv-channel-count" id="conv-channel-count-3903">0</span></button>
+          </div>
+        </div>
         <div class="notif-wrap">
           <button type="button" class="notif-btn" id="notif-btn" title="Notifications" onclick="toggleNotifPanel('')">🔔<span class="notif-badge" id="notif-badge" style="display:none">0</span></button>
           <div class="notif-panel" id="notif-panel" style="display:none"></div>
@@ -2190,18 +2718,10 @@
   </div>
 
   <!-- Conversations -->
-  <div id="admin-tab-conversations" class="tab-content">
+  <div id="admin-tab-conversations" class="tab-content conv-tab">
     <!-- Quick Links - copy/paste into a chat without leaving the tab. This
          existed for agents only (V1 request from Ehsan/Hanzala) and was
          never built for admin - Muhammad flagged not seeing it in V2. -->
-    <div class="card" id="quick-links" style="margin-bottom:14px;padding:12px 16px">
-      <div style="font-weight:700;font-size:0.85rem;color:var(--text-strong);margin-bottom:10px"><span class="h-icon" data-nav-icon="link"></span>Quick Links</div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <select id="quick-links-select" onchange="renderQuickLinkValue('')" style="flex:1;min-width:160px;padding:6px 8px;font-size:0.78rem"></select>
-        <span id="quick-links-value" style="font-family:monospace;font-size:0.78rem;color:var(--text-strong);flex:2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-        <button class="btn btn-secondary btn-sm" id="quick-links-copy-btn" onclick="copySelectedQuickLink('')">Copy</button>
-      </div>
-    </div>
 
     <div class="conversations-shell" id="conv-shell">
       <!-- Left: Lead List -->
@@ -2221,11 +2741,6 @@
           </div>
           <input type="text" id="conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations()" />
         </div>
-        <div class="conv-channel-row" id="conv-channel-row" title="Which real WhatsApp number each conversation came in on">
-          <button class="conv-channel-pill active" data-channel="all" onclick="setConvChannel('all')">All numbers <span class="conv-channel-count" id="conv-channel-count-all">0</span></button>
-          <button class="conv-channel-pill" data-channel="6541" onclick="setConvChannel('6541')">🇦🇪 UAE · 6541 <span class="conv-channel-count" id="conv-channel-count-6541">0</span></button>
-          <button class="conv-channel-pill" data-channel="3903" onclick="setConvChannel('3903')">🇵🇰 Pakistan · 3903 <span class="conv-channel-count" id="conv-channel-count-3903">0</span></button>
-        </div>
         <div class="conv-filter-tabs" id="conv-filter-tabs" >
           <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all')">All</button>
           <button class="conv-filter-tab" data-tier="new" onclick="setConvFilter('new')">🆕 New</button>
@@ -2236,9 +2751,11 @@
         </div>
         <div class="conv-ops-row" id="conv-ops-row" title="Operational state - these stack on top of whichever lead stage is selected">
           <span class="conv-ops-label">Needs action</span>
-          <button class="conv-ops-chip" data-op="unread" onclick="toggleConvOps('unread')">📩 Unread</button>
-          <button class="conv-ops-chip" data-op="awaiting" onclick="toggleConvOps('awaiting')">⏳ Waiting on Us</button>
-          <button class="conv-ops-chip" data-op="needshuman" onclick="toggleConvOps('needshuman')">👤 Needs Human</button>
+          <div class="conv-ops-chips">
+            <button class="conv-ops-chip" data-op="unread" onclick="toggleConvOps('unread')">📩 Unread</button>
+            <button class="conv-ops-chip" data-op="awaiting" onclick="toggleConvOps('awaiting')">⏳ Waiting on Us</button>
+            <button class="conv-ops-chip" data-op="needshuman" onclick="toggleConvOps('needshuman')">👤 Needs Human</button>
+          </div>
         </div>
         <div class="conv-list" id="conv-list"></div>
       </div>
@@ -3627,7 +4144,7 @@
 
     <p class="section-h">Salary Setup</p>
     <div class="card" style="padding:0">
-      <table>
+      <table class="payroll-setup-table">
         <thead><tr>
           <th>Agent Name</th><th>Base Salary ($/month)</th><th>Commission %</th>
         </tr></thead>
@@ -4136,6 +4653,41 @@
         <h2 id="agent-current-tab-title" class="page-title">Dashboard</h2>
       </div>
       <div class="header-actions">
+        <!-- WhatsApp number scope. Lives beside the bell, not in the 350px
+             conversation column. The count spans keep their original ids so
+             renderConvChannelCounts() writes into them unchanged. -->
+        <!-- Quick Links. Was a full-width card above the inbox, which cost the
+             lead list ~86px of height for a control an agent uses occasionally.
+             Same select, same value element, same copy button, same ids - only
+             the placement changed. -->
+        <div class="ql-chip" id="agent-quick-links" style="display:none">
+          <button type="button" class="ql-chip-btn" id="agent-ql-btn" aria-haspopup="dialog" aria-expanded="false"
+                  title="Copy a referral or signup link without leaving the conversation" onclick="toggleQuickLinksMenu(event,'agent-')">
+            <span class="h-icon" data-nav-icon="link"></span><span class="ql-chip-text">Quick Links</span><span class="ql-caret">▾</span>
+          </button>
+          <div class="ql-menu" id="agent-ql-menu" role="dialog" aria-label="Quick Links">
+            <select id="agent-quick-links-select" onchange="renderQuickLinkValue('agent-')" class="ql-select"></select>
+            <div class="ql-value" id="agent-quick-links-value"></div>
+            <button class="btn btn-secondary btn-sm ql-copy" id="agent-quick-links-copy-btn" onclick="copySelectedQuickLink('agent-')">Copy</button>
+          </div>
+        </div>
+        <div class="wa-chan" id="agent-wa-chan" style="display:none">
+          <button type="button" class="wa-chan-btn" id="agent-wa-chan-btn" aria-haspopup="listbox" aria-expanded="false"
+                  title="Which real WhatsApp number to show conversations from" onclick="toggleWaChannelMenu(event,'agent-')">
+            <span class="wa-chan-current" id="agent-wa-chan-label">📱 All Numbers</span><span class="wa-chan-caret">▾</span>
+          </button>
+          <div class="wa-chan-menu" id="agent-wa-chan-menu" role="listbox" aria-label="WhatsApp number">
+            <button type="button" role="option" class="wa-chan-opt active" aria-selected="true" data-channel="all" onclick="setConvChannel('all','agent-')">
+              <span class="wa-chan-opt-name">📱 All Numbers</span>
+              <span class="conv-channel-count" id="agent-conv-channel-count-all">0</span></button>
+            <button type="button" role="option" class="wa-chan-opt" data-channel="6541" onclick="setConvChannel('6541','agent-')">
+              <span class="wa-chan-opt-name">🇦🇪 UAE · 6541</span>
+              <span class="conv-channel-count" id="agent-conv-channel-count-6541">0</span></button>
+            <button type="button" role="option" class="wa-chan-opt" data-channel="3903" onclick="setConvChannel('3903','agent-')">
+              <span class="wa-chan-opt-name">🇵🇰 Pakistan · 3903</span>
+              <span class="conv-channel-count" id="agent-conv-channel-count-3903">0</span></button>
+          </div>
+        </div>
         <div class="notif-wrap">
           <button type="button" class="notif-btn" id="agent-notif-btn" title="Notifications" onclick="toggleNotifPanel('agent-')">🔔<span class="notif-badge" id="agent-notif-badge" style="display:none">0</span></button>
           <div class="notif-panel" id="agent-notif-panel" style="display:none"></div>
@@ -4280,16 +4832,7 @@
   </div>
 
   <!-- Conversations -->
-  <div id="agent-tab-conversations" class="tab-content">
-    <!-- Quick Links - copy/paste into a chat without leaving the tab -->
-    <div class="card" id="agent-quick-links" style="margin-bottom:14px;padding:12px 16px">
-      <div style="font-weight:700;font-size:0.85rem;color:var(--text-strong);margin-bottom:10px"><span class="h-icon" data-nav-icon="link"></span>Quick Links</div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <select id="agent-quick-links-select" onchange="renderQuickLinkValue('agent-')" style="flex:1;min-width:160px;padding:6px 8px;font-size:0.78rem"></select>
-        <span id="agent-quick-links-value" style="font-family:monospace;font-size:0.78rem;color:var(--text-strong);flex:2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-        <button class="btn btn-secondary btn-sm" id="agent-quick-links-copy-btn" onclick="copySelectedQuickLink('agent-')">Copy</button>
-      </div>
-    </div>
+  <div id="agent-tab-conversations" class="tab-content conv-tab">
 
     <div class="conversations-shell" id="agent-conv-shell">
       <!-- Left: Lead List -->
@@ -4309,11 +4852,6 @@
           </div>
           <input type="text" id="agent-conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations('agent-')" />
         </div>
-        <div class="conv-channel-row" id="agent-conv-channel-row" title="Which real WhatsApp number each conversation came in on">
-          <button class="conv-channel-pill active" data-channel="all" onclick="setConvChannel('all','agent-')">All numbers <span class="conv-channel-count" id="agent-conv-channel-count-all">0</span></button>
-          <button class="conv-channel-pill" data-channel="6541" onclick="setConvChannel('6541','agent-')">🇦🇪 UAE · 6541 <span class="conv-channel-count" id="agent-conv-channel-count-6541">0</span></button>
-          <button class="conv-channel-pill" data-channel="3903" onclick="setConvChannel('3903','agent-')">🇵🇰 Pakistan · 3903 <span class="conv-channel-count" id="agent-conv-channel-count-3903">0</span></button>
-        </div>
         <div class="conv-filter-tabs" id="agent-conv-filter-tabs" >
           <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all','agent-')">All</button>
           <button class="conv-filter-tab" data-tier="new" onclick="setConvFilter('new','agent-')">🆕 New</button>
@@ -4324,9 +4862,11 @@
         </div>
         <div class="conv-ops-row" id="agent-conv-ops-row" title="Operational state - these stack on top of whichever lead stage is selected">
           <span class="conv-ops-label">Needs action</span>
-          <button class="conv-ops-chip" data-op="unread" onclick="toggleConvOps('unread','agent-')">📩 Unread</button>
-          <button class="conv-ops-chip" data-op="awaiting" onclick="toggleConvOps('awaiting','agent-')">⏳ Waiting on Us</button>
-          <button class="conv-ops-chip" data-op="needshuman" onclick="toggleConvOps('needshuman','agent-')">👤 Needs Human</button>
+          <div class="conv-ops-chips">
+            <button class="conv-ops-chip" data-op="unread" onclick="toggleConvOps('unread','agent-')">📩 Unread</button>
+            <button class="conv-ops-chip" data-op="awaiting" onclick="toggleConvOps('awaiting','agent-')">⏳ Waiting on Us</button>
+            <button class="conv-ops-chip" data-op="needshuman" onclick="toggleConvOps('needshuman','agent-')">👤 Needs Human</button>
+          </div>
         </div>
         <div class="conv-list" id="agent-conv-list"></div>
       </div>
@@ -4606,7 +5146,8 @@ const _DEMO_KEYWORD_REPLIES = [
 // attribute - its SVG attributes are HTML-entity-escaped (&quot;) so the
 // browser decodes them back to real quotes only once, after the attribute
 // boundary is already resolved.
-const COPY_ICON_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+const SEND_ICON_SVG = '<svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" aria-hidden="true"><path d="M3.4 20.4l17.45-7.48a1 1 0 0 0 0-1.84L3.4 3.6a.99.99 0 0 0-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z"></path></svg>';
+    const COPY_ICON_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
 const CHECK_ICON_SVG_ATTR = '<svg viewBox=&quot;0 0 24 24&quot; width=&quot;14&quot; height=&quot;14&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;20 6 9 17 4 12&quot;></polyline></svg>';
 
 // A small, dependency-free outline icon set keeps the CRM navigation
@@ -4688,9 +5229,22 @@ window.addEventListener('DOMContentLoaded', () => {
   const adminTabsEl = document.getElementById('admin-tabs');
   if (adminTabsEl) {
     adminTabsEl.addEventListener('click', function(e) {
+      // Group headers fold; they never navigate. They are not .nav-item and
+      // carry no data-tab, so the navigation branch below cannot match them -
+      // this check is what makes the header clickable at all.
+      const header = e.target.closest('.nav-group-header[data-group]');
+      if (header) { toggleNavSubgroup(e, header.dataset.group); return; }
       const item = e.target.closest('.nav-item[data-tab]');
       if (!item) return;
       adminTab(item.dataset.tab, item);
+    });
+    // Keyboard parity: the headers are role="button", so Enter and Space must
+    // fold them the way a real button would.
+    adminTabsEl.addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const header = e.target.closest('.nav-group-header[data-group]');
+      if (!header) return;
+      toggleNavSubgroup(e, header.dataset.group);
     });
   }
 
@@ -4904,28 +5458,62 @@ async function initAdmin() {
   loadNotifications();
 }
 
-// Collapses/expands a group of sidebar nav-items under the row that owns
-// them (currently just Settings). Stops propagation so clicking the caret
-// never also bubbles into the delegated #admin-tabs click listener and
-// navigates to that row's own tab.
-function toggleNavSubgroup(e, groupId, caretId) {
-  e.stopPropagation();
-  e.preventDefault();
+// Collapses/expands one sidebar group. Every group follows the same naming
+// convention - '<name>-subgroup' holds the rows, '<name>-caret' is its chevron
+// and '<name>-caret-header' the clickable header - so the caret id is derived
+// rather than passed, and initNavSubgroups()' existing localStorage keys keep
+// working untouched. Groups nest (Socials inside WhatsApp & Channels); folding
+// one never touches another. stopPropagation keeps a header click from also
+// reaching the navigation branch of the same delegated listener.
+function navCaretIdFor(groupId) { return groupId.replace(/-subgroup$/, '-caret'); }
+
+function setNavGroupCollapsed(groupId, collapsed) {
   const group = document.getElementById(groupId);
   if (!group) return;
-  const collapsed = group.classList.toggle('collapsed');
-  const caret = document.getElementById(caretId);
+  group.classList.toggle('collapsed', collapsed);
+  const caret = document.getElementById(navCaretIdFor(groupId));
   if (caret) caret.classList.toggle('collapsed', collapsed);
+  const header = document.getElementById(navCaretIdFor(groupId) + '-header');
+  if (header) header.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
   try { localStorage.setItem('nav_' + groupId + '_collapsed', collapsed ? '1' : '0'); } catch (err) { /* private mode, ignore */ }
 }
 
-function expandNavSubgroup(groupId, caretId) {
+function toggleNavSubgroup(e, groupId, _legacyCaretId) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  const group = document.getElementById(groupId);
+  if (!group) return;
+  setNavGroupCollapsed(groupId, !group.classList.contains('collapsed'));
+}
+
+function expandNavSubgroup(groupId, _legacyCaretId) {
   const group = document.getElementById(groupId);
   if (!group || !group.classList.contains('collapsed')) return;
-  group.classList.remove('collapsed');
-  const caret = document.getElementById(caretId);
-  if (caret) caret.classList.remove('collapsed');
-  try { localStorage.setItem('nav_' + groupId + '_collapsed', '0'); } catch (err) { /* private mode, ignore */ }
+  setNavGroupCollapsed(groupId, false);
+}
+
+// Opens every group the given row sits inside, outermost included, so a deep
+// link to a nested destination (Instagram, inside Socials, inside WhatsApp &
+// Channels) leaves it actually visible rather than highlighted under two
+// collapsed folds.
+function expandNavGroupsFor(navItem) {
+  let node = navItem?.parentElement;
+  while (node && node.id !== 'admin-tabs') {
+    if (node.classList && node.classList.contains('nav-subgroup')) expandNavSubgroup(node.id);
+    node = node.parentElement;
+  }
+}
+
+// A collapsed group must still show that the current destination lives inside
+// it - otherwise folding the group loses the only clue to where you are.
+function syncNavGroupActiveState() {
+  const root = document.getElementById('admin-tabs');
+  if (!root) return;
+  root.querySelectorAll('.nav-group-header').forEach(header => {
+    // Looked up inside #admin-tabs rather than by document id, so this can
+    // never reach into #agent-tabs even if an id were ever duplicated there.
+    const group = header.dataset.group ? root.querySelector('#' + CSS.escape(header.dataset.group)) : null;
+    header.classList.toggle('has-active', !!group && !!group.querySelector('.nav-item.active'));
+  });
 }
 
 // Restores each subgroup's last open/closed state. Defaults to COLLAPSED
@@ -4936,14 +5524,16 @@ function expandNavSubgroup(groupId, caretId) {
 // especially with the caret itself being a subtle 18px glyph). Explicit
 // '0' in localStorage (the user clicked it open themselves) still wins.
 function initNavSubgroups() {
-  document.querySelectorAll('.nav-subgroup').forEach(group => {
+  document.querySelectorAll('#admin-tabs .nav-subgroup').forEach(group => {
     let collapsed = true;
     try { collapsed = localStorage.getItem('nav_' + group.id + '_collapsed') !== '0'; } catch (err) { /* private mode, ignore */ }
-    if (!collapsed) return;
-    group.classList.add('collapsed');
-    const caret = document.getElementById(group.id.replace(/-subgroup$/, '-caret'));
-    if (caret) caret.classList.add('collapsed');
+    // Applied in both directions now, not just the collapsing one: a group
+    // restored OPEN from localStorage still needs its chevron turned and its
+    // aria-expanded set, or the header would claim to be shut while showing
+    // its rows.
+    setNavGroupCollapsed(group.id, collapsed);
   });
+  syncNavGroupActiveState();
 }
 
 function toggleSidebar(forceOpen) {
@@ -4993,18 +5583,12 @@ function adminTab(name, el) {
     : document.querySelector(`#admin-tabs .nav-item[data-tab="${name}"]`);
   if (navItem) navItem.classList.add('active');
   // A shortcut elsewhere in the app (e.g. the Dashboard's "Open Meta
-  // Integration" button) can land here directly without the sidebar caret
-  // ever being clicked - open the group so the row it just highlighted is
-  // actually visible, not hidden under a collapsed Settings.
-  if (['meta', 'notifications', 'sites', 'guide'].includes(name)) {
-    expandNavSubgroup('settings-subgroup', 'settings-caret');
-  }
-  if (['social-facebook', 'social-instagram', 'social-tiktok'].includes(name)) {
-    expandNavSubgroup('socials-subgroup', 'socials-caret');
-  }
-  if (['subscribers', 'signal-broadcast', 'ai-signals'].includes(name)) {
-    expandNavSubgroup('signals-subgroup', 'signals-caret');
-  }
+  // Integration" button) can land here directly without any group ever having
+  // been opened - so open whatever the highlighted row sits inside. This used
+  // to be three hardcoded name lists, which silently went stale every time a
+  // destination moved between groups; deriving it from the DOM cannot.
+  expandNavGroupsFor(navItem);
+  syncNavGroupActiveState();
   // Update header title
   const titles = {
     dashboard: 'Dashboard', progress: 'CRM Development Progress', 'action-items': 'Action Items With Badar', leads: 'All Leads', agents: 'My Team',
@@ -5026,6 +5610,9 @@ function adminTab(name, el) {
   if (name === 'leads')            loadAdminLeads();
   if (name === 'conversations')    { renderConversations(); startConvRealtime(); renderQuickLinks(''); } else { stopConvRealtime(); }
   setSidebarAutoHide(name === 'conversations');
+  setWaChannelChip(name === 'conversations');
+  setQuickLinksChip(name === 'conversations');
+  setInboxTickerHidden(name === 'conversations');
   if (name === 'agents')           { renderAgentsTable(); updateRoundRobinStatus(); }
   if (name === 'user-manager')     renderAgentsTable('user-manager-tbody');
   if (name === 'settings')         loadGeneralSettings();
@@ -6843,6 +7430,9 @@ function agentTab(name, btn) {
   if (name === 'conversations') { renderConversations('agent-'); startConvRealtime('agent-'); renderQuickLinks('agent-'); } else { stopConvRealtime(); }
   if (name === 'comm-log') loadCommLog('agent-');
   setSidebarAutoHide(name === 'conversations');
+  setWaChannelChip(name === 'conversations', 'agent-');
+  setQuickLinksChip(name === 'conversations', 'agent-');
+  setInboxTickerHidden(name === 'conversations');
 }
 
 async function loadAgentLeads() {
@@ -10891,13 +11481,112 @@ function syncConvOpsChips() {
 
 // Bifurcates the Omnichannel Inbox by which real WhatsApp number a
 // conversation came in on - 'all' | '6541' | '3903'. Added 2026-08-31.
+// The channel scope moved from three pills in the conversation column to one
+// dropdown beside the bell (2026-08-31). The selection state and the filtering
+// call below are unchanged - only the elements that reflect the selection did.
+const WA_CHANNEL_LABELS = {
+  all:    '\u{1F4F1} All Numbers',
+  '6541': '\u{1F1E6}\u{1F1EA} UAE \u00b7 6541',
+  '3903': '\u{1F1F5}\u{1F1F0} Pakistan \u00b7 3903',
+};
+
 function setConvChannel(channel, scope = '') {
   _activeConvChannel = channel;
-  document.querySelectorAll(`#${scope}conv-channel-row .conv-channel-pill`).forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.channel === channel);
+  document.querySelectorAll(`#${scope}wa-chan-menu .wa-chan-opt`).forEach(btn => {
+    const on = btn.dataset.channel === channel;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-selected', on ? 'true' : 'false');
   });
+  const label = document.getElementById(`${scope}wa-chan-label`);
+  if (label) label.textContent = WA_CHANNEL_LABELS[channel] || WA_CHANNEL_LABELS.all;
+  closeWaChannelMenus();
   filterConversations(scope);
 }
+
+// Dashboard => ticker rendered. Omnichannel Inbox => not rendered, and the
+// height it reserved is released rather than left as an empty strip.
+function setInboxTickerHidden(hidden) {
+  document.body.classList.toggle('inbox-hides-ticker', !!hidden);
+  window.syncTickerHeight?.();
+}
+
+function closeQuickLinksMenus() {
+  document.querySelectorAll('.ql-chip.open').forEach(w => {
+    w.classList.remove('open');
+    w.querySelector('.ql-chip-btn')?.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function toggleQuickLinksMenu(event, scope = '') {
+  event.stopPropagation();
+  const wrap = document.getElementById(`${scope}quick-links`);
+  if (!wrap) return;
+  const opening = !wrap.classList.contains('open');
+  closeQuickLinksMenus();
+  closeWaChannelMenus();
+  if (opening) {
+    wrap.classList.add('open');
+    wrap.querySelector('.ql-chip-btn')?.setAttribute('aria-expanded', 'true');
+    wrap.querySelector('.ql-select')?.focus();
+  }
+}
+
+// Shown with the Inbox tab and hidden with every other one, exactly as the
+// channel selector and the auto-hiding sidebar already are.
+function setQuickLinksChip(active, scope = '') {
+  const wrap = document.getElementById(`${scope}quick-links`);
+  if (wrap) wrap.style.display = active ? '' : 'none';
+  if (!active) closeQuickLinksMenus();
+}
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest?.('.ql-menu')) return;   // clicks inside the panel keep it open
+  closeQuickLinksMenus();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const open = document.querySelector('.ql-chip.open');
+  if (!open) return;
+  closeQuickLinksMenus();
+  open.querySelector('.ql-chip-btn')?.focus();
+});
+
+function closeWaChannelMenus() {
+  document.querySelectorAll('.wa-chan.open').forEach(w => {
+    w.classList.remove('open');
+    w.querySelector('.wa-chan-btn')?.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function toggleWaChannelMenu(event, scope = '') {
+  event.stopPropagation();
+  const wrap = document.getElementById(`${scope}wa-chan`);
+  if (!wrap) return;
+  const opening = !wrap.classList.contains('open');
+  closeWaChannelMenus();
+  if (opening) {
+    wrap.classList.add('open');
+    wrap.querySelector('.wa-chan-btn')?.setAttribute('aria-expanded', 'true');
+    wrap.querySelector('.wa-chan-opt.active, .wa-chan-opt')?.focus();
+  }
+}
+
+// Only meaningful on the Inbox, so it is shown with that tab and hidden with
+// every other one, the same way the auto-hiding sidebar already works.
+function setWaChannelChip(active, scope = '') {
+  const wrap = document.getElementById(`${scope}wa-chan`);
+  if (wrap) wrap.style.display = active ? '' : 'none';
+  if (!active) closeWaChannelMenus();
+}
+
+document.addEventListener('click', (e) => { if (e.target.closest?.('.ql-menu')) return; closeWaChannelMenus(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const open = document.querySelector('.wa-chan.open');
+  if (!open) return;
+  closeWaChannelMenus();
+  open.querySelector('.wa-chan-btn')?.focus();
+});
 
 function fmtConvTime(isoStr) {
   if (!isoStr) return '';
@@ -11257,7 +11946,7 @@ function applyWaWindowGate(state, scope) {
   if (state.open) {
     if (input.dataset.waBlocked === '1') {
       input.disabled = false; btn.disabled = false;
-      input.placeholder = 'Type a WhatsApp message… (Shift+Enter for a new line)';
+      input.placeholder = 'Type a WhatsApp message...';
       delete input.dataset.waBlocked;
     }
     return;
@@ -11426,15 +12115,16 @@ async function openConversation(convId, scope = '') {
       <div class="conv-chat-header">
         <div class="conv-avatar" style="background:${avatarColor(conv.id)}">${initials}</div>
         <div class="conv-chat-header-info">
-          <h3>${esc(conv.name)}</h3>
-          <p>${esc(conv.phone)}&nbsp;&nbsp;${statusBadge(conv.status)}</p>
+          <h3 title="${esc(conv.name || conv.phone || 'Unknown')}">${esc(conv.name || conv.phone || 'Unknown')}</h3>
+          <p>${conv.name ? `<span class="conv-header-phone">${esc(conv.phone)}</span>` : ''}${statusBadge(conv.status)}</p>
         </div>
         <span class="conv-window-pill${demoWindow.tone === 'ok' ? '' : ' ' + demoWindow.tone}" id="${scope}conv-window-pill"
           title="How long WhatsApp will still accept a free-form reply on this conversation">${esc(demoWindow.label)}</span>
-        <button type="button" class="conv-header-btn" title="Search in this conversation" onclick="toggleConvMsgSearch()">🔍</button>
-        <button type="button" class="conv-header-btn" title="Mark as unread and go back to the list" onclick="markConversationUnread('${convId}','${scope}')">📩</button>
-        <button type="button" class="conv-header-btn" title="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
-        <button type="button" class="conv-copy-link-btn" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--text-body);font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
+        <div class="conv-header-actions">
+          <button type="button" class="conv-header-btn" title="Search in this conversation" aria-label="Search in this conversation" onclick="toggleConvMsgSearch()">🔍</button>
+          <button type="button" class="conv-header-btn" title="Mark as unread and go back to the list" aria-label="Mark as unread" onclick="markConversationUnread('${convId}','${scope}')">📩</button>
+          <button type="button" class="conv-header-btn" title="Contact info" aria-label="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
+        </div>
       </div>
       <div class="conv-msg-search" id="conv-msg-search" style="display:none">
         <input type="text" id="conv-msg-search-input" placeholder="Search in this conversation…"
@@ -11469,12 +12159,13 @@ async function openConversation(convId, scope = '') {
       <div id="conv-attach-chip" style="display:none"></div>
       <div class="conv-input-bar">
         <input type="file" id="conv-attach-input" hidden onchange="onConvAttachPicked(this)" accept="image/jpeg,image/png,application/pdf" />
-        <button type="button" class="conv-attach-btn" title="Attach a file" onclick="document.getElementById('conv-attach-input').click()">📎</button>
-        <button type="button" class="conv-attach-btn" title="Send an approved WhatsApp template - the only thing that works once the 24 hour window has closed" onclick="openTemplatePicker()">${COPY_ICON_SVG}</button>
-        <textarea class="conv-msg-textarea" id="conv-msg-input" placeholder="Type a message… (Shift+Enter for a new line)" rows="1"
+        <button type="button" class="conv-icon-btn" title="Attach a file" aria-label="Attach a file" onclick="document.getElementById('conv-attach-input').click()">📎</button>
+        <button type="button" class="conv-icon-btn conv-icon-btn-secondary" title="Send an approved WhatsApp template - the only thing that works once the 24 hour window has closed" aria-label="Send an approved WhatsApp template" onclick="openTemplatePicker()">${COPY_ICON_SVG}</button>
+        <textarea class="conv-msg-textarea" id="conv-msg-input" placeholder="Type a WhatsApp message..." rows="1"
+          title="Enter sends. Shift+Enter starts a new line."
           oninput="autoGrowConvInput(this)"
           onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendConvMessage('${convId}','${scope}'); }"></textarea>
-        <button class="btn btn-primary btn-sm" id="conv-send-btn" onclick="sendConvMessage('${convId}','${scope}')">Send</button>
+        <button class="conv-send-btn" id="conv-send-btn" title="Send" aria-label="Send" onclick="sendConvMessage('${convId}','${scope}')">${SEND_ICON_SVG}</button>
       </div>`;
     const msgArea = document.getElementById('conv-msgs-' + convId);
     if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
@@ -11542,15 +12233,12 @@ async function openConversation(convId, scope = '') {
       <div class="conv-chat-header">
         <div class="conv-avatar" style="background:${avatarColor(convId)}">${initials}</div>
         <div class="conv-chat-header-info">
-          <h3>${esc(lead?.full_name || 'Unknown')}</h3>
-          <p>${esc(lead?.phone || '')} ${statusBadge(lead?.status || 'new')}</p>
+          <h3 title="${esc(lead?.full_name || lead?.phone || 'Unknown')}">${esc(lead?.full_name || lead?.phone || 'Unknown')}</h3>
+          <p>${lead?.full_name ? `<span class="conv-header-phone">${esc(lead?.phone || '')}</span>` : ''}${statusBadge(lead?.status || 'new')}</p>
         </div>
         <span class="conv-window-pill${waWindow.tone === 'ok' ? '' : ' ' + waWindow.tone}" id="${scope}conv-window-pill"
           title="How long WhatsApp will still accept a free-form reply on this conversation">${esc(waWindow.label)}</span>
-        <button type="button" class="conv-header-btn" title="Search in this conversation" onclick="toggleConvMsgSearch()">🔍</button>
-        <button type="button" class="conv-header-btn" title="Mark as unread and go back to the list" onclick="markConversationUnread('${convId}','${scope}')">📩</button>
-        <button type="button" class="conv-header-btn" title="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
-        <select class="conv-tier-select" title="Set this lead's tier yourself - you know the real situation" onchange="setLeadTier('${convId}', this.value, '${scope}')" style="border:1px solid #cbd5e1;border-radius:8px;padding:5px 8px;font-size:0.78rem;color:var(--text-body);background:#fff">
+        <select class="conv-tier-select" title="Set this lead's tier yourself - you know the real situation" onchange="setLeadTier('${convId}', this.value, '${scope}')">
           <option value="new" ${currentTier==='new'?'selected':''}>🆕 New</option>
           <option value="warm" ${currentTier==='warm'?'selected':''}>💬 Engaged</option>
           <option value="hot" ${currentTier==='hot'?'selected':''}>💰 Deposit Ready</option>
@@ -11563,7 +12251,11 @@ async function openConversation(convId, scope = '') {
             ? `<option value="closed" selected disabled>✅ Converted (verified outcome)</option>`
             : ''}
         </select>
-        <button type="button" class="conv-copy-link-btn" title="Copy a direct link to this conversation" onclick="copyConvLink('${convId}')" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--text-body);font-size:0.78rem;white-space:nowrap">🔗 Copy Link</button>
+        <div class="conv-header-actions">
+          <button type="button" class="conv-header-btn" title="Search in this conversation" aria-label="Search in this conversation" onclick="toggleConvMsgSearch()">🔍</button>
+          <button type="button" class="conv-header-btn" title="Mark as unread and go back to the list" aria-label="Mark as unread" onclick="markConversationUnread('${convId}','${scope}')">📩</button>
+          <button type="button" class="conv-header-btn" title="Contact info" aria-label="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
+        </div>
       </div>
       <div class="conv-msg-search" id="conv-msg-search" style="display:none">
         <input type="text" id="conv-msg-search-input" placeholder="Search in this conversation…"
@@ -11603,12 +12295,13 @@ async function openConversation(convId, scope = '') {
       <div id="conv-attach-chip" style="display:none"></div>
       <div class="conv-input-bar">
         <input type="file" id="conv-attach-input" hidden onchange="onConvAttachPicked(this)" accept="image/jpeg,image/png,application/pdf" />
-        <button type="button" class="conv-attach-btn" title="Attach a file" onclick="document.getElementById('conv-attach-input').click()">📎</button>
-        <button type="button" class="conv-attach-btn" title="Send an approved WhatsApp template - the only thing that works once the 24 hour window has closed" onclick="openTemplatePicker()">${COPY_ICON_SVG}</button>
-        <textarea class="conv-msg-textarea" id="conv-msg-input" placeholder="Type a WhatsApp message… (Shift+Enter for a new line)" rows="1"
+        <button type="button" class="conv-icon-btn" title="Attach a file" aria-label="Attach a file" onclick="document.getElementById('conv-attach-input').click()">📎</button>
+        <button type="button" class="conv-icon-btn conv-icon-btn-secondary" title="Send an approved WhatsApp template - the only thing that works once the 24 hour window has closed" aria-label="Send an approved WhatsApp template" onclick="openTemplatePicker()">${COPY_ICON_SVG}</button>
+        <textarea class="conv-msg-textarea" id="conv-msg-input" placeholder="Type a WhatsApp message..." rows="1"
+          title="Enter sends. Shift+Enter starts a new line."
           oninput="autoGrowConvInput(this)"
           onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendConvMessage('${convId}','${scope}'); }"></textarea>
-        <button class="btn btn-primary btn-sm" id="conv-send-btn" onclick="sendConvMessage('${convId}','${scope}')">Send ↗</button>
+        <button class="conv-send-btn" id="conv-send-btn" title="Send" aria-label="Send" onclick="sendConvMessage('${convId}','${scope}')">${SEND_ICON_SVG}</button>
       </div>`;
     const msgArea = document.getElementById('conv-msgs-' + convId);
     if (msgArea) msgArea.scrollTop = msgArea.scrollHeight;
@@ -12152,14 +12845,16 @@ async function runMessageAction(action) {
   if (action === 'delete') openMessageDeleteDialog(target);
 }
 
+const COMPOSER_MIN_H = 48;   // single-line resting height
+const COMPOSER_MAX_H = 120;  // then the textarea itself scrolls
+
 function autoGrowConvInput(el) {
-  // Grows with content like WhatsApp's compose box - capped relative to the
-  // chat panel's own height (not a small fixed pixel value) so a long message
-  // can take up real space without the input overrunning the panel.
+  // Grows with content like WhatsApp's compose box: one line at rest, then up
+  // to COMPOSER_MAX_H, after which the textarea scrolls internally rather than
+  // pushing the composer taller. The old cap was 45% of the panel, which let a
+  // long draft eat half the conversation.
   el.style.height = 'auto';
-  const panel = el.closest('.conv-chat-panel');
-  const dynamicMax = panel ? Math.max(160, Math.floor(panel.clientHeight * 0.45)) : 320;
-  el.style.height = Math.min(Math.max(el.scrollHeight, 64), Math.min(dynamicMax, 320)) + 'px';
+  el.style.height = Math.min(Math.max(el.scrollHeight, COMPOSER_MIN_H), COMPOSER_MAX_H) + 'px';
 }
 
 // ── In-app notifications ──────────────────────────────────────
@@ -13076,7 +13771,7 @@ async function sendConvMessage(convId, scope = '') {
   // Live mode uses only the server-side sender. The WhatsApp access token must
   // never be exposed to an Agent browser as a fallback credential.
   const sendBtn = document.getElementById('conv-send-btn');
-  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending…'; }
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.classList.add('is-sending'); sendBtn.setAttribute('aria-busy', 'true'); }
   if (input) input.disabled = true;
 
   const replyToWaMessageId = _replyTarget?.waMessageId || null;
@@ -13123,7 +13818,7 @@ async function sendConvMessage(convId, scope = '') {
       created_by: currentUser?.id || null,
     }).then(() => {}, () => {});
   } finally {
-    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send ↗'; }
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.classList.remove('is-sending'); sendBtn.removeAttribute('aria-busy'); }
     if (input) input.disabled = false;
   }
 }
@@ -13286,8 +13981,8 @@ function renderPayrollSetup() {
     const saved = _payrollSettings.find(row => row.agent_id === a.id);
     return `<tr>
       <td><strong style="color:var(--text-strong)">${esc(a.full_name || a.email)}</strong></td>
-      <td><input type="number" id="pr-base-${a.id}" value="${Number(saved?.base_salary_monthly ?? 500)}" min="0" step="50" style="width:130px" /></td>
-      <td><input type="number" id="pr-comm-${a.id}" value="${Number(saved?.commission_percent ?? 5)}" min="0" max="100" step="0.5" style="width:110px" /></td>
+      <td><input type="number" class="payroll-num" id="pr-base-${a.id}" value="${Number(saved?.base_salary_monthly ?? 500)}" min="0" step="50" /></td>
+      <td><input type="number" class="payroll-num payroll-num-comm" id="pr-comm-${a.id}" value="${Number(saved?.commission_percent ?? 5)}" min="0" max="100" step="0.5" /></td>
     </tr>`;
   }).join('');
 }
@@ -14501,6 +15196,10 @@ function syncAccuracyTracker() {
     });
     document.documentElement.style.setProperty('--ticker-h', Math.round(h) + 'px');
   }
+  // Exposed so the tab router can settle --ticker-h the moment the Inbox is
+  // opened or left, rather than waiting for the poll below. Same function,
+  // same computation.
+  window.syncTickerHeight = syncTickerHeight;
   const ro = new ResizeObserver(syncTickerHeight);
   function watchIframes() {
     document.querySelectorAll('.market-ticker iframe').forEach(function (f) { ro.observe(f); });
