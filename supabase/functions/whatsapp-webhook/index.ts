@@ -1020,6 +1020,15 @@ function describeUnsupportedMessage(message: any): string {
   switch (type) {
     case "audio":
       return message.audio?.voice ? "[voice note]" : "[audio file]";
+    case "image":
+      // Never had its own case, unlike every sibling type below - fell into
+      // the generic default branch and printed the literal, technical-sounding
+      // "[unsupported message type: image]" even when the image downloaded
+      // and displayed just fine. Not a deliberate label, just an oversight
+      // (this path only affects 3903's ingestOnlyMessage() - 6541's own
+      // handleImageMessage() already has its own dedicated wording and never
+      // reaches this function at all).
+      return withCaption("[image]");
     case "video":
       return withCaption("[video]");
     case "document": {
