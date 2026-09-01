@@ -4,6 +4,18 @@ _Last updated: 2026-09-01, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
 
+## 2026-09-01 (latest) - Browser-freezing regression from the row-cap sweep, fixed same session, commit `8e8639a`
+
+Immediately after the full row-cap sweep (entry below), Muhammad hit a real "Page Unresponsive" browser dialog on All Leads. Root cause: making `loadAdminLeads()` fetch every real lead (7,433, up from the old silent 5000-row cap) was correct and necessary - that part of the sweep was right - but `renderLeadsTable()` was still dumping every one of them into the DOM as a full `<tr>` in one synchronous `innerHTML` write. That's what froze the tab, not the fetch itself.
+
+Fixed with real UI-level pagination: `cachedLeads` keeps the complete, correctly-fetched set (still needed for accurate totals and instant client-side search), but only `LEADS_PAGE_SIZE = 100` rows worth of it ever becomes actual DOM at once. Added Prev/Next controls and a range indicator, hidden entirely when a filtered result already fits on one page; page index resets on a fresh load or new search term, and clamps safely if a filter narrows the result set below the current page.
+
+Verified directly in the browser against a 7,500-row synthetic set (not just the small demo data): render time dropped to 8ms with exactly 100 DOM rows built, page navigation confirmed correct, zero console errors. Also confirmed and told Muhammad plainly: the freeze was purely client-side, isolated to that one browser tab - it never touched the backend, message sending/delivery, or any other agent's own session. The Omnichannel Inbox was never at risk.
+
+Merged cleanly with a concurrent push (AUM-approved-deposits-only fix, deposit form Phase 1) - re-verified after merge that this fix's code and all tests still passed before pushing.
+
+---
+
 ## 2026-09-01 (AUM fix) - AUM now counts approved deposits only. BUILT AND TESTED, NOT MERGED, NOT DEPLOYED.
 
 Branch `claude/aum-approved-only`, commit `efc180d`. Fixes the pre-existing gap flagged in
