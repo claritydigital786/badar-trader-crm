@@ -783,6 +783,48 @@
        their own, and the boxes that had been pinned light were made
        theme-aware in the same pass, so nothing needs exempting by ID. */
     td { color: #334155; }
+
+    /* ── Payroll > Salary Setup table (2026-08-31) ─────────────────────────
+       The two number fields read as raw browser controls: the shared input
+       rule above only matches text/email/password/date, so type="number" was
+       picking up none of the CRM's background, border, radius or padding, and
+       the value sat hard left in a field far wider than a 3-digit salary
+       needs. These give the column a real control: fixed compact width,
+       centred in its cell, value centred in the field, and the same surface
+       treatment every other input in the app already has. Layout only - the
+       ids, values, min/max/step and handlers are untouched. */
+    .payroll-setup-table th:nth-child(2),
+    .payroll-setup-table th:nth-child(3),
+    .payroll-setup-table td:nth-child(2),
+    .payroll-setup-table td:nth-child(3) { text-align: center; }
+    .payroll-setup-table th:first-child,
+    .payroll-setup-table td:first-child  { text-align: left; }
+    .payroll-num {
+      width: 130px;
+      height: 38px;
+      display: inline-flex;
+      text-align: center;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      color: #0f172a;
+      padding: 0 10px;
+      font-size: 0.875rem;
+      font-variant-numeric: tabular-nums;
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .payroll-num-comm { width: 110px; }
+    .payroll-num:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(230,182,76,.18); }
+    /* The spinner sits inside the content box and pushes the digits off
+       centre, which is the whole complaint here. Hidden for appearance only -
+       type="number" is unchanged, so validation, the numeric keypad on mobile
+       and the arrow-key step all still work. */
+    .payroll-num::-webkit-outer-spin-button,
+    .payroll-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .payroll-num { -moz-appearance: textfield; appearance: textfield; }
+    [data-theme="dark"] .payroll-num { background: #0f172a; border-color: #243350; color: #f1f5f9; }
+    [data-theme="dark"] .payroll-num:focus { border-color: var(--accent); }
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: #f8fafc; }
     /* Bug found 2026-08-05: this hover rule was never scoped per-theme, unlike
@@ -4101,7 +4143,7 @@
 
     <p class="section-h">Salary Setup</p>
     <div class="card" style="padding:0">
-      <table>
+      <table class="payroll-setup-table">
         <thead><tr>
           <th>Agent Name</th><th>Base Salary ($/month)</th><th>Commission %</th>
         </tr></thead>
@@ -13930,8 +13972,8 @@ function renderPayrollSetup() {
     const saved = _payrollSettings.find(row => row.agent_id === a.id);
     return `<tr>
       <td><strong style="color:var(--text-strong)">${esc(a.full_name || a.email)}</strong></td>
-      <td><input type="number" id="pr-base-${a.id}" value="${Number(saved?.base_salary_monthly ?? 500)}" min="0" step="50" style="width:130px" /></td>
-      <td><input type="number" id="pr-comm-${a.id}" value="${Number(saved?.commission_percent ?? 5)}" min="0" max="100" step="0.5" style="width:110px" /></td>
+      <td><input type="number" class="payroll-num" id="pr-base-${a.id}" value="${Number(saved?.base_salary_monthly ?? 500)}" min="0" step="50" /></td>
+      <td><input type="number" class="payroll-num payroll-num-comm" id="pr-comm-${a.id}" value="${Number(saved?.commission_percent ?? 5)}" min="0" max="100" step="0.5" /></td>
     </tr>`;
   }).join('');
 }
