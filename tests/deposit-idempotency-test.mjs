@@ -132,38 +132,45 @@ test('the idempotency claim runs BEFORE any side effect', () => {
   const claimAt   = hook.indexOf('claim_deposit_submission');
   const updateAt  = hook.indexOf('status: "pending_approval"');
   const logAt     = hook.indexOf('communication_logs');
-  const notifyAt  = hook.indexOf('await notifyAdminPendingApproval(');
-  for (const [name, at] of [['the leads update', updateAt], ['the activity log', logAt], ['the admin alert', notifyAt]]) {
+  for (const [name, at] of [['the leads update', updateAt], ['the activity log', logAt]]) {
     assert.ok(claimAt > 0 && at > claimAt, `${name} must happen after the idempotency claim, not before it`);
   }
   assert.match(hook, /if \(isFirst !== true\)/, 'a replay must return early rather than falling through');
   assert.match(hook, /duplicate: true/, 'a replay must be reported as a duplicate, not as a fresh submission');
 });
 
-test('an invalid or rejected submission never notifies', () => {
-  const notifyAt = hook.indexOf('await notifyAdminPendingApproval(');
+test('an invalid or rejected submission is still rejected before any side effect', () => {
+  // The hook no longer notifies anyone at all (see the next test), so the thing
+  // to protect is that a rejection still returns before the claim and the writes.
+  const claimAt = hook.indexOf('claim_deposit_submission');
   for (const rejection of [
     'lead_id or phone required',
     'lead not found',
   ]) {
     const at = hook.indexOf(rejection);
-    assert.ok(at > 0 && at < notifyAt, `"${rejection}" must return before the notification is sent`);
+    assert.ok(at > 0 && at < claimAt, `"${rejection}" must return before the idempotency claim`);
   }
   assert.match(hook, /release_deposit_submission/,
     'a claim that could not be completed must be released so the customer can retry');
 });
 
 // ── The alert reuses the one existing mechanism ─────────────────
-test('the hook reuses notify-admin-pending-approval rather than a second notifier', () => {
-  assert.match(hook, /functions\/v1\/notify-admin-pending-approval/,
-    'the hook must call the existing notification function');
+test('a customer submission does NOT notify the admin (agent review comes first)', () => {
+  // Changed deliberately 2026-09-01: a customer pressing submit is not an
+  // escalation. The submission belongs to the assigned agent, who reviews it and
+  // explicitly sends it on; only THAT pings Ehsan. Pinging on every raw
+  // submission is what made the approvals queue meaningless.
+  assert.doesNotMatch(hook, /functions\/v1\/notify-admin-pending-approval/,
+    'conversion-hook must not call the admin notifier on submission');
+  assert.doesNotMatch(hook, /notifyAdminPendingApproval\(/,
+    'the submission-time admin alert must be gone from the hook');
   assert.doesNotMatch(hook, /graph\.facebook\.com/,
-    'the hook must not send WhatsApp itself - that is the notifier function\'s job');
-  // Naming the ledger in a comment is fine and useful; writing to it is not.
+    'the hook must not send WhatsApp itself either');
   assert.doesNotMatch(hook, /\.from\(["']pending_approval_notifications["']\)/,
-    'the hook must not write the notification ledger directly - the notifier owns it');
-  assert.match(hook, /INTERNAL_SECRET_HEADER/,
-    'the hook must authenticate over the repo\'s existing internal-call path');
+    'the hook must not write the notification ledger directly');
+  // The notifier function itself is untouched and still deployed.
+  assert.match(notifier, /verifyInternalRequest/,
+    'notify-admin-pending-approval itself must be left intact for its other callers');
 });
 
 test('the notifier accepts an internal caller without weakening the browser path', () => {
