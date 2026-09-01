@@ -42,12 +42,16 @@ CREATE INDEX IF NOT EXISTS kyc_documents_agent_reviewed_idx
 -- The escalation itself.
 --
 -- This is a SECURITY DEFINER function rather than a new UPDATE policy on
--- kyc_documents for two reasons. First, agents have no UPDATE policy on that
--- table today and widening it would let an agent write any column on any
--- document. Second, and more important: `leads: staff update all` means RLS
--- does NOT currently scope an agent to their assigned leads, so "only the
--- assigned agent may escalate" cannot be enforced by policy at all right now -
--- it has to be checked here, in one place, against the row itself.
+-- kyc_documents because agents have SELECT on their own clients' documents but
+-- no UPDATE policy at all, and widening that would let an agent write any
+-- column on any document they can see, not just this one stamp.
+--
+-- Note (corrected 2026-09-01, after Phase 15 agent-scoping RLS was actually
+-- applied live in e9e1947): RLS now does scope agents to their assigned leads
+-- and their own clients' kyc_documents. This function's own assignment check is
+-- therefore defence in depth rather than the only control - but it is still the
+-- thing that decides WHO may escalate, and it keeps that decision in one place
+-- instead of depending on which policies happen to be live.
 --
 -- Idempotent on purpose. A double-click, a replayed request or a second tab
 -- must not stamp the row twice or ping Ehsan twice, so the UPDATE only fires
