@@ -73,6 +73,58 @@ Not done
 Merging and deploying were blocked by this session's permission gate, so `main` is untouched
 and production still has the old behavior. Phase 2 has NOT been started.
 
+## 2026-09-01 (deposit approval) - Submitted amount separated from approved balance. BUILT AND TESTED, NOT MERGED, NOT DEPLOYED.
+
+Branch `claude/deposit-approval-balance`, commit `68a0b39`. Fixes the live blocker that
+killed the first real end-to-end deposit test.
+
+The blocker
+Every real client submission returned "Only admins may change account_balance or kyc_status".
+`conversion-hook` wrote `account_balance` at submission time; `guard_leads_admin_only_columns`
+refuses that column from a non-admin; an Edge Function on the service role key has
+`auth.uid() = NULL`, so `is_admin()` is false. No submission had ever been run end to end
+before, so it had never surfaced.
+
+The fix is the business model, not a permission change
+NOTHING was weakened - no migration, no trigger, no policy, no grant, no SQL at all. The hook
+stops writing a column it had no business writing, so the guard never fires for it. The
+obvious "give the guard a backend escape hatch" fix was deliberately NOT taken.
+
+  client submits  -> deposit_amount only; account_balance untouched, no AUM,
+                     no conversion, no Ehsan ping - it goes to the agent
+  agent escalates -> agent_reviewed_* stamped, Ehsan notified once
+  Ehsan approves  -> and only here: account_balance = the approved amount,
+                     status converted, balance locked, AUM moves
+  Ehsan returns   -> reason required, agent notified, nothing financial moves
+
+Three more problems closed, all found in the audit rather than reported
+1. Half-written submissions. The real failed test left an uploaded screenshot and a
+   kyc_documents row against a lead showing no deposit at all, and every retry added
+   another pair. Each side effect now registers its own undo when it succeeds; any later
+   failure unwinds them all in reverse.
+2. A screenshot alone could authorise a conversion. That orphan document would have
+   converted the lead for $0. Approval now needs the whole submission to hang together,
+   including the agent's escalation. A returned document is excluded until re-sent.
+3. Half-written approvals. `decideDeposit` stamped the document 'verified' BEFORE
+   attempting the conversion. Now the conversion goes first.
+
+Tests
+25 of 25 node suites. Two new: a state-machine suite, and a behavioural suite that runs the
+REAL Edge Function source under Node against an in-memory Supabase (`tests/helpers/`),
+forcing a failure at each of the three steps and asserting zero orphan rows, objects and
+claims. 53 behavioural assertions plus 21 in a browser pass against demo preview
+(agent scoping, approval $0 -> $1200, double-approval refused, returned path inert, zero
+console errors). Two existing suites had assertions pinning the old behaviour - one
+literally required `account_balance` in the hook - and were re-pointed at the stronger
+contract rather than relaxed.
+
+Deliberately NOT done
+The orphan `kyc_documents` row `2b8eb5df-79bd-4df1-b862-b1f1409829ec` and its storage object
+`eba43434-75d7-4d7e-a63c-2c19185bb922/1788272862124_deposit_screenshot.jpg`, left by the
+failed production test, are UNTOUCHED pending separate approval for production-data cleanup.
+The test lead `eba43434-75d7-4d7e-a63c-2c19185bb922` is still `status='new'`,
+`account_balance=0.00`, `deposit_amount=null`.
+
 ## 2026-09-01 (deposit form) - Phase 1 DEPLOYED: required email and deposit screenshot on join.html, commit `a1c9024`, conversion-hook v21
 
 Live. Both halves verified against production, not assumed.
