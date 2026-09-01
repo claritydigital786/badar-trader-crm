@@ -4,6 +4,19 @@ _Last updated: 2026-09-02, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
 
+## 2026-09-02 (later) - Avatar-initials fix, and real voice-note sending built end-to-end, commit `532e9c7`
+
+**Broken avatar initials fixed.** A lead named "🤍الحسینی🤍" showed an unreadable icon instead of any real initials - the 9 separate places in the app computing avatar initials all took the literal first character of each word, which for this name is the heart emoji itself (some fonts render that as a broken tofu/question-mark glyph). New shared `initialsFor()` skips leading non-letter/non-number characters per word before taking the initial, falling back to "?" only when a name is genuinely all symbols/emoji. Verified: normal Latin/Arabic names unaffected, this exact name now shows "ا" (its real first letter). All 9 duplicated inline copies replaced with the one shared function.
+
+**Voice note sending, built for real, not a mockup.** Muhammad asked why there's no VN icon in the composer - confirmed honestly first that it genuinely doesn't exist (the file picker only ever accepted images/PDF), then built it on request:
+- **Backend** (`send-wa-message`): a real `audio` attachment kind alongside image/document, recognizing Meta's documented audio types plus webm pragmatically. The caption field is correctly omitted for audio server-side - real WhatsApp voice notes can't carry one, this is enforced regardless of what the frontend sends.
+- **Frontend**: a mic button records via `MediaRecorder` (best MIME type picked from Meta's own preference order), shows a live elapsed-time placeholder while recording, and reuses the exact same attachment pipeline images/PDFs already use - same size cap, same upload, same send - with its own chip (duration instead of filename) and a caption-disabled composer, matching real WhatsApp's own voice-note behavior.
+- **Real gap closed while building it**: switching conversations mid-recording would have left the microphone silently capturing forever with nothing to stop it. Now discarded and the mic released the instant a different conversation opens - verified with a synthetic in-progress recorder, not just reasoned about.
+
+`deno check` clean, all suites pass (except the one known, pre-existing, unrelated Node-version gap flagged earlier), deployed. Both fixes verified directly in the browser, not just by reading the code.
+
+---
+
 ## 2026-09-02 - Image messages get a real label, round-robin monitoring set up, commit `16d5558`
 
 **"[unsupported message type: image]" removed for good.** Muhammad asked directly why a real, successfully-displayed image still showed this label. Checked the code rather than assume it was intentional: `describeUnsupportedMessage()` has a dedicated case for every other message type (audio, video, document, sticker, location, contacts, button reply) but never had one for images - a genuine oversight, not a deliberate choice. Every image ingested through 3903's `ingestOnlyMessage()` fell into the generic default branch and printed the literal type name even when the image itself downloaded and rendered fine. 6541's own images never hit this function at all (`handleImageMessage()` already has its own wording). Added a real `image` case (with caption support, matching its siblings) and backfilled the 586 existing rows already written with the old text - confirmed first that every one was the exact same plain string with nothing appended, so the one-time replace is lossless. `deno check` clean, all suites pass, deployed, verified live: 0 rows with the old wording, 586 with the new one.
