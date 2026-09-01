@@ -4,6 +4,22 @@ _Last updated: 2026-09-01, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
 
+## 2026-09-01 (later) - Real per-message WhatsApp channel split, backend and frontend, commit `ead58cb`
+
+Two real, confusing bugs shown to Muhammad live: an agent blocked from replying (assigned-agent permission gate, expected behavior, just an inconvenient lead), and a genuinely wrong-looking failure - a reply to "Nashit" failed WhatsApp's own 131047 ("24h since last reply") despite the thread showing a message 50 minutes earlier.
+
+Root cause of the second one, traced through the actual code rather than assumed: 6541 and 3903 share one WABA, and this CRM has always merged both numbers' messages into one thread per lead with **no record of which physical number any given message actually went through** - `leads.wa_channel` is one static label per lead, not a per-message fact. So a customer who has ever messaged both numbers looks, in the combined transcript, like one continuous conversation even when the two numbers' real 24h windows have diverged - Nashit's recent message very likely arrived on 3903, and the reply tried (and could only ever try) to send via 6541.
+
+Fixed properly, not just patched around: new `communications.channel` column (migration `20260901010000_communications_channel.sql`, schema.sql Phase 41) - nullable and deliberately un-backfilled (no reliable way to know which number carried a historical row), written on every new message going forward (`whatsapp-webhook`'s primary path -> `6541`, its 3903 ingest-only path -> `3903`; `send-wa-message` -> `6541`, its only real send path today). The 24h-window warning in `openConversation()` now computes strictly against 6541's own inbound history, not the whole merged thread. The existing 6541/3903/All toggle (built by a concurrent session, `setConvChannel`) now also splits the **open conversation thread itself** by channel, not just which leads show in the list - this is the frontend half Muhammad explicitly asked for ("divide the two... so everybody... could switch to any particular campaign").
+
+Also reassigned a stuck lead ("😭😭😭😭😭") to Hanzala per direct instruction - DB only, no code.
+
+`deno check` clean on both functions, all suites pass, verified in demo preview (toggle round-trips, zero console errors), deployed.
+
+**Not done, flagged rather than silently expanded into**: 3903 still has no real send capability at all (deliberately, per its existing ingest-only design) - this work makes the two numbers' histories honest and separable, it does not add a way to actually send through 3903. That would be its own, much bigger piece of work (real two-way Business API integration for the second number) and was not part of this request.
+
+---
+
 ## 2026-09-01 - Real hierarchy change: Ehsan is admin, Badar moves up to super_admin, commit `2c1eeba`
 
 Muhammad's direct instruction: while setting up the deposit-approval funnel he realized the "an admin approves the screenshot" role kept defaulting to Badar simply because Badar was the original admin, not because it needs to be him specifically. New hierarchy: Ehsan becomes the working admin, Badar moves up to a new `super_admin` role above admin.
