@@ -12757,6 +12757,20 @@ function openLeadFromConversation(leadId, scope = '') {
 
 async function openConversation(convId, scope = '') {
   stopWaWindowTicker();
+  // A live recording belongs to the composer being replaced below - without
+  // this, switching conversations mid-recording would leave the microphone
+  // silently capturing forever (this function wipes out the mic button and
+  // textarea it was tied to, but nothing would ever stop the actual
+  // MediaRecorder/stream), a real privacy problem, not just a UI orphan.
+  // Discarded rather than kept, since attaching it to whichever conversation
+  // is opened next would be a surprising, unasked-for guess.
+  if (_voiceRecorder) {
+    clearInterval(_voiceRecorder.timerHandle);
+    _voiceRecorder.recorder.onstop = null; // don't run acceptConvVoiceNote for a discarded recording
+    _voiceRecorder.recorder.stop();
+    _voiceRecorder.stream.getTracks().forEach(t => t.stop());
+    _voiceRecorder = null;
+  }
   _activeConvId = convId;
   _activeConvScope = scope;
   _replyTarget = null; // switching leads should never carry a reply target over
@@ -12835,6 +12849,7 @@ async function openConversation(convId, scope = '') {
         <input type="file" id="conv-attach-input" hidden onchange="onConvAttachPicked(this)" accept="image/jpeg,image/png,application/pdf" />
         <button type="button" class="conv-icon-btn" title="Attach a file" aria-label="Attach a file" onclick="document.getElementById('conv-attach-input').click()">📎</button>
         <button type="button" class="conv-icon-btn conv-icon-btn-secondary" title="Send an approved WhatsApp template - the only thing that works once the 24 hour window has closed" aria-label="Send an approved WhatsApp template" onclick="openTemplatePicker()">${COPY_ICON_SVG}</button>
+        <button type="button" class="conv-icon-btn" id="${scope}voice-rec-btn" title="Record a voice note" aria-label="Record a voice note" onclick="toggleVoiceRecording('${scope}')">🎤</button>
         <textarea class="conv-msg-textarea" id="conv-msg-input" placeholder="Type a WhatsApp message..." rows="1"
           title="Enter sends. Shift+Enter starts a new line."
           oninput="autoGrowConvInput(this)"
@@ -13010,6 +13025,7 @@ async function openConversation(convId, scope = '') {
         <input type="file" id="conv-attach-input" hidden onchange="onConvAttachPicked(this)" accept="image/jpeg,image/png,application/pdf" />
         <button type="button" class="conv-icon-btn" title="Attach a file" aria-label="Attach a file" onclick="document.getElementById('conv-attach-input').click()">📎</button>
         <button type="button" class="conv-icon-btn conv-icon-btn-secondary" title="Send an approved WhatsApp template - the only thing that works once the 24 hour window has closed" aria-label="Send an approved WhatsApp template" onclick="openTemplatePicker()">${COPY_ICON_SVG}</button>
+        <button type="button" class="conv-icon-btn" id="${scope}voice-rec-btn" title="Record a voice note" aria-label="Record a voice note" onclick="toggleVoiceRecording('${scope}')">🎤</button>
         <textarea class="conv-msg-textarea" id="conv-msg-input" placeholder="Type a WhatsApp message..." rows="1"
           title="Enter sends. Shift+Enter starts a new line."
           oninput="autoGrowConvInput(this)"
@@ -14457,6 +14473,18 @@ function renderConvAttachChip() {
   const chip = document.getElementById('conv-attach-chip');
   if (!chip) return;
   if (!_convAttachment) { chip.style.display = 'none'; chip.innerHTML = ''; return; }
+  // A voice note shows its length instead of a filename/size, and its own
+  // icon - matches how real WhatsApp itself presents a pending voice note,
+  // not a generic file chip.
+  if (_convAttachment.isVoiceNote) {
+    const mins = Math.floor(_convAttachment.durationSeconds / 60);
+    const secs = Math.floor(_convAttachment.durationSeconds % 60);
+    chip.innerHTML = `<span>🎤</span>
+      <span class="name">Voice note (${mins}:${String(secs).padStart(2, '0')})</span>
+      <button type="button" title="Remove voice note" onclick="clearConvAttachment()">✕</button>`;
+    chip.style.display = 'flex';
+    return;
+  }
   const icon = _convAttachment.type === 'application/pdf' ? '📄' : '🖼';
   chip.innerHTML = `<span>${icon}</span>
     <span class="name">${esc(_convAttachment.name)}</span>
@@ -14470,6 +14498,109 @@ function clearConvAttachment() {
   const picker = document.getElementById('conv-attach-input');
   if (picker) picker.value = '';
   renderConvAttachChip();
+  // Restores the composer for normal typing - see acceptConvVoiceNote for
+  // why it was disabled in the first place.
+  setConvComposerVoiceNoteMode(false);
+}
+
+// A real voice note cannot carry a typed caption - that's a genuine
+// WhatsApp restriction (send-wa-message's own audio branch has no caption
+// field at all, matching real WhatsApp's own voice notes), not an arbitrary
+// choice here. Disabling the text input while one is pending avoids a
+// confusing situation where an agent types something that silently never
+// reaches the customer.
+function setConvComposerVoiceNoteMode(active) {
+  const input = document.getElementById('conv-msg-input');
+  if (!input) return;
+  input.disabled = active;
+  input.placeholder = active ? "Voice notes can't have a caption - remove it to type instead" : 'Type a WhatsApp message...';
+}
+
+// Chosen in Meta's own documented preference order for its "audio" message
+// type (aac/mp4/mpeg/amr/ogg-opus) - webm is tried last since Meta's
+// published list does not include it, even though most browsers default to
+// it and it often works in practice anyway.
+const VOICE_NOTE_MIME_CANDIDATES = [
+  'audio/ogg;codecs=opus', 'audio/mp4', 'audio/aac', 'audio/webm;codecs=opus', 'audio/webm',
+];
+function pickVoiceNoteMimeType() {
+  if (typeof MediaRecorder === 'undefined') return null;
+  return VOICE_NOTE_MIME_CANDIDATES.find(t => MediaRecorder.isTypeSupported(t)) || '';
+}
+
+let _voiceRecorder = null; // { recorder, stream, chunks, startedAt, timerHandle }
+
+async function toggleVoiceRecording(scope = '') {
+  if (_voiceRecorder) { stopVoiceRecording(scope); return; }
+  if (demoMode) { showToast('Voice notes are not simulated in demo mode.', 'err'); return; }
+  if (_convAttachment) { showToast('Remove the current attachment first.', 'err'); return; }
+
+  const mimeType = pickVoiceNoteMimeType();
+  if (mimeType === null) {
+    showToast('Voice recording is not supported in this browser.', 'err');
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    showToast('Microphone access was denied or is unavailable.', 'err');
+    return;
+  }
+
+  const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+  const chunks = [];
+  recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+  recorder.onstop = () => {
+    stream.getTracks().forEach(t => t.stop());
+    const durationSeconds = (Date.now() - _voiceRecorder.startedAt) / 1000;
+    const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || 'audio/webm' });
+    _voiceRecorder = null;
+    acceptConvVoiceNote(blob, durationSeconds, scope);
+  };
+  recorder.start();
+  _voiceRecorder = { recorder, stream, chunks, startedAt: Date.now(), timerHandle: null };
+
+  const btn = document.getElementById(scope + 'voice-rec-btn');
+  if (btn) { btn.textContent = '⏹'; btn.title = 'Stop recording'; btn.style.color = '#dc2626'; }
+  const input = document.getElementById('conv-msg-input');
+  const originalPlaceholder = input?.placeholder;
+  _voiceRecorder.timerHandle = setInterval(() => {
+    if (!input || !_voiceRecorder) return;
+    const secs = Math.floor((Date.now() - _voiceRecorder.startedAt) / 1000);
+    input.placeholder = `Recording… ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} (tap 🎤 again to stop)`;
+  }, 500);
+  input?.setAttribute('data-pre-record-placeholder', originalPlaceholder || '');
+}
+
+function stopVoiceRecording(scope = '') {
+  if (!_voiceRecorder) return;
+  clearInterval(_voiceRecorder.timerHandle);
+  _voiceRecorder.recorder.stop(); // triggers onstop above, which clears _voiceRecorder itself
+  const btn = document.getElementById(scope + 'voice-rec-btn');
+  if (btn) { btn.textContent = '🎤'; btn.title = 'Record a voice note'; btn.style.color = ''; }
+}
+
+function acceptConvVoiceNote(blob, durationSeconds, scope = '') {
+  const input = document.getElementById('conv-msg-input');
+  if (input) input.placeholder = input.getAttribute('data-pre-record-placeholder') || 'Type a WhatsApp message...';
+  if (blob.size <= 0) { showToast('That recording came out empty - please try again.', 'err'); return; }
+  if (blob.size > CONV_ATTACH_MAX_BYTES) {
+    showToast(`That voice note is too large (${humanFileSize(blob.size)}). Keep it under ${humanFileSize(CONV_ATTACH_MAX_BYTES)}.`, 'err');
+    return;
+  }
+  // Codec parameters (";codecs=opus") are stripped here for the extension
+  // and stored type - send-wa-message strips them again itself before
+  // classifying the attachment, so either form reaching it works, but a
+  // clean type is what the rest of this file's attachment code expects.
+  const cleanType = blob.type.split(';')[0].trim() || 'audio/webm';
+  const ext = cleanType.split('/')[1] || 'webm';
+  _convAttachment = {
+    file: blob, name: `voice-note.${ext}`, size: blob.size, type: cleanType,
+    isVoiceNote: true, durationSeconds,
+  };
+  renderConvAttachChip();
+  setConvComposerVoiceNoteMode(true);
 }
 
 // FileReader gives "data:<mime>;base64,<payload>" - the function only wants

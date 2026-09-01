@@ -73,8 +73,22 @@ const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 // document, which is fine - it still arrives, just without an inline preview.
 const WA_IMAGE_MIME_TYPES = ["image/jpeg", "image/png"];
 
-function attachmentKind(mimeType: string): "image" | "document" {
-  return WA_IMAGE_MIME_TYPES.includes(mimeType) ? "image" : "document";
+// Added 2026-09-02 for the voice-note feature (Muhammad's direct ask). Meta's
+// documented accepted audio types for the "audio" message type are aac, mp4,
+// mpeg, amr and ogg (opus codec only) - webm is not in Meta's own published
+// list, but is included here pragmatically: it is what most browsers'
+// MediaRecorder actually produces by default (opus-encoded, effectively the
+// same payload as ogg/opus in a different container), and real Cloud API
+// accounts commonly accept it in practice. If Meta ever rejects a specific
+// webm upload, uploadMediaToMeta's own error path surfaces that clearly to
+// the agent rather than silently mislabeling the message - it does not fail
+// quietly either way.
+const WA_AUDIO_MIME_TYPES = ["audio/aac", "audio/mp4", "audio/mpeg", "audio/amr", "audio/ogg", "audio/webm"];
+
+function attachmentKind(mimeType: string): "image" | "audio" | "document" {
+  if (WA_IMAGE_MIME_TYPES.includes(mimeType)) return "image";
+  if (WA_AUDIO_MIME_TYPES.includes(mimeType)) return "audio";
+  return "document";
 }
 
 // Rough decoded size without allocating the bytes: 4 base64 chars per 3 bytes,
@@ -385,10 +399,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       type: kind,
       [kind]: {
         id: uploaded.id,
-        // WhatsApp calls it a caption on both, and shows it under the file.
-        ...(text ? { caption: text } : {}),
+        // WhatsApp calls it a caption on image/document and shows it under
+        // the file - but the audio message type has no caption field at
+        // all, the same restriction real WhatsApp's own voice notes have.
+        // The frontend already disables the text input while a voice note
+        // is attached, so text should never actually be set here for
+        // audio - this is the backend-side guarantee regardless.
+        ...(kind !== "audio" && text ? { caption: text } : {}),
         // Documents keep their filename so the customer sees "receipt.pdf"
-        // rather than an opaque id. Images have no filename field.
+        // rather than an opaque id. Images and audio have no filename field.
         ...(kind === "document" && attachment.filename ? { filename: attachment.filename } : {}),
       },
     };
@@ -466,9 +485,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const outboundBody = template
     ? (template.rendered || `[template sent: ${template.metaName}]`)
     : text || (attachment
-      ? (attachmentKind(attachment.mimeType) === "image"
-          ? "[image sent]"
-          : `[document sent${attachment.filename ? `: ${attachment.filename}` : ""}]`)
+      ? (() => {
+          const kind = attachmentKind(attachment.mimeType);
+          if (kind === "image") return "[image sent]";
+          if (kind === "audio") return "[voice note sent]";
+          return `[document sent${attachment.filename ? `: ${attachment.filename}` : ""}]`;
+        })()
       : "");
 
   // These two writes are independent (different tables, neither reads the
