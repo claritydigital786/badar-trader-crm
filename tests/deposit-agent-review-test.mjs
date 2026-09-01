@@ -14,7 +14,7 @@ import vm from 'node:vm';
 const read = (r) => readFileSync(new URL(r, import.meta.url), 'utf8');
 const html      = read('../index.html');
 const hook      = read('../supabase/functions/conversion-hook/index.ts');
-const migration = read('../supabase/migrations/20260901030000_deposit_agent_review.sql');
+const migration = read('../supabase/migrations/20260901040000_deposit_agent_review.sql');
 
 // Lift the pure stage rule out of index.html and run it for real.
 const start = html.indexOf("const DEPOSIT_DOC_TYPE = 'deposit_screenshot';");
