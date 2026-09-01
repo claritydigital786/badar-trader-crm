@@ -1833,6 +1833,24 @@
     .conv-window-pill.warn   { background: #fef3c7; color: #92400e; }
     .conv-window-pill.closed { background: #fee2e2; color: #991b1b; }
 
+    /* Compact customer-info strip under the chat header - Customer Since /
+       Last Seen / Language / Country, plus a bar showing how much of the
+       24h reply window is left. Matches the reference layout Muhammad
+       pointed to (WhatChimp's own contact card), rebuilt with this app's
+       own data and tokens rather than copied. */
+    .conv-info-bar { flex: 0 0 auto; background: #f0f2f5; border-bottom: 1px solid #e3e7f0; padding: 10px 14px 0; }
+    .conv-info-stats { display: flex; gap: 18px; overflow-x: auto; padding-bottom: 8px; }
+    .conv-info-stat { flex: 1 1 0; min-width: 96px; white-space: nowrap; }
+    .conv-info-stat-top { display: flex; align-items: center; gap: 5px; font-size: 0.68rem; color: #667781; text-transform: uppercase; letter-spacing: .03em; }
+    .conv-info-stat-val { font-size: 0.82rem; font-weight: 600; color: #111b21; margin-top: 2px; }
+    .conv-info-progress { height: 4px; border-radius: 2px; background: #d8dcdf; overflow: hidden; margin-bottom: 8px; }
+    .conv-info-progress-fill { height: 100%; border-radius: 2px; transition: width 1s linear; }
+
+    [data-theme="dark"] .conv-info-bar       { background: #202c33; border-bottom-color: #222d34; }
+    [data-theme="dark"] .conv-info-stat-top  { color: #8696a0; }
+    [data-theme="dark"] .conv-info-stat-val  { color: #e9edef; }
+    [data-theme="dark"] .conv-info-progress  { background: #2a3942; }
+
     [data-theme="dark"] .conv-contact-panel   { background: #111b21; border-left-color: #222d34; }
     [data-theme="dark"] .conv-contact-head,
     [data-theme="dark"] .conv-contact-section { border-bottom-color: #222d34; }
@@ -11895,6 +11913,58 @@ function filterConversations(scope = '') {
 const WA_WINDOW_MS = 24 * 3600000;
 let _waWindowTimer = null;
 
+// Common country-calling-code prefixes for the customer base this CRM
+// actually serves (Pakistan first and by far the most common, then the
+// Gulf/UAE numbers 6541 itself runs on, then a handful of others real leads
+// have shown up under). Longest prefix checked first so 971 doesn't get
+// swallowed by a shorter, wrong match. Falls back to "Unknown" rather than
+// guessing - a wrong country label is worse than an honest blank.
+const COUNTRY_CODE_PREFIXES = [
+  ['971', 'UAE'], ['966', 'Saudi Arabia'], ['968', 'Oman'], ['965', 'Kuwait'],
+  ['974', 'Qatar'], ['973', 'Bahrain'], ['92', 'Pakistan'], ['91', 'India'],
+  ['44', 'United Kingdom'], ['1', 'US/Canada'], ['61', 'Australia'],
+  ['60', 'Malaysia'], ['62', 'Indonesia'], ['966', 'Saudi Arabia'],
+];
+function countryFromPhone(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return 'Unknown';
+  const hit = COUNTRY_CODE_PREFIXES
+    .slice().sort((a, b) => b[0].length - a[0].length)
+    .find(([code]) => digits.startsWith(code));
+  return hit ? hit[1] : 'Unknown';
+}
+
+// Compact customer-info strip shown under the chat header, matching the
+// reference layout Muhammad pointed to (WhatChimp's own contact card):
+// name, phone, a stat row (Customer Since / Last Seen / Language / Country),
+// and a thin bar showing how much of the 24h reply window is left - the
+// same fact the conv-window-pill already shows as text, now also as a
+// visual bar the way the reference does it.
+function contactInfoBarHtml(opts) {
+  const { name, phone, createdAt, lastSeenIso, language, waWindow } = opts;
+  const pct = waWindow.everInbound
+    ? Math.max(0, Math.min(100, (waWindow.msLeft / WA_WINDOW_MS) * 100))
+    : 0;
+  const barColor = waWindow.tone === 'warn' ? 'var(--warn, #d97706)' : (waWindow.open ? 'var(--ok, #16a34a)' : 'var(--bad, #dc2626)');
+  const stat = (icon, label, value) => `
+    <div class="conv-info-stat">
+      <div class="conv-info-stat-top">${icon}<span>${esc(label)}</span></div>
+      <div class="conv-info-stat-val">${esc(value)}</div>
+    </div>`;
+  return `
+    <div class="conv-info-bar">
+      <div class="conv-info-stats">
+        ${stat('👤', 'Customer Since', createdAt ? fmtDate(createdAt) : 'Unknown')}
+        ${stat('👁', 'Last Seen', lastSeenIso ? fmtDate(lastSeenIso) : 'Unknown')}
+        ${stat('🌐', 'Language', language || 'Unknown')}
+        ${stat('📍', 'Country', countryFromPhone(phone))}
+      </div>
+      <div class="conv-info-progress" title="${esc(waWindow.label)}">
+        <div class="conv-info-progress-fill" style="width:${pct}%;background:${barColor}"></div>
+      </div>
+    </div>`;
+}
+
 function waWindowState(lastInboundIso) {
   if (!lastInboundIso) {
     return { open: false, msLeft: 0, tone: 'closed', label: 'No inbound message', everInbound: false };
@@ -12131,6 +12201,10 @@ async function openConversation(convId, scope = '') {
           <button type="button" class="conv-header-btn" title="Contact info" aria-label="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
         </div>
       </div>
+      ${contactInfoBarHtml({
+        name: conv.name, phone: conv.phone, createdAt: null,
+        lastSeenIso: demoInboundIso, language: null, waWindow: demoWindow,
+      })}
       <div class="conv-msg-search" id="conv-msg-search" style="display:none">
         <input type="text" id="conv-msg-search-input" placeholder="Search in this conversation…"
           oninput="runConvMsgSearch()"
@@ -12253,6 +12327,11 @@ async function openConversation(convId, scope = '') {
     const lastInboundIso = lastInbound ? lastInbound.created_at : null;
     const waWindow = waWindowState(lastInboundIso);
     const outsideWindow = !waWindow.open;
+    // "Last Seen" for the info strip is deliberately NOT channel-restricted
+    // like lastInboundIso above - that one only counts toward window safety,
+    // this one is just "when did this person last actually message us,
+    // on either number," matching what a human reading the strip wants.
+    const lastSeenIso = [...allMessages].reverse().find(m => m.direction === 'inbound')?.created_at || null;
     const windowWarning = outsideWindow ? `
       <div style="background:#fef3c7;color:#92400e;font-size:0.78rem;padding:8px 14px;border-top:1px solid #fde68a">
         ⚠ It's been over 24 hours since ${esc(lead?.full_name || 'this lead')} last messaged - WhatsApp will likely reject a free-form reply until they message again first. Send them a template message instead, or wait for them to reply.
@@ -12287,6 +12366,10 @@ async function openConversation(convId, scope = '') {
           <button type="button" class="conv-header-btn" title="Contact info" aria-label="Contact info" onclick="toggleContactPanel('${scope}')">ℹ</button>
         </div>
       </div>
+      ${contactInfoBarHtml({
+        name: lead?.full_name, phone: lead?.phone, createdAt: lead?.created_at,
+        lastSeenIso, language: lead?.language, waWindow,
+      })}
       <div class="conv-msg-search" id="conv-msg-search" style="display:none">
         <input type="text" id="conv-msg-search-input" placeholder="Search in this conversation…"
           oninput="runConvMsgSearch()"
