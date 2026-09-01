@@ -134,13 +134,24 @@ assert.doesNotMatch(
   /converted_at: nowIso/,
   'converted_at means "when this genuinely converted" - only approveConversion may stamp it.',
 );
-for (const field of ['deposit_platform', 'deposit_amount', 'deposit_account_ref', 'account_balance']) {
+for (const field of ['deposit_platform', 'deposit_amount', 'deposit_account_ref']) {
   assert.match(hook, new RegExp(field), `conversion-hook must still record ${field} as evidence for the admin.`);
 }
+// account_balance is deliberately NOT in that list any more (2026-09-01). A
+// submitted amount is not an approved balance: the hook records the claim in
+// deposit_amount, and approveConversion() copies it into account_balance when
+// Ehsan approves. Writing it at submission time also made every real submission
+// fail on the leads_guard_admin_columns trigger, since the Edge Function runs on
+// the service role key and is therefore not an admin.
+assert.doesNotMatch(
+  hook.replace(/^\s*\/\/.*$/gm, ''),
+  /account_balance/,
+  'conversion-hook must NOT write account_balance - only approveConversion may.',
+);
 assert.match(
   html,
-  /document_type', 'deposit_screenshot'[\s\S]{0,400}?Cannot approve - no Deposit Screenshot/,
-  'approveConversion must still require a deposit screenshot before an admin can convert.',
+  /document_type', 'deposit_screenshot'[\s\S]{0,400}?agent_reviewed_at/,
+  'approveConversion must still require a deposit screenshot, now an agent-escalated one.',
 );
 
 // ── Qualified stays distinct from Converted ────────────────
