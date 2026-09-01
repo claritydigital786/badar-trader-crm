@@ -12223,37 +12223,33 @@ async function openConversation(convId, scope = '') {
     // 6541 and 3903 share one WABA, so this thread can hold messages from
     // both real numbers with no visual distinction unless separated here.
     // channel is a real per-message fact added 2026-09-01 (migration
-    // 20260901010000) - null means it predates that column. IMPORTANT,
-    // corrected same day: null does NOT safely mean 6541. 3903 went live
-    // 2026-08-26, well before this column existed, so any null row logged
-    // between then and this fix could genuinely be either number - treating
-    // it as 6541 by default is an unverified guess, and guessing wrong here
-    // is exactly what caused a real reply to fail live (Nashit, 2026-09-01):
-    // the UI showed the window as open based on a null row it assumed was
-    // 6541, while Meta's own tracking (the actual source of truth) said that
-    // customer had not messaged 6541 specifically in over 24h.
+    // 20260901010000) - null means it predates that column, which is true of
+    // almost this thread's entire real history the day this was added.
     //
-    // What the thread SHOWS follows the toggle above conv-messages
-    // (setConvChannel): 'all' always shows everything, including anything of
-    // unknown channel. Selecting one specific number shows only messages
-    // EXPLICITLY confirmed on that number - a null-channel row is honestly
-    // unknown, so it is left out of a specific-number view rather than
-    // silently filed under a guess.
-    const messages = _activeConvChannel === 'all'
-      ? allMessages
-      : allMessages.filter(m => m.channel === _activeConvChannel);
+    // Corrected same day, second time: an EARLIER version of this fix hid
+    // every null-channel message from a specific-number view (only showing
+    // them under "All"), on the reasoning that a null row is honestly
+    // unknown. In practice that meant switching to "6541" or "3903"
+    // specifically made most of a real conversation's history vanish - a
+    // real agent (Hanzala, on Nashit's thread) lost visibility into
+    // messages that were genuinely part of the conversation. The toggle's
+    // actual job is filtering which CONVERSATIONS show in the list, not
+    // hiding real history within one that's already open - so the thread
+    // itself always shows every message regardless of the toggle now.
+    const messages = allMessages;
 
     // WhatsApp only allows free-form replies within 24h of the lead's last
     // inbound message ON THE NUMBER A REPLY WOULD ACTUALLY SEND FROM - not
     // just any message anywhere in the merged thread, and not a null-channel
-    // row we cannot actually vouch for as 6541 (see above). send-wa-message
-    // only ever sends via 6541 today (3903 has no real send path), so this
-    // only ever counts a message EXPLICITLY tagged channel:'6541' as real
-    // evidence the window is open - no explicit 6541 row means treat the
-    // window as not provably open, which matches what Meta's own 131047
-    // rejection was actually telling the truth about the whole time.
+    // row this app cannot actually vouch for as either number (see above).
+    // send-wa-message now sends via whichever real number resolveSendChannel
+    // picks (2026-09-01) - the most recent inbound message with an EXPLICIT
+    // channel, 6541 or 3903 - so this mirrors that same logic exactly,
+    // rather than only ever checking 6541. No explicit-channel row at all
+    // means treat the window as not provably open, matching what Meta's own
+    // 131047 rejection was actually telling the truth about the whole time.
     const lastInbound = [...allMessages].reverse()
-      .find(m => m.direction === 'inbound' && m.channel === '6541');
+      .find(m => m.direction === 'inbound' && (m.channel === '6541' || m.channel === '3903'));
     const lastInboundIso = lastInbound ? lastInbound.created_at : null;
     const waWindow = waWindowState(lastInboundIso);
     const outsideWindow = !waWindow.open;
