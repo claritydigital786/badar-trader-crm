@@ -38,7 +38,7 @@ test('A: submitting the form does not notify Ehsan', () => {
   assert.doesNotMatch(hook, /graph\.facebook\.com/);
   // A fresh submission is parked on the agent, not escalated.
   assert.equal(depositStage(doc()), 'awaiting_agent');
-  assert.equal(DEPOSIT_STAGE_LABEL.awaiting_agent, 'Deposit Submitted - Review Required');
+  assert.equal(DEPOSIT_STAGE_LABEL.awaiting_agent, 'Review Required');
 });
 
 // ── B/C. Scope: only the assigned agent's own submissions ──────
@@ -112,13 +112,15 @@ test('the stage rule maps every state correctly', () => {
   assert.equal(depositStage(doc({ status: 'rejected' })), 'returned');
   // A returned document goes back to the agent, not to the admin queue.
   assert.equal(depositStage(doc({ status: 'rejected', agent_reviewed_at: '2026-09-01T00:00:00Z' })), 'returned');
-  assert.equal(DEPOSIT_STAGE_LABEL.awaiting_admin, 'Sent to Ehsan - Awaiting Admin Approval');
+  assert.equal(DEPOSIT_STAGE_LABEL.awaiting_admin, 'Awaiting Admin Approval');
+  assert.equal(DEPOSIT_STAGE_LABEL.approved, 'Approved');
+  assert.equal(DEPOSIT_STAGE_LABEL.returned, 'Returned - Action Required');
 });
 
 // ── H. Approval converts exactly once, through one path ────────
 test('H: approval converts once, via the existing conversion path', () => {
   const dec = html.slice(html.indexOf('async function decideDeposit'),
-                         html.indexOf('async function notifyAgentOfReturnedDeposit'));
+                         html.indexOf('async function notifyAgentOfDepositDecision'));
   assert.equal((dec.match(/approveConversion\(/g) || []).length, 1,
     'exactly one conversion call');
   assert.match(dec, /if \(decision === 'verified'\) \{/);
@@ -199,4 +201,47 @@ test('no em dashes in anything this phase touched', () => {
   for (const [n, t] of [['index.html', html], ['conversion-hook', hook], ['migration', migration]]) {
     assert.ok(!t.includes('—'), `${n} must not contain an em dash`);
   }
+});
+
+// ── Approval must tell the agent too, not just the return ──────
+test('the agent is notified on approval as well as on return', () => {
+  assert.match(html, /kind: 'deposit_approved'/, 'an approval must notify the assigned agent');
+  assert.match(html, /kind: 'deposit_returned'/, 'a return must notify the assigned agent');
+  const fn = html.slice(html.indexOf('async function notifyAgentOfDepositDecision'),
+                        html.indexOf('async function notifyAgentOfDepositDecision') + 1800);
+  assert.match(fn, /if \(agentId === currentUser\?\.id\) return;/,
+    'an admin deciding their own lead must not notify themselves');
+  const dec = html.slice(html.indexOf('async function decideDeposit'),
+                         html.indexOf('async function notifyAgentOfDepositDecision'));
+  assert.match(dec, /notifyAgentOfDepositDecision\(leadId, 'approved'\)/);
+  assert.match(dec, /notifyAgentOfDepositDecision\(leadId, 'returned', note\)/);
+});
+
+// ── An admin who still carries leads gets an agent surface ─────
+test('an admin who still works leads reviews his own submissions', () => {
+  // Ehsan is admin AND carries assigned leads (7742ba2). Without this his own
+  // customers' submissions would sit at Review Required with nobody looking.
+  assert.match(html, /id="admin-own-deposit-queue"/);
+  assert.match(html, /loadDepositSubmissions\(\{ agentId: currentUser\?\.id \}\)[\s\S]{0,400}?admin-own-deposit-count/,
+    'the admin own-review panel must be scoped to that admin as an agent');
+  assert.match(html, /if \(ownWrap\) ownWrap\.style\.display = pendingOwn\.length \? '' : 'none';/,
+    'the panel must hide for an admin who carries no leads');
+});
+
+// ── K: a returned submission must be re-sendable ───────────────
+test('K: a returned deposit can be corrected and sent again', () => {
+  const fix = readFileSync(new URL('../supabase/migrations/20260901050000_deposit_resend_after_return.sql', import.meta.url), 'utf8');
+  assert.match(fix, /IF v_status = 'verified' THEN/, 'an approved deposit stays closed');
+  assert.match(fix, /IF v_status NOT IN \('pending', 'rejected'\) THEN/);
+  assert.match(fix, /IF v_status = 'pending' AND v_already_at IS NOT NULL THEN/,
+    'only a pending document can be "already escalated"; a returned one always re-stamps');
+  assert.match(fix, /status = 'pending'/, 'a returned document re-enters the admin queue');
+  assert.match(fix, /AND \(status = 'rejected' OR agent_reviewed_at IS NULL\)/);
+  // No schema or data change in the corrective migration.
+  const exec = fix.split('\n').filter(l => !l.trim().startsWith('--')).join('\n');
+  for (const bad of [/\bDROP\s+(TABLE|COLUMN|POLICY)/i, /\bDELETE\s+FROM\b/i, /ALTER\s+COLUMN/i, /ALTER\s+TABLE/i]) {
+    assert.doesNotMatch(exec, bad);
+  }
+  // The demo path must mirror it, or demo drifts from production again.
+  assert.match(html, /if \(d && d\.status !== 'verified' && \(d\.status === 'rejected' \|\| !d\.agent_reviewed_at\)\)/);
 });

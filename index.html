@@ -2308,6 +2308,16 @@
 
   <!-- Dashboard -->
   <div id="admin-tab-dashboard" class="tab-content active">
+    <!-- An admin who still carries leads (Ehsan) reviews his own customers'
+         submissions here, exactly as an agent would. Hidden when empty. -->
+    <div class="card" style="margin-bottom:16px;display:none" id="admin-own-deposit-card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="font-weight:700;font-size:0.95rem;color:var(--text-strong)">My Deposit Reviews</div>
+        <span id="admin-own-deposit-count" class="notif-badge" style="display:none;position:static">0</span>
+      </div>
+      <div id="admin-own-deposit-queue"></div>
+    </div>
+
     <!-- Deposit Approvals: only submissions an agent has explicitly escalated. -->
     <div class="card" style="margin-bottom:16px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
@@ -8164,10 +8174,10 @@ function depositStage(doc) {
   return doc.agent_reviewed_at ? 'awaiting_admin' : 'awaiting_agent';
 }
 const DEPOSIT_STAGE_LABEL = {
-  awaiting_agent: 'Deposit Submitted - Review Required',
-  awaiting_admin: 'Sent to Ehsan - Awaiting Admin Approval',
-  approved:       'Approved - Converted',
-  returned:       'Returned by Admin - Action Required',
+  awaiting_agent: 'Review Required',
+  awaiting_admin: 'Awaiting Admin Approval',
+  approved:       'Approved',
+  returned:       'Returned - Action Required',
 };
 
 // One query behind both queues. The agent view is scoped by assigned_agent_id
@@ -8205,8 +8215,15 @@ async function escalateDepositToAdmin(docId, lead) {
   if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
   try {
     if (demoMode) {
+      // Mirrors escalate_deposit_to_admin(): a returned document goes back to
+      // 'pending' so it re-enters the admin queue, an approved one is refused,
+      // and an already-escalated pending one is a no-op.
       const d = (window._DEMO_DEPOSITS || []).find(x => x.id === docId);
-      if (d && !d.agent_reviewed_at) { d.agent_reviewed_at = new Date().toISOString(); d.agent_reviewed_by = currentUser?.id || 'demo-agent'; }
+      if (d && d.status !== 'verified' && (d.status === 'rejected' || !d.agent_reviewed_at)) {
+        d.agent_reviewed_at = new Date().toISOString();
+        d.agent_reviewed_by = currentUser?.id || 'demo-agent';
+        d.status = 'pending';
+      }
       showToast('Sent to Ehsan - awaiting admin approval. (demo)');
       return renderDepositQueues();
     }
@@ -8281,27 +8298,37 @@ async function decideDeposit(docId, decision, leadId, ctx) {
     // The single canonical conversion path. It re-checks the screenshot, is
     // admin-gated by trg_leads_converted_admin_only, and stamps converted_at.
     await approveConversion(leadId, ctx || '');
+    await notifyAgentOfDepositDecision(leadId, 'approved');
   } else {
-    await notifyAgentOfReturnedDeposit(leadId, note);
+    await notifyAgentOfDepositDecision(leadId, 'returned', note);
   }
   renderDepositQueues();
 }
 
-async function notifyAgentOfReturnedDeposit(leadId, note) {
+// The agent hears about BOTH outcomes. An approval that nobody tells the agent
+// about is how a rep keeps chasing a deposit that is already done.
+async function notifyAgentOfDepositDecision(leadId, outcome, note) {
   const lead = (cachedLeads || []).find(l => l.id === leadId);
   const agentId = lead?.assigned_agent_id;
   if (!agentId) return;
-  if (demoMode) { showToast('The agent has been told this needs more work. (demo)'); return; }
+  // Do not notify an admin about their own decision on their own lead.
+  if (agentId === currentUser?.id) return;
+  if (demoMode) {
+    showToast(outcome === 'approved' ? 'The agent has been told it is approved. (demo)'
+                                     : 'The agent has been told this needs more work. (demo)');
+    return;
+  }
   const who = currentProfile?.full_name || 'An admin';
+  const name = lead?.full_name || 'A lead';
+  const payload = outcome === 'approved'
+    ? { kind: 'deposit_approved', title: `${who} approved a deposit`,
+        body: `${name} is now converted. The deposit counts toward your approved total.` }
+    : { kind: 'deposit_returned', title: `${who} returned a deposit for more work`,
+        body: `${name}: ${note || 'See the submission for details.'}` };
   const { error } = await sb.from('notifications').insert({
-    recipient_id: agentId,
-    actor_id: currentUser.id,
-    kind: 'deposit_returned',
-    title: `${who} returned a deposit for more work`,
-    body: `${lead?.full_name || 'A lead'}: ${note || 'See the submission for details.'}`,
-    lead_id: leadId,
+    recipient_id: agentId, actor_id: currentUser.id, lead_id: leadId, ...payload,
   });
-  if (error) console.error('returned-deposit notification:', error.message);
+  if (error) console.error('deposit decision notification:', error.message);
 }
 
 // Renders both queues from one loader. The agent queue is scoped to the signed-in
@@ -8357,6 +8384,21 @@ async function renderDepositQueues() {
     if (badge) { badge.textContent = need; badge.style.display = need ? '' : 'none'; }
     agentBox.innerHTML = open.length ? open.map(d => depositRowHtml(d, false)).join('')
       : empty('No deposit submissions waiting on you.');
+  }
+  // Ehsan is an admin who still works leads (7742ba2). Without this, a deposit
+  // from one of HIS OWN assigned leads would sit at 'Review Required' with no
+  // surface anywhere: he logs into the admin view, which only shows escalated
+  // items. This panel is his agent queue, and it stays hidden for an admin who
+  // carries no leads.
+  const ownBox = document.getElementById('admin-own-deposit-queue');
+  const ownWrap = document.getElementById('admin-own-deposit-card');
+  if (ownBox) {
+    const own = await loadDepositSubmissions({ agentId: currentUser?.id });
+    const pendingOwn = own.filter(d => ['awaiting_agent', 'returned'].includes(depositStage(d)));
+    if (ownWrap) ownWrap.style.display = pendingOwn.length ? '' : 'none';
+    const b = document.getElementById('admin-own-deposit-count');
+    if (b) { b.textContent = pendingOwn.length; b.style.display = pendingOwn.length ? '' : 'none'; }
+    ownBox.innerHTML = pendingOwn.map(d => depositRowHtml(d, false)).join('');
   }
   if (adminBox) {
     const queue = await loadDepositSubmissions({ escalatedOnly: true });
