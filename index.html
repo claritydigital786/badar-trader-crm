@@ -2691,6 +2691,7 @@
           <tr><td colspan="7" class="empty-state">Loading…</td></tr>
         </tbody>
       </table>
+      <div id="admin-leads-pager" style="display:flex;align-items:center;gap:12px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--line)"></div>
     </div>
     <div id="admin-lead-detail" class="detail-panel" style="display:none"></div>
   </div>
@@ -6404,6 +6405,7 @@ function buildLeadSearchOr(term) {
 // catches up shortly after with the real, server-side match.
 let _leadSearchDebounce = null;
 function onLeadSearchInput() {
+  _leadsPageIndex = 0; // a new search term starts back at the first page
   filterLeadsLocal();
   clearTimeout(_leadSearchDebounce);
   _leadSearchDebounce = setTimeout(loadAdminLeads, 400);
@@ -6449,6 +6451,7 @@ function updateLeadsFilterSummary(shown, f) {
 
 async function loadAdminLeads() {
   const f = leadFilters();
+  _leadsPageIndex = 0; // a fresh load (filter change, tab open, import, etc.) starts at page 1
 
   if (demoMode) {
     _leadsTotalCount = _DEMO_LEADS.length;
@@ -6757,11 +6760,50 @@ function cancelImportCSV() {
 // re-applying them here is normally a no-op; it matters after an inline edit
 // (status change, reassignment, delete), where a row that no longer matches
 // the filter used to stay on screen contradicting the filter above it.
+// UI-level pagination for the rendered table, added 2026-09-01 - a real,
+// urgent regression found immediately after the same-day fix that made
+// loadAdminLeads() fetch every real lead (7,433 of them): fetching all of
+// them was correct and necessary (that was the actual bug), but
+// renderLeadsTable() was still dumping every one of them into the DOM as a
+// full <tr> in one synchronous innerHTML write - thousands of table rows
+// with nested spans, built and laid out in a single tick. That is what
+// froze the tab ("Page Unresponsive"), not the fetch. cachedLeads keeps the
+// complete, correctly-fetched set (needed for accurate counts and instant
+// client-side search); only a page's worth of it ever becomes real DOM.
+const LEADS_PAGE_SIZE = 100;
+let _leadsPageIndex = 0;
+
 function filterLeadsLocal() {
   const f = leadFilters();
   const filtered = cachedLeads.filter(l => leadMatchesFilters(l, f));
-  renderLeadsTable('admin-leads-tbody', filtered, true, adminLeadsEmptyHtml(f));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / LEADS_PAGE_SIZE));
+  _leadsPageIndex = Math.min(Math.max(0, _leadsPageIndex), totalPages - 1);
+  const pageStart = _leadsPageIndex * LEADS_PAGE_SIZE;
+  const pageRows = filtered.slice(pageStart, pageStart + LEADS_PAGE_SIZE);
+  renderLeadsTable('admin-leads-tbody', pageRows, true, adminLeadsEmptyHtml(f));
   updateLeadsFilterSummary(filtered.length, f);
+  renderLeadsPager(filtered.length);
+}
+
+function renderLeadsPager(totalCount) {
+  const el = document.getElementById('admin-leads-pager');
+  if (!el) return;
+  if (totalCount <= LEADS_PAGE_SIZE) { el.innerHTML = ''; return; }
+  const totalPages = Math.max(1, Math.ceil(totalCount / LEADS_PAGE_SIZE));
+  const page = _leadsPageIndex + 1;
+  const rangeStart = _leadsPageIndex * LEADS_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(totalCount, rangeStart + LEADS_PAGE_SIZE - 1);
+  el.innerHTML = `
+    <span style="color:var(--text-muted);font-size:0.82rem">${rangeStart}-${rangeEnd} of ${totalCount}</span>
+    <button class="btn btn-secondary btn-sm" ${page <= 1 ? 'disabled' : ''} onclick="goToLeadsPage(-1)">&larr; Prev</button>
+    <span style="font-size:0.82rem">Page ${page} of ${totalPages}</span>
+    <button class="btn btn-secondary btn-sm" ${page >= totalPages ? 'disabled' : ''} onclick="goToLeadsPage(1)">Next &rarr;</button>`;
+}
+
+function goToLeadsPage(delta) {
+  _leadsPageIndex += delta;
+  filterLeadsLocal();
+  document.getElementById('admin-leads-tbody')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
 // An empty table means two very different things and used to say the same
