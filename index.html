@@ -12223,29 +12223,37 @@ async function openConversation(convId, scope = '') {
     // 6541 and 3903 share one WABA, so this thread can hold messages from
     // both real numbers with no visual distinction unless separated here.
     // channel is a real per-message fact added 2026-09-01 (migration
-    // 20260901010000) - null means it predates that column, which for every
-    // pre-2026-09-01 row means 6541, the only number that existed before
-    // 3903 went live. Treat null as 6541 rather than as "unknown".
-    const messageChannel = (m) => m.channel || '6541';
-    // What the thread actually SHOWS follows the toggle above conv-messages
-    // (setConvChannel) - 'all' merges both, otherwise only that number's own
-    // messages render, which is the real frontend split Muhammad asked for.
+    // 20260901010000) - null means it predates that column. IMPORTANT,
+    // corrected same day: null does NOT safely mean 6541. 3903 went live
+    // 2026-08-26, well before this column existed, so any null row logged
+    // between then and this fix could genuinely be either number - treating
+    // it as 6541 by default is an unverified guess, and guessing wrong here
+    // is exactly what caused a real reply to fail live (Nashit, 2026-09-01):
+    // the UI showed the window as open based on a null row it assumed was
+    // 6541, while Meta's own tracking (the actual source of truth) said that
+    // customer had not messaged 6541 specifically in over 24h.
+    //
+    // What the thread SHOWS follows the toggle above conv-messages
+    // (setConvChannel): 'all' always shows everything, including anything of
+    // unknown channel. Selecting one specific number shows only messages
+    // EXPLICITLY confirmed on that number - a null-channel row is honestly
+    // unknown, so it is left out of a specific-number view rather than
+    // silently filed under a guess.
     const messages = _activeConvChannel === 'all'
       ? allMessages
-      : allMessages.filter(m => messageChannel(m) === _activeConvChannel);
+      : allMessages.filter(m => m.channel === _activeConvChannel);
 
     // WhatsApp only allows free-form replies within 24h of the lead's last
     // inbound message ON THE NUMBER A REPLY WOULD ACTUALLY SEND FROM - not
-    // just any message anywhere in the merged thread. Found 2026-09-01: a
-    // real reply failed WhatsApp's own 131047 despite the thread showing a
-    // message minutes earlier, because that recent message had actually
-    // arrived on 3903 while the reply tried to send on 6541, which the
-    // customer genuinely hadn't messaged in over a day. send-wa-message only
-    // ever sends via 6541 today (3903 has no real send path), so the window
-    // this warns about must always be computed against 6541's own inbound
-    // history, independent of whatever the display toggle above is set to.
+    // just any message anywhere in the merged thread, and not a null-channel
+    // row we cannot actually vouch for as 6541 (see above). send-wa-message
+    // only ever sends via 6541 today (3903 has no real send path), so this
+    // only ever counts a message EXPLICITLY tagged channel:'6541' as real
+    // evidence the window is open - no explicit 6541 row means treat the
+    // window as not provably open, which matches what Meta's own 131047
+    // rejection was actually telling the truth about the whole time.
     const lastInbound = [...allMessages].reverse()
-      .find(m => m.direction === 'inbound' && messageChannel(m) === '6541');
+      .find(m => m.direction === 'inbound' && m.channel === '6541');
     const lastInboundIso = lastInbound ? lastInbound.created_at : null;
     const waWindow = waWindowState(lastInboundIso);
     const outsideWindow = !waWindow.open;
