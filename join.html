@@ -124,6 +124,15 @@
 <script>
 (function () {
   var HOOK = 'https://vfskqzgphrunjxquqpks.supabase.co/functions/v1/conversion-hook';
+  // A personalized link an agent sends the customer, e.g.
+  //   join.html?lead_id=<uuid>
+  // ties the submission to that existing lead instead of matching on the phone
+  // number the customer happens to type. Without it the hook falls back to a
+  // phone lookup and, when nothing matches, creates a SECOND lead - which is
+  // what happened to any lead with no phone on file. Plain visits still work
+  // exactly as before: no parameter means an empty value, which the hook
+  // ignores in favour of the phone it already used.
+  var LEAD_ID = (new URLSearchParams(location.search).get('lead_id') || '').trim();
   var f = document.getElementById('f');
   var btn = document.getElementById('btn');
   var err = document.getElementById('err');
@@ -211,6 +220,7 @@
     fd.append('name', name); fd.append('phone', phone); fd.append('email', email);
     fd.append('platform', platform); fd.append('amount', amount); fd.append('account', account);
     fd.append('screenshot', file);
+    if (LEAD_ID) fd.append('lead_id', LEAD_ID);
     fetch(HOOK, { method: 'POST', body: fd })
       .then(function (r) { return r.json(); })
       .then(function (d) {
@@ -225,7 +235,7 @@
         // saved. Carrying it makes both calls one identical claim, which is
         // what the hook's idempotency key is computed from.
         location.href = 'thankyou.html?' + new URLSearchParams({
-          lead_id: d.lead_id || '', phone: phone, platform: platform, amount: amount, account: account
+          lead_id: d.lead_id || LEAD_ID || '', phone: phone, platform: platform, amount: amount, account: account
         }).toString();
       })
       .catch(function () {
