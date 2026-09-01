@@ -2409,3 +2409,126 @@ CREATE INDEX IF NOT EXISTS idx_communications_channel ON public.communications(c
 
 -- DONE (Phase 41)
 -- =============================================================
+
+-- =============================================================
+-- Phase 42 - actually apply the Phase 15 agent-scoping RLS (Muhammad, 2026-09-01)
+-- Corresponds to supabase/migrations/20260901020000_apply_phase15_agent_scoping.sql
+-- Real, live bug: Phase 15 above (assigned-lead access, documented as
+-- reversed 2026-08-10) was never fully applied live, or was partially
+-- reverted - leads, communications, kyc_documents, transactions,
+-- lead_activity, and deposit-screenshot storage were all still on the old
+-- unrestricted "staff select all" policy, confirmed directly against
+-- pg_policy. Every active agent could see every OTHER agent's real leads
+-- and WhatsApp conversations, not just their own - caught live when
+-- Hanzala's and Ehsan's messages showed to each other in the Omnichannel
+-- Inbox. This section is intentionally a duplicate of Phase 15's own
+-- CREATE POLICY statements (idempotent DROP+CREATE), applied again here so
+-- re-running this whole file cannot silently leave the broken state live.
+-- =============================================================
+
+DROP POLICY IF EXISTS "leads: staff select all" ON public.leads;
+DROP POLICY IF EXISTS "leads: agent select own" ON public.leads;
+CREATE POLICY "leads: agent select own" ON public.leads
+  FOR SELECT TO authenticated
+  USING ((SELECT public.is_active_staff()) AND assigned_agent_id = (SELECT auth.uid()));
+
+DROP POLICY IF EXISTS "leads: staff update all" ON public.leads;
+DROP POLICY IF EXISTS "leads: agent update own" ON public.leads;
+CREATE POLICY "leads: agent update own" ON public.leads
+  FOR UPDATE TO authenticated
+  USING ((SELECT public.is_active_staff()) AND assigned_agent_id = (SELECT auth.uid()))
+  WITH CHECK ((SELECT public.is_active_staff()) AND assigned_agent_id = (SELECT auth.uid()));
+
+DROP POLICY IF EXISTS "communications: staff select all" ON public.communications;
+DROP POLICY IF EXISTS "communications: agent select own" ON public.communications;
+CREATE POLICY "communications: agent select own" ON public.communications
+  FOR SELECT TO authenticated USING (
+    (SELECT public.is_active_staff()) AND EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id = lead_id AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
+
+DROP POLICY IF EXISTS "communications: staff insert any" ON public.communications;
+DROP POLICY IF EXISTS "communications: agent insert own" ON public.communications;
+CREATE POLICY "communications: agent insert own" ON public.communications
+  FOR INSERT TO authenticated WITH CHECK (
+    (SELECT public.is_active_staff()) AND logged_by = (SELECT auth.uid()) AND EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id = lead_id AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
+
+DROP POLICY IF EXISTS "kyc: staff select all" ON public.kyc_documents;
+DROP POLICY IF EXISTS "kyc: agent select own clients" ON public.kyc_documents;
+CREATE POLICY "kyc: agent select own clients" ON public.kyc_documents
+  FOR SELECT TO authenticated USING (
+    (SELECT public.is_active_staff()) AND EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id = client_id AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
+
+DROP POLICY IF EXISTS "transactions: staff select all" ON public.transactions;
+DROP POLICY IF EXISTS "transactions: agent select own clients" ON public.transactions;
+CREATE POLICY "transactions: agent select own clients" ON public.transactions
+  FOR SELECT TO authenticated USING (
+    (SELECT public.is_active_staff()) AND EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id = client_id AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
+
+DROP POLICY IF EXISTS "activity: staff select all" ON public.lead_activity;
+DROP POLICY IF EXISTS "activity: agent select" ON public.lead_activity;
+CREATE POLICY "activity: agent select" ON public.lead_activity
+  FOR SELECT TO authenticated USING (
+    (SELECT public.is_active_staff()) AND EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id = lead_id AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
+
+DROP POLICY IF EXISTS "activity: staff insert any" ON public.lead_activity;
+DROP POLICY IF EXISTS "activity: agent insert" ON public.lead_activity;
+CREATE POLICY "activity: agent insert" ON public.lead_activity
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    (SELECT public.is_active_staff()) AND actor_id = (SELECT auth.uid()) AND EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id = lead_id AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
+
+DROP POLICY IF EXISTS "deposit-screenshots: staff select all" ON storage.objects;
+DROP POLICY IF EXISTS "deposit-screenshots: agent select own clients" ON storage.objects;
+CREATE POLICY "deposit-screenshots: agent select own clients" ON storage.objects
+  FOR SELECT TO authenticated USING (
+    bucket_id = 'deposit-screenshots' AND
+    (SELECT public.is_active_staff()) AND
+    EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id::text = (storage.foldername(name))[1]
+      AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
+
+-- Found in the same live audit: communication_logs (the MANUAL notes log,
+-- distinct from the auto-logged communications table above) was also never
+-- actually scoped, despite loadCommLog()'s own code comment in index.html
+-- already claiming this. Insert policy (comm_logs_staff_insert_any) is left
+-- as-is deliberately - whether only a lead's own agent may log a note is a
+-- separate question from the bug being fixed here (agents reading other
+-- agents' logs).
+DROP POLICY IF EXISTS "comm_logs_staff_select_all" ON public.communication_logs;
+DROP POLICY IF EXISTS "comm_logs_agent_select_own" ON public.communication_logs;
+CREATE POLICY "comm_logs_agent_select_own" ON public.communication_logs
+  FOR SELECT TO authenticated USING (
+    (SELECT public.is_active_staff()) AND EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id = lead_id AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
+
+-- DONE (Phase 42)
+-- =============================================================
