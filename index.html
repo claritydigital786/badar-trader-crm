@@ -11501,6 +11501,11 @@ function setConvChannel(channel, scope = '') {
   if (label) label.textContent = WA_CHANNEL_LABELS[channel] || WA_CHANNEL_LABELS.all;
   closeWaChannelMenus();
   filterConversations(scope);
+  // A conversation already open needs its own re-render too - openConversation
+  // itself reads _activeConvChannel (set above) to decide which messages to
+  // show, so switching the toggle mid-conversation actually splits the
+  // thread instead of only affecting which leads show in the list.
+  if (_activeConvId && _activeConvScope === scope) openConversation(_activeConvId, scope);
 }
 
 // Dashboard => ticker rendered. Omnichannel Inbox => not rendered, and the
@@ -12211,15 +12216,36 @@ async function openConversation(convId, scope = '') {
     ]);
     if (leadRes.error) throw leadRes.error;
     const lead = leadRes.data;
-    const messages = msgsRes.data || [];
-    await loadMessageActions(messages.map(m => m.id));
+    const allMessages = msgsRes.data || [];
+    await loadMessageActions(allMessages.map(m => m.id));
     const initials = (lead?.full_name || '?').split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
 
+    // 6541 and 3903 share one WABA, so this thread can hold messages from
+    // both real numbers with no visual distinction unless separated here.
+    // channel is a real per-message fact added 2026-09-01 (migration
+    // 20260901010000) - null means it predates that column, which for every
+    // pre-2026-09-01 row means 6541, the only number that existed before
+    // 3903 went live. Treat null as 6541 rather than as "unknown".
+    const messageChannel = (m) => m.channel || '6541';
+    // What the thread actually SHOWS follows the toggle above conv-messages
+    // (setConvChannel) - 'all' merges both, otherwise only that number's own
+    // messages render, which is the real frontend split Muhammad asked for.
+    const messages = _activeConvChannel === 'all'
+      ? allMessages
+      : allMessages.filter(m => messageChannel(m) === _activeConvChannel);
+
     // WhatsApp only allows free-form replies within 24h of the lead's last
-    // inbound message - outside that window Meta rejects the send outright,
-    // which is what was silently confusing agents (the failure gave no clue
-    // why). Warn up front instead of letting them hit it blind.
-    const lastInbound = [...messages].reverse().find(m => m.direction === 'inbound');
+    // inbound message ON THE NUMBER A REPLY WOULD ACTUALLY SEND FROM - not
+    // just any message anywhere in the merged thread. Found 2026-09-01: a
+    // real reply failed WhatsApp's own 131047 despite the thread showing a
+    // message minutes earlier, because that recent message had actually
+    // arrived on 3903 while the reply tried to send on 6541, which the
+    // customer genuinely hadn't messaged in over a day. send-wa-message only
+    // ever sends via 6541 today (3903 has no real send path), so the window
+    // this warns about must always be computed against 6541's own inbound
+    // history, independent of whatever the display toggle above is set to.
+    const lastInbound = [...allMessages].reverse()
+      .find(m => m.direction === 'inbound' && messageChannel(m) === '6541');
     const lastInboundIso = lastInbound ? lastInbound.created_at : null;
     const waWindow = waWindowState(lastInboundIso);
     const outsideWindow = !waWindow.open;

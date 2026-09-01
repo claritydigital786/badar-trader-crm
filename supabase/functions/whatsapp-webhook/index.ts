@@ -968,6 +968,12 @@ async function insertCommunication(
   timestamp: string,
   attachmentPath?: string,
   waMessageId?: string,
+  // Which real WhatsApp number this specific message actually went through.
+  // Defaults to "6541" because every call site except ingestOnlyMessage()
+  // (3903's ingest-only path, which passes "3903" explicitly) already lives
+  // inside the primary-number code path - see the 20260901010000 migration
+  // for why this per-message fact exists separately from leads.wa_channel.
+  channel: "6541" | "3903" = "6541",
 ): Promise<void> {
   const { error } = await sb.from("communications").insert({
     lead_id:         leadId,
@@ -977,6 +983,7 @@ async function insertCommunication(
     created_at:      timestamp,
     attachment_path: attachmentPath ?? null,
     wa_message_id:   waMessageId ?? null,
+    channel:         channel,
   });
 
   if (error) {
@@ -1147,7 +1154,7 @@ async function ingestOnlyMessage(
 
   const input = extractUserInput(message);
   if (input) {
-    await insertCommunication(sb, lead.id, "inbound", input.text, timestamp, undefined, message.id);
+    await insertCommunication(sb, lead.id, "inbound", input.text, timestamp, undefined, message.id, "3903");
     return;
   }
 
@@ -1159,7 +1166,7 @@ async function ingestOnlyMessage(
     if (stored.ok) storedPath = stored.path;
     else storeNote = ` (file could not be stored: ${stored.error})`;
   }
-  await insertCommunication(sb, lead.id, "inbound", describeUnsupportedMessage(message) + storeNote, timestamp, storedPath, message?.id);
+  await insertCommunication(sb, lead.id, "inbound", describeUnsupportedMessage(message) + storeNote, timestamp, storedPath, message?.id, "3903");
 }
 
 // WhatsApp permits documents up to 100MB. This function buffers the whole

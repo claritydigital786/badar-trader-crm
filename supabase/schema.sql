@@ -2390,3 +2390,22 @@ GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, service_role;
 
 -- DONE (Phase 40)
 -- =============================================================
+
+-- =============================================================
+-- Phase 41 - real per-message WhatsApp channel tracking (Muhammad, 2026-09-01)
+-- Corresponds to supabase/migrations/20260901010000_communications_channel.sql
+-- Root cause of a real bug: 6541 and 3903 share one WABA and this CRM merges
+-- both numbers' messages into one thread per lead, with no record of which
+-- physical number any given message came in or went out on - leads.wa_channel
+-- is one static label per lead, not per message. A reply could fail
+-- WhatsApp's 24h re-engagement rule on 6541 even though the combined thread
+-- showed a message that had actually arrived on 3903 minutes earlier.
+-- =============================================================
+
+ALTER TABLE public.communications
+  ADD COLUMN IF NOT EXISTS channel TEXT CHECK (channel IN ('6541', '3903'));
+
+CREATE INDEX IF NOT EXISTS idx_communications_channel ON public.communications(channel) WHERE channel IS NOT NULL;
+
+-- DONE (Phase 41)
+-- =============================================================

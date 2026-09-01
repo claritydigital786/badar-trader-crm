@@ -446,6 +446,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       logged_by: user.id,
       wa_message_id: sentWaMessageId ?? null,
       attachment_path: storedPath,
+      // Always "6541" today - getWaCredentials() above only ever resolves to
+      // the primary number's credentials, 3903 has no real send path at all
+      // (see whatsapp-webhook's own comments on why). Update this the day
+      // that changes. See migration 20260901010000_communications_channel.sql
+      // for why this per-message fact exists separately from leads.wa_channel.
+      channel: "6541",
     }),
     // An agent manually messaging a lead means a human has taken over this
     // conversation - the bot must not keep processing the lead's replies as
