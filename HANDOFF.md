@@ -1,8 +1,16 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-09-01, continuing from the entry directly below.
+_Last updated: 2026-09-02, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
+
+## 2026-09-02 - Image messages get a real label, round-robin monitoring set up, commit `16d5558`
+
+**"[unsupported message type: image]" removed for good.** Muhammad asked directly why a real, successfully-displayed image still showed this label. Checked the code rather than assume it was intentional: `describeUnsupportedMessage()` has a dedicated case for every other message type (audio, video, document, sticker, location, contacts, button reply) but never had one for images - a genuine oversight, not a deliberate choice. Every image ingested through 3903's `ingestOnlyMessage()` fell into the generic default branch and printed the literal type name even when the image itself downloaded and rendered fine. 6541's own images never hit this function at all (`handleImageMessage()` already has its own wording). Added a real `image` case (with caption support, matching its siblings) and backfilled the 586 existing rows already written with the old text - confirmed first that every one was the exact same plain string with nothing appended, so the one-time replace is lossless. `deno check` clean, all suites pass, deployed, verified live: 0 rows with the old wording, 586 with the new one.
+
+**Round-robin monitoring**: Muhammad asked for a check every 10 minutes for 5 hours. A cloud routine (the `/schedule` mechanism) can't do this - its minimum interval is 1 hour, and it runs in an isolated sandbox with no access to this Mac's authenticated `supabase` CLI session, which every one of these checks depends on. Used a local CronCreate job instead (`*/10 * * * *`, session-only, dies if the session ends, auto-expires after 7 days regardless). First check confirmed Ehsan's earlier same-day rotation fix (see the entry below) is working: new leads alternating correctly between Hanzala and Ehsan in proper 10-lead batches.
+
+**One real gap found, not fixed - not this session's file**: `tests/deposit-hook-behaviour-test.mjs` (from a concurrently-merged commit) needs Node 22.6+ to import TypeScript directly; this machine runs Node 20.20.2, so it fails with `ERR_UNKNOWN_FILE_EXTENSION` regardless of anything in this session's own changes. Flagged rather than silently patched around.
 
 ## 2026-09-01 (latest) - Browser-freezing regression from the row-cap sweep, fixed same session, commit `8e8639a`
 
