@@ -1,8 +1,20 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-08-31, same day, continuing from the entry directly below.
+_Last updated: 2026-09-01, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
+
+## 2026-09-01 - Real hierarchy change: Ehsan is admin, Badar moves up to super_admin, commit `2c1eeba`
+
+Muhammad's direct instruction: while setting up the deposit-approval funnel he realized the "an admin approves the screenshot" role kept defaulting to Badar simply because Badar was the original admin, not because it needs to be him specifically. New hierarchy: Ehsan becomes the working admin, Badar moves up to a new `super_admin` role above admin.
+
+Added `super_admin` as a real `profiles.role` value (migration `20260901000000_super_admin_role.sql`, schema.sql Phase 40). Every RLS policy and the Converted-approval trigger (`20260831041000_restrict_converted_to_admins.sql`) already gated on the single `public.is_admin()` function rather than a raw role check, so widening that one function to treat `super_admin` as admin-or-above extended every one of them automatically - no per-policy edits needed. Ehsan Wazir's role -> `admin`; both of Badar Tanveer's profile rows -> `super_admin`, verified live.
+
+**Found and fixed five Edge Functions that would have silently broken this** - each had its own separate `role === "admin"` string check that bypassed `is_admin()` entirely, so without this Badar (now `super_admin`, not `admin`) would have been locked out of them post-change: `send-wa-message` (sending on any lead), `send-broadcast-signal`, `whatsapp-status` (WhatsApp health), `notify-admin-pending-approval`, `notify-admin-progress`. All five updated, `deno check` clean, all deployed. Frontend got a new `isAdminRole()` helper so a `super_admin` login still routes to the admin view (not agent) - the one place index.html checked role directly for routing. User Manager hides the generic one-click admin/agent toggle on a `super_admin` row (demoting one should never be casual) and gives the role its own badge color.
+
+All suites pass (one test's source-regex updated to match the widened check text). Merged cleanly with a large concurrent push from another session (1,111 lines in `index.html`) - re-verified after merge that both this change's frontend pieces and all tests still passed before pushing.
+
+---
 
 ## 2026-08-31 (later still) - Hanzala unblocked and added to the live agent test, Muhammad taken out, commit `1e8e8eb`
 
