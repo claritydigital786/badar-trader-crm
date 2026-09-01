@@ -274,6 +274,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // This runs AFTER the idempotency gate, so a replayed submission never
     // uploads a second copy of the same image.
     if (screenshot) {
+      // The claim has already been won at this point. Any failure here has to
+      // hand it back before throwing, exactly as the leads update below does -
+      // otherwise the key stays consumed, the customer's retry is judged a
+      // replay, and their submission is lost with no evidence and no record.
+      const releaseAndThrow = async (message: string): Promise<never> => {
+        await sb.rpc("release_deposit_submission", { p_submission_key: key }).then(() => {}, () => {});
+        throw new Error(message);
+      };
       const ext = (screenshot.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
       const path = `${leadRowId}/${Date.now()}_deposit_screenshot.${ext}`;
       const bytes = new Uint8Array(await screenshot.arrayBuffer());
@@ -281,7 +289,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         contentType: screenshot.type,
         upsert: false,
       });
-      if (upErr) throw new Error(`screenshot upload failed: ${upErr.message}`);
+      if (upErr) await releaseAndThrow(`screenshot upload failed: ${upErr.message}`);
       const { error: docErr } = await sb.from("kyc_documents").insert({
         client_id: leadRowId,
         document_type: "deposit_screenshot",
@@ -291,8 +299,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
       if (docErr) {
         // Do not leave an orphan object in the bucket if the row fails.
-        await sb.storage.from("deposit-screenshots").remove([path]).catch(() => {});
-        throw new Error(`kyc_documents insert failed: ${docErr.message}`);
+        await sb.storage.from("deposit-screenshots").remove([path]).then(() => {}, () => {});
+        await releaseAndThrow(`kyc_documents insert failed: ${docErr.message}`);
       }
     }
     const { error: ue } = await sb.from("leads").update(update).eq("id", leadRowId);
