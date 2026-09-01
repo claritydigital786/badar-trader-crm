@@ -4,6 +4,84 @@ _Last updated: 2026-09-01, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
 
+## 2026-09-01 (deposit form) - Phase 1 DEPLOYED: required email and deposit screenshot on join.html, commit `a1c9024`, conversion-hook v21
+
+Live. Both halves verified against production, not assumed.
+
+What shipped
+- `join.html`: required **Email Address**, and a required **Deposit Screenshot** with inline
+  preview, filename, size, Replace and Remove. The picker is a styled drop zone over a real
+  focusable `<input type="file">`, because the native control is what gives Android and iOS
+  their Camera / Photo Library / Files sheet. `capture` is deliberately NOT set - it would
+  force the camera and take the gallery away on devices that honour it. The form now POSTs
+  multipart so the image can travel with the claim.
+- `conversion-hook` v21: reads the multipart POST, validates email and image server-side
+  (type, 1KB-10MB, 12MB request cap via the existing `_shared/public_form_security.mjs`),
+  and stores the file in the existing PRIVATE `deposit-screenshots` bucket under
+  `{lead_id}/...` with a `kyc_documents` row of `document_type = 'deposit_screenshot'` -
+  exactly the way `submit-lead-form` already does it. The GET path thankyou.html re-fires is
+  byte-for-byte unchanged and still de-duplicates through the same idempotency key.
+
+Zero schema changes. The bucket, the table, the KYC review tab and the body-limit helper all
+already existed; Phase 1 reuses them rather than adding a second way for screenshots to enter
+the CRM.
+
+Deploy order was deliberate: the Edge Function went first (v21), the frontend second. Shipping
+the page first would have pointed a multipart POST at a GET-only hook and returned
+`400 lead_id or phone required` to every real customer using the live deposit form.
+
+A real bug caught reviewing my own diff, before deploying
+The screenshot upload runs after the idempotency claim is won but before the leads update. A
+storage failure or a rejected `kyc_documents` insert threw straight out without releasing the
+claim - so the key stayed consumed, the customer's retry was judged a replay, and the
+submission was lost entirely with no lead update, no evidence, no record, and a success page
+shown to the customer. Both failure branches now release the claim before throwing, and the
+orphan-object cleanup is kept. Proven with a simulated storage outage.
+
+Verified after deploying
+- `crm.badartrader.com/join.html` returns ETag `0667145bdd90602baa4fdf0304843fe4`, which is
+  exactly the md5 of the committed `join.html`. Byte-identical.
+- `conversion-hook` is ACTIVE at v21, `verify_jwt: false`, and boots: a param-less GET still
+  returns `400 {"ok":false,"error":"lead_id or phone required"}` (probed through `pg_net`,
+  since this sandbox has no egress to supabase.co).
+- Bucket `deposit-screenshots` is `public = false`, with `admin full access` (ALL) and
+  `staff select all` (SELECT, active staff only). No anonymous read.
+- `approveConversion`'s deposit-screenshot precondition is untouched; `index.html` is not in
+  this commit at all.
+- 21 of 21 node suites pass. The 2 PHP backup suites fail identically on `origin/main`
+  without this change - pre-existing, see below.
+
+Two things NOT done, stated rather than glossed
+1. **No real end-to-end production submission was run from here.** It would create a real lead
+   and fire a real WhatsApp alert to the admin through `notify-admin-pending-approval`. This
+   repo's rule puts anything that can actually send on Muhammad's laptop, with Muhammad
+   present. The storage path is proven instead against a stub Supabase (31 assertions) and the
+   real multipart body was proven byte-identical to the source image against a local recorder
+   (138,713 bytes, PNG magic present, all pre-existing fields still sent). **Muhammad should
+   run one real submission on his own laptop and confirm the row and the file land.**
+2. **"Submission must not update AUM" is not actually true today, for a pre-existing reason.**
+   The agent dashboard (`index.html:7506`) and admin dashboard (`index.html:10675`) both sum
+   `account_balance` across every lead with no status filter, and `conversion-hook` has always
+   written `account_balance = amount` on submission - that line predates Phase 1 and is not in
+   this diff. So a pending, unapproved deposit does move the figure labelled "Approved
+   deposits". Conversion COUNTS are unaffected (they key on `status = 'converted'`, which this
+   hook never writes). Worth fixing in Phase 2 by filtering that sum on approved status.
+
+Also found, unrelated and NOT fixed here
+`backup-automation/tests/storage_backup_test.php` and `restore_test.php` fail on `origin/main`
+too: the backup scope is missing four tables that exist in the live schema -
+`action_items`, `additional_whatsapp_numbers`, `balance_audit_log`, `deposit_submissions`.
+That means the idempotency ledger and the balance audit trail are not being backed up. Someone
+should widen the backup table list.
+
+Still open from the earlier Converted work, untouched
+The one live `status = 'converted'` row (Mir Badshah, `825f17dc-80aa-4796-b74e-c753a247dd75`)
+still has `verified = false`, `balance_locked = false` and zero deposit screenshots on file. It
+predates the approval gate, so it could not have passed it. Recommended moving it to
+`pending_approval`; not done, still awaiting Muhammad's decision.
+
+Phase 2 has NOT been started.
+
 ## 2026-09-01 (latest) - Full sweep for the row-cap bug class across the whole app, commit `28d9517`
 
 The same bug (an unbounded `.select()` silently relying on PostgREST's server-side row cap) had now broken three separate pages the same day - Dashboard (2026-08-24, already fixed), the Inbox (earlier today), and All Leads (7,433 real leads past the 5,000 cap, "Showing all 5000 leads"). Muhammad's direct instruction: stop patching one spot at a time, sweep the whole app for this pattern in one pass.
