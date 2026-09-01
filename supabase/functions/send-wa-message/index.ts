@@ -24,6 +24,17 @@ const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN") ?? "";
 const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? "";
+// Added 2026-09-01, Muhammad's direct instruction: agents were blocked from
+// manually replying to a real customer whose recent messages actually
+// arrived on 3903, because this function only ever sent via 6541's
+// credentials. This is a DIFFERENT decision from whatsapp-webhook's own
+// 3903 gate (isIngestOnlyNumber/ingestOnlyMessage), which is about
+// AUTOMATED replies (scripted funnel, keyword rules, AI) and stays exactly
+// as it was - that gate exists because WhatChimp's own bot could otherwise
+// double-reply alongside ours. This is a human agent, in this CRM, manually
+// typing and sending one message - not automation - so that specific
+// double-reply risk does not apply here the same way.
+const WHATSAPP_PHONE_NUMBER_ID_3903 = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID_3903") ?? "";
 
 const GRAPH_VERSION = "v21.0";
 
@@ -189,7 +200,14 @@ function makeServiceClient() {
 
 // Same env-first, settings-fallback lookup the webhook uses (whatsapp-webhook
 // getWaCredentials) so both send paths stay configured from one place.
-async function getWaCredentials(): Promise<{ token: string; phoneId: string }> {
+// channel picks which real number to send from - "3903" for a reply on that
+// line (same WABA, same access token, its own phone number id), anything
+// else for the primary line (6541), exactly mirroring whatsapp-status's own
+// two-number lookup.
+async function getWaCredentials(channel: "6541" | "3903" = "6541"): Promise<{ token: string; phoneId: string }> {
+  if (channel === "3903") {
+    return { token: WHATSAPP_ACCESS_TOKEN, phoneId: WHATSAPP_PHONE_NUMBER_ID_3903 };
+  }
   if (WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID) {
     return { token: WHATSAPP_ACCESS_TOKEN, phoneId: WHATSAPP_PHONE_NUMBER_ID };
   }
@@ -201,6 +219,24 @@ async function getWaCredentials(): Promise<{ token: string; phoneId: string }> {
     token: WHATSAPP_ACCESS_TOKEN || row("wa_access_token"),
     phoneId: WHATSAPP_PHONE_NUMBER_ID || row("wa_phone_number_id"),
   };
+}
+
+// Which real number a reply on this lead should actually go out on. Looks at
+// the lead's own recent inbound history for an EXPLICIT channel (added
+// 2026-09-01, migration 20260901010000) - a null/unknown row is never
+// guessed at, same corrected reasoning as the frontend's own fix the same
+// day. No explicit recent evidence at all defaults to 6541, the
+// longest-running, best-understood number - never guesses 3903 without real
+// proof, since a wrong guess there is a genuine send to the wrong line.
+async function resolveSendChannel(sb: ReturnType<typeof makeServiceClient>, leadId: string): Promise<"6541" | "3903"> {
+  const { data } = await sb.from("communications")
+    .select("channel")
+    .eq("lead_id", leadId)
+    .eq("direction", "inbound")
+    .order("created_at", { ascending: false })
+    .limit(20);
+  const recent = (data ?? []).find((r: { channel: string | null }) => r.channel === "6541" || r.channel === "3903");
+  return (recent?.channel as "6541" | "3903" | undefined) ?? "6541";
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -316,9 +352,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
   }
 
-  const { token, phoneId } = await getWaCredentials();
+  const sendChannel = await resolveSendChannel(sb, leadId);
+  const { token, phoneId } = await getWaCredentials(sendChannel);
   if (!token || !phoneId) {
-    return json({ ok: false, error: "WhatsApp credentials not configured - admin must save them in Meta Integration" });
+    return json({
+      ok: false,
+      error: sendChannel === "3903"
+        ? "3903's credentials are not configured (WHATSAPP_PHONE_NUMBER_ID_3903 secret is missing) - admin must add it."
+        : "WhatsApp credentials not configured - admin must save them in Meta Integration",
+    });
   }
 
   const phoneDigits = (lead.phone ?? "").replace(/\D/g, "");
@@ -446,12 +488,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       logged_by: user.id,
       wa_message_id: sentWaMessageId ?? null,
       attachment_path: storedPath,
-      // Always "6541" today - getWaCredentials() above only ever resolves to
-      // the primary number's credentials, 3903 has no real send path at all
-      // (see whatsapp-webhook's own comments on why). Update this the day
-      // that changes. See migration 20260901010000_communications_channel.sql
-      // for why this per-message fact exists separately from leads.wa_channel.
-      channel: "6541",
+      // The number this specific message actually went out on - resolveSendChannel()
+      // decided it above, and getWaCredentials(sendChannel) used exactly that
+      // channel's real credentials, so this is the true value, not a guess.
+      channel: sendChannel,
     }),
     // An agent manually messaging a lead means a human has taken over this
     // conversation - the bot must not keep processing the lead's replies as
