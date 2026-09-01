@@ -39,7 +39,6 @@
 // (as opposed to a missing phone match) still 404s - that means a stale/wrong ID
 // was passed, which is a different, real error worth surfacing.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { INTERNAL_SECRET_HEADER } from "../_shared/internal_auth.mjs";
 import {
   readFormDataWithinLimit,
   RequestTooLargeError,
@@ -47,7 +46,6 @@ import {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const INTERNAL_FUNCTION_SECRET = Deno.env.get("INTERNAL_FUNCTION_SECRET") ?? "";
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Headers": "*", "Content-Type": "application/json" };
 
 function norm(p: string): string { p = (p || "").trim(); if (!p) return ""; return p.startsWith("+") ? p : "+" + p; }
@@ -96,46 +94,10 @@ async function submissionKey(
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// Reuse the ONE existing admin alert mechanism rather than adding a second one.
-// notify-admin-pending-approval already owns the recipient, the copy, the
-// WhatsApp credentials and its own pending_approval_notifications ledger keyed
-// (lead_id, status_changed_at). It was built for a signed-in agent in the
-// browser, so it authenticates a user JWT; this hook is a public endpoint with
-// no user, and calls it over the repo's existing server-to-server path instead
-// (x-internal-function-secret, the same shared helper nudge-agents,
-// fire-automation and send-follow-ups use).
-//
-// Deliberately fire-and-report, never fire-and-fail: the customer's submission
-// is already safely recorded by this point, so a WhatsApp outage must not turn
-// their confirmation into an error page. A failure is logged for the admin to
-// pick up from the Pending Approval list, which is the fallback that existed
-// before any notification did.
-async function notifyAdminPendingApproval(leadRowId: string): Promise<string> {
-  if (!INTERNAL_FUNCTION_SECRET) {
-    console.error("pending-approval notify skipped: INTERNAL_FUNCTION_SECRET is not configured");
-    return "not_configured";
-  }
-  try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/notify-admin-pending-approval`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${SERVICE}`,
-        [INTERNAL_SECRET_HEADER]: INTERNAL_FUNCTION_SECRET,
-      },
-      body: JSON.stringify({ lead_id: leadRowId, source: "conversion-hook" }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok || !body?.ok) {
-      console.error("pending-approval notify failed:", body?.error || `HTTP ${res.status}`);
-      return "failed";
-    }
-    return body?.already_notified ? "already_notified" : "sent";
-  } catch (e) {
-    console.error("pending-approval notify failed:", String(e));
-    return "failed";
-  }
-}
+// The admin alert lives in the CRM now, fired by the agent's explicit
+// "Send to Admin for Verification" action, so this endpoint no longer calls
+// notify-admin-pending-approval at all. That function is unchanged and still
+// deployed; only its trigger point moved.
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -324,12 +286,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
     if (logErr) console.error("communication_logs insert failed:", logErr.message);
 
-    // Only now, on a first accepted submission that actually landed. An invalid
-    // or rejected submission returned long before this line, so a rejection can
-    // never alert anyone, and a replay returned at the idempotency gate above.
-    const notified = await notifyAdminPendingApproval(leadRowId);
-
-    return new Response(JSON.stringify({ ok: true, lead_id: leadRowId, platform, amount, verified: false, status: "pending_approval", duplicate: false, notified }), { headers: CORS });
+    // The admin is deliberately NOT notified here (Muhammad, 2026-09-01).
+    // A customer pressing submit is not an escalation: the submission belongs to
+    // the lead's assigned agent first, who checks the screenshot and the account
+    // details and then explicitly sends it on. Ehsan is pinged at that moment, by
+    // escalateDepositToAdmin() in the CRM, not by this endpoint. Pinging him on
+    // every raw submission is what made the queue meaningless.
+    return new Response(JSON.stringify({ ok: true, lead_id: leadRowId, platform, amount, verified: false, status: "pending_approval", duplicate: false, notified: "deferred_to_agent_review" }), { headers: CORS });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500, headers: CORS });
   }

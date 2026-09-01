@@ -2308,6 +2308,14 @@
 
   <!-- Dashboard -->
   <div id="admin-tab-dashboard" class="tab-content active">
+    <!-- Deposit Approvals: only submissions an agent has explicitly escalated. -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="font-weight:700;font-size:0.95rem;color:var(--text-strong)">Deposit Approvals</div>
+        <span id="admin-deposit-count" class="notif-badge" style="display:none;position:static">0</span>
+      </div>
+      <div id="admin-deposit-queue"><div class="empty-state" style="padding:18px">Loading…</div></div>
+    </div>
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
       <div>
         <h3>Welcome Back, <span id="dash-admin-name">Badar Tanveer</span></h3>
@@ -4717,6 +4725,15 @@
 
   <!-- Dashboard -->
   <div id="agent-tab-dashboard" class="tab-content active">
+    <!-- Deposit submissions waiting on this agent. The customer's submission
+         lands here first; Ehsan is only pinged once the agent sends it on. -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="font-weight:700;font-size:0.95rem;color:var(--text-strong)">Deposit Verification</div>
+        <span id="agent-deposit-count" class="notif-badge" style="display:none;position:static">0</span>
+      </div>
+      <div id="agent-deposit-queue"><div class="empty-state" style="padding:18px">Loading…</div></div>
+    </div>
     <h3>Welcome Back, <span id="dash-agent-name">Agent</span></h3>
     <p style="color:var(--text-muted);font-size:0.85rem;margin:2px 0 18px">Here's what's happening with your leads today.</p>
     <div class="stat-grid">
@@ -7547,6 +7564,7 @@ async function loadAgentLeads() {
   const converted = cachedLeads.filter(l => l.status === 'converted').length;
   // Approved deposits only - see approvedAum(). A pending submission contributes 0.
   const revenue = approvedAum(cachedLeads);
+  renderDepositQueues();
   const setS = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   setS('agent-stat-total', total);
   setS('agent-stat-new', newCount);
@@ -8094,6 +8112,259 @@ async function addTransaction(leadId, ctx) {
   });
   if (error) { setMsg(msgEl, error.message, 'err'); return; }
   await openDetail(leadId, ctx);
+}
+
+// ── DEPOSIT VERIFICATION: AGENT REVIEW -> ADMIN APPROVAL ───────
+//
+// The customer's submission lands on the assigned agent, not on Ehsan. The
+// agent checks the screenshot and the account details, then explicitly sends it
+// on; only that action pings an admin, and only an admin's approval converts
+// the lead. conversion-hook deliberately no longer notifies anyone on submit.
+//
+// The checkpoint lives on the kyc_documents row, not on the lead, so the
+// visible hierarchy stays Pending Approval -> Converted with no extra status:
+//   agent_reviewed_at IS NULL  -> waiting on the assigned agent
+//   agent_reviewed_at IS NOT NULL, status 'pending' -> waiting on Ehsan
+//   status 'verified'  -> approved (approveConversion converts the lead)
+//   status 'rejected'  -> returned to the agent, counts toward nothing
+const DEPOSIT_DOC_TYPE = 'deposit_screenshot';
+
+// Demo fixtures so the two queues are exercisable in demo preview. Live mode
+// never reads these - loadDepositSubmissions() only touches them when demoMode.
+window._DEMO_DEPOSITS = [
+  { id:'dep1', client_id:'dl1', status:'pending', notes:null, file_path:'dl1/demo_deposit_1.png',
+    uploaded_at:new Date(Date.now()-36e5).toISOString(), agent_reviewed_by:null, agent_reviewed_at:null,
+    lead:{ id:'dl1', full_name:'Omar Farooq', email:'omar@example.com', phone:'+92 321 4567890',
+           assigned_agent_id:'demo-agent-1', deposit_platform:'exness', deposit_amount:500,
+           deposit_account_ref:'EX-4471902', status:'pending_approval' } },
+  { id:'dep2', client_id:'dl2', status:'pending', notes:null, file_path:'dl2/demo_deposit_2.png',
+    uploaded_at:new Date(Date.now()-72e5).toISOString(), agent_reviewed_by:'demo-agent-1',
+    agent_reviewed_at:new Date(Date.now()-30e5).toISOString(),
+    lead:{ id:'dl2', full_name:'Ayesha Malik', email:'ayesha@example.com', phone:'+92 300 9876543',
+           assigned_agent_id:'demo-agent-1', deposit_platform:'dooprime', deposit_amount:1200,
+           deposit_account_ref:'DP-8830145', status:'pending_approval' } },
+  { id:'dep3', client_id:'dl3', status:'rejected', notes:'Screenshot is cropped - the account number is not visible.',
+    file_path:'dl3/demo_deposit_3.png', uploaded_at:new Date(Date.now()-108e5).toISOString(),
+    agent_reviewed_by:null, agent_reviewed_at:null,
+    lead:{ id:'dl3', full_name:'Hassan Raza', email:'hassan@example.com', phone:'+92 333 1234567',
+           assigned_agent_id:'demo-agent-1', deposit_platform:'exness', deposit_amount:750,
+           deposit_account_ref:'EX-2210577', status:'pending_approval' } },
+  // Belongs to a DIFFERENT agent - must never appear in agent-1's queue.
+  { id:'dep4', client_id:'dl4', status:'pending', notes:null, file_path:'dl4/demo_deposit_4.png',
+    uploaded_at:new Date(Date.now()-12e5).toISOString(), agent_reviewed_by:null, agent_reviewed_at:null,
+    lead:{ id:'dl4', full_name:'Sana Ahmed', email:'sana@example.com', phone:'+92 311 5551234',
+           assigned_agent_id:'demo-agent-2', deposit_platform:'exness', deposit_amount:300,
+           deposit_account_ref:'EX-9911234', status:'pending_approval' } },
+];
+
+function depositStage(doc) {
+  if (!doc) return 'unknown';
+  if (doc.status === 'verified') return 'approved';
+  if (doc.status === 'rejected') return 'returned';
+  return doc.agent_reviewed_at ? 'awaiting_admin' : 'awaiting_agent';
+}
+const DEPOSIT_STAGE_LABEL = {
+  awaiting_agent: 'Deposit Submitted - Review Required',
+  awaiting_admin: 'Sent to Ehsan - Awaiting Admin Approval',
+  approved:       'Approved - Converted',
+  returned:       'Returned by Admin - Action Required',
+};
+
+// One query behind both queues. The agent view is scoped by assigned_agent_id
+// here rather than trusting RLS: `leads: staff update all` means RLS does not
+// scope an agent to their own leads today, so the scope is applied explicitly.
+async function loadDepositSubmissions({ agentId = null, escalatedOnly = false } = {}) {
+  // The demo branch mirrors the live filter exactly, including status='pending' -
+  // an approved or returned document must leave the admin queue in both modes.
+  if (demoMode) return (window._DEMO_DEPOSITS || []).filter(d =>
+    (!agentId || d.lead?.assigned_agent_id === agentId) &&
+    (!escalatedOnly || (!!d.agent_reviewed_at && d.status === 'pending')));
+  let q = sb.from('kyc_documents')
+    .select('id, client_id, status, notes, file_path, uploaded_at, agent_reviewed_by, agent_reviewed_at, ' +
+            'lead:leads!client_id(id, full_name, email, phone, assigned_agent_id, deposit_platform, deposit_amount, deposit_account_ref, status)')
+    .eq('document_type', DEPOSIT_DOC_TYPE)
+    .order('uploaded_at', { ascending: false })
+    .limit(500);
+  if (escalatedOnly) q = q.not('agent_reviewed_at', 'is', null).eq('status', 'pending');
+  const { data, error } = await q;
+  if (error) { console.error('loadDepositSubmissions:', error.message); return []; }
+  let rows = data || [];
+  if (agentId) rows = rows.filter(r => r.lead?.assigned_agent_id === agentId);
+  return rows;
+}
+
+// The agent's explicit "Send to Admin for Verification".
+//
+// The stamp itself is done by escalate_deposit_to_admin(), a SECURITY DEFINER
+// function that re-checks assignment server-side and only writes when
+// agent_reviewed_at IS NULL, so a double-click or a second tab cannot stamp
+// twice. The notification is only sent when that function reports it was the
+// call that actually escalated, which is what stops duplicate pings.
+async function escalateDepositToAdmin(docId, lead) {
+  const btn = document.getElementById('dep-escalate-' + docId);
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  try {
+    if (demoMode) {
+      const d = (window._DEMO_DEPOSITS || []).find(x => x.id === docId);
+      if (d && !d.agent_reviewed_at) { d.agent_reviewed_at = new Date().toISOString(); d.agent_reviewed_by = currentUser?.id || 'demo-agent'; }
+      showToast('Sent to Ehsan - awaiting admin approval. (demo)');
+      return renderDepositQueues();
+    }
+    const { data, error } = await sb.rpc('escalate_deposit_to_admin', { p_document_id: docId });
+    if (error) { showToast('Could not send for verification: ' + error.message, 'err'); return; }
+    const row = Array.isArray(data) ? data[0] : data;
+    if (row?.already_escalated) {
+      showToast('This deposit was already sent to Ehsan.');
+      return renderDepositQueues();
+    }
+    await notifyAdminsOfDepositEscalation(lead, docId);
+    showToast('Sent to Ehsan - awaiting admin approval.');
+    renderDepositQueues();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Send to Admin for Verification'; }
+  }
+}
+
+// Reuses the existing in-app notifications table - the same one internal
+// forwards already use - rather than adding a parallel channel. One row per
+// admin, so Ehsan sees it wherever he is in the CRM.
+async function notifyAdminsOfDepositEscalation(lead, docId) {
+  if (demoMode) return;
+  const admins = (cachedProfiles || []).filter(p => isAdminRole(p.role) && !p.is_suspended);
+  if (!admins.length) { console.warn('deposit escalation: no active admin to notify'); return; }
+  const who = currentProfile?.full_name || currentUser?.email || 'An agent';
+  const name = lead?.full_name || lead?.phone || 'a lead';
+  const amount = Number(lead?.deposit_amount || 0);
+  const rows = admins.map(a => ({
+    recipient_id: a.id,
+    actor_id: currentUser.id,
+    kind: 'deposit_review',
+    title: `${who} sent a deposit for verification`,
+    body: `${name}${amount ? ` - $${fmtMoney(amount)}` : ''}${lead?.deposit_platform ? ` on ${lead.deposit_platform}` : ''}. Review the screenshot and approve or return it.`,
+    lead_id: lead?.id || null,
+  }));
+  const { error } = await sb.from('notifications').insert(rows);
+  if (error) {
+    console.error('deposit escalation notification:', error.message);
+    showToast('Sent, but the admin alert failed - tell Ehsan directly.', 'err');
+  }
+}
+
+// Admin decision. Approve routes through the one existing conversion path so
+// the screenshot requirement, the admin-only trigger and converted_at all still
+// apply; this never sets leads.status itself.
+async function decideDeposit(docId, decision, leadId, ctx) {
+  if (!isAdminRole(currentProfile?.role)) { showToast('Only an admin can decide a deposit.', 'err'); return; }
+  const note = decision === 'rejected'
+    ? (prompt('Why is this being returned to the agent?') || '').trim()
+    : '';
+  if (decision === 'rejected' && !note) { showToast('A reason is required when returning a deposit.', 'err'); return; }
+  // Only the document write differs between demo and live; the decision that
+  // follows is one shared path, so demo cannot drift from what production does.
+  if (demoMode) {
+    const d = (window._DEMO_DEPOSITS || []).find(x => x.id === docId);
+    if (d) {
+      d.status = decision;
+      if (note) d.notes = note;
+      if (decision === 'rejected') { d.agent_reviewed_at = null; d.agent_reviewed_by = null; }
+    }
+  } else {
+    const updates = { status: decision, reviewed_by: currentUser.id, reviewed_at: new Date().toISOString() };
+    if (note) updates.notes = note;
+    // Returning it puts it back in the agent's queue, so the agent stamp is cleared.
+    if (decision === 'rejected') { updates.agent_reviewed_at = null; updates.agent_reviewed_by = null; }
+    const { error } = await sb.from('kyc_documents').update(updates).eq('id', docId);
+    if (error) { showToast('Could not save the decision: ' + error.message, 'err'); return; }
+  }
+
+  if (decision === 'verified') {
+    // The single canonical conversion path. It re-checks the screenshot, is
+    // admin-gated by trg_leads_converted_admin_only, and stamps converted_at.
+    await approveConversion(leadId, ctx || '');
+  } else {
+    await notifyAgentOfReturnedDeposit(leadId, note);
+  }
+  renderDepositQueues();
+}
+
+async function notifyAgentOfReturnedDeposit(leadId, note) {
+  const lead = (cachedLeads || []).find(l => l.id === leadId);
+  const agentId = lead?.assigned_agent_id;
+  if (!agentId) return;
+  if (demoMode) { showToast('The agent has been told this needs more work. (demo)'); return; }
+  const who = currentProfile?.full_name || 'An admin';
+  const { error } = await sb.from('notifications').insert({
+    recipient_id: agentId,
+    actor_id: currentUser.id,
+    kind: 'deposit_returned',
+    title: `${who} returned a deposit for more work`,
+    body: `${lead?.full_name || 'A lead'}: ${note || 'See the submission for details.'}`,
+    lead_id: leadId,
+  });
+  if (error) console.error('returned-deposit notification:', error.message);
+}
+
+// Renders both queues from one loader. The agent queue is scoped to the signed-in
+// agent; the admin queue shows only what an agent has actually escalated, which
+// is the whole point of the checkpoint.
+function depositRowHtml(d, forAdmin) {
+  const lead = d.lead || {};
+  const stage = depositStage(d);
+  const amount = Number(lead.deposit_amount || 0);
+  const agent = (cachedProfiles || []).find(p => p.id === lead.assigned_agent_id);
+  const tone = stage === 'awaiting_agent' ? 'var(--warn)'
+             : stage === 'awaiting_admin' ? 'var(--accent)'
+             : stage === 'returned' ? 'var(--bad)' : 'var(--ok)';
+  const field = (l, v) => `<div><div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">${esc(l)}</div><div style="font-size:0.84rem;color:var(--text-strong);font-weight:600">${esc(v || '-')}</div></div>`;
+  return `
+  <div class="card" style="padding:14px 16px;margin-bottom:12px;border-left:4px solid ${tone}">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+      <div style="font-weight:700;font-size:0.92rem;color:var(--text-strong)">${esc(lead.full_name || lead.phone || 'Unknown lead')}</div>
+      <span style="font-size:0.7rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${tone}">${esc(DEPOSIT_STAGE_LABEL[stage] || stage)}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px 14px;margin-bottom:12px">
+      ${field('Email', lead.email)}
+      ${field('WhatsApp', lead.phone)}
+      ${field('Broker', lead.deposit_platform)}
+      ${field('Trading Account ID', lead.deposit_account_ref)}
+      ${field('Deposit Amount', amount ? '$' + fmtMoney(amount) : '-')}
+      ${field('Submitted', d.uploaded_at ? new Date(d.uploaded_at).toLocaleString() : '-')}
+      ${forAdmin ? field('Agent', agent?.full_name || agent?.email || 'Unassigned') : ''}
+      ${d.agent_reviewed_at ? field('Sent to admin', new Date(d.agent_reviewed_at).toLocaleString()) : ''}
+    </div>
+    ${d.notes && stage === 'returned' ? `<div style="font-size:0.8rem;color:var(--bad);margin-bottom:10px">Returned: ${esc(d.notes)}</div>` : ''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-secondary btn-sm" onclick="viewDepositScreenshot('${esc(d.file_path || '')}')">View Screenshot</button>
+      ${!forAdmin && (stage === 'awaiting_agent' || stage === 'returned') ? `
+        <button class="btn btn-primary btn-sm" id="dep-escalate-${esc(d.id)}"
+          onclick='escalateDepositToAdmin("${esc(d.id)}", ${JSON.stringify(lead).replace(/'/g, "&#39;")})'>Send to Admin for Verification</button>` : ''}
+      ${forAdmin && stage === 'awaiting_admin' ? `
+        <button class="btn btn-primary btn-sm" onclick="decideDeposit('${esc(d.id)}','verified','${esc(lead.id)}','')">Approve</button>
+        <button class="btn btn-secondary btn-sm" onclick="decideDeposit('${esc(d.id)}','rejected','${esc(lead.id)}','')">Return to Agent</button>` : ''}
+    </div>
+  </div>`;
+}
+
+async function renderDepositQueues() {
+  const agentBox = document.getElementById('agent-deposit-queue');
+  const adminBox = document.getElementById('admin-deposit-queue');
+  const empty = t => `<div class="empty-state" style="padding:18px">${t}</div>`;
+  if (agentBox) {
+    const mine = await loadDepositSubmissions({ agentId: currentUser?.id });
+    const open = mine.filter(d => ['awaiting_agent','awaiting_admin','returned'].includes(depositStage(d)));
+    const need = open.filter(d => depositStage(d) !== 'awaiting_admin').length;
+    const badge = document.getElementById('agent-deposit-count');
+    if (badge) { badge.textContent = need; badge.style.display = need ? '' : 'none'; }
+    agentBox.innerHTML = open.length ? open.map(d => depositRowHtml(d, false)).join('')
+      : empty('No deposit submissions waiting on you.');
+  }
+  if (adminBox) {
+    const queue = await loadDepositSubmissions({ escalatedOnly: true });
+    const badge = document.getElementById('admin-deposit-count');
+    if (badge) { badge.textContent = queue.length; badge.style.display = queue.length ? '' : 'none'; }
+    adminBox.innerHTML = queue.length ? queue.map(d => depositRowHtml(d, true)).join('')
+      : empty('No deposits are waiting for your verification.');
+  }
 }
 
 // ── KYC / COMPLIANCE TAB ───────────────────────────────────────
@@ -10752,6 +11023,7 @@ function renderDashboardStats() {
     renderDashboardCharts(leads);
     // Approved deposits only - see approvedAum(). Super Admin shares this view.
     const revenue = approvedAum(leads);
+    renderDepositQueues();
     if (el('dash-revenue'))     el('dash-revenue').textContent     = '$' + fmtMoney(revenue);
     { const bp={}; leads.forEach(l=>{ if(l.deposit_platform && Number(l.account_balance) && isApprovedDeposit(l)){ bp[l.deposit_platform]=(bp[l.deposit_platform]||0)+Number(l.account_balance);} }); const pl=Object.entries(bp).map(([k,v])=>k.toUpperCase()+': $'+fmtMoney(v)).join('   ·   '); if(el('dash-rev-platform')) el('dash-rev-platform').textContent = pl ? 'By platform - '+pl : ''; }
   });
