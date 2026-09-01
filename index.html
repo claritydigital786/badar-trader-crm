@@ -7470,7 +7470,7 @@ async function initAgent() {
   const _dashAgentName = document.getElementById('dash-agent-name');
   if (_dashAgentName) _dashAgentName.textContent = name;
   const initialsEl = document.getElementById('agent-sidebar-initials');
-  if (initialsEl) initialsEl.textContent = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  if (initialsEl) initialsEl.textContent = initialsFor(name);
   await loadAgentLeads();
   loadUpcomingFollowups('agent-');
   loadNotifications();
@@ -12218,6 +12218,25 @@ function avatarColor(seed) {
   return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
 }
 
+// Real WhatsApp display names routinely lead with decorative symbols -
+// hearts, flags, stars - real customer choices, not something to strip from
+// the name itself, but naively taking the FIRST CHARACTER of each word for
+// an avatar's initials grabs that emoji instead of a real letter. Found
+// live: "🤍الحسینی🤍" produced initials of literally two heart emoji, which
+// some fonts render as an unreadable tofu/question-mark glyph instead of
+// anything meaningful. This skips leading non-letter/non-number characters
+// per word before taking the initial, so the avatar shows a real letter
+// when the name has one anywhere, falling back to "?" only when it
+// genuinely doesn't (a name that really is just symbols/emoji).
+function initialsFor(name) {
+  const clean = String(name || '').trim();
+  if (!clean) return '?';
+  const chars = clean.split(/\s+/)
+    .map(w => w.replace(/^[^\p{L}\p{N}]+/u, '')[0])
+    .filter(Boolean);
+  return (chars.join('').slice(0, 2) || '?').toUpperCase();
+}
+
 // Small channel indicator overlaid on a conversation's avatar - added
 // 2026-08-27 alongside the Messenger/Instagram ingest-only connection, so a
 // conversation list mixing all three channels still lets an agent tell at a
@@ -12321,7 +12340,7 @@ async function renderConversations(scope = '') {
     });
     const ordered = _convSort === 'priority' ? sortConvsByPriority(scored) : scored;
     listEl.innerHTML = ordered.map(({ c, tier, sig, _prio }) => {
-      const initials = c.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+      const initials = initialsFor(c.name);
       return `
         <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${!!c.unread}" data-awaiting="${sig.awaitingReply}" data-needshuman="${sig.needsHuman}" data-priority="${_prio.score}" data-channel="unattributed" onclick="openConversation('${c.id}','${scope}')">
           <div class="conv-avatar" style="background:${avatarColor(c.id)}">${initials}</div>
@@ -12410,7 +12429,7 @@ async function renderConversations(scope = '') {
     const ordered = _convSort === 'priority' ? sortConvsByPriority(scored) : scored;
     listEl.innerHTML = ordered.map(({ c, sig, _prio }) => {
       const name = c.leads?.full_name || 'Unknown';
-      const initials = name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+      const initials = initialsFor(name);
       const preview = (c.direction === 'inbound' ? '↩ ' : '↪ ') + c.body;
       const tier = sig.tier;
       const isUnread = sig.isUnread;
@@ -12620,7 +12639,7 @@ function toggleContactPanel(scope = '') {
 function renderContactPanel(scope, convId, info) {
   const el = document.getElementById(scope + 'conv-contact-panel');
   if (!el) return;
-  const initials = (info.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const initials = initialsFor(info.name);
   const row = (label, value) => `
     <div class="conv-contact-row">
       <div class="conv-contact-label">${esc(label)}</div>
@@ -12757,7 +12776,7 @@ async function openConversation(convId, scope = '') {
     renderConversations(scope);
     const chatPanel = document.getElementById(scope + 'conv-chat-panel');
     if (!chatPanel) return;
-    const initials = conv.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+    const initials = initialsFor(conv.name);
     const demoInboundIso = conv.inboundHoursAgo != null
       ? new Date(Date.now() - conv.inboundHoursAgo * 3600000).toISOString()
       : null;
@@ -12868,7 +12887,7 @@ async function openConversation(convId, scope = '') {
     const lead = leadRes.data;
     const allMessages = msgsRes.data || [];
     await loadMessageActions(allMessages.map(m => m.id));
-    const initials = (lead?.full_name || '?').split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+    const initials = initialsFor(lead?.full_name);
 
     // 6541 and 3903 share one WABA, so this thread can hold messages from
     // both real numbers with no visual distinction unless separated here.
@@ -14078,7 +14097,7 @@ function renderForwardTargets(query) {
 
   listEl.innerHTML = targets.map(t => `
     <div class="fwd-item" data-id="${esc(t.id)}" data-name="${esc(t.name)}" onclick="confirmForward(this.dataset.id, this.dataset.name)">
-      <div class="conv-avatar" style="background:${avatarColor(t.id)};width:34px;height:34px;font-size:0.72rem">${esc(t.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase())}</div>
+      <div class="conv-avatar" style="background:${avatarColor(t.id)};width:34px;height:34px;font-size:0.72rem">${esc(initialsFor(t.name))}</div>
       <div>
         <div class="nm">${esc(t.name)}</div>
         <div class="ph">${esc(t.phone || '')}</div>
@@ -15333,7 +15352,7 @@ function renderSubscriberDetail(sub) {
   if (!empty || !body) return;
   empty.style.display = 'none';
   body.style.display = 'block';
-  const initials = (sub.name || sub.phone || '?').trim().split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+  const initials = initialsFor(sub.name || sub.phone);
   const statusOptions = ['pending','active','inactive','removed']
     .map(s => `<option value="${s}" ${sub.status===s?'selected':''}>${s[0].toUpperCase()+s.slice(1)}</option>`).join('');
 
