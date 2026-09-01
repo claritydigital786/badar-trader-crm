@@ -245,3 +245,24 @@ test('K: a returned deposit can be corrected and sent again', () => {
   // The demo path must mirror it, or demo drifts from production again.
   assert.match(html, /if \(d && d\.status !== 'verified' && \(d\.status === 'rejected' \|\| !d\.agent_reviewed_at\)\)/);
 });
+
+// ── A personalized join link must tie the submission to that lead ──
+test('join.html carries lead_id from the URL into the POST', () => {
+  const join = readFileSync(new URL('../join.html', import.meta.url), 'utf8');
+  // Read once from the query string.
+  assert.match(join, /var LEAD_ID = \(new URLSearchParams\(location\.search\)\.get\('lead_id'\) \|\| ''\)\.trim\(\);/,
+    'lead_id must be read from the URL');
+  // Appended only when present, so a plain visit posts exactly what it always did.
+  assert.match(join, /if \(LEAD_ID\) fd\.append\('lead_id', LEAD_ID\);/,
+    'lead_id must be appended to the FormData only when present');
+  // The original fields are untouched and still in order.
+  assert.match(join, /fd\.append\('name', name\); fd\.append\('phone', phone\); fd\.append\('email', email\);/);
+  assert.match(join, /fd\.append\('platform', platform\); fd\.append\('amount', amount\); fd\.append\('account', account\);/);
+  assert.match(join, /fd\.append\('screenshot', file\);/);
+  // Carried to thankyou.html so its follow-up call is the SAME claim and still
+  // de-duplicates rather than re-matching on phone.
+  assert.match(join, /lead_id: d\.lead_id \|\| LEAD_ID \|\| ''/);
+  // Validation, upload and the endpoint are untouched.
+  assert.match(join, /if \(!file\) \{ err\.textContent = 'Please add your deposit screenshot\.'; return; \}/);
+  assert.match(join, /functions\/v1\/conversion-hook/);
+});

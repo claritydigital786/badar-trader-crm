@@ -291,7 +291,9 @@ test('10: Unread / Waiting on Us / Needs Human remain separate and still work', 
 
 // ── The pages that caused the duplication ──────────────────────
 test('both pages forward account, so one claim stays one claim', () => {
-  assert.match(join, /lead_id: d\.lead_id \|\| '', phone: phone, platform: platform, amount: amount, account: account/,
+  // The lead_id term gained a `|| LEAD_ID` fallback when personalized links
+  // were added; what this protects is that account is still forwarded.
+  assert.match(join, /lead_id: d\.lead_id \|\| LEAD_ID \|\| '', phone: phone, platform: platform, amount: amount, account: account/,
     'join.html must forward account to the thank-you page');
   assert.match(thankyou, /var account\s*= q\.get\('account'\) \|\| '';/,
     'thankyou.html must read account back');
