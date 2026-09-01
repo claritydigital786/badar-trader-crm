@@ -4,6 +4,63 @@ _Last updated: 2026-09-01, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
 
+## 2026-09-01 (AUM fix) - AUM now counts approved deposits only. BUILT AND TESTED, NOT MERGED, NOT DEPLOYED.
+
+Branch `claude/aum-approved-only`, commit `efc180d`. Fixes the pre-existing gap flagged in
+the Phase 1 entry directly below.
+
+Root cause
+`conversion-hook` writes `account_balance` = the amount the CUSTOMER typed into the deposit
+form, at the moment they submit it, while the lead is still only `pending_approval`. Both AUM
+aggregates summed `account_balance` with no status filter, so unverified money appeared in a
+card labelled "Approved deposits". Predates Phase 1; Phase 1 only made it reachable more often.
+
+The authoritative approved condition is `leads.status = 'converted'`
+Checked against the live database before choosing, rather than guessed:
+- it is what `approveConversion()` writes, and that already refuses to run without a deposit
+  screenshot on file;
+- `trg_leads_converted_admin_only` is live and restricts it to admins in BOTH directions;
+- `leads.verified` is written `false` by conversion-hook and set `true` by NOTHING in this
+  repo. Zero production rows have it true. Gating on it would zero out every real figure;
+- `leads.balance_locked` is true for NO lead in production, because the one real converted
+  lead predates the approval gate. Gating on it would silently drop that lead;
+- there is no `rejected` lead status (`leads_status_check` allows new / contacted / qualified /
+  proposal_sent / pending_approval / converted / lost), so a rejected deposit is simply a lead
+  that never becomes `converted`, and contributes 0 by construction.
+
+What changed, all in `index.html`
+One shared rule, so it cannot drift between call sites: `isApprovedDeposit(lead)` and
+`approvedAum(leads)`. Used by the agent dashboard AUM card, the admin / super-admin dashboard
+balances figure, and its by-platform breakdown. Copy corrected to match what the numbers now
+mean. No migration, no schema change, no write of any kind - read path only.
+
+Deliberately untouched, because they were never affected
+Reports' "Recorded Deposits", the Financials "Net AUM" and the real payroll run all read the
+`transactions` table, and the deposit form never writes a transaction row (transactions are
+only ever created by hand from the lead detail panel). The agent's payroll ESTIMATE did read
+the broken figure and now reads the approved one; the finalized payroll run is unchanged.
+
+Live impact today is zero
+The only lead in production with a non-zero `account_balance` is already `converted`, so the
+displayed figure is $301.00 before and $301.00 after. Nothing moves on screen; the bug is
+closed for every future submission.
+
+Proven
+- New `tests/aum-approved-only-test.mjs` covers submit-pending (+$0), approve (+$500), every
+  rejection shape ($0), replay cannot double-count, agent scope, admin scope, Converted counts
+  unchanged, null/garbage robustness, and asserts the call sites actually use the helper.
+- Browser before/after against `origin/main` in demo preview, driving the real
+  `loadAgentLeads()`: agent AUM 90.0k -> 75.0k on a demo set holding $90,000 of balances of
+  which $75,000 is converted. Converted count and lead totals unchanged, zero console errors.
+- 22 of 22 node suites pass. Phase 1 deposit form re-verified unchanged (49 browser assertions
+  plus 13 real-multipart-byte assertions).
+- The 2 `backup-automation` PHP suites still fail exactly as they do on `origin/main` -
+  pre-existing, unrelated, see the entry below.
+
+Not done
+Merging and deploying were blocked by this session's permission gate, so `main` is untouched
+and production still has the old behavior. Phase 2 has NOT been started.
+
 ## 2026-09-01 (deposit form) - Phase 1 DEPLOYED: required email and deposit screenshot on join.html, commit `a1c9024`, conversion-hook v21
 
 Live. Both halves verified against production, not assumed.
