@@ -69,11 +69,9 @@ Proven
 - The 2 `backup-automation` PHP suites still fail exactly as they do on `origin/main` -
   pre-existing, unrelated, see the entry below.
 
-Not done
-Merging and deploying were blocked by this session's permission gate, so `main` is untouched
-and production still has the old behavior. Phase 2 has NOT been started.
 
-## 2026-09-01 (deposit approval) - Submitted amount separated from approved balance. BUILT AND TESTED, NOT MERGED, NOT DEPLOYED.
+
+## 2026-09-01 (deposit approval) - Submitted amount separated from approved balance. DEPLOYED AND VERIFIED.
 
 Branch `claude/deposit-approval-balance`, commit `68a0b39`. Fixes the live blocker that
 killed the first real end-to-end deposit test.
@@ -124,6 +122,30 @@ The orphan `kyc_documents` row `2b8eb5df-79bd-4df1-b862-b1f1409829ec` and its st
 failed production test, are UNTOUCHED pending separate approval for production-data cleanup.
 The test lead `eba43434-75d7-4d7e-a63c-2c19185bb922` is still `status='new'`,
 `account_balance=0.00`, `deposit_amount=null`.
+
+Deployed 2026-09-01, in this order
+1. `conversion-hook` **v23** first (ACTIVE, `verify_jwt: false`, ezbr_sha256 `07da646f...`).
+   Safe alone - it only stops writing a column. Verified by two probes through `pg_net` that
+   write nothing: a param-less GET returns `400 lead_id or phone required`, and a GET carrying
+   a non-existent lead_id returns `404 lead not found`, which proves form parsing, validation,
+   the Supabase client and the real leads lookup all work on the deployed build.
+2. Merge `112b115` into `main` -> Vercel production `dpl_3xdxg8nXaaxjajRJJB3gSnRyFViu`, READY.
+   `crm.badartrader.com/index.html` serves ETag `c3ddb996d7f3ccc3e0b96a4600fa288e`, byte-identical
+   to the merged file - confirmed by extracting the served bytes and running `cmp` against the
+   repo copy, not just by comparing hashes.
+
+Verified after deployment
+- 25 of 25 node suites; 53 behavioural assertions against the real Edge Function source; 21
+  browser assertions run against the ACTUAL bytes production served (agent scoping, approval
+  $0 -> $1200, second approval refused with AUM still $1200, returned path inert, zero console
+  errors).
+- Production data unchanged: AUM still $301.00, 1 converted lead, 0 pending_approval,
+  0 deposit_submissions rows, 0 balance_audit_log rows, 0 deposit notifications.
+- The 2 `backup-automation` PHP suites still fail exactly as they do without this change -
+  pre-existing and unrelated.
+
+NOT yet done: the real manual Hanzala end-to-end test, which needs Muhammad present.
+Phase 2 has NOT been started.
 
 ## 2026-09-01 (deposit form) - Phase 1 DEPLOYED: required email and deposit screenshot on join.html, commit `a1c9024`, conversion-hook v21
 
