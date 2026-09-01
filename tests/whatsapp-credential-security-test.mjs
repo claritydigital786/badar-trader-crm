@@ -64,8 +64,8 @@ assert.match(
 );
 assert.match(
   notificationFunction,
-  /profile\?\.role === "admin" && !profile\?\.is_suspended/,
-  'A suspended Admin must not be allowed to send a pending-approval alert.',
+  /\(profile\?\.role === "admin" \|\| profile\?\.role === "super_admin"\) && !profile\?\.is_suspended/,
+  'A suspended Admin (or super_admin) must not be allowed to send a pending-approval alert.',
 );
 // `user` became nullable when conversion-hook gained a server-to-server path
 // into this function (Phase 39), so the identity read is optional-chained. The

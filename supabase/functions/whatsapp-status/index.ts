@@ -93,7 +93,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const sb = makeServiceClient();
   const { data: profile } = await sb.from("profiles").select("role").eq("id", user.id).maybeSingle();
-  if (profile?.role !== "admin") {
+  // super_admin added 2026-09-01 (Badar's new role, above admin) - treated as
+  // admin-or-above everywhere, same as public.is_admin() does for RLS.
+  if (profile?.role !== "admin" && profile?.role !== "super_admin") {
     return json({ ok: false, error: "Only an admin can view WhatsApp connection health" }, 403);
   }
 

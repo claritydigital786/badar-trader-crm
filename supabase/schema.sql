@@ -2363,3 +2363,30 @@ GRANT EXECUTE ON FUNCTION public.release_deposit_submission(TEXT) TO service_rol
 
 -- DONE (Phase 39)
 -- =============================================================
+
+-- =============================================================
+-- Phase 40 - super_admin, a role above admin (Muhammad, 2026-09-01)
+-- Corresponds to supabase/migrations/20260901000000_super_admin_role.sql
+-- Real hierarchy change: Ehsan becomes admin (day-to-day approvals), Badar
+-- moves up to super_admin. is_admin() is the single choke point every RLS
+-- policy and the Converted-approval trigger already gate on, so widening it
+-- here extends every one of them to super_admin automatically.
+-- =============================================================
+
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_role_check
+  CHECK (role IN ('admin', 'agent', 'super_admin'));
+
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN LANGUAGE SQL SECURITY DEFINER STABLE SET search_path = '' AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role IN ('admin', 'super_admin')
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.is_admin() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, service_role;
+
+-- DONE (Phase 40)
+-- =============================================================

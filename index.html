@@ -749,6 +749,7 @@
     .btn-reject:hover  { background: #b91c1c; }
     .badge-admin         { background: #fef3c7; color: #92400e; }
     .badge-agent         { background: #dbeafe; color: #1d4ed8; }
+    .badge-super_admin   { background: #ede9fe; color: #5b21b6; }
     .badge-deposit       { background: #dcfce7; color: #15803d; }
     .badge-withdrawal    { background: #fee2e2; color: var(--bad); }
     .badge-not_started   { background: #f1f5f9; color: #64748b; }
@@ -4872,11 +4873,19 @@ async function afterLogin(user) {
   currentProfile = profile;
   document.getElementById('login-screen').style.display = 'none';
 
-  if (profile.role === 'admin') await initAdmin();
-  else                          await initAgent();
+  if (isAdminRole(profile.role)) await initAdmin();
+  else                           await initAgent();
 
-  handleConvDeepLink(profile.role === 'admin' ? '' : 'agent-');
+  handleConvDeepLink(isAdminRole(profile.role) ? '' : 'agent-');
 }
+
+// A super_admin is admin-or-above, added 2026-09-01 alongside the new role
+// itself (see migration 20260901000000_super_admin_role.sql) - the backend's
+// own is_admin() already treats the two the same for every RLS policy and
+// the Converted-approval trigger; this is the one frontend choke point so a
+// super_admin (Badar) never gets silently routed to the agent view or
+// treated as a plain admin here, without hand-checking every call site.
+function isAdminRole(role) { return role === 'admin' || role === 'super_admin'; }
 
 // ── ADMIN ─────────────────────────────────────────────────────
 async function initAdmin() {
@@ -5583,7 +5592,7 @@ function renderAgentsTable(tbodyId) {
         ? `<button class="btn btn-secondary btn-sm" title="${p.receives_leads === false ? 'Put this person back into round-robin lead assignment' : 'Keep this person out of round-robin without suspending their access'}"
              onclick="toggleReceivesLeads('${p.id}',${p.receives_leads === false})">${p.receives_leads === false ? 'Give leads' : 'No leads'}</button>` : ''}
         ${!isSelf
-        ? `<button class="btn btn-secondary btn-sm" onclick="toggleRole('${p.id}','${p.role}')">Make ${p.role === 'admin' ? 'agent' : 'admin'}</button>
+        ? `${p.role === 'super_admin' ? '' : `<button class="btn btn-secondary btn-sm" onclick="toggleRole('${p.id}','${p.role}')">Make ${p.role === 'admin' ? 'agent' : 'admin'}</button>`}
            <button class="btn btn-sm team-danger" style="background:${p.is_suspended ? 'var(--ok)' : 'var(--bad)'};color:#fff"
              onclick="suspendAgent('${p.id}',${!p.is_suspended})">${p.is_suspended ? 'Unsuspend' : 'Suspend'}</button>`
         : ''}

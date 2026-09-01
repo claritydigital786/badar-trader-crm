@@ -139,7 +139,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // lead belongs in Pending Approval, so there is no per-user permission to
   // check. The browser path is unchanged.
   if (!isInternalCaller) {
-    const isAdmin = profile?.role === "admin" && !profile?.is_suspended;
+    // super_admin added 2026-09-01 (Badar's new role, above admin) - treated
+    // as admin-or-above everywhere, same as public.is_admin() does for RLS.
+    const isAdmin = (profile?.role === "admin" || profile?.role === "super_admin") && !profile?.is_suspended;
     const isAssignedAgent = profile?.role === "agent" && !profile?.is_suspended
       && lead.assigned_agent_id === user?.id;
     if (!isAdmin && !isAssignedAgent) {

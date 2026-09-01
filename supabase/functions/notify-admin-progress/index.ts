@@ -90,7 +90,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const sb = serviceClient();
   const { data: profile } = await sb.from("profiles").select("role, is_suspended").eq("id", user.id).maybeSingle();
-  if (profile?.role !== "admin" || profile?.is_suspended) {
+  // super_admin added 2026-09-01 (Badar's new role, above admin) - treated as
+  // admin-or-above everywhere, same as public.is_admin() does for RLS.
+  const isAdminOrAbove = profile?.role === "admin" || profile?.role === "super_admin";
+  if (!isAdminOrAbove || profile?.is_suspended) {
     return json({ ok: false, error: "Only an admin can send this update" }, 403);
   }
 
