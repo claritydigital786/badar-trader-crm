@@ -22,6 +22,39 @@
   button:disabled { opacity:0.6; cursor:default; }
   .note { font-size:11px; color:#64748b; margin-top:14px; line-height:1.5; text-align:center; }
   .err { color:#ef6b6b; font-size:12.5px; margin-top:12px; text-align:center; min-height:16px; }
+  .hint { font-size:11px; color:#64748b; margin-top:5px; line-height:1.45; }
+  /* Deposit screenshot picker (Phase 1, 2026-09-01). The real <input type=file>
+     is visually hidden but kept in the DOM and focusable, so the native picker
+     - which is what gives Android and iOS their "Camera / Photo Library / Files"
+     sheet - still does all the work. accept="image/*" alone is deliberate:
+     adding `capture` would FORCE the camera and take the gallery away on the
+     devices that honour it. */
+  .file-input { position:absolute; width:1px; height:1px; opacity:0; overflow:hidden; }
+  .drop {
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:6px; width:100%; min-height:96px; padding:16px 12px; cursor:pointer;
+    border:1.5px dashed #3a3a5c; border-radius:11px; background:#12121f;
+    color:#94a3b8; font-size:13px; text-align:center; transition:border-color .15s, background .15s;
+  }
+  .drop:hover, .file-input:focus-visible + .drop { border-color:#c9a84c; background:#16162a; }
+  .drop-icon { font-size:22px; line-height:1; }
+  .drop small { color:#64748b; font-size:11px; }
+  .shot { margin-top:10px; border:1px solid #2a2a44; border-radius:11px; background:#12121f; padding:10px; }
+  /* max-width keeps a 4000px-wide phone screenshot inside the card, and height
+     is auto so the aspect ratio is never distorted. */
+  .shot img { display:block; width:100%; max-width:100%; height:auto; max-height:230px;
+    object-fit:contain; border-radius:8px; background:#0d0d1a; }
+  .shot-meta { display:flex; align-items:center; gap:8px; margin-top:9px; }
+  .shot-name { flex:1; min-width:0; font-size:12px; color:#cbd5e1; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
+  .shot-size { font-size:11px; color:#64748b; flex-shrink:0; }
+  .shot-actions { display:flex; gap:8px; margin-top:9px; }
+  .linkbtn {
+    flex:1; width:auto; margin:0; padding:8px 10px; font-size:12px; font-weight:700;
+    border-radius:8px; border:1px solid #2a2a44; background:#1a1a2e; color:#cbd5e1; cursor:pointer;
+  }
+  .linkbtn:hover { border-color:#3a3a5c; color:#fff; }
+  .linkbtn.danger { color:#ef6b6b; }
 </style>
 </head>
 <body>
@@ -36,6 +69,10 @@
 
       <label>WhatsApp Number *</label>
       <input id="phone" required inputmode="tel" placeholder="+92 3XX XXXXXXX" autocomplete="tel" />
+
+      <label>Email Address *</label>
+      <input id="email" type="email" required inputmode="email" autocomplete="email"
+             placeholder="you@example.com" />
 
       <div class="row">
         <div>
@@ -56,6 +93,26 @@
       <label>Deposit Amount (USD) *</label>
       <input id="amount" required inputmode="decimal" placeholder="e.g. 500" />
 
+      <label>Deposit Screenshot *</label>
+      <input id="screenshot" class="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*" />
+      <label class="drop" id="drop" for="screenshot">
+        <span class="drop-icon">🧾</span>
+        <span id="drop-text">Tap to add your deposit screenshot</span>
+        <small>JPG, PNG, WEBP or HEIC &middot; up to 10MB</small>
+      </label>
+      <div class="shot" id="shot" style="display:none">
+        <img id="shot-img" alt="Deposit screenshot preview" />
+        <div class="shot-meta">
+          <span class="shot-name" id="shot-name"></span>
+          <span class="shot-size" id="shot-size"></span>
+        </div>
+        <div class="shot-actions">
+          <button type="button" class="linkbtn" id="shot-replace">Replace</button>
+          <button type="button" class="linkbtn danger" id="shot-remove">Remove</button>
+        </div>
+      </div>
+      <p class="hint">Your screenshot is stored privately and only our verification team can open it.</p>
+
       <label>Note (optional)</label>
       <textarea id="note" placeholder="Please also send your deposit screenshot on WhatsApp to +92 3XX XXXXXXX."></textarea>
 
@@ -71,19 +128,90 @@
   var btn = document.getElementById('btn');
   var err = document.getElementById('err');
 
+  // ---- Deposit screenshot picker -------------------------------------------
+  // The same limits the Edge Function enforces, checked here too so the
+  // customer is told immediately instead of after a 10MB upload. The server
+  // remains the authority; this is only a courtesy.
+  var OK_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+  var MIN_BYTES = 1024;
+  var MAX_BYTES = 10 * 1024 * 1024;
+  var fileInput = document.getElementById('screenshot');
+  var drop = document.getElementById('drop');
+  var dropText = document.getElementById('drop-text');
+  var shot = document.getElementById('shot');
+  var shotImg = document.getElementById('shot-img');
+  var shotName = document.getElementById('shot-name');
+  var shotSize = document.getElementById('shot-size');
+  var previewUrl = null;
+
+  function human(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  }
+  function releasePreview() {
+    if (previewUrl) { URL.revokeObjectURL(previewUrl); previewUrl = null; }
+  }
+  function clearShot() {
+    releasePreview();
+    fileInput.value = '';
+    shot.style.display = 'none';
+    shotImg.removeAttribute('src');
+    drop.style.display = '';
+    dropText.textContent = 'Tap to add your deposit screenshot';
+  }
+  function showShot(file) {
+    releasePreview();
+    previewUrl = URL.createObjectURL(file);
+    shotImg.src = previewUrl;
+    shotName.textContent = file.name || 'screenshot';
+    shotSize.textContent = human(file.size);
+    shot.style.display = '';
+    drop.style.display = 'none';
+  }
+  // A HEIC photo straight off an iPhone can arrive with an empty or odd type,
+  // so the extension is accepted as a fallback rather than rejecting a real
+  // photo the customer just took.
+  function looksLikeImage(file) {
+    if (file.type && OK_TYPES.indexOf(file.type) !== -1) return true;
+    if (file.type && file.type.indexOf('image/') === 0) return true;
+    return /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name || '');
+  }
+  fileInput.addEventListener('change', function () {
+    err.textContent = '';
+    var file = fileInput.files && fileInput.files[0];
+    if (!file) { clearShot(); return; }
+    if (!looksLikeImage(file)) { err.textContent = 'Please choose an image file (JPG, PNG, WEBP or HEIC).'; clearShot(); return; }
+    if (file.size < MIN_BYTES) { err.textContent = 'That file looks empty. Please choose your real screenshot.'; clearShot(); return; }
+    if (file.size > MAX_BYTES) { err.textContent = 'That image is larger than 10MB. Please choose a smaller one.'; clearShot(); return; }
+    showShot(file);
+  });
+  document.getElementById('shot-replace').addEventListener('click', function () { fileInput.click(); });
+  document.getElementById('shot-remove').addEventListener('click', function () { err.textContent = ''; clearShot(); });
+
   f.addEventListener('submit', function (e) {
     e.preventDefault();
     err.textContent = '';
     var name = document.getElementById('name').value.trim();
     var phone = document.getElementById('phone').value.trim();
+    var email = document.getElementById('email').value.trim();
     var platform = document.getElementById('platform').value;
     var account = document.getElementById('account').value.trim();
     var amount = document.getElementById('amount').value.trim();
-    if (!name || !phone || !platform || !account || !amount) { err.textContent = 'Please fill all required fields.'; return; }
+    var file = fileInput.files && fileInput.files[0];
+    if (!name || !phone || !email || !platform || !account || !amount) { err.textContent = 'Please fill all required fields.'; return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { err.textContent = 'Please enter a valid email address.'; return; }
+    if (!file) { err.textContent = 'Please add your deposit screenshot.'; return; }
 
     btn.disabled = true; btn.textContent = 'Submitting…';
-    var qp = new URLSearchParams({ name: name, phone: phone, platform: platform, amount: amount, account: account }).toString();
-    fetch(HOOK + '?' + qp)
+    // POSTed as multipart so the screenshot can travel with the claim. The
+    // fields are the same names the hook already reads, so thankyou.html's
+    // follow-up GET is still the identical claim and still de-duplicates.
+    var fd = new FormData();
+    fd.append('name', name); fd.append('phone', phone); fd.append('email', email);
+    fd.append('platform', platform); fd.append('amount', amount); fd.append('account', account);
+    fd.append('screenshot', file);
+    fetch(HOOK, { method: 'POST', body: fd })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d || !d.ok) {

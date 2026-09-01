@@ -40,6 +40,10 @@
 // was passed, which is a different, real error worth surfacing.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { INTERNAL_SECRET_HEADER } from "../_shared/internal_auth.mjs";
+import {
+  readFormDataWithinLimit,
+  RequestTooLargeError,
+} from "../_shared/public_form_security.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -48,6 +52,22 @@ const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods
 
 function norm(p: string): string { p = (p || "").trim(); if (!p) return ""; return p.startsWith("+") ? p : "+" + p; }
 const PLATFORMS = ["exness", "dooprime", "course_only", "other"];
+
+// Phase 1 of the deposit-form work (2026-09-01): join.html now collects an
+// email address and a mandatory deposit screenshot. Same limits and the same
+// storage destination submit-lead-form already uses for the signals/course
+// forms, so there is one way screenshots enter the CRM rather than two.
+//
+// What is enforced here is what is actually enforceable server-side: the file
+// really is an image of a sane size. It cannot verify the image shows a
+// payment - that is what the existing human Verify/Reject review is for.
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
+const MIN_FILE_BYTES = 1024;                 // reject near-empty placeholder files
+const MAX_FILE_BYTES = 10 * 1024 * 1024;     // 10MB
+const MAX_REQUEST_BYTES = 12 * 1024 * 1024;
+// Deliberately permissive but anchored: anything without a single @ and a dot
+// in the domain is a typo, and stricter patterns reject real addresses.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 // Canonical identity of one deposit claim. Deterministic and content-based, so
 // the same claim always hashes to the same key no matter which Edge Function
@@ -120,15 +140,59 @@ async function notifyAdminPendingApproval(leadRowId: string): Promise<string> {
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
+    // The form now POSTs multipart so it can carry the screenshot; thankyou.html
+    // still re-fires the identical claim as a GET. Both read into the same
+    // variables below, so everything after this point - the idempotency claim,
+    // the status transition, the activity line, the admin alert - is one shared
+    // code path that has not changed.
+    let form: FormData | null = null;
+    if (req.method === "POST") {
+      try {
+        form = await readFormDataWithinLimit(req, MAX_REQUEST_BYTES);
+      } catch (e) {
+        if (e instanceof RequestTooLargeError) {
+          return new Response(JSON.stringify({ ok: false, error: "Upload is too large (max 10MB)." }), { status: 413, headers: CORS });
+        }
+        return new Response(JSON.stringify({ ok: false, error: "Could not read the submitted form." }), { status: 400, headers: CORS });
+      }
+    }
     const q = new URL(req.url).searchParams;
-    const leadId = (q.get("lead_id") || "").trim();
-    const name = (q.get("name") || "").trim();
-    const phone = norm(q.get("phone") || "");
-    let platform = (q.get("platform") || "other").trim().toLowerCase();
+    const field = (k: string) => (form ? String(form.get(k) ?? "") : (q.get(k) ?? ""));
+
+    const leadId = field("lead_id").trim();
+    const name = field("name").trim();
+    const phone = norm(field("phone"));
+    let platform = field("platform").trim().toLowerCase();
+    if (!platform) platform = "other";
     if (!PLATFORMS.includes(platform)) platform = "other";
-    const amount = Number(q.get("amount") || "0") || 0;
-    const acct = (q.get("account") || "").trim().slice(0, 60);
+    const amount = Number(field("amount") || "0") || 0;
+    const acct = field("account").trim().slice(0, 60);
+    const email = field("email").trim().slice(0, 254);
     if (!leadId && !phone) return new Response(JSON.stringify({ ok: false, error: "lead_id or phone required" }), { status: 400, headers: CORS });
+
+    // Server-side validation of the two new fields. Only enforced on the POST
+    // that actually carries them - the GET replay from thankyou.html has never
+    // sent them and must keep working untouched.
+    let screenshot: File | null = null;
+    if (form) {
+      if (!email || !EMAIL_RE.test(email)) {
+        return new Response(JSON.stringify({ ok: false, error: "A valid email address is required." }), { status: 400, headers: CORS });
+      }
+      const raw = form.get("screenshot");
+      screenshot = raw instanceof File ? raw : null;
+      if (!screenshot || !screenshot.size) {
+        return new Response(JSON.stringify({ ok: false, error: "A deposit screenshot is required." }), { status: 400, headers: CORS });
+      }
+      if (!ALLOWED_IMAGE_TYPES.includes(screenshot.type)) {
+        return new Response(JSON.stringify({ ok: false, error: `The screenshot must be an image (got ${screenshot.type || "unknown type"}).` }), { status: 400, headers: CORS });
+      }
+      if (screenshot.size < MIN_FILE_BYTES) {
+        return new Response(JSON.stringify({ ok: false, error: "That screenshot file is too small - please upload the real image." }), { status: 400, headers: CORS });
+      }
+      if (screenshot.size > MAX_FILE_BYTES) {
+        return new Response(JSON.stringify({ ok: false, error: "That screenshot is too large (max 10MB)." }), { status: 400, headers: CORS });
+      }
+    }
 
     const sb = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
     let sel = sb.from("leads").select("id").limit(1);
@@ -148,7 +212,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // instead of dropping the submission.
       const { data: created, error: ce } = await sb
         .from("leads")
-        .insert({ full_name: name || "Unknown", phone, source: "website", status: "new" })
+        .insert({ full_name: name || "Unknown", phone, email: email || null, source: "website", status: "new" })
         .select("id")
         .single();
       if (ce) throw new Error(`lead creation failed: ${ce.message}`);
@@ -198,6 +262,39 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // because the redirect did not forward `account`. Both pages now forward it,
     // and this makes the erasure impossible even if some other caller does not.
     if (acct) update.deposit_account_ref = acct;
+    // Only ever fills a blank - a customer typing an address into this form
+    // must not overwrite one an agent already recorded against the lead.
+    if (email) update.email = email;
+
+    // The screenshot lands in the existing PRIVATE deposit-screenshots bucket
+    // under {lead_id}/..., and is referenced by a kyc_documents row exactly as
+    // submit-lead-form does it - so it appears in the KYC review tab with the
+    // Verify/Reject workflow that already exists, and no new admin UI, bucket
+    // or column is needed. Nothing here marks the lead converted or verified.
+    // This runs AFTER the idempotency gate, so a replayed submission never
+    // uploads a second copy of the same image.
+    if (screenshot) {
+      const ext = (screenshot.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+      const path = `${leadRowId}/${Date.now()}_deposit_screenshot.${ext}`;
+      const bytes = new Uint8Array(await screenshot.arrayBuffer());
+      const { error: upErr } = await sb.storage.from("deposit-screenshots").upload(path, bytes, {
+        contentType: screenshot.type,
+        upsert: false,
+      });
+      if (upErr) throw new Error(`screenshot upload failed: ${upErr.message}`);
+      const { error: docErr } = await sb.from("kyc_documents").insert({
+        client_id: leadRowId,
+        document_type: "deposit_screenshot",
+        status: "pending",
+        file_path: path,
+        uploaded_at: nowIso,
+      });
+      if (docErr) {
+        // Do not leave an orphan object in the bucket if the row fails.
+        await sb.storage.from("deposit-screenshots").remove([path]).catch(() => {});
+        throw new Error(`kyc_documents insert failed: ${docErr.message}`);
+      }
+    }
     const { error: ue } = await sb.from("leads").update(update).eq("id", leadRowId);
     if (ue) {
       // The claim was won but the work did not land. Hand the key back so the
