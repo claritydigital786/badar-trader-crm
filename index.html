@@ -7481,12 +7481,37 @@ const AGENT_TAB_TITLES = { dashboard: 'Dashboard', 'my-leads': 'My Leads', conve
 // Kept in sync with LINKS in supabase/functions/whatsapp-webhook/index.ts and
 // simulator.html. Ehsan asked for these to be copy-pasteable from the
 // Conversations tab so agents never have to switch windows mid-chat.
+// The personalized deposit-verification link an agent sends to ONE of their
+// leads. It carries the lead id and nothing else - deliberately no agent id.
+//
+// Attribution is resolved server-side from that lead's assigned_agent_id at
+// every stage (conversion-hook never writes the column, the deposit queues are
+// scoped by RLS through leads.assigned_agent_id, escalate_deposit_to_admin()
+// re-checks ownership, and Reports maps the transaction back through the lead),
+// so editing the URL cannot move a deposit to a different agent. The worst a
+// tampered lead_id can do is point at a lead the sender does not own, which
+// changes whose queue it lands in but never who the CRM says owns it.
+//
+// Why this exists: until now the only link anywhere was the bare form, and a
+// customer whose typed phone number did not match created a BRAND NEW lead with
+// no assigned agent - invisible to every agent queue and skipped by Reports.
+// Production already carries one such orphan.
+const DEPOSIT_FORM_BASE = 'https://crm.badartrader.com/join.html';
+function depositFormLink(leadId) {
+  return DEPOSIT_FORM_BASE + '?lead_id=' + encodeURIComponent(leadId);
+}
+
 const QUICK_LINKS = [
   { label: 'Exness (referral)',       value: 'https://one.exnesstrack.org/a/eatgh2cl7y' },
   { label: 'Exness code',             value: 'eatgh2cl7y' },
   { label: 'XM (referral)',           value: 'https://affs.click/a3Vrw' },
   { label: 'XM code',                 value: 'YR4PD' },
-  { label: 'Verification form',       value: 'https://crm.badartrader.com/join.html' },
+  // Generic, unattributed. An agent sharing this with an assigned lead is how a
+  // deposit ends up on a brand-new orphan lead belonging to nobody, so it is
+  // hidden from the agent list - agents use the per-lead "Copy Deposit Form
+  // Link" button in the lead detail instead. Kept for admins, who legitimately
+  // need it for someone who is not a lead yet.
+  { label: 'Verification form (generic - no lead attached)', value: DEPOSIT_FORM_BASE, adminOnly: true },
   { label: 'Course enrollment',       value: 'https://badartrader.com/check-3/' },
   { label: 'Discord community',       value: 'https://discord.gg/ph6f78DFJm' },
   { label: 'WhatsApp support number', value: '+923715773903' },
@@ -7498,7 +7523,13 @@ const QUICK_LINKS = [
 function renderQuickLinks(scope) {
   const sel = document.getElementById(scope + 'quick-links-select');
   if (!sel) return;
-  sel.innerHTML = QUICK_LINKS.map((l, i) => `<option value="${i}">${esc(l.label)}</option>`).join('');
+  // The index is kept as the option value so renderQuickLinkValue() keeps
+  // indexing QUICK_LINKS directly - filtering must not renumber them.
+  const isAgentList = scope === 'agent-';
+  sel.innerHTML = QUICK_LINKS
+    .map((l, i) => ({ l, i }))
+    .filter(({ l }) => !(l.adminOnly && isAgentList))
+    .map(({ l, i }) => `<option value="${i}">${esc(l.label)}</option>`).join('');
   renderQuickLinkValue(scope);
 }
 
@@ -7888,6 +7919,15 @@ async function openDetail(leadId, ctx) {
               <a href="mailto:${esc(lead.email)}" class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem;text-decoration:none" title="Email">✉️</a>
               <button class="btn btn-secondary btn-sm" style="padding:2px 8px;font-size:0.72rem;display:inline-flex;align-items:center" title="Copy email" data-copy="${esc(lead.email)}" onclick="const b=this;const orig=b.innerHTML;navigator.clipboard.writeText(b.dataset.copy).then(()=>{b.innerHTML='${CHECK_ICON_SVG_ATTR}';setTimeout(()=>b.innerHTML=orig,1200)})">${COPY_ICON_SVG}</button>
             ` : ''}
+          </span>
+        </div>
+        <div class="detail-row"><span class="detail-label">Deposit Form</span>
+          <span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-secondary btn-sm" style="padding:2px 10px;font-size:0.72rem;display:inline-flex;align-items:center;gap:6px"
+              title="Copy this lead's personalized deposit verification link"
+              data-copy="${esc(depositFormLink(leadId))}"
+              onclick="const b=this;const orig=b.innerHTML;navigator.clipboard.writeText(b.dataset.copy).then(()=>{b.innerHTML='${CHECK_ICON_SVG_ATTR} Copied';setTimeout(()=>b.innerHTML=orig,1400)})">${COPY_ICON_SVG} Copy Deposit Form Link</button>
+            <span style="font-size:0.7rem;color:var(--text-muted)">Send this, not the generic form - it ties the deposit to this lead and its agent.</span>
           </span>
         </div>
         <div class="detail-row"><span class="detail-label">Source</span><span>${sourceLabel(lead.source)}</span></div>
