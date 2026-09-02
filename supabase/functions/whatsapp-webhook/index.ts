@@ -260,12 +260,21 @@ const ESCALATION_NOTIFICATIONS_ENABLED = true;
 // new-lead ping Ehsan and Hanzala already get, or leads land on them with
 // zero notice.
 //
+// Widened again 2026-09-03 (Muhammad, explicit go-ahead): Mariyam Zaffar
+// (+92 336 5185363) added - new agent, receives_leads flipped to true the
+// day before. Same reasoning as Faisal/Bilal above - without this she gets
+// leads with zero notice. Note for whoever's onboarding her: this ping goes
+// out from the PRIMARY number (6541), a completely separate WhatsApp
+// business number/window from 3903 - if her 24h window is only open with
+// 3903, this ping still won't reach her. She needs to have messaged 6541
+// specifically.
+//
 // While only these numbers are listed, every OTHER real agent stays
 // completely unreachable no matter what else happens. Add more agents here
 // once the rhythm on these phones has been watched and judged right;
 // emptying this array is what makes notifications live for the whole team,
 // and that is a deliberate decision to take later, not part of this change.
-const AGENT_NOTIFY_TEST_NUMBERS: string[] = ["923342224925", "923235163874", "923002731461", "923325822756"];
+const AGENT_NOTIFY_TEST_NUMBERS: string[] = ["923342224925", "923235163874", "923002731461", "923325822756", "923365185363"];
 
 let cachedWaToken: string | null = null;
 let cachedWaPhoneId: string | null = null;
