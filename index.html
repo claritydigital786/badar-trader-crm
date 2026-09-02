@@ -15793,6 +15793,34 @@ function startConvRealtime(scope = '') {
     }, payload => {
       applyDeliveryTickUpdate(payload.new);
     })
+    // Customer reactions live in their own table, not as an UPDATE to
+    // communications, so they need their own subscription - found missing
+    // during a full Inbox audit, 2026-09-03: a reaction sent while an agent
+    // had the conversation open never appeared until they closed and
+    // reopened it (loadCustomerReactions() only ever ran on open). WhatsApp
+    // allows one reaction per person per message, so a changed reaction is a
+    // real UPDATE on the same row, not a new INSERT - both share this
+    // handler. Requires public.communication_customer_reactions to be in
+    // the supabase_realtime publication (added 2026-09-03).
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'communication_customer_reactions',
+    }, payload => {
+      applyCustomerReactionUpdate(payload.new, false);
+    })
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'communication_customer_reactions',
+    }, payload => {
+      applyCustomerReactionUpdate(payload.new, false);
+    })
+    // A removal is a real DELETE (handleReactionMessage() in
+    // whatsapp-webhook) - payload.old carries communication_id only because
+    // this table's REPLICA IDENTITY is FULL, not the default primary-key-only
+    // shape most tables here use.
+    .on('postgres_changes', {
+      event: 'DELETE', schema: 'public', table: 'communication_customer_reactions',
+    }, payload => {
+      applyCustomerReactionUpdate(payload.old, true);
+    })
     .subscribe(status => {
       // Before this, .subscribe() took no callback at all: a channel that
       // errored, timed out or was closed underneath a working-looking Inbox
@@ -15884,6 +15912,32 @@ function applyDeliveryTickUpdate(row) {
   const html = deliveryTickHtml(row.direction, row.delivery_status);
   if (existing) existing.remove();
   if (html) timeEl.insertAdjacentHTML('beforeend', html);
+}
+
+// Same pattern as applyDeliveryTickUpdate above, for a customer's reaction to
+// a message. _customerReactions is updated regardless of whether the
+// affected conversation is the one currently open, so whenever it IS opened
+// (now or later) customerReactionFor() already has the right answer without
+// a redundant reload; the DOM patch itself only ever applies to the open
+// conversation - a bubble in a different, unopened conversation is simply
+// not on screen to patch, and will render correctly from loadCustomerReactions()
+// the next time that conversation is opened.
+function applyCustomerReactionUpdate(row, removed) {
+  if (!row || !row.communication_id) return;
+  const id = String(row.communication_id);
+  if (removed) _customerReactions.delete(id);
+  else _customerReactions.set(id, { emoji: row.emoji, reacted_at: row.reacted_at });
+
+  if (!_activeConvId) return;
+  const msgArea = document.getElementById('conv-msgs-' + _activeConvId);
+  const wrapper = msgArea?.querySelector(`[data-message-id="${CSS.escape(id)}"]`);
+  const timeEl  = wrapper?.querySelector('.msg-time');
+  if (!timeEl) return;   // not the open conversation, or not rendered on this page
+
+  const existing = timeEl.querySelector('.msg-reaction-customer');
+  if (existing) existing.remove();
+  const html = customerReactionMarkHtml(id);
+  if (html) timeEl.insertAdjacentHTML('afterbegin', html);
 }
 
 function stopConvRealtime() {

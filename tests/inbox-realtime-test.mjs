@@ -20,6 +20,13 @@ const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const migDir = new URL('../supabase/migrations/', import.meta.url);
 const migName = readdirSync(migDir).find(f => f.includes('realtime_publication_communications'));
 const mig = readFileSync(new URL(migName, migDir), 'utf8');
+// Added 2026-09-03: a full Inbox audit found customer reactions load once on
+// open with no realtime channel - a reaction sent while a conversation was
+// already open never appeared until it was reopened. Muhammad's explicit
+// go-ahead to wire this up, which is why sections B and D below now expect a
+// SECOND published/subscribed table rather than exactly one.
+const reactMigName = readdirSync(migDir).find(f => f.includes('customer_reactions_realtime'));
+const reactMig = readFileSync(new URL(reactMigName, migDir), 'utf8');
 
 // ── A. Migration ───────────────────────────────────────────────
 test('migration publishes public.communications to supabase_realtime', () => {
@@ -38,7 +45,7 @@ test('migration is idempotent - re-running cannot error production', () => {
 test('migration adds ONLY communications - no blanket publication', () => {
   const adds = [...mig.matchAll(/add\s+table\s+([a-z_.]+)/gi)].map(m => m[1].toLowerCase());
   assert.deepEqual(adds, ['public.communications'],
-    'exactly one table may be published; nothing subscribes to leads or reactions');
+    'this migration is scoped to communications only; reactions get their own migration below');
   assert.doesNotMatch(mig, /for\s+all\s+tables/i, 'must never publish every public table');
 });
 
@@ -57,18 +64,56 @@ test('REPLICA IDENTITY is left alone (handlers read payload.new only)', () => {
     'FULL would push every old row version - and customer message bodies - into the WAL for no gain');
 });
 
-// ── B. Client: the subscription still targets the published table ──
-test('client subscribes to exactly the table the migration publishes', () => {
+// ── B. Client: every subscribed table is a published table ─────
+test('client subscribes to exactly the tables that are published', () => {
   const subs = [...html.matchAll(/table:\s*'([a-z_]+)'/g)].map(m => m[1]);
   assert.ok(subs.includes('communications'), 'communications subscription must still exist');
-  assert.deepEqual([...new Set(subs)], ['communications'],
-    'if a new table is subscribed it must also be added to the publication');
+  assert.ok(subs.includes('communication_customer_reactions'),
+    'reactions subscription must exist (added 2026-09-03)');
+  assert.deepEqual([...new Set(subs)].sort(), ['communication_customer_reactions', 'communications'],
+    'if a new table is subscribed it must also be added to a publication - no third, unpublished table');
 });
 
-test('reactions are batch-loaded, not subscribed - so they need no publication', () => {
-  assert.match(html, /loadCustomerReactions\s*\(/, 'batch loader must still exist');
-  assert.ok(!/table:\s*'communication_customer_reactions'/.test(html),
-    'no reaction subscription exists; publishing that table would be dead WAL traffic');
+test('reactions still batch-load on open (realtime only patches an already-open conversation)', () => {
+  assert.match(html, /loadCustomerReactions\s*\(/,
+    'the batch loader must still exist - realtime alone cannot backfill a conversation not yet opened');
+});
+
+// ── D. Reactions realtime migration, same rigor as section A ──
+test('reactions migration publishes communication_customer_reactions', () => {
+  assert.match(reactMig,
+    /alter\s+publication\s+supabase_realtime\s+add\s+table\s+public\.communication_customer_reactions/i);
+});
+
+test('reactions migration is idempotent - re-running cannot error production', () => {
+  assert.match(reactMig, /pg_publication_tables/i, 'must check current membership first');
+  assert.match(reactMig, /if\s+exists\s*\(/i, 'must short-circuit when already published');
+  assert.match(reactMig, /pg_publication\b/i, 'must tolerate a missing publication');
+});
+
+test('reactions migration adds ONLY the reactions table - no blanket publication', () => {
+  const adds = [...reactMig.matchAll(/add\s+table\s+([a-z_.]+)/gi)].map(m => m[1].toLowerCase());
+  assert.deepEqual(adds, ['public.communication_customer_reactions']);
+  assert.doesNotMatch(reactMig, /for\s+all\s+tables/i, 'must never publish every public table');
+});
+
+test('reactions migration does not weaken RLS or touch protected objects', () => {
+  assert.doesNotMatch(reactMig, /drop\s+policy|create\s+policy|alter\s+policy/i);
+  assert.doesNotMatch(reactMig, /disable\s+row\s+level\s+security/i);
+  assert.doesNotMatch(reactMig, /service_role/i);
+  for (const forbidden of ['approve_deposit_and_convert', 'payroll', 'wa_channel', 'BOT_REPLIES_ENABLED']) {
+    assert.ok(!reactMig.includes(forbidden), `migration must not touch ${forbidden}`);
+  }
+});
+
+test('reactions table uses REPLICA IDENTITY FULL, deliberately unlike communications', () => {
+  // The opposite assertion from communications' own migration (section A,
+  // "REPLICA IDENTITY is left alone") is correct here, not a contradiction:
+  // reaction removal is a real DELETE, and DEFAULT only carries primary-key
+  // columns in a DELETE's old row - communication_id, what the frontend
+  // needs to find the right bubble, would be missing without FULL.
+  assert.match(reactMig, /replica\s+identity\s+full/i,
+    'FULL is required so a DELETE payload carries communication_id');
 });
 
 // ── C. Client lifecycle behaviour ──────────────────────────────
