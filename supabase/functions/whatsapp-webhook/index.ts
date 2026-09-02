@@ -484,15 +484,35 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
 
         if (statusType === "failed" && recipientPhone) {
           const sb = makeSupabase();
-          const { data: lead } = await sb.from("leads").select("id").eq("phone", recipientPhone).maybeSingle();
-          if (lead) {
-            await insertCommunication(
-              sb,
-              lead.id,
-              "outbound",
-              `[DELIVERY FAILED: ${errorInfo ?? "no error detail from Meta"}]`,
-              new Date().toISOString(),
-            );
+          // Safeguard added 2026-09-02: this used to look up "any lead with
+          // this phone" with no check for whether the phone actually
+          // belongs to staff. A staff member's own number sitting in the
+          // leads table (a stale import, a data-quality slip - not
+          // supposed to happen, now blocked by the leads.phone unique
+          // index and the getAllStaffPhones() checks elsewhere, but this is
+          // the failure mode if it ever did anyway) would silently attach
+          // failed AGENT-NOTIFICATION deliveries to that lead's customer
+          // conversation thread instead - exactly what happened to Ehsan's
+          // own number: 1,107 "[DELIVERY FAILED]" notes accumulated on a
+          // stale imported lead that coincidentally shared his phone,
+          // because every failed new-lead ping sent TO him got misfiled
+          // as if it were about a customer message. Checking staff status
+          // here is the actual guard against that ever recurring, not just
+          // the earlier cleanup of the one case found live.
+          const isStaffPhone = (await getAllStaffPhones(sb)).some((s) => normalisePhone(s.phone) === recipientPhone);
+          if (isStaffPhone) {
+            console.log(`Delivery status "failed" for staff number ${recipientPhone} - an agent notification, not a customer message, not attached to any lead.`);
+          } else {
+            const { data: lead } = await sb.from("leads").select("id").eq("phone", recipientPhone).maybeSingle();
+            if (lead) {
+              await insertCommunication(
+                sb,
+                lead.id,
+                "outbound",
+                `[DELIVERY FAILED: ${errorInfo ?? "no error detail from Meta"}]`,
+                new Date().toISOString(),
+              );
+            }
           }
         }
       }
