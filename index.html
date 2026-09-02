@@ -14425,9 +14425,22 @@ async function restoreHiddenMessages() {
     await openConversation(_activeConvId, _activeConvScope);
     return;
   }
+  // Found during a full Inbox audit, 2026-09-03: hiddenMessagesNoticeHtml()'s
+  // count is correctly scoped to THIS conversation (loadMessageActions()
+  // resets _messageActions per conversation on open), but this update had no
+  // scope at all - "3 messages hidden" on the screen, Restore silently
+  // un-hiding every message this agent has ever hidden in every conversation.
+  // Scoped to this lead's own messages, matching what the button visibly
+  // claims to do. communication_message_actions has no lead_id column of its
+  // own (only communication_id), so the id list is fetched first.
+  const { data: convMessages, error: msgErr } = await sb.from('communications')
+    .select('id').eq('lead_id', _activeConvId);
+  if (msgErr) { showToast('Could not restore hidden messages: ' + msgErr.message, 'err'); return; }
+  const ids = (convMessages || []).map(m => m.id);
+  if (!ids.length) { showToast('Nothing to restore in this conversation.'); return; }
   const { error } = await sb.from('communication_message_actions')
     .update({ is_hidden:false, updated_at:new Date().toISOString() })
-    .eq('user_id', currentUser.id).eq('is_hidden', true);
+    .eq('user_id', currentUser.id).eq('is_hidden', true).in('communication_id', ids);
   if (error) { showToast('Could not restore hidden messages: ' + error.message, 'err'); return; }
   showToast('Hidden messages restored.');
   await openConversation(_activeConvId, _activeConvScope);
