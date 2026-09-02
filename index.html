@@ -11378,13 +11378,36 @@ async function updateRoundRobinStatus() {
 // query builder is single-use, it cannot be re-issued with a different
 // range once awaited) - .range() is applied here, buildQuery should not
 // call it itself.
+// Was one page at a time, awaited in sequence - for a table the size
+// `leads` has now (7,668+ rows / 8 pages of 1000), that is 8 real network
+// round trips paid one after another before a single Dashboard number could
+// show. Found live, 2026-09-02: Muhammad hard-refreshed the Dashboard and it
+// sat on "Loading..." for a genuine ~10 seconds - "Command + R makes it dead
+// for 10 seconds." Fetches pages in doubling parallel batches instead - 1,
+// then 2, then 4, then 8 at once - so an 8-page fetch costs about 4 rounds
+// of wall-clock time instead of 8, and a bigger table converges even faster
+// (logarithmic, not linear). No caller needs to know the total row count up
+// front: a batch where any page comes back shorter than pageSize is the
+// end, whichever page in that batch it is - later, past-the-end pages in
+// the same batch simply return empty and contribute nothing. Every caller's
+// contract is unchanged: same concatenated array, same row order, same
+// { data, error } shape.
 async function fetchAllRows(buildQuery, pageSize = 1000) {
   let all = [];
-  for (let start = 0; ; start += pageSize) {
-    const { data, error } = await buildQuery().range(start, start + pageSize - 1);
-    if (error) return { data: null, error };
-    all = all.concat(data || []);
-    if (!data || data.length < pageSize) return { data: all, error: null };
+  let nextStart = 0;
+  let batchSize = 1;
+  for (;;) {
+    const starts = Array.from({ length: batchSize }, (_, i) => nextStart + i * pageSize);
+    const results = await Promise.all(starts.map((start) => buildQuery().range(start, start + pageSize - 1)));
+    let shortPageSeen = false;
+    for (const { data, error } of results) {
+      if (error) return { data: null, error };
+      all = all.concat(data || []);
+      if (!data || data.length < pageSize) shortPageSeen = true;
+    }
+    if (shortPageSeen) return { data: all, error: null };
+    nextStart += batchSize * pageSize;
+    batchSize *= 2;
   }
 }
 
