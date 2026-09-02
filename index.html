@@ -2795,7 +2795,7 @@
               <button type="button" role="menuitem" onclick="runInboxMenuAction('hide-list','')">Hide lead list</button>
             </div>
           </div>
-          <input type="text" id="conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations()" />
+          <input type="text" id="conv-search-input" placeholder="🔍 Search conversations…" oninput="onConvSearchInput()" />
         </div>
         <div class="conv-filter-tabs" id="conv-filter-tabs" >
           <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all')">All</button>
@@ -4919,7 +4919,7 @@
               <button type="button" role="menuitem" onclick="runInboxMenuAction('hide-list','agent-')">Hide lead list</button>
             </div>
           </div>
-          <input type="text" id="agent-conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations('agent-')" />
+          <input type="text" id="agent-conv-search-input" placeholder="🔍 Search conversations…" oninput="onConvSearchInput('agent-')" />
         </div>
         <div class="conv-filter-tabs" id="agent-conv-filter-tabs" >
           <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all','agent-')">All</button>
@@ -13021,28 +13021,34 @@ function convChannelOf(c) {
 // entirely, not just miscounting them - flagged to Muhammad, not fixed
 // here since fixing the list itself needs real pagination, a bigger
 // change than correcting these two numbers).
-async function fetchRealChannelCount(channel) {
-  if (demoMode) return 0;
-  const { count, error } = await sb.from('leads').select('id', { count: 'exact', head: true }).eq('wa_channel', channel);
-  if (error) { console.error(`fetchRealChannelCount(${channel}):`, error.message); return null; }
-  return count;
-}
+// Writes the exact counts from inbox_conversation_counts() into the pills that
+// already exist. Their markup, position and styling are untouched.
+//
+// This also corrects two numbers that were quietly wrong before pagination
+// existed. "All Numbers" was list.length - the number of conversations that
+// happened to be loaded, which the previous code itself flagged as unfixable
+// without real pagination. The two per-number pills counted rows in LEADS
+// (leads.wa_channel), not conversations, so they answered a different question
+// from the list they sit above. All three now count conversations in the
+// caller's authorised set, which is what the pills claim to show.
+function applyConvCounts(counts, scope = '') {
+  const setCount = (id, n) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = (n === null || n === undefined) ? '?' : n;
+  };
+  setCount(`${scope}conv-channel-count-all`,  counts.chan_all);
+  setCount(`${scope}conv-channel-count-6541`, counts.chan_6541);
+  setCount(`${scope}conv-channel-count-3903`, counts.chan_3903);
 
-async function renderConvChannelCounts(convs, scope = '') {
-  const list = convs || [];
-  const setCount = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = (n === null || n === undefined) ? '?' : n; };
-  setCount(`${scope}conv-channel-count-all`, list.length);
-
-  if (demoMode) {
-    setCount(`${scope}conv-channel-count-6541`, 0);
-    setCount(`${scope}conv-channel-count-3903`, 0);
-    return;
+  // Unread nav badge - previously derived from the loaded rows, which would
+  // undercount the moment the list stopped holding everything.
+  const navBadge = document.getElementById(scope + 'conv-nav-badge');
+  if (navBadge) {
+    const n = Number(counts.unread) || 0;
+    navBadge.textContent = n;
+    navBadge.style.display = n ? 'inline-block' : 'none';
   }
-  const [real6541, real3903] = await Promise.all([fetchRealChannelCount('6541'), fetchRealChannelCount('3903')]);
-  setCount(`${scope}conv-channel-count-6541`, real6541);
-  setCount(`${scope}conv-channel-count-3903`, real3903);
 }
-
 async function renderConversations(scope = '') {
   const listEl = document.getElementById(scope + 'conv-list');
   if (!listEl) return;
@@ -13052,7 +13058,8 @@ async function renderConversations(scope = '') {
     // Demo threads have no real WhatsApp number to attribute - shown as "All
     // numbers" only, so the 6541/3903 filter pills correctly show 0 in demo
     // rather than silently guessing which number a fake lead came in on.
-    renderConvChannelCounts(convs, scope);
+    applyConvCounts({ chan_all: convs.length, chan_6541: 0, chan_3903: 0,
+                      unread: convs.filter(c => c.unread).length }, scope);
     if (!convs.length) {
       listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">No conversations yet.</div>';
       return;
@@ -13109,86 +13116,109 @@ async function renderConversations(scope = '') {
   // first load (nothing rendered yet) should show the loading state; every
   // later call already has a real list on screen and should replace it
   // directly once the fresh data arrives, with no flash back to empty.
-  const isFirstLoad = listEl.dataset.convLoaded !== '1';
-  if (isFirstLoad) {
-    listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">Loading…</div>';
-  }
-  try {
-    // Reads from inbox_conversation_list (added 2026-08-31), a view that is
-    // already one row per LEAD (its latest matching message), not one row
-    // per message. The old query here read `communications` directly with
-    // no .limit() - that's one row per message (13,870+ and growing with
-    // every reply), so it silently hit PostgREST's default 1,000-row cap.
-    // Bounding by conversation instead (~2,024 leads, growing much slower)
-    // means a single generous .limit() reliably covers every real
-    // conversation without needing pagination UI. The messenger/instagram
-    // type filter and the null-safe "Qualified lead summary" exclusion that
-    // used to live here are now baked into the view itself - see the
-    // migration for why each one exists.
-    const { data: rows, error } = await sb
-      .from('inbox_conversation_list')
-      .select('lead_id, type, body, direction, created_at, full_name, phone, status, is_unread, bot_stage, needs_human, handoff_reason, manual_tier, language, wa_channel')
-      .order('created_at', { ascending: false })
-      .limit(5000);
-    if (error) throw error;
-    // Reshape flat view rows back into the { ..., leads: {...} } nesting the
-    // rest of this function (and every other consumer of _lastConvs) already
-    // expects, so nothing downstream has to change.
-    const comms = (rows || []).map(r => ({
-      lead_id: r.lead_id,
-      type: r.type,
-      body: r.body,
-      direction: r.direction,
-      created_at: r.created_at,
-      leads: {
-        full_name: r.full_name,
-        phone: r.phone,
-        status: r.status,
-        is_unread: r.is_unread,
-        bot_stage: r.bot_stage,
-        needs_human: r.needs_human,
-        handoff_reason: r.handoff_reason,
-        manual_tier: r.manual_tier,
-        language: r.language,
-        wa_channel: r.wa_channel,
-      },
-    }));
-    if (!comms || !comms.length) {
-      listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">No conversations yet.<br><span style="font-size:0.75rem;opacity:.7">Messages received via webhook will appear here.</span></div>';
-      listEl.dataset.convLoaded = '1';
-      return;
-    }
-    const seen = new Set();
-    const convs = comms.filter(c => { if (seen.has(c.lead_id)) return false; seen.add(c.lead_id); return true; });
-    _lastConvs = convs;
-    const unreadCount = convs.filter(c => c.leads?.is_unread).length;
-    // Update sidebar badge - counts unread conversations, not total conversations
-    const navBadge = document.getElementById(scope + 'conv-nav-badge');
-    if (navBadge) { navBadge.textContent = unreadCount; navBadge.style.display = unreadCount ? 'inline-block' : 'none'; }
-    renderConvChannelCounts(convs, scope);
-    const now = Date.now();
-    const scored = convs.map(c => {
-      const ts  = new Date(c.created_at).getTime();
-      const sig = convPrioritySignals(c.leads, {
-        direction: c.direction,
-        hoursAgo: Number.isFinite(ts) ? (now - ts) / 3600000 : null,
-      });
-      return { c, sig, _prio: convPriority(sig), _sortTime: Number.isFinite(ts) ? ts : 0 };
-    });
-    // The query already returns newest-first, so "recent" is the untouched
-    // order and priority is an explicit, reversible re-sort on top of it.
-    const ordered = _convSort === 'priority' ? sortConvsByPriority(scored) : scored;
-    listEl.innerHTML = ordered.map(({ c, sig, _prio }) => {
-      const name = c.leads?.full_name || 'Unknown';
-      const initials = initialsFor(name);
-      const preview = (c.direction === 'inbound' ? '↩ ' : '↪ ') + c.body;
-      const tier = sig.tier;
-      const isUnread = sig.isUnread;
-      // Messenger/Instagram leads have no phone at all (see external_id) -
-      // show the channel name in that line instead of leaving it blank.
-      const phone = c.leads?.phone || (c.type === 'messenger' ? 'Messenger' : c.type === 'instagram' ? 'Instagram' : '');
-      return `
-        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" data-awaiting="${sig.awaitingReply}" data-needshuman="${sig.needsHuman}" data-priority="${_prio.score}" data-channel="${convChannelOf(c)}" onclick="openConversation('${c.lead_id}','${scope}')">
+  await loadConvPage(scope, { reset: true });
+  refreshConvCounts(scope);
+}
+
+// ── INBOX PAGING ───────────────────────────────────────────────
+//
+// This list used to fetch inbox_conversation_list with .limit(5000) - 2,873
+// rows / 1.10 MB for Badar and Ehsan - paint every one of them into the DOM in
+// a single innerHTML write, and then implement search and EVERY filter by
+// walking those DOM nodes setting style.display. The browser paid for 2,873
+// conversations to show about a dozen, and each keystroke re-walked all of them.
+//
+// One page is fetched now. Filtering, searching, sorting and counting all run
+// in Postgres over the caller's whole authorised set, so nothing became
+// unreachable by not being loaded - which is the property the old
+// fetch-everything design was really buying.
+const CONV_PAGE_SIZE = 75;
+let _convPageIndex = 0;
+let _convHasMore = true;
+let _convLoadingPage = false;
+let _convListScope = '';
+
+const CONV_LIST_COLS = 'lead_id, type, body, direction, created_at, full_name, phone, status, ' +
+  'is_unread, bot_stage, needs_human, handoff_reason, manual_tier, language, wa_channel, tier, priority';
+
+// Search runs in Postgres, so a conversation that has never been loaded is
+// still findable - the old textContent scan could only match rows already in
+// the DOM. Wildcards and .or()'s own separators are escaped/stripped exactly as
+// buildLeadSearchOr() does, so a typed % cannot act as a wildcard.
+function buildConvSearchOr(term) {
+  const escaped = term.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_').replace(/[,()]/g, '');
+  const like = `%${escaped}%`;
+  return `full_name.ilike.${like},phone.ilike.${like},body.ilike.${like}`;
+}
+
+function convSearchTerm(scope = '') {
+  return (document.getElementById(scope + 'conv-search-input')?.value || '').trim();
+}
+
+// Every active filter is applied by the database over the whole authorised set,
+// not over whichever page happens to be loaded.
+function buildConvQuery(scope = '') {
+  let q = sb.from('inbox_conversation_list').select(CONV_LIST_COLS);
+
+  // Lead stage - single-select; 'all' means every stage.
+  if (_activeConvFilter !== 'all') q = q.eq('tier', _activeConvFilter);
+
+  // Operational state - each active chip narrows further, on top of the stage.
+  // "Deposit Ready + Needs Human" is Deposit Ready leads that ALSO need a
+  // person, not the union of the two. Same AND semantics as the old DOM pass.
+  if (_activeConvOps.has('unread'))     q = q.eq('is_unread', true);
+  if (_activeConvOps.has('awaiting'))   q = q.eq('direction', 'inbound');
+  if (_activeConvOps.has('needshuman')) q = q.eq('needs_human', true);
+
+  // convChannelOf(): a channel pill means one of the two real WhatsApp
+  // numbers, so Messenger/Instagram rows are excluded rather than guessed into
+  // one of them.
+  if (_activeConvChannel !== 'all') q = q.eq('type', 'whatsapp').eq('wa_channel', _activeConvChannel);
+
+  const term = convSearchTerm(scope);
+  if (term) q = q.or(buildConvSearchOr(term));
+
+  if (_convSort === 'priority') q = q.order('priority', { ascending: false });
+  q = q.order('created_at', { ascending: false });
+  // Deterministic tiebreaker: without one, rows sharing a timestamp can fall on
+  // either side of a page boundary between requests and appear twice, or not at all.
+  return q.order('lead_id', { ascending: true });
+}
+
+// Flat view row -> the { ..., leads: {...} } nesting every existing consumer of
+// _lastConvs already expects. Shape unchanged, so nothing downstream moved.
+function convRowFromView(r) {
+  return {
+    lead_id: r.lead_id, type: r.type, body: r.body,
+    direction: r.direction, created_at: r.created_at,
+    leads: {
+      full_name: r.full_name, phone: r.phone, status: r.status,
+      is_unread: r.is_unread, bot_stage: r.bot_stage, needs_human: r.needs_human,
+      handoff_reason: r.handoff_reason, manual_tier: r.manual_tier,
+      language: r.language, wa_channel: r.wa_channel,
+    },
+  };
+}
+
+// The conversation card, lifted verbatim out of the old render so the initial
+// list, an appended page and a realtime insert all produce byte-identical
+// markup. This is a data-loading change, not a visual one.
+function convRowHtml(c, scope = '') {
+  const now = Date.now();
+  const ts  = new Date(c.created_at).getTime();
+  const sig = convPrioritySignals(c.leads, {
+    direction: c.direction,
+    hoursAgo: Number.isFinite(ts) ? (now - ts) / 3600000 : null,
+  });
+  const _prio = convPriority(sig);
+  const name = c.leads?.full_name || 'Unknown';
+  const initials = initialsFor(name);
+  const preview = (c.direction === 'inbound' ? '\u21a9 ' : '\u21aa ') + c.body;
+  const tier = sig.tier;
+  const isUnread = sig.isUnread;
+  const phone = c.leads?.phone || (c.type === 'messenger' ? 'Messenger' : c.type === 'instagram' ? 'Instagram' : '');
+  return `
+        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" data-awaiting="${sig.awaitingReply}" data-needshuman="${sig.needsHuman}" data-priority="${_prio.score}" data-channel="${convChannelOf(c)}" data-lead="${c.lead_id}" onclick="openConversation('${c.lead_id}','${scope}')">
           <div class="conv-avatar" style="background:${avatarColor(c.lead_id)};position:relative">${initials}${channelBadge(c.type)}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(name)}${isUnread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
@@ -13200,59 +13230,160 @@ async function renderConversations(scope = '') {
             <div style="margin-top:4px">${tierBadge(tier)}</div>
           </div>
         </div>`;
-    }).join('');
+}
+
+async function loadConvPage(scope = '', { reset = false, append = false } = {}) {
+  const listEl = document.getElementById(scope + 'conv-list');
+  if (!listEl || _convLoadingPage) return;
+  _convListScope = scope;
+  _convLoadingPage = true;
+  if (reset) { _convPageIndex = 0; _convHasMore = true; }
+
+  // Only the very first paint shows the loading state. A later reset - filter
+  // change, search, realtime nudge, reconnect - keeps the current rows on
+  // screen and swaps them when the response lands. (Muhammad, 2026-09-01: the
+  // sidebar appearing to "restart" every few seconds under real traffic was
+  // this function reacting correctly to real messages, but reading as the whole
+  // list reloading.)
+  const isFirstLoad = listEl.dataset.convLoaded !== '1';
+  if (reset && isFirstLoad) {
+    listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">Loading conversations…</div>';
+  }
+
+  const from = _convPageIndex * CONV_PAGE_SIZE;
+  try {
+    const { data, error } = await buildConvQuery(scope).range(from, from + CONV_PAGE_SIZE - 1);
+    if (error) throw error;
+    const rows = (data || []).map(convRowFromView);
+    _convHasMore = rows.length === CONV_PAGE_SIZE;
+
+    if (reset) {
+      _lastConvs = rows;
+      listEl.innerHTML = rows.length
+        ? rows.map(c => convRowHtml(c, scope)).join('')
+        : `<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">${convSearchTerm(scope) ? 'No conversations match your search.' : 'No conversations match this filter.'}</div>`;
+      listEl.scrollTop = 0;
+    } else if (append && rows.length) {
+      // A row can legitimately move across a page boundary between requests on
+      // a live list; drop anything already rendered rather than duplicating it.
+      const have = new Set(_lastConvs.map(c => c.lead_id));
+      const fresh = rows.filter(c => !have.has(c.lead_id));
+      _lastConvs = _lastConvs.concat(fresh);
+      if (fresh.length) listEl.insertAdjacentHTML('beforeend', fresh.map(c => convRowHtml(c, scope)).join(''));
+    }
     listEl.dataset.convLoaded = '1';
     updateConvSortLabels();
-    filterConversations(scope);
-  } catch(err) {
-    // Deliberately NOT marking convLoaded here - a genuine failure should
-    // still show the loading state (then this same error) on the next
-    // attempt, rather than silently sitting on whatever was on screen
-    // before with no visible sign anything went wrong.
-    listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--bad);font-size:0.85rem">Error: ${esc(err.message)}</div>`;
+    attachConvInfiniteScroll(scope);
+  } catch (err) {
+    // Only replace a list that has nothing in it - an error must never wipe
+    // conversations an agent is working from.
+    if (!listEl.querySelector('.conv-item')) {
+      listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--bad);font-size:0.85rem">Error: ${esc(err.message)}</div>`;
+    } else {
+      showToast('Could not refresh conversations: ' + err.message, 'err');
+    }
+  } finally {
+    _convLoadingPage = false;
   }
 }
 
-function filterConversations(scope = '') {
-  const q = (document.getElementById(scope + 'conv-search-input')?.value || '').toLowerCase();
+// Realtime row update. A new message means exactly one conversation's summary
+// changed - its preview, timestamp, unread state, priority and position. The
+// old handler answered that by re-fetching and repainting every conversation.
+//
+// Re-reads only that lead's row from the same view (so RLS still decides
+// whether this user may see it at all, and the tier/priority come from the same
+// SQL the list is sorted by), then:
+//   * row already rendered -> replace it in place and move it if the sort says so
+//   * row not rendered but belongs above the last loaded row -> insert it
+//   * row not rendered and belongs further down -> ignore it; it will be there
+//     when the user pages down to it
+// It also respects the active filters: a message arriving for a conversation the
+// current filter excludes must not push an unmatching row into the list.
+async function applyConvRealtimeRow(leadId, scope = '') {
+  if (!leadId || demoMode) return;
   const listEl = document.getElementById(scope + 'conv-list');
-  let visibleCount = 0;
-  listEl?.querySelectorAll('.conv-item').forEach(el => {
-    const matchesText = el.textContent.toLowerCase().includes(q);
-    // Lead stage - single-select, and 'all' means every stage.
-    const matchesTier = _activeConvFilter === 'all'
-      ? true
-      : el.dataset.tier === _activeConvFilter;
-    // Operational state - each active chip narrows further, on top of the
-    // stage. "Deposit Ready + Needs Human" is Deposit Ready leads that also
-    // need a person, not the union of the two.
-    const matchesOps = [..._activeConvOps].every(op =>
-      op === 'unread'     ? el.dataset.unread === 'true'
-      : op === 'awaiting'   ? el.dataset.awaiting === 'true'
-      : op === 'needshuman' ? el.dataset.needshuman === 'true'
-      : true);
-    const matchesChannel = _activeConvChannel === 'all' ? true : el.dataset.channel === _activeConvChannel;
-    const show = matchesText && matchesTier && matchesOps && matchesChannel;
-    el.style.display = show ? '' : 'none';
-    if (show) visibleCount++;
-  });
-  // Bug found 2026-08-05: a filter/search matching zero conversations just
-  // left a blank area with no explanation - indistinguishable from the
-  // feature being broken. Every other list in the app (leads, CSV import,
-  // etc.) already shows a real empty-state message; this didn't.
-  if (!listEl) return;
-  let emptyEl = listEl.querySelector('.conv-empty-state');
-  if (visibleCount === 0) {
-    if (!emptyEl) {
-      emptyEl = document.createElement('div');
-      emptyEl.className = 'conv-empty-state';
-      emptyEl.style.cssText = 'padding:24px;text-align:center;color:#94a3b8;font-size:0.85rem';
-      listEl.appendChild(emptyEl);
-    }
-    emptyEl.textContent = q ? 'No conversations match your search.' : 'No conversations match this filter.';
-  } else if (emptyEl) {
-    emptyEl.remove();
+  if (!listEl || listEl.dataset.convLoaded !== '1') return;
+
+  // buildConvQuery() carries every active filter, search term and the sort, so
+  // asking it for this one lead answers "does this row still belong here?" with
+  // exactly the same rules the list itself uses.
+  const { data, error } = await buildConvQuery(scope).eq('lead_id', leadId).limit(1);
+  if (error) { console.error('applyConvRealtimeRow:', error.message); return; }
+
+  const existing = listEl.querySelector(`.conv-item[data-lead="${CSS.escape(leadId)}"]`);
+  if (!data || !data.length) {
+    // No longer matches the active filter (e.g. it was Unread-only and an agent
+    // just read it). Drop it rather than leaving a stale row behind.
+    if (existing) existing.remove();
+    _lastConvs = _lastConvs.filter(c => c.lead_id !== leadId);
+    return;
   }
+
+  // Under priority sort the correct position depends on every other row's
+  // score, which this client no longer holds - so let the server decide by
+  // refetching page 1 (75 rows), rather than guessing a position. That is one
+  // page, not the whole list.
+  if (_convSort === 'priority') { loadConvPage(scope, { reset: true }); return; }
+
+  // Newest-first: an inbound or outbound message makes this the most recent
+  // conversation by definition, so the top is provably its place.
+  const row = convRowFromView(data[0]);
+  _lastConvs = [row].concat(_lastConvs.filter(c => c.lead_id !== leadId));
+  if (existing) existing.remove();
+  listEl.insertAdjacentHTML('afterbegin', convRowHtml(row, scope));
+}
+
+// Seamless loading, no page-number controls: the next page is fetched as the
+// list nears its end, so it still reads as one continuous conversation list.
+let _convScrollBound = null;
+function attachConvInfiniteScroll(scope = '') {
+  const listEl = document.getElementById(scope + 'conv-list');
+  if (!listEl || _convScrollBound === listEl) return;
+  if (_convScrollBound) _convScrollBound.removeEventListener('scroll', _onConvScroll);
+  _convScrollBound = listEl;
+  listEl.addEventListener('scroll', _onConvScroll);
+}
+function _onConvScroll(e) {
+  const el = e.currentTarget;
+  if (_convLoadingPage || !_convHasMore) return;
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 300) {
+    _convPageIndex++;
+    loadConvPage(_convListScope, { append: true });
+  }
+}
+
+// Counts over the whole authorised set, from SQL. Deriving them from the loaded
+// page would understate every one of them the moment pagination existed.
+let _convCountsTimer = null;
+async function refreshConvCounts(scope = '') {
+  if (demoMode) return;
+  const { data, error } = await sb.rpc('inbox_conversation_counts');
+  if (error) { console.error('inbox_conversation_counts:', error.message); return; }
+  applyConvCounts(data || {}, scope);
+}
+// Realtime can deliver a burst; recount once after it settles, not per message.
+function scheduleConvCountRefresh(scope = '') {
+  clearTimeout(_convCountsTimer);
+  _convCountsTimer = setTimeout(() => refreshConvCounts(scope), 800);
+}
+
+// Filters and search now run in Postgres over the caller's ENTIRE authorised
+// set, so this re-queries rather than hiding DOM rows. The old version walked
+// every rendered .conv-item setting style.display: a filter could only narrow
+// the rows already downloaded, and search could only match text already in the
+// DOM - a conversation that had never been loaded was unfindable. Same
+// predicates, same AND semantics, evaluated by the database.
+function filterConversations(scope = '') {
+  loadConvPage(scope || _convListScope, { reset: true });
+}
+
+// Debounced: the old search was free because it never left the browser, this
+// one must not fire a query per keystroke.
+let _convSearchTimer = null;
+function onConvSearchInput(scope = '') {
+  clearTimeout(_convSearchTimer);
+  _convSearchTimer = setTimeout(() => filterConversations(scope), 250);
 }
 
 // ── 24-hour customer service window (catalog C2) ───────────────
@@ -14883,6 +15014,9 @@ function forwardTargetList() {
   if (demoMode) {
     return _DEMO_CONVERSATIONS.map(c => ({ id: c.id, name: c.name, phone: c.phone }));
   }
+  // The loaded page is the default list; searching goes to the server (see
+  // renderForwardTargets), so a conversation that is not on the current page is
+  // still a reachable forward target.
   return (_lastConvs || []).map(c => ({
     id: c.lead_id,
     name: c.leads?.full_name || 'Unknown',
@@ -14890,18 +15024,35 @@ function forwardTargetList() {
   }));
 }
 
-function renderForwardTargets(query) {
+// Forward-target search, server-side. _lastConvs holds one page now, so a
+// purely local filter would silently make every conversation below the fold
+// un-forwardable - the exact class of disappearance this change must not cause.
+async function searchForwardTargets(q) {
+  if (demoMode || _forwardMode === 'team') return null;   // team list is already complete
+  const term = String(q || '').trim();
+  if (!term) return null;                                  // no term: show the loaded page
+  const { data, error } = await sb.from('inbox_conversation_list')
+    .select('lead_id, full_name, phone')
+    .or(buildConvSearchOr(term))
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) { console.error('searchForwardTargets:', error.message); return null; }
+  return (data || []).map(r => ({ id: r.lead_id, name: r.full_name || 'Unknown', phone: r.phone || '' }));
+}
+
+async function renderForwardTargets(query) {
   const listEl = document.getElementById('fwd-list');
   if (!listEl) return;
   const q = String(query || '').trim().toLowerCase();
 
   const selfId = demoMode ? (_DEMO_PROFILE?.id) : currentUser?.id;
-  const targets = forwardTargetList()
+  const remote = await searchForwardTargets(query);
+  const targets = (remote || forwardTargetList())
     // Customer mode: forwarding a message back into the conversation it came
     // from is almost always a misclick. Team mode: forwarding to yourself is
     // pointless, and the current conversation id is a lead id, not a person.
     .filter(t => _forwardMode === 'team' ? t.id !== selfId : t.id !== _activeConvId)
-    .filter(t => !q || t.name.toLowerCase().includes(q) || (t.phone || '').toLowerCase().includes(q));
+    .filter(t => remote || !q || t.name.toLowerCase().includes(q) || (t.phone || '').toLowerCase().includes(q));
 
   if (!targets.length) {
     const empty = _forwardMode === 'team'
@@ -15584,7 +15735,11 @@ function startConvRealtime(scope = '') {
       if (payload.new.subject === 'Qualified lead summary') return;
       // Refresh sidebar list. RLS on the underlying subscription already
       // restricts which INSERTs an agent receives to their own leads.
-      renderConversations(_convRealtimeScope);
+      // One message must not reload the whole Inbox. This refreshes exactly
+      // the affected conversation's summary row and repositions it; the other
+      // 74 rows on screen are left untouched.
+      applyConvRealtimeRow(payload.new.lead_id, _convRealtimeScope);
+      scheduleConvCountRefresh(_convRealtimeScope);
       // If this conversation is currently open, append message live
       if (_activeConvId && _activeConvId === payload.new.lead_id) {
         const msgArea = document.getElementById('conv-msgs-' + _activeConvId);
@@ -15650,7 +15805,7 @@ function startConvRealtime(scope = '') {
         // down, and those INSERTs are gone - the stream is not replayed. One
         // reconciling re-render on (re)subscribe closes that gap. It is a
         // safety net for missed events, not a substitute for realtime.
-        renderConversations(_convRealtimeScope);
+        renderConversations(_convRealtimeScope);   // full reconcile after a (re)subscribe
         return;
       }
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {

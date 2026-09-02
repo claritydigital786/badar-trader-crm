@@ -295,12 +295,33 @@ test('10: Unread / Waiting on Us / Needs Human remain separate and still work', 
   for (const op of ['unread', 'awaiting', 'needshuman']) {
     assert.ok(html.includes(`data-op="${op}"`), `the ${op} operational chip must still exist`);
   }
-  assert.match(html, /op === 'unread'\s*\? el\.dataset\.unread === 'true'[\s\S]{0,240}?needshuman' \? el\.dataset\.needshuman === 'true'/,
-    'all three operational filters must still be applied');
-  assert.match(html, /\[\.\.\._activeConvOps\]\.every\(op =>/,
+  // 2026-09-05: the three chips are applied by Postgres now, over the caller's
+  // whole authorised set, instead of by walking rendered DOM rows. Same three
+  // filters, same AND-with-the-stage semantics - asserted where they now live.
+  assert.match(html, /if \(_activeConvOps\.has\('unread'\)\)\s*q = q\.eq\('is_unread', true\);/,
+    'the Unread chip must filter server-side');
+  assert.match(html, /if \(_activeConvOps\.has\('awaiting'\)\)\s*q = q\.eq\('direction', 'inbound'\);/,
+    'the Waiting on Us chip must filter server-side');
+  assert.match(html, /if \(_activeConvOps\.has\('needshuman'\)\)\s*q = q\.eq\('needs_human', true\);/,
+    'the Needs Human chip must filter server-side');
+  // They must narrow on top of the stage filter, never replace or union it.
+  const qb = html.slice(html.indexOf('function buildConvQuery'), html.indexOf('function convRowFromView'));
+  assert.match(qb, /if \(_activeConvFilter !== 'all'\) q = q\.eq\('tier', _activeConvFilter\);/,
+    'the stage filter must still apply alongside the operational chips');
+  assert.ok(!/\.or\(.*is_unread/.test(qb), 'the chips must AND, not OR');
+  // Chained .eq() calls on one PostgREST builder are ANDed, so three separate
+  // `q = q.eq(...)` statements narrow cumulatively - the same semantics the old
+  // [..._activeConvOps].every(...) DOM pass had.
+  assert.equal((qb.match(/_activeConvOps\.has\(/g) || []).length, 3,
     'operational filters must still AND together, narrowing rather than widening');
-  assert.match(html, /const show = matchesText && matchesTier && matchesOps && matchesChannel;/,
-    'stage and operational state must remain separate axes');
+  // All four axes - search text, stage, operational chips, channel - are still
+  // combined, now as chained PostgREST predicates on one query builder rather
+  // than four booleans ANDed per DOM node.
+  for (const axis of [/q\.or\(buildConvSearchOr\(term\)\)/, /q\.eq\('tier', _activeConvFilter\)/,
+                      /q\.eq\('is_unread', true\)/, /\.eq\('type', 'whatsapp'\)\.eq\('wa_channel', _activeConvChannel\)/]) {
+    assert.match(qb, axis,
+      'stage and operational state must remain separate axes');
+  }
 });
 
 // ── The pages that caused the duplication ──────────────────────
