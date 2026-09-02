@@ -253,12 +253,19 @@ const ESCALATION_NOTIFICATIONS_ENABLED = true;
 // the live test from Ehsan alone to Ehsan + Hanzala, per Muhammad's explicit
 // go-ahead.
 //
-// While only these two numbers are listed, every OTHER real agent stays
+// Widened 2026-09-02 (Muhammad, explicit go-ahead): Syed Faisal Basit
+// (+92 300 2731461) and Syed Bilal Ahmad Hashmi (+92 332 5822756) added -
+// both had receives_leads flipped back to true the same day (real agents
+// restored to rotation after the 08-27 test), so they now need the same
+// new-lead ping Ehsan and Hanzala already get, or leads land on them with
+// zero notice.
+//
+// While only these numbers are listed, every OTHER real agent stays
 // completely unreachable no matter what else happens. Add more agents here
-// once the rhythm on these two phones has been watched and judged right;
+// once the rhythm on these phones has been watched and judged right;
 // emptying this array is what makes notifications live for the whole team,
 // and that is a deliberate decision to take later, not part of this change.
-const AGENT_NOTIFY_TEST_NUMBERS: string[] = ["923342224925", "923235163874"];
+const AGENT_NOTIFY_TEST_NUMBERS: string[] = ["923342224925", "923235163874", "923002731461", "923325822756"];
 
 let cachedWaToken: string | null = null;
 let cachedWaPhoneId: string | null = null;
