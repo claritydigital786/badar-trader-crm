@@ -12247,6 +12247,8 @@ let _activeConvId = null;
 let _activeConvScope = '';
 let _convRealtimeSub = null;
 let _convRealtimeScope = '';
+let _convRealtimeRetries = 0;       // consecutive failed (re)subscribes, drives backoff
+let _convRealtimeRetryTimer = null; // pending reconnect, cancelled on leaving the Inbox
 let _activeConvFilter = 'all';
 // Operational state filters, added 2026-08-31. Deliberately a Set and not a
 // second single-select: these are NOT lead stages, they describe what a
@@ -15336,6 +15338,7 @@ async function sendWaViaFunction(convId, text, replyToWaMessageId, attachment = 
 function startConvRealtime(scope = '') {
   if (_convRealtimeSub || demoMode) return;
   _convRealtimeScope = scope;
+  document.addEventListener('visibilitychange', handleConvRealtimeVisibility);
   _convRealtimeSub = sb
     .channel('conv-live')
     .on('postgres_changes', {
@@ -15353,6 +15356,14 @@ function startConvRealtime(scope = '') {
       if (_activeConvId && _activeConvId === payload.new.lead_id) {
         const msgArea = document.getElementById('conv-msgs-' + _activeConvId);
         if (msgArea) {
+          // Guard against the one genuine double-render race: openConversation()
+          // fetches every message, and a row inserted between that fetch and
+          // this subscription's delivery would be painted twice - once by the
+          // full render, once here. Both paths stamp the row's real id via
+          // messageActionButtonHtml(), so an existing bubble is authoritative.
+          // This also covers an agent's own outbound message, which the send
+          // path deliberately leaves to realtime rather than appending locally.
+          if (msgArea.querySelector(`[data-message-id="${CSS.escape(String(payload.new.id))}"]`)) return;
           appendConvDaySeparatorIfNeeded(msgArea, payload.new.created_at);
           const div = document.createElement('div');
           div.className = 'msg-wrapper' + (payload.new.direction === 'outbound' ? ' outgoing' : '');
@@ -15394,7 +15405,63 @@ function startConvRealtime(scope = '') {
     }, payload => {
       applyDeliveryTickUpdate(payload.new);
     })
-    .subscribe();
+    .subscribe(status => {
+      // Before this, .subscribe() took no callback at all: a channel that
+      // errored, timed out or was closed underneath a working-looking Inbox
+      // stayed silently dead until someone pressed Cmd+R - which is exactly
+      // the failure this whole fix exists to remove. Diagnostics plus a
+      // bounded reconnect, deliberately NOT a polling loop.
+      if (status === 'SUBSCRIBED') {
+        _convRealtimeRetries = 0;
+        // A reconnect can straddle messages that arrived while the socket was
+        // down, and those INSERTs are gone - the stream is not replayed. One
+        // reconciling re-render on (re)subscribe closes that gap. It is a
+        // safety net for missed events, not a substitute for realtime.
+        renderConversations(_convRealtimeScope);
+        return;
+      }
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        console.warn('conv-live realtime channel:', status);
+        scheduleConvRealtimeRetry();
+      }
+    });
+}
+
+// Rebuilds the channel after an error/timeout/close, backing off 2s, 4s, 8s,
+// 16s, 30s and then holding at 30s. Only ever runs while the Inbox is the
+// open tab - stopConvRealtime() cancels any pending attempt - so leaving the
+// Inbox cannot leave a reconnect loop running behind it.
+function scheduleConvRealtimeRetry() {
+  if (_convRealtimeRetryTimer || !_convRealtimeSub) return;
+  const delay = Math.min(2000 * Math.pow(2, _convRealtimeRetries), 30000);
+  _convRealtimeRetries++;
+  _convRealtimeRetryTimer = setTimeout(() => {
+    _convRealtimeRetryTimer = null;
+    if (!_convRealtimeSub) return;              // left the Inbox meanwhile
+    const scope = _convRealtimeScope;
+    // stopConvRealtime() zeroes the counter (correct when a human leaves the
+    // Inbox, wrong here) - carry it across the rebuild, or the backoff would
+    // collapse into a fixed 2s retry loop, which is the aggressive polling
+    // this is specifically meant not to become.
+    const carried = _convRealtimeRetries;
+    stopConvRealtime();
+    startConvRealtime(scope);
+    _convRealtimeRetries = carried;
+  }, delay);
+}
+
+// Foreground regain: a backgrounded tab can have its socket dropped by the
+// browser without the page ever being told. When the Inbox comes back into
+// view, check the channel is genuinely still joined and reconcile the list
+// once. Single-shot on an event the user causes - not a timer.
+function handleConvRealtimeVisibility() {
+  if (document.hidden || !_convRealtimeSub) return;
+  if (_convRealtimeSub.state === 'joined') {
+    renderConversations(_convRealtimeScope);   // catch anything missed while hidden
+  } else {
+    _convRealtimeRetries = 0;                  // user is here now; retry promptly
+    scheduleConvRealtimeRetry();
+  }
 }
 
 // Realtime inserts bypass the full conversation render, so add the same day
@@ -15432,6 +15499,9 @@ function applyDeliveryTickUpdate(row) {
 }
 
 function stopConvRealtime() {
+  document.removeEventListener('visibilitychange', handleConvRealtimeVisibility);
+  if (_convRealtimeRetryTimer) { clearTimeout(_convRealtimeRetryTimer); _convRealtimeRetryTimer = null; }
+  _convRealtimeRetries = 0;
   if (_convRealtimeSub) {
     sb.removeChannel(_convRealtimeSub);
     _convRealtimeSub = null;
