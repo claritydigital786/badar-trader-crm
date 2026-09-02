@@ -4,6 +4,21 @@ _Last updated: 2026-09-02, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
 
+## 2026-09-02 (later) - Duplicate-lead race closed, staff numbers can never be processed as customers, commits `f916533` + `2050571`
+
+Muhammad reported Ehsan Wazir's own number showing up as a lead with a failed delivery notice - traced to the real mechanism rather than patched at the symptom, and it turned out to be three separate, related bugs plus real accumulated damage:
+
+1. **A genuine race condition in `upsertLead()`** - plain SELECT-then-INSERT with no locking, so two messages arriving within the same second for a brand-new phone number could both find "no existing lead" and both create one. Checked the whole table: 18 real phone numbers had exactly this signature. Merged all 18 (real messages moved onto the surviving row, the duplicate assignment-notice log dropped, the empty duplicate deleted), then added a partial unique index on `leads.phone` (NULL still allowed, for Messenger/Instagram leads) so this is now database-level impossible, not just less likely.
+2. **3903's ingest path had zero staff-phone check at all** (6541 always had one) - any staff member texting 3903, exactly what agents were being told to do all day to keep their notification window open, got silently processed as a brand-new customer.
+3. **6541's own staff check only recognized rotation-eligible agents** - an agent temporarily out of rotation (Bilal, on 2026-08-28) wasn't "staff" by that check's definition either, and got processed as a real customer lead the same way.
+4. **The actual mechanism behind the visible spam**: the delivery-status handler attached every failed send to "any lead with this phone," with no check for whether that phone belongs to staff - so once Ehsan's number existed as a lead (from a stale 2026-08-24 WhatChimp import, not from bugs 2/3), every failed new-lead notification sent TO him as an agent got misattributed as a failed customer message on that stale lead. 1,107 times on his number, 348 on Muhammad's own test number, 7 on Bilal's real customer-lookalike entry - all three fake leads deleted (cascade-deleted their communications too).
+
+Fixed: new `getAllStaffPhones()` (every active, non-suspended staff member's phone, regardless of rotation eligibility - deliberately separate from `getAgentRotation()`, which still answers only "who gets assigned new leads") is now checked on both the sender-side gate (both numbers) and the delivery-status handler (the actual spam mechanism).
+
+`deno check` clean, all suites pass, deployed. Verified live at every step: 0 duplicate phones remaining, 0 staff numbers still appearing as leads, unique index confirmed present.
+
+---
+
 ## 2026-09-02 (later) - Avatar-initials fix, and real voice-note sending built end-to-end, commit `532e9c7`
 
 **Broken avatar initials fixed.** A lead named "🤍الحسینی🤍" showed an unreadable icon instead of any real initials - the 9 separate places in the app computing avatar initials all took the literal first character of each word, which for this name is the heart emoji itself (some fonts render that as a broken tofu/question-mark glyph). New shared `initialsFor()` skips leading non-letter/non-number characters per word before taking the initial, falling back to "?" only when a name is genuinely all symbols/emoji. Verified: normal Latin/Arabic names unaffected, this exact name now shows "ا" (its real first letter). All 9 duplicated inline copies replaced with the one shared function.
