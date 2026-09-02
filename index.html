@@ -1295,7 +1295,8 @@
     .conv-ops-chip:hover  { background:#f0f2f5; }
     .conv-ops-chip.active { background:#eef2ff; border-color:#a5b4fc; color:#4338ca; }
     /* Added 2026-08-31: bifurcates the Omnichannel Inbox by which real
-       WhatsApp number a lead came in on (6541 vs 3903), so Badar can see both
+       WhatsApp number a lead came in on (the live +92 371 5773903 line vs the
+       +971 52 558 6541 bot-testing line), so Badar can see both
        numbers' campaigns actively populating real leads, side by side. */
     /* The channel scope answers "which of the two real numbers did this arrive
        on", which is a property of the whole Inbox, not of the lead column. It
@@ -2299,12 +2300,12 @@
             <button type="button" role="option" class="wa-chan-opt active" aria-selected="true" data-channel="all" onclick="setConvChannel('all','')">
               <span class="wa-chan-opt-name">📱 All Numbers</span>
               <span class="conv-channel-count" id="conv-channel-count-all">0</span></button>
-            <button type="button" role="option" class="wa-chan-opt" data-channel="6541" onclick="setConvChannel('6541','')">
-              <span class="wa-chan-opt-name">🇦🇪 UAE · 6541</span>
-              <span class="conv-channel-count" id="conv-channel-count-6541">0</span></button>
-            <button type="button" role="option" class="wa-chan-opt" data-channel="3903" onclick="setConvChannel('3903','')">
-              <span class="wa-chan-opt-name">🇵🇰 Pakistan · 3903</span>
+            <button type="button" role="option" class="wa-chan-opt" data-channel="3903" onclick="setConvChannel('3903','')" title="Live primary production number - real customers">
+              <span class="wa-chan-opt-name">🟢 LIVE · +92 371 5773903</span>
               <span class="conv-channel-count" id="conv-channel-count-3903">0</span></button>
+            <button type="button" role="option" class="wa-chan-opt" data-channel="6541" onclick="setConvChannel('6541','')" title="Bot-testing number only - not production traffic. Kept here on purpose so test conversations can still be inspected.">
+              <span class="wa-chan-opt-name">🧪 TEST · +971 52 558 6541</span>
+              <span class="conv-channel-count" id="conv-channel-count-6541">0</span></button>
           </div>
         </div>
         <div class="notif-wrap">
@@ -2446,6 +2447,9 @@
         <div class="stat-trend" id="dash-rev-platform" style="margin-top:6px;color:var(--text-muted);line-height:1.6"></div>
       </div>
     </div>
+
+    <!-- WhatsApp Number Hierarchy / Lead Routing -->
+    <div id="dash-wa-hierarchy"></div>
 
     <!-- Pipeline Overview: donut + trend, real cachedLeads data -->
     <div class="card" style="margin-bottom:20px">
@@ -3593,7 +3597,7 @@
     <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px">
       <div>
         <div style="font-weight:700;color:var(--text-strong)">Connect Another WhatsApp Business Account</div>
-        <p style="color:var(--text-muted);font-size:0.82rem;margin-top:2px;max-width:52ch">Saves a new number for reference. Making it actually send or receive real messages is a separate step (real Meta credentials + a code change) that still needs Muhammad's own laptop, the same way 6541 and 3903 were each really connected.</p>
+        <p style="color:var(--text-muted);font-size:0.82rem;margin-top:2px;max-width:52ch">Saves a new number for reference. Making it actually send or receive real messages is a separate step (real Meta credentials + a code change) that still needs Muhammad's own laptop, the same way the live +92 371 5773903 line and the +971 52 558 6541 test line were each really connected.</p>
       </div>
       <button class="btn btn-primary btn-sm" onclick="openAddWaNumberForm()" style="white-space:nowrap">+ Add Phone Number</button>
     </div>
@@ -3635,7 +3639,7 @@
          so it isn't found "missing" by anyone used to it being here. -->
     <p class="section-h">WhatsApp Connection Health</p>
     <div class="card">
-      <p style="color:var(--text-muted);font-size:0.85rem">Moved to its own <strong>Connect WhatsApp</strong> section in the sidebar - it now shows both real numbers (6541 and 3903), not just one.</p>
+      <p style="color:var(--text-muted);font-size:0.85rem">Moved to its own <strong>Connect WhatsApp</strong> section in the sidebar - it now shows both real numbers - the live +92 371 5773903 production line and the +971 52 558 6541 bot-testing line - not just one.</p>
       <button class="btn btn-secondary btn-sm" onclick="adminTab('connect-whatsapp')" style="margin-top:10px">Open Connect WhatsApp</button>
     </div>
 
@@ -3739,7 +3743,7 @@
     <p class="section-h">Connection Settings</p>
     <div class="card">
       <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:12px">
-        Real Facebook Messenger and Instagram DM ingest - staged, same as 3903's WhatsApp connection: real messages become real leads, visible in the Omnichannel Inbox, but no automated reply goes out on either channel yet. Turning on automated replies is a separate, later, deliberate decision. One webhook serves both channels, so this is the one place to configure it - Instagram's own tab shows its status read-only.
+        Real Facebook Messenger and Instagram DM ingest - staged, the same way the live +92 371 5773903 WhatsApp line is connected: real messages become real leads, visible in the Omnichannel Inbox, but no automated reply goes out on either channel yet. Turning on automated replies is a separate, later, deliberate decision. One webhook serves both channels, so this is the one place to configure it - Instagram's own tab shows its status read-only.
       </p>
       <label>Facebook Page ID</label>
       <input type="text" id="fb-page-id" placeholder="e.g. 100095068390642" />
@@ -3827,7 +3831,7 @@
     <div class="card">
       <ul style="margin:0;padding-left:18px;color:var(--text-body);font-size:0.85rem;line-height:1.8">
         <li>TikTok's own Business/Messaging API access would need to be requested and approved - a separate process from Meta's, with its own review.</li>
-        <li>A new ingest-only webhook, the same staged pattern as Facebook/Instagram/3903 - real messages become real leads, no automated reply until that's a deliberate later decision.</li>
+        <li>A new ingest-only webhook, the same staged pattern as Facebook/Instagram and the live +92 371 5773903 WhatsApp line - real messages become real leads, no automated reply until that's a deliberate later decision.</li>
         <li>Badar's own TikTok profile (@syedbadartanveer) is already tracked, with real stats and a proposed growth path, in the standalone "CRM Development Journey" report and this CRM's own Development Progress tab.</li>
       </ul>
     </div>
@@ -4727,12 +4731,12 @@
             <button type="button" role="option" class="wa-chan-opt active" aria-selected="true" data-channel="all" onclick="setConvChannel('all','agent-')">
               <span class="wa-chan-opt-name">📱 All Numbers</span>
               <span class="conv-channel-count" id="agent-conv-channel-count-all">0</span></button>
-            <button type="button" role="option" class="wa-chan-opt" data-channel="6541" onclick="setConvChannel('6541','agent-')">
-              <span class="wa-chan-opt-name">🇦🇪 UAE · 6541</span>
-              <span class="conv-channel-count" id="agent-conv-channel-count-6541">0</span></button>
-            <button type="button" role="option" class="wa-chan-opt" data-channel="3903" onclick="setConvChannel('3903','agent-')">
-              <span class="wa-chan-opt-name">🇵🇰 Pakistan · 3903</span>
+            <button type="button" role="option" class="wa-chan-opt" data-channel="3903" onclick="setConvChannel('3903','agent-')" title="Live primary production number - real customers">
+              <span class="wa-chan-opt-name">🟢 LIVE · +92 371 5773903</span>
               <span class="conv-channel-count" id="agent-conv-channel-count-3903">0</span></button>
+            <button type="button" role="option" class="wa-chan-opt" data-channel="6541" onclick="setConvChannel('6541','agent-')" title="Bot-testing number only - not production traffic. Kept here on purpose so test conversations can still be inspected.">
+              <span class="wa-chan-opt-name">🧪 TEST · +971 52 558 6541</span>
+              <span class="conv-channel-count" id="agent-conv-channel-count-6541">0</span></button>
           </div>
         </div>
         <div class="notif-wrap">
@@ -4798,6 +4802,9 @@
         <div><strong>Guide</strong><div style="font-size:0.78rem;color:var(--text-muted)">How this CRM works</div></div>
       </div>
     </div>
+
+    <!-- WhatsApp Number Hierarchy / Lead Routing -->
+    <div id="agent-wa-hierarchy"></div>
 
     <!-- Personal gauges -->
     <div class="kpi-gauge-row">
@@ -5114,6 +5121,92 @@ let cachedLeads    = [];   // latest lead list
 let demoMode       = false;
 let demoRrAgentIndex = 0;   // round-robin: 0-based index into agents array
 let demoRrCount      = 0;   // round-robin: leads assigned in current block
+
+// ── WHATSAPP NUMBER HIERARCHY (single source of truth, 2026-09-02) ──────
+//
+// The business owner's final decision: there is exactly ONE live production
+// WhatsApp number, and it is +92 371 5773903. +971 52 558 6541 is now a
+// bot-testing number only. Every staff-facing label in this file reads from
+// the two maps below so the two roles can never drift apart again.
+//
+// BUSINESS ROLE and CURRENT TECHNICAL BOT STATE are deliberately separate
+// facts and must not be conflated:
+//
+//   3903 - business LIVE PRIMARY number. Carries the Meta ads, real customer
+//          conversations, CRM lead intake and the whole production funnel.
+//          Automated bot replies are NOT enabled on it (its Edge Function
+//          path is ingest-only, by design, until that is a deliberate
+//          separate decision).
+//   6541 - business TEST-ONLY number. Still the number the automated bot
+//          actually runs on today, which is exactly why it is the safe place
+//          to test one. Not production traffic.
+//
+// Nothing in this block changes routing, credentials, phone-number IDs or
+// which number the bot replies from. It is labelling and reporting only.
+const WA_NUMBERS = {
+  '3903': { display: '+92 371 5773903', country: 'Pakistan', role: 'live' },
+  '6541': { display: '+971 52 558 6541', country: 'UAE',     role: 'test' },
+};
+
+// Full-size tag - used anywhere there is room for the whole thing.
+const WA_TAG_FULL = {
+  '3903': '\u{1F7E2} LIVE • PRIMARY • PAKISTAN — +92 371 5773903',
+  '6541': '\u{1F9EA} TEST ONLY • BOT TESTING • UAE — +971 52 558 6541',
+};
+
+// Compact tag - filter pills, badges, anywhere space-constrained. Still
+// carries the full number: never abbreviate to bare "3903"/"6541" in UI.
+const WA_TAG_COMPACT = {
+  '3903': '\u{1F7E2} LIVE · +92 371 5773903',
+  '6541': '\u{1F9EA} TEST · +971 52 558 6541',
+};
+
+// Leads that entered before channel tracking existed carry no wa_channel at
+// all. They are legitimate historical CRM records and are NOT attributed to
+// either number - saying "Historical / Untagged" is the honest answer, and
+// silently folding them into 3903 would fabricate attribution.
+const WA_TAG_UNTAGGED = 'Historical / Untagged';
+
+function waChannelTag(channel, compact = true) {
+  if (channel !== '3903' && channel !== '6541') return WA_TAG_UNTAGGED;
+  return (compact ? WA_TAG_COMPACT : WA_TAG_FULL)[channel];
+}
+
+// The date 6541 stopped being a live production line and became test-only.
+//
+// This is the whole reason production KPIs can be split honestly. Every lead
+// tagged 6541 in this database today - all 201 of them, 199 of which predate
+// this decision - is a GENUINE Meta-ad customer acquired while 6541 was the
+// only live number. Twenty of them are the CRM's qualified leads. Excluding
+// the tag outright would erase real historical business performance and drop
+// Qualified Leads from 21 to 1, which is exactly the false reclassification
+// the hierarchy decision was meant to avoid.
+//
+// So "bot-test traffic" is defined by role AND date: a lead that arrived on
+// 6541 on or after the day 6541 became a test number. Today that set is
+// empty, so no production figure moves; every future 6541 lead is kept out of
+// production KPIs automatically. Historical records are never touched,
+// deleted, or relabelled.
+const BOT_TEST_CUTOVER = '2026-09-02T00:00:00Z';
+const BOT_TEST_CUTOVER_MS = Date.parse(BOT_TEST_CUTOVER);
+
+function isBotTestLead(lead) {
+  if (!lead || lead.wa_channel !== '6541') return false;
+  const t = Date.parse(lead.created_at);
+  return Number.isFinite(t) && t >= BOT_TEST_CUTOVER_MS;
+}
+
+// Production KPI view of a lead array: everything except conclusively
+// identified bot-test traffic. Historical and untagged leads always stay in.
+function productionLeads(leads) {
+  return (leads || []).filter(l => !isBotTestLead(l));
+}
+
+// The same predicate expressed for PostgREST, for the count-only queries that
+// never pull rows down. De Morgan of isBotTestLead(): keep a row unless it is
+// BOTH 6541 AND on/after the cutover.
+const PRODUCTION_LEADS_OR_FILTER =
+  `wa_channel.is.null,wa_channel.neq.6541,created_at.lt.${BOT_TEST_CUTOVER}`;
 
 // ── DEMO DATA ─────────────────────────────────────────────────
 const _DEMO_USER    = { id: 'demo-admin', email: 'demo@badartrader.com' };
@@ -7187,7 +7280,9 @@ async function saveSocialSettings() {
 // (not any third-party platform) for the connected number's real, live
 // status - never fabricated, and never cached, so a stale credential shows
 // up as a real error here instead of a silently wrong "Active" badge.
-// number: 'primary' (6541) or '3903' - which real WhatsApp number to check.
+// number: 'primary' (the +971 52 558 6541 bot-testing line - 'primary' is a
+// legacy ROUTING key the Edge Function expects, not a business role) or
+// '3903' (the +92 371 5773903 live primary production line).
 // btnId/boxId let this run independently for each number's own button and
 // result area on the Connect WhatsApp page (added 2026-08-31).
 async function checkWhatsAppStatus(number = 'primary', btnId = 'wa-status-check-btn', boxId = 'wa-status-result') {
@@ -7232,6 +7327,12 @@ async function checkWhatsAppStatus(number = 'primary', btnId = 'wa-status-check-
 // themselves, this session navigates nowhere), and "Add Phone Number"
 // (a genuine reference row in additional_whatsapp_numbers).
 //
+// Business hierarchy note (2026-09-02): +92 371 5773903 is now the ONLY live
+// primary production number and +971 52 558 6541 is a bot-testing number
+// only. That is a BUSINESS role change - the technical wiring below is
+// unchanged: 6541 is still the number the bot physically replies from, and
+// 3903 is still ingest-only.
+//
 // What's deliberately NOT a live Meta action: "Disable" on 6541 toggles the
 // same BOT_REPLIES_ENABLED gate Bot Manager already exposes (real,
 // reversible, already-existing capability, just surfaced here too) - it
@@ -7244,9 +7345,18 @@ async function checkWhatsAppStatus(number = 'primary', btnId = 'wa-status-check-
 // number is exactly the kind of action this repo's standing rules require a
 // real, deliberate decision on first, not a guess.
 const CONNECT_WA_WABA_ID = '1342908727797643';
+// Ordered live-primary first, deliberately: the first row of this table is
+// what anyone glancing at the page reads as "the business number".
+//
+// `key` is a ROUTING key, not a label - 'primary' is the string the
+// whatsapp-status Edge Function and the BOT_REPLIES_ENABLED gate already
+// expect for 6541, and renaming it would change runtime behaviour. Only the
+// human-readable columns carry the business hierarchy.
 const CONNECT_WA_NUMBERS = [
-  { key: 'primary', label: '6541', sub: 'Main line, full bot' },
-  { key: '3903',    label: '3903', sub: 'Ingest only' },
+  { key: '3903', channel: '3903', label: WA_TAG_FULL['3903'],
+    sub: 'Business LIVE PRIMARY number - Meta ads, real customers, CRM intake. Automated bot replies not enabled yet.' },
+  { key: 'primary', channel: '6541', label: WA_TAG_FULL['6541'],
+    sub: 'Business TEST-ONLY number - currently the line the automated bot runs on, for internal testing. Not production traffic.' },
 ];
 
 function openAddWaNumberForm() {
@@ -7302,7 +7412,7 @@ async function disableWaNumber(numberKey) {
   // which needs its WHATSAPP_PHONE_NUMBER_ID_3903 secret removed. Only a
   // session on Muhammad's own laptop can change a secret - never guess at
   // this or pretend a button here can do it.
-  alert('3903 already sends no automated replies of any kind - there is nothing here to disable.\n\nTo fully disconnect this number, its WHATSAPP_PHONE_NUMBER_ID_3903 secret needs to be removed - that has to be done from Muhammad\'s own laptop, not from this page.');
+  alert('+92 371 5773903 is the live primary production number and sends no automated replies of any kind - there is nothing here to disable.\n\nTo fully disconnect this number, its WHATSAPP_PHONE_NUMBER_ID_3903 secret needs to be removed - that has to be done from Muhammad\'s own laptop, not from this page.');
 }
 
 async function fetchWaHealth(numberKey) {
@@ -7609,12 +7719,19 @@ async function loadAgentLeads() {
   }
   filterAgentLeadsLocal(); // keep any active search applied after an inline edit
 
-  // Update quick stats bar
-  const total = cachedLeads.length;
-  const newCount = cachedLeads.filter(l => l.status === 'new').length;
-  const converted = cachedLeads.filter(l => l.status === 'converted').length;
+  // Update quick stats bar.
+  //
+  // Counted over the production subset only - a lead that arrived on the
+  // bot-testing number must not inflate an agent's own performance figures
+  // (see isBotTestLead()). cachedLeads itself is left complete on purpose:
+  // the My Leads table below is a work list, not a KPI, and an agent still
+  // needs to see and work every lead assigned to them.
+  const perfLeads = productionLeads(cachedLeads);
+  const total = perfLeads.length;
+  const newCount = perfLeads.filter(l => l.status === 'new').length;
+  const converted = perfLeads.filter(l => l.status === 'converted').length;
   // Approved deposits only - see approvedAum(). A pending submission contributes 0.
-  const revenue = approvedAum(cachedLeads);
+  const revenue = approvedAum(perfLeads);
   renderDepositQueues();
   const setS = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   setS('agent-stat-total', total);
@@ -7654,7 +7771,10 @@ function filterAgentLeadsLocal() {
 const AGENT_GAUGE_CIRCUMFERENCE = 201.06;
 
 function renderAgentDashboardExtras(total, converted, revenue) {
-  const leads = cachedLeads || [];
+  // Same production subset the totals above were computed from, so the gauges
+  // and the pipeline breakdown cannot disagree with the stat bar.
+  const leads = productionLeads(cachedLeads);
+  renderWaHierarchyCards();
   const setGauge = (fillId, pctId, subId, count, label) => {
     const fill = document.getElementById(fillId);
     const pct  = document.getElementById(pctId);
@@ -7851,6 +7971,21 @@ async function logActivityStandalone() {
   document.getElementById('act-followup').value = '';
 }
 
+
+// Channel badge for a lead or conversation. A lead with no wa_channel is
+// shown as historical/untagged and NEVER as 3903 - channel tracking did not
+// exist when most of this database was created, and guessing would fabricate
+// attribution for thousands of legitimate records.
+function waChannelBadge(channel) {
+  if (channel === '3903') {
+    return `<span style="display:inline-block;padding:1px 8px;border-radius:8px;font-size:0.7rem;font-weight:700;background:var(--ok-soft);color:var(--ok)">${esc(WA_TAG_COMPACT['3903'])}</span>`;
+  }
+  if (channel === '6541') {
+    return `<span style="display:inline-block;padding:1px 8px;border-radius:8px;font-size:0.7rem;font-weight:700;background:var(--line);color:var(--text-body)" title="Bot-testing number - not production traffic">${esc(WA_TAG_COMPACT['6541'])}</span>`;
+  }
+  return `<span style="font-size:0.75rem;color:var(--text-muted)" title="This lead entered before per-number channel tracking existed. It is deliberately not attributed to either number.">${esc(WA_TAG_UNTAGGED)}</span>`;
+}
+
 // ── LEAD DETAIL PANEL (admin + agent) ─────────────────────────
 async function openDetail(leadId, ctx) {
   const panelId = ctx === 'admin' ? 'admin-lead-detail' : 'agent-lead-detail';
@@ -7931,6 +8066,7 @@ async function openDetail(leadId, ctx) {
           </span>
         </div>
         <div class="detail-row"><span class="detail-label">Source</span><span>${sourceLabel(lead.source)}</span></div>
+        <div class="detail-row"><span class="detail-label">WhatsApp Number</span><span>${waChannelBadge(lead.wa_channel)}</span></div>
         <div class="detail-row"><span class="detail-label">Campaign</span><span>${esc(lead.meta_campaign||'-')}</span></div>
         <div class="detail-row"><span class="detail-label">Instrument</span><span>${esc(lead.instrument_type||'-')}</span></div>
         <div class="detail-row" style="align-items:flex-start"><span class="detail-label" style="padding-top:4px">Notes</span>
@@ -10749,8 +10885,13 @@ async function loadReports() {
       // actually answer "how many leads closed" - the Agent Performance table
       // below was already correct (a real server-side RPC), only these three
       // top cards were silently wrong.
-      sb.from('leads').select('id', { count: 'exact', head: true }),
-      sb.from('leads').select('id', { count: 'exact', head: true }).eq('status', 'converted'),
+      //
+      // .or(PRODUCTION_LEADS_OR_FILTER) keeps conclusively-identified
+      // bot-test traffic out of the business figures without touching a
+      // single row - see BOT_TEST_CUTOVER for why the rule is 6541 AND date,
+      // not 6541 alone.
+      sb.from('leads').select('id', { count: 'exact', head: true }).or(PRODUCTION_LEADS_OR_FILTER),
+      sb.from('leads').select('id', { count: 'exact', head: true }).eq('status', 'converted').or(PRODUCTION_LEADS_OR_FILTER),
       // Excludes the WhatChimp historical import (5,145 leads bulk-inserted
       // 2026-08-24, none of them contacted yet) so the funnel reflects the
       // real, live click-to-WhatsApp campaign only - mixing in the dormant
@@ -10761,7 +10902,7 @@ async function loadReports() {
       // by id purely to give .range() a deterministic tiebreaker - this
       // query never had any ordering at all before, which is even riskier
       // for pagination than an unstable one.
-      fetchAllRows(() => sb.from('leads').select('bot_stage, status, handoff_reason').neq('source', 'whatchimp').order('id', { ascending: true })),
+      fetchAllRows(() => sb.from('leads').select('bot_stage, status, handoff_reason').neq('source', 'whatchimp').or(PRODUCTION_LEADS_OR_FILTER).order('id', { ascending: true })),
     ]);
 
   if (e1) console.error('report_agent_performance:', e1);
@@ -11255,10 +11396,12 @@ async function fetchAllLeadsForDashboard() {
   // filterLeadsByDashRange below.
   const { data, error } = await fetchAllRows(() => sb
     .from('leads')
-    .select('status, account_balance, deposit_platform, created_at, needs_human')
+    .select('status, account_balance, deposit_platform, created_at, needs_human, wa_channel')
     .order('id', { ascending: true }));
   if (error) { console.error('fetchAllLeadsForDashboard:', error); return []; }
-  return data || [];
+  // Bot-test traffic never counts towards business performance - see
+  // isBotTestLead(). wa_channel is selected purely so this filter can run.
+  return productionLeads(data || []);
 }
 
 // Time-frame filter for the Dashboard (Muhammad's request, 2026-08-30):
@@ -11280,10 +11423,46 @@ function filterLeadsByDashRange(leads) {
   return leads.filter(l => new Date(l.created_at).getTime() >= since);
 }
 
+
+// ── WHATSAPP NUMBER HIERARCHY CARD (Dashboard, all roles, 2026-09-02) ────
+// One compact card, identical for Super Admin, Admin and Agent, so nobody has
+// to ask which number is the real one. Reads WA_TAG_FULL so it can never
+// disagree with the Inbox pills or the Connect WhatsApp page.
+function waHierarchyCardHtml() {
+  const step = t => `<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:var(--line);color:var(--text-body);font-size:0.72rem;white-space:nowrap">${esc(t)}</span>`;
+  const arrow = '<span style="color:var(--text-muted);font-size:0.72rem">&rarr;</span>';
+  const flow = steps => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px">${steps.map(step).join(arrow)}</div>`;
+  return `
+    <div class="card" style="margin-bottom:20px">
+      <div style="font-weight:700;font-size:0.95rem;color:var(--text-strong);margin-bottom:4px">WhatsApp Number Hierarchy</div>
+      <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:14px">Which number is real business traffic, and which is not.</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
+        <div style="border:1px solid var(--ok);border-radius:10px;padding:12px 14px;background:var(--ok-soft)">
+          <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.04em;color:var(--ok);margin-bottom:4px">LIVE PRODUCTION</div>
+          <div style="font-weight:700;color:var(--text-strong);font-size:0.85rem">${esc(WA_TAG_FULL['3903'])}</div>
+          ${flow(['Meta Ads', 'Real Customer', 'CRM Lead', 'Agent Assignment', 'Conversion / Deposit', 'Production Reports'])}
+        </div>
+        <div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px">
+          <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.04em;color:var(--text-muted);margin-bottom:4px">BOT TESTING</div>
+          <div style="font-weight:700;color:var(--text-body);font-size:0.85rem">${esc(WA_TAG_FULL['6541'])}</div>
+          ${flow(['Internal Bot Testing', 'Test Conversations', 'Not Production Traffic'])}
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderWaHierarchyCards() {
+  ['dash-wa-hierarchy', 'agent-wa-hierarchy'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = waHierarchyCardHtml();
+  });
+}
+
 function renderDashboardStats() {
   const el = id => document.getElementById(id);
+  renderWaHierarchyCards();
   if (demoMode) {
-    const demoLeads = filterLeadsByDashRange(_DEMO_LEADS);
+    const demoLeads = filterLeadsByDashRange(productionLeads(_DEMO_LEADS));
     if (el('dash-total-leads')) el('dash-total-leads').textContent = demoLeads.length;
     if (el('dash-new-leads'))   el('dash-new-leads').textContent   = demoLeads.filter(l => l.status === 'new').length;
     if (el('dash-converted'))   el('dash-converted').textContent   = demoLeads.filter(l => l.status === 'converted').length;
@@ -11529,7 +11708,8 @@ const CRM_DEV_PROGRESS = {
     { date: '2026-08-30', text: 'Fixed a Quick Links bug in the Omnichannel Inbox where broker links looked clickable but weren’t.' },
     { date: '2026-08-28', text: 'Fixed a bug where a customer who had gone quiet for weeks could get a confusing, out-of-context reply when they came back.' },
     { date: '2026-08-27', text: 'Facebook & Instagram connected - currently receiving real messages, automated replies not yet turned on.' },
-    { date: '2026-08-27', text: 'A second WhatsApp number (3903) connected for visibility - real messages come in, no automated replies sent from it yet.' },
+    { date: '2026-08-27', text: '+92 371 5773903 connected for visibility - real messages come in, no automated replies sent from it yet.' },
+    { date: '2026-09-02', text: 'WhatsApp number hierarchy set: +92 371 5773903 is the only live primary production number. +971 52 558 6541 is a bot-testing number only and no longer counts towards production KPIs.' },
     { date: '2026-08-23', text: 'Fixed a bug where the bot could send two conflicting replies to the same customer message.' },
   ],
   inProgress: [
@@ -11920,8 +12100,9 @@ let _activeConvFilter = 'all';
 //   'needshuman' -> leads.needs_human
 // All three read flags the list query already returns. Nothing here writes.
 let _activeConvOps = new Set();
-// Which real WhatsApp number's conversations are shown - '6541' (the main
-// automated-bot line) or '3903' (the second, ingest-only line, connected
+// Which real WhatsApp number's conversations are shown - '6541' (business
+// TEST-ONLY, and still the line the automated bot technically runs on) or
+// '3903' (business LIVE PRIMARY, ingest-only technically, connected
 // 2026-08-27). 'all' shows every channel (WhatsApp on either number, plus
 // Messenger/Instagram). Added 2026-08-31, Muhammad's request.
 let _activeConvChannel = 'all';
@@ -12214,8 +12395,8 @@ function syncConvOpsChips() {
 // call below are unchanged - only the elements that reflect the selection did.
 const WA_CHANNEL_LABELS = {
   all:    '\u{1F4F1} All Numbers',
-  '6541': '\u{1F1E6}\u{1F1EA} UAE \u00b7 6541',
-  '3903': '\u{1F1F5}\u{1F1F0} Pakistan \u00b7 3903',
+  '3903': WA_TAG_COMPACT['3903'],
+  '6541': WA_TAG_COMPACT['6541'],
 };
 
 function setConvChannel(channel, scope = '') {
@@ -12402,7 +12583,7 @@ function convChannelOf(c) {
   return c.leads?.wa_channel || 'unattributed';
 }
 
-// Populates the "All numbers / 6541 / 3903" pill counts above the filter
+// Populates the "All Numbers / LIVE 3903 / TEST 6541" pill counts above the filter
 // tabs, from whichever conversations were just fetched - lets Badar see both
 // numbers' campaigns actively producing real leads at a glance, not just by
 // clicking through each filter. Demo mode calls this with an empty/undefined

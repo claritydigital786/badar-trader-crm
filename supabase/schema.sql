@@ -2616,3 +2616,50 @@ CREATE UNIQUE INDEX IF NOT EXISTS leads_phone_unique_idx
 
 -- DONE (Phase 43)
 -- =============================================================
+
+-- =============================================================
+-- Phase 44 - bot-test traffic never inflates production KPIs
+-- (business owner's WhatsApp number hierarchy decision, 2026-09-02)
+-- Corresponds to supabase/migrations/20260902100000_production_kpis_exclude_bot_test.sql
+--
+-- +92 371 5773903 is the ONLY live primary production number.
+-- +971 52 558 6541 is a bot-testing number and nothing else.
+--
+-- Date-anchored on purpose. All 201 leads tagged '6541' in production are
+-- genuine Meta-ad customers from when 6541 WAS the live line - 20 of them are
+-- 20 of the CRM's 21 qualified leads. A blanket exclusion would have dropped
+-- Total Leads 7,654 -> 7,453 and Qualified 21 -> 1, erasing real history. So
+-- test traffic is 6541 AND created on/after the day 6541 became test-only.
+--
+-- IS NOT DISTINCT FROM, not `=`: `=` returns NULL for an untagged lead, every
+-- caller filters `WHERE NOT is_bot_test_lead(...)`, and `NOT NULL` is NULL -
+-- which would have silently DROPPED every historical/untagged lead created
+-- after the cutover. Caught against live data before this shipped.
+--
+-- report_financial_summary() is deliberately untouched: it reads the
+-- transactions ledger, which belongs to the approved-deposit workflow.
+-- =============================================================
+
+CREATE OR REPLACE FUNCTION public.is_bot_test_lead(p_wa_channel text, p_created_at timestamptz)
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+SET search_path TO ''
+AS $$
+  SELECT p_wa_channel IS NOT DISTINCT FROM '6541'
+     AND p_created_at IS NOT NULL
+     AND p_created_at >= TIMESTAMPTZ '2026-09-02 00:00:00+00';
+$$;
+
+REVOKE ALL ON FUNCTION public.is_bot_test_lead(text, timestamptz) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_bot_test_lead(text, timestamptz) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_bot_test_lead(text, timestamptz) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.is_bot_test_lead(text, timestamptz) FROM anon;
+
+-- report_agent_performance() and report_source_performance() are redefined in
+-- the migration to filter on this predicate. Agent Performance filters in the
+-- LEFT JOIN condition, never a WHERE clause - a WHERE would turn the outer
+-- join inner and make agents with no leads disappear from the table.
+
+-- DONE (Phase 44)
+-- =============================================================
