@@ -2540,5 +2540,61 @@ CREATE POLICY "comm_logs_agent_select_own" ON public.communication_logs
     )
   );
 
--- DONE (Phase 42)
+-- Phase 43 - an approved deposit becomes a real transaction (Muhammad, 2026-09-01)
+--
+-- NOTE ON COVERAGE: migrations 20260901030000, 20260901040000 and 20260901050000
+-- (working-admin agent performance, the deposit agent-review columns and
+-- escalate_deposit_to_admin, and the resend-after-return fix) are applied to the
+-- live project but were never written into this file. This section depends on
+-- kyc_documents.agent_reviewed_at / agent_reviewed_by from that work, so this
+-- file alone is NOT sufficient to rebuild the schema from scratch today. Flagged
+-- rather than silently papered over.
+--
+-- Found after the first genuine end-to-end deposit ran in production: AUM moved
+-- to $801 but Reports still read "RECORDED DEPOSITS - No deposits". The
+-- transactions table was completely empty, because approval wrote
+-- leads.account_balance and nothing else. Two parallel money systems that had
+-- never met - account_balance drives AUM, transactions drives Reports, the
+-- Financials summary and payroll commission.
+
+ALTER TABLE public.transactions
+  ADD COLUMN IF NOT EXISTS deposit_document_id uuid
+    REFERENCES public.kyc_documents(id) ON DELETE SET NULL;
+
+-- At most one transaction per approved deposit document, enforced by the
+-- database rather than by an application read-then-write, which would lose a
+-- race between two tabs, two admins, or a retry after a timeout. PARTIAL so it
+-- constrains only approval-generated rows - manually recorded transactions have
+-- NULL here and must stay unconstrained.
+CREATE UNIQUE INDEX IF NOT EXISTS transactions_one_per_deposit_document
+  ON public.transactions (deposit_document_id)
+  WHERE deposit_document_id IS NOT NULL;
+
+-- The whole approval as ONE database transaction: validate, convert, write the
+-- approved balance, mark the submission verified, create exactly one deposit
+-- transaction. The browser used to do the first steps in separate round trips,
+-- which is how an approval could half-write.
+--
+-- SECURITY DEFINER but re-checks is_admin() itself, and auth.uid() still
+-- resolves to the real caller inside it (the same pattern
+-- escalate_deposit_to_admin() uses), so guard_leads_admin_only_columns is
+-- satisfied on its own terms and balance_audit_log records the approving admin
+-- as the real actor. No policy, grant or existing trigger was changed.
+--
+-- The amount is read from leads.deposit_amount server-side. The function takes
+-- only a document id, so no figure can be supplied by the caller at approval.
+-- See migration 20260901060000 for the full function body.
+--
+-- PAYROLL IS DELIBERATELY NOT CONNECTED TO THIS (Muhammad, 2026-09-01).
+-- Commission is out of scope for this phase. calculatePayroll() is not a
+-- preview - it inserts a payroll_runs row carrying total_commission, i.e. a
+-- persisted payable - and its query matched type='deposit' AND currency='USD',
+-- which an approval-generated row satisfies exactly. loadPayrollDepositTransactions()
+-- in index.html therefore also filters deposit_document_id IS NULL, so
+-- hand-entered deposits keep counting for payroll exactly as they do today and
+-- approval-generated ones contribute nothing. Agent attribution is still stored
+-- and still shown in Reports. When approved deposits are meant to become
+-- commissionable, that single filter is what changes - nothing in this schema.
+
+-- DONE (Phase 43)
 -- =============================================================

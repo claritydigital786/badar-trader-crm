@@ -63,7 +63,10 @@ test('D: the agent cannot convert, verify or move AUM', () => {
   assert.match(html, /if \(!isAdminRole\(currentProfile\?\.role\)\) \{ showToast\('Only an admin can decide a deposit\./);
   // ...and the conversion itself still goes through the one canonical path,
   // which the live trg_leads_converted_admin_only trigger gates to admins.
-  assert.match(html, /await approveConversion\(leadId, ctx \|\| ''\);/,
+  // The document id is now passed through, so approve_deposit_and_convert() can
+  // mark THAT document verified inside the same database transaction that
+  // converts the lead - decideDeposit no longer writes it separately.
+  assert.match(html, /await approveConversion\(leadId, ctx \|\| '', docId\);/,
     'approval must route through approveConversion(), not a direct status write');
   const guard = read('../supabase/migrations/20260831041000_restrict_converted_to_admins.sql');
   assert.match(guard, /Only an admin can convert a lead/);

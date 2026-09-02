@@ -126,12 +126,23 @@ const escalated = (over = {}) => doc({ agent_reviewed_at: '2026-09-01T10:00:00Z'
   assert.equal(approvedAum([after]), 500, 'D: AUM stays at $500, never $1000');
 
   // The write itself, read off the real source.
+  // As of Phase 43 the writes live in ONE database transaction, not in the
+  // browser: approve_deposit_and_convert() converts the lead, writes the
+  // approved balance, marks the document verified and creates exactly one
+  // deposit transaction. The frontend only calls it.
   const fn = html.slice(html.indexOf('async function approveConversion'), html.indexOf('async function rejectConversion'));
-  assert.ok(/account_balance: approved/.test(fn), 'D: approveConversion writes account_balance');
-  assert.ok(/status: 'converted'/.test(fn) && /converted_at:/.test(fn) && /balance_locked: true/.test(fn),
+  assert.ok(/sb\.rpc\('approve_deposit_and_convert', \{ p_document_id: documentId \}\)/.test(fn),
+    'D: approval routes through the atomic RPC');
+  assert.ok(!/\.from\('leads'\)\s*\.update\(/.test(fn) && !/update\(\{[^}]*status: 'converted'/.test(fn),
+    'D: the browser must no longer write the conversion itself');
+  const mig = readFileSync(new URL('../supabase/migrations/20260901060000_deposit_approval_transaction.sql', import.meta.url), 'utf8');
+  assert.ok(/account_balance = v_amount/.test(mig), 'D: the RPC writes account_balance');
+  assert.ok(/status\s*=\s*'converted'/.test(mig) && /converted_at\s*=\s*now\(\)/.test(mig) && /balance_locked\s*=\s*true/.test(mig),
     'D: it also converts, stamps and locks');
-  assert.ok(/const approved = Number\(freshLead\.deposit_amount\)/.test(fn),
-    'D: the approved balance comes from the submitted deposit_amount');
+  assert.ok(/SELECT l\.assigned_agent_id, l\.status, l\.deposit_amount/.test(mig),
+    'D: the approved balance is read server-side from the submitted deposit_amount');
+  assert.ok(!/p_amount|p_balance/.test(mig.split('$function$')[0]),
+    'D: the function takes no amount from the caller');
 }
 
 // ══ E. Ehsan returns it ═══════════════════════════════════════
@@ -267,13 +278,28 @@ const escalated = (over = {}) => doc({ agent_reviewed_at: '2026-09-01T10:00:00Z'
 
 // ══ Approval must not half-write either ═══════════════════════
 {
+  // This used to be an ordering guarantee inside decideDeposit: convert first,
+  // then mark the document. Phase 43 makes it an atomicity guarantee instead -
+  // decideDeposit no longer touches the document at all, and the conversion and
+  // the document write happen in ONE database transaction, so neither can land
+  // without the other.
   const fn = html.slice(html.indexOf('async function decideDeposit'), html.indexOf('// The agent hears about BOTH outcomes'));
-  const convertIdx = fn.indexOf('const converted = await approveConversion');
-  const markIdx    = fn.indexOf("status: 'verified'");
-  assert.ok(convertIdx > 0 && markIdx > convertIdx,
-    'the document is marked verified only AFTER the lead actually converted');
+  const verifiedBranch = fn.slice(fn.indexOf("if (decision === 'verified')"), fn.indexOf("// Returning it puts it back"));
+  assert.ok(!/kyc_documents/.test(verifiedBranch),
+    'decideDeposit must no longer write the document itself - the RPC does');
   assert.ok(fn.includes('if (!converted) { renderDepositQueues(); return; }'),
     'a refused approval leaves the document untouched');
+
+  const mig = readFileSync(new URL('../supabase/migrations/20260901060000_deposit_approval_transaction.sql', import.meta.url), 'utf8');
+  const body = mig.slice(mig.indexOf('UPDATE public.leads'));
+  const convertAt = body.indexOf("status          = 'converted'");
+  const markAt    = body.indexOf("status      = 'verified'");
+  const txnAt     = body.indexOf('INSERT INTO public.transactions');
+  assert.ok(convertAt >= 0 && markAt > convertAt && txnAt > markAt,
+    'the RPC converts, then marks the document, then records the transaction - in one transaction');
+  assert.ok(/FOR UPDATE/.test(mig), 'the document row is locked, which serialises concurrent approvals');
+  assert.ok(/CREATE UNIQUE INDEX[\s\S]{0,200}deposit_document_id[\s\S]{0,120}WHERE \(?deposit_document_id IS NOT NULL/.test(mig),
+    'a partial unique index makes a second transaction for the same document impossible');
 }
 
 console.log('deposit-approval-balance: all assertions passed');
