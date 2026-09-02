@@ -10784,7 +10784,41 @@ async function loadReports() {
   setElText('rpt-active-clients', converted);
   setElText('rpt-total-revenue',  e4 ? 'Unavailable' : formatCurrencyTotals(depositTotals));
 
-  const leadAgent = new Map(cachedLeads.map(lead => [lead.id, lead.assigned_agent_id]));
+  // Who owns each lead that has a transaction, read from the database rather
+  // than from cachedLeads.
+  //
+  // Real production bug, 2026-09-02: Hanzala's approved $500 showed as "None"
+  // in his Agent Performance row while every other figure on the page was
+  // right. cachedLeads is only ever filled by loadAdminLeads(), which runs on
+  // the All Leads tab and nowhere else - so an admin who opens Reports
+  // directly, or reloads on it, has an EMPTY array here. Every
+  // leadAgent.get() then returns undefined, the `if (!agentId) return;` below
+  // silently drops every deposit, and the column reads None with no error
+  // anywhere. Visiting All Leads first was not a reliable fix either:
+  // loadAdminLeads() applies whatever status/agent/source/search filters are
+  // active, so cachedLeads can hold a filtered subset that simply excludes
+  // the lead a transaction belongs to.
+  //
+  // The three summary cards above already had exactly this bug and were fixed
+  // with real server-side queries on 2026-08-25; this map was left behind.
+  //
+  // Only the leads that actually have transactions are looked up, so this
+  // stays small (one lead today) regardless of how many leads exist, and it is
+  // chunked because .in() goes into the request URL.
+  const leadAgent = new Map();
+  {
+    const clientIds = [...new Set(txRows.map(r => r.client_id).filter(Boolean))];
+    if (demoMode) {
+      for (const l of (_DEMO_LEADS || [])) leadAgent.set(l.id, l.assigned_agent_id);
+    } else {
+      for (let i = 0; i < clientIds.length; i += 200) {
+        const { data: owners, error: ownerErr } = await sb
+          .from('leads').select('id, assigned_agent_id').in('id', clientIds.slice(i, i + 200));
+        if (ownerErr) { console.error('loadReports lead owners:', ownerErr.message); break; }
+        for (const l of (owners || [])) leadAgent.set(l.id, l.assigned_agent_id);
+      }
+    }
+  }
   const depositsByAgent = {};
   txRows.filter(row => row.type === 'deposit').forEach(row => {
     const agentId = leadAgent.get(row.client_id);
