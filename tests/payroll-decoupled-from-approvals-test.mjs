@@ -66,15 +66,38 @@ const slice = (from, to) => html.slice(html.indexOf(from), html.indexOf(to));
   assert.ok(/INSERT INTO public\.transactions/.test(mig), '...and it is the deposit transaction');
 }
 
-// ── The agent's own on-screen estimate is not fed by the ledger ─
+// ── The agent's own on-screen estimate is payroll-neutral too ───
 {
   const est = slice('async function loadAgentPayrollEstimate', 'async function logActivityStandalone');
-  assert.ok(!/transactions/.test(est),
-    'the agent payroll estimate must not read the transactions table');
-  // It is fed by approvedAum(), which is account_balance of converted leads -
-  // a consequence of the approved-AUM phase, not of this ledger work.
+  // It must NOT be fed approved AUM any more: that figure includes
+  // approval-generated deposits, so the estimate would rise on approval.
+  assert.ok(/async function loadAgentPayrollEstimate\(\)/.test(est),
+    'the estimate must not accept an externally supplied revenue figure');
+  assert.ok(!/loadAgentPayrollEstimate\(revenue\)/.test(html),
+    'approved AUM must no longer be passed into the payroll estimate');
+  assert.ok(/loadAgentPayrollEstimate\(\);/.test(html), 'the estimate is called with no revenue');
+
+  // It applies the SAME rule as the real payroll run, so the two cannot diverge.
+  assert.ok(est.includes(".is('deposit_document_id', null)"),
+    'the estimate must exclude approval-generated deposits, exactly as the real run does');
+  assert.ok(est.includes(".eq('type', 'deposit')") && est.includes(".eq('currency', 'USD')"),
+    'the estimate must apply the real payroll filters');
+  assert.ok(/payrollPeriodBounds\('monthly'\)/.test(est),
+    'the estimate must bound by the same period the run uses');
+  assert.ok(/!t\.deposit_document_id/.test(est),
+    'the demo branch of the estimate applies the same exclusion');
+  // A failure must never be papered over with a guessed number.
+  assert.ok(/Commissionable deposits could not be loaded/.test(est),
+    'a failed lookup shows base pay only, never a guessed commission');
+}
+
+// ── ...while the REPORTING figures keep approved deposits ──────
+{
   assert.ok(/const revenue = approvedAum\(cachedLeads\);/.test(html),
-    'the agent estimate is fed by approvedAum(), unchanged by this phase');
+    'the agent AUM card and My Performance column still use approvedAum()');
+  assert.ok(/setS\('agent-stat-revenue'/.test(html), 'the approved-AUM stat card is unchanged');
+  assert.ok(/const revenue = approvedAum\(leads\);/.test(html),
+    'the admin/super-admin AUM figure is unchanged');
 }
 
 console.log('payroll-decoupled-from-approvals: all assertions passed');

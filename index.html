@@ -7700,7 +7700,11 @@ function renderAgentDashboardExtras(total, converted, revenue) {
     });
   }
 
-  loadAgentPayrollEstimate(revenue);
+  // Deliberately NOT passed `revenue`. That figure is approved AUM, which
+  // includes approval-generated deposits - and those must stay payroll-neutral
+  // (Muhammad, 2026-09-01). The estimate computes its own commissionable figure
+  // using the same rule the real payroll run uses.
+  loadAgentPayrollEstimate();
 }
 let _agentTrendChart = null;
 
@@ -7710,19 +7714,69 @@ let _agentTrendChart = null;
 // at all - see migration 20260825000000). This reads just the one settings
 // row this agent is now allowed to see (base salary + commission %) and
 // estimates against their own already-visible revenue.
-async function loadAgentPayrollEstimate(revenue) {
+async function loadAgentPayrollEstimate() {
   const bodyEl = document.getElementById('agent-payroll-body');
   if (!bodyEl) return;
+
+  // Commissionable revenue, computed with EXACTLY the rule
+  // loadPayrollDepositTransactions() uses for the real run: hand-entered deposit
+  // transactions in USD for this agent's own clients, within the period.
+  //
+  // It used to be handed approved AUM instead, which was wrong twice over. It
+  // showed a commission the real payroll run would never have paid, because that
+  // run reads the transactions ledger and AUM reads leads.account_balance - two
+  // different numbers that had simply never been compared. And once an approved
+  // deposit started writing both a balance AND a ledger row, the estimate would
+  // have risen on approval, which is precisely what must not happen while
+  // commission is out of scope.
+  //
+  // deposit_document_id IS NULL is the same exclusion the real run applies, so
+  // approval-generated deposits contribute nothing here by construction - not by
+  // a second rule that could drift away from the first.
+  const { start, end } = payrollPeriodBounds('monthly');
+  const inPeriod = t => {
+    const at = new Date(t.created_at);
+    return at >= start && at <= end;
+  };
+
+  let commissionable = 0;
+  let base = 500;
+  let commPct = 5;
+
   if (demoMode) {
-    bodyEl.innerHTML = `Base <strong>$500</strong> + 5% of $${fmtMoney(revenue)} in approved deposits &asymp; <strong style="color:var(--ok)">$${fmtMoney(500 + revenue * 0.05)}</strong> this month. <span style="color:var(--text-muted)">(demo estimate)</span>`;
+    const mine = new Set((cachedLeads || []).map(l => l.id));
+    commissionable = (window._DEMO_TRANSACTIONS || [])
+      .filter(t => t.type === 'deposit' && t.currency === 'USD' && !t.deposit_document_id
+                   && mine.has(t.client_id) && inPeriod(t))
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+    bodyEl.innerHTML = `Base <strong>$${fmtMoney(base)}</strong> + ${commPct}% of $${fmtMoney(commissionable)} in commissionable deposits &asymp; <strong style="color:var(--ok)">$${fmtMoney(base + commissionable * commPct / 100)}</strong> this month. <span style="color:var(--text-muted)">(demo estimate)</span>`;
     return;
   }
-  const { data, error } = await sb.from('payroll_settings').select('base_salary_monthly, commission_percent').eq('agent_id', currentUser.id).maybeSingle();
+
+  const { data: setting, error } = await sb.from('payroll_settings')
+    .select('base_salary_monthly, commission_percent').eq('agent_id', currentUser.id).maybeSingle();
   if (error) { bodyEl.textContent = 'Could not load payroll settings.'; return; }
-  const base = Number(data?.base_salary_monthly ?? 500);
-  const commPct = Number(data?.commission_percent ?? 5);
-  const commission = revenue * (commPct / 100);
-  bodyEl.innerHTML = `Base <strong>$${fmtMoney(base)}</strong>/month + <strong>${commPct}%</strong> of $${fmtMoney(revenue)} in approved deposits &asymp; <strong style="color:var(--ok)">$${fmtMoney(base + commission)}</strong> estimated this period. <span style="color:var(--text-muted)">Admin finalizes the real payroll run.</span>`;
+  base = Number(setting?.base_salary_monthly ?? 500);
+  commPct = Number(setting?.commission_percent ?? 5);
+
+  // RLS ("transactions: agent select own clients") already scopes this to the
+  // agent's own clients, so the rows that come back are theirs by definition.
+  const { data: txns, error: txErr } = await sb.from('transactions')
+    .select('amount, created_at, deposit_document_id')
+    .eq('type', 'deposit')
+    .eq('currency', 'USD')
+    .is('deposit_document_id', null)
+    .gte('created_at', start.toISOString())
+    .lte('created_at', end.toISOString());
+  if (txErr) {
+    // Never guess a number here - a wrong pay estimate is worse than none.
+    bodyEl.innerHTML = `Base <strong>$${fmtMoney(base)}</strong>/month. <span style="color:var(--text-muted)">Commissionable deposits could not be loaded.</span>`;
+    return;
+  }
+  commissionable = (txns || []).reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+  const commission = commissionable * (commPct / 100);
+  bodyEl.innerHTML = `Base <strong>$${fmtMoney(base)}</strong>/month + <strong>${commPct}%</strong> of $${fmtMoney(commissionable)} in commissionable deposits &asymp; <strong style="color:var(--ok)">$${fmtMoney(base + commission)}</strong> estimated this period. <span style="color:var(--text-muted)">Approved deposit verifications are not commissionable yet. Admin finalizes the real payroll run.</span>`;
 }
 
 async function logActivityStandalone() {
