@@ -89,7 +89,10 @@ assert.ok(/data-copy="\$\{esc\(depositFormLink\(leadId\)\)\}"/.test(html),
     'no executable line of the hook touches assigned_agent_id');
 
   // Reports resolves the agent from the lead, not from the transaction.
-  assert.ok(/const leadAgent = new Map\(cachedLeads\.map\(lead => \[lead\.id, lead\.assigned_agent_id\]\)\);/.test(html),
+  // Still resolved through the lead record - but read from the database rather
+  // than from cachedLeads, which was empty unless the admin had opened All
+  // Leads first and made Hanzala's approved $500 show as "None" in production.
+  assert.ok(/\.from\('leads'\)\.select\('id, assigned_agent_id'\)\.in\('id',/.test(html),
     'Reports maps a deposit back to the agent through the lead record');
   // The queues are scoped by the lead's owner too.
   assert.ok(/rows = rows\.filter\(r => r\.lead\?\.assigned_agent_id === agentId\)/.test(html),
