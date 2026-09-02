@@ -2523,6 +2523,33 @@ CREATE POLICY "deposit-screenshots: agent select own clients" ON storage.objects
     )
   );
 
+-- =============================================================
+-- Phase 44 - agents could never actually view their own sent attachments
+-- (Muhammad, 2026-09-02)
+-- Corresponds to supabase/migrations/20260902020000_fix_outbound_attachment_storage_rls.sql
+-- The policy above checks (storage.foldername(name))[1] against the lead's
+-- id - correct for INBOUND attachments ("<leadId>/file.ext") but wrong for
+-- OUTBOUND ones ("outbound/<leadId>/file.ext", added when voice-note/
+-- document sending was built), where the lead id sits at position [2].
+-- Proven live via JWT simulation as Hanzala's own account against a real
+-- attachment he sent, on his own assigned lead: 0 rows, before this fix.
+-- Fix: match the lead id against ANY element of the folder path.
+-- =============================================================
+
+DROP POLICY IF EXISTS "deposit-screenshots: agent select own clients" ON storage.objects;
+CREATE POLICY "deposit-screenshots: agent select own clients" ON storage.objects
+  FOR SELECT TO authenticated USING (
+    bucket_id = 'deposit-screenshots' AND
+    (SELECT public.is_active_staff()) AND
+    EXISTS (
+      SELECT 1 FROM public.leads l
+      WHERE l.id::text = ANY(storage.foldername(name))
+      AND l.assigned_agent_id = (SELECT auth.uid())
+    )
+  );
+
+-- DONE (Phase 44)
+
 -- Found in the same live audit: communication_logs (the MANUAL notes log,
 -- distinct from the auto-logged communications table above) was also never
 -- actually scoped, despite loadCommLog()'s own code comment in index.html
