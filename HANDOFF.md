@@ -4,7 +4,60 @@ _Last updated: 2026-09-02, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
 
-## 2026-09-02 (latest) - WhatsApp number hierarchy: 3903 is the ONLY live primary, 6541 is bot-testing only
+## 2026-09-02 (latest) - Why Badar saw the old hierarchy UI and Hanzala saw the new one
+
+Reported as a role-specific render bug: Hanzala's agent account showed the new
+Inbox pills and the Dashboard hierarchy card, Badar's super-admin account still
+showed `UAE · 6541` / `Pakistan · 3903` and no card.
+
+**It was not a role path.** Checked before changing anything, and all of it
+holds: `crm.badartrader.com` serves ONE index.html, byte-identical for every
+role (ETag matched the repo copy exactly); the obsolete strings do not exist
+anywhere in it (`grep` count 0); there are exactly two channel menus in the
+whole file, the admin one and the agent one, both already carrying the approved
+labels; `super_admin` and `admin` both route through `isAdminRole()` into the
+same `initAdmin()`, which calls `renderDashboardStats()` -> `renderWaHierarchyCards()`
+with no role condition anywhere; `sw.js` has never had a fetch handler, so the
+service worker caches nothing and was ruled out by its own git history.
+
+**Actual root cause: which BUILD each browser was running.** A CRM tab left
+open across a deploy keeps rendering the document it loaded hours ago. No cache
+header can fix that - an open tab never re-requests the page at all. Agents on
+phones reload constantly and picked the new build up immediately; a desktop tab
+open all day did not. Nothing in the app told it otherwise.
+
+**Fix, role-independent by construction.** `startBuildFreshnessCheck()` runs
+once at boot, before the admin/agent branch, for whoever is signed in. It
+records index.html's ETag at load (Vercel's ETag for a static file is its
+content md5, so it changes on a real deploy and only on a real deploy), then
+re-checks every 10 minutes while the tab is visible and immediately whenever
+the tab is brought back to the foreground - the exact moment that produced this
+report. A changed ETag shows a small "A newer version of the CRM is available"
+bar with Reload and Later. Deliberately never auto-reloads: an agent mid-reply
+must not have the page pulled out from under them. One byte per probe (Range
+header), never from cache, and every failure path returns null silently.
+
+Also fixed while here: `vercel.json` declared `Cache-Control: no-cache,
+no-store, must-revalidate` for HTML, and production was measurably NOT sending
+it (`public, max-age=0, must-revalidate`, Vercel's default). The top-level
+`headers` block is inert because the file uses the legacy `builds`/`routes`
+form. Moved the same policy into the routes block as a header-only entry with
+`continue: true`; the identity route below it is untouched. This is a hardening,
+not the root cause - it was verified by measurement, before and after.
+
+Verified: 30/30 node suites (new `tests/hierarchy-role-coverage-test.mjs`
+covers all 8 real accounts plus a future agent), 98/98 SQL, 77/77 browser
+assertions driving the app's own `isAdminRole()` for every account and running
+each shell's real render path, and a 9/9 end-to-end simulation of the exact
+scenario: open the super-admin shell, deploy a new build without touching the
+tab, and watch it notice by itself, offer a reload, not auto-reload, and come
+back on the new build.
+
+Unchanged: the date-anchored 6541 KPI rule, historical 6541 and NULL leads, bot
+routing, credentials, phone-number IDs, secrets, the deposit workflow, payroll
+exclusion, personalized deposit links and RLS.
+
+## 2026-09-02 - WhatsApp number hierarchy: 3903 is the ONLY live primary, 6541 is bot-testing only
 
 Muhammad relayed the business owner's final decision. `+92 371 5773903` is the
 one live primary production number (Meta ads, real customers, CRM intake, the
