@@ -248,10 +248,17 @@ test('7: admin approval still results in Converted', () => {
     'approval must still require a deposit screenshot, and now an agent-escalated one');
   assert.match(html, /if \(!doc\) out\.push\('no deposit screenshot is on file'\)/,
     'a missing screenshot is still refused');
-  assert.match(html, /status: 'converted',\n\s*converted_at: new Date\(\)\.toISOString\(\),\n\s*balance_locked: true,/,
-    'approveConversion must still be the path that sets Converted and stamps converted_at');
-  assert.match(html, /account_balance: approved,/,
-    'and it is now also the ONLY path that writes account_balance');
+  // Phase 43 moved the writes out of the browser and into one database
+  // transaction. approveConversion() is still the single approval path; it now
+  // calls approve_deposit_and_convert(), which converts, stamps, locks, writes
+  // the approved balance and creates the one deposit transaction atomically.
+  assert.match(html, /sb\.rpc\('approve_deposit_and_convert'/,
+    'approveConversion must be the path that converts, via the atomic RPC');
+  const mig = read('../supabase/migrations/20260901060000_deposit_approval_transaction.sql');
+  assert.match(mig, /status\s*=\s*'converted'/, 'the RPC sets Converted');
+  assert.match(mig, /converted_at\s*=\s*now\(\)/, 'the RPC stamps converted_at');
+  assert.match(mig, /account_balance\s*=\s*v_amount/,
+    'and it is now the ONLY path that writes account_balance');
 });
 
 // ── 8. Agents still cannot move a lead into or out of Converted ─
