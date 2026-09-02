@@ -11800,7 +11800,17 @@ function renderDashboardCharts(leads) {
       responsive: true,
       plugins: { legend: { display: false } },
       scales: {
-        y: { beginAtZero: true, ticks: { stepSize: 1, color: dashChartTextColor(), font: { size: 10 } }, grid: { color: dashChartGridColor() } },
+        // stepSize: 1 was fine while daily lead counts stayed small (0-20/day)
+        // but forces Chart.js to try to generate one tick per single unit up
+        // to whatever the real peak day is - found live, 2026-09-02, in
+        // Ehsan's own real console: "stepSize: 1 would result generating up
+        // to 5141 ticks. Limiting to 1000," logged on every single Dashboard
+        // render, real avoidable work sitting in the exact path Muhammad
+        // reported as slow. Letting Chart.js pick its own step from the real
+        // data range removes the wasted computation and the warning both -
+        // it already knows how to produce human-friendly intervals without
+        // being told to count by exactly 1.
+        y: { beginAtZero: true, ticks: { color: dashChartTextColor(), font: { size: 10 } }, grid: { color: dashChartGridColor() } },
         x: { ticks: { color: dashChartTextColor(), font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 7 }, grid: { display: false } },
       },
     },
