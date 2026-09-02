@@ -12883,7 +12883,25 @@ async function renderConversations(scope = '') {
 
   // Live mode - RLS returns every conversation for Admins and only
   // conversations related to the signed-in Agent's assigned leads.
-  listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">Loading…</div>';
+  //
+  // This function re-runs on EVERY realtime message insert anywhere the
+  // signed-in role can see (startConvRealtime's INSERT handler calls it
+  // unconditionally) - for an admin/super_admin that's every message across
+  // every lead in the whole CRM, not just one conversation. Wiping the
+  // whole list to "Loading..." on every single one of those calls was a
+  // real, visible bug, not just a cosmetic one: found live, 2026-09-02,
+  // Muhammad watching the sidebar repeatedly flash back to "Loading..."
+  // every 5-10 seconds under real traffic, describing it as if a backend
+  // script were re-scraping on a timer. There is no such timer - this is
+  // that same function, correctly reacting to real messages, just doing it
+  // in a way the eye reads as the whole list restarting. Only the very
+  // first load (nothing rendered yet) should show the loading state; every
+  // later call already has a real list on screen and should replace it
+  // directly once the fresh data arrives, with no flash back to empty.
+  const isFirstLoad = listEl.dataset.convLoaded !== '1';
+  if (isFirstLoad) {
+    listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">Loading…</div>';
+  }
   try {
     // Reads from inbox_conversation_list (added 2026-08-31), a view that is
     // already one row per LEAD (its latest matching message), not one row
@@ -12926,6 +12944,7 @@ async function renderConversations(scope = '') {
     }));
     if (!comms || !comms.length) {
       listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">No conversations yet.<br><span style="font-size:0.75rem;opacity:.7">Messages received via webhook will appear here.</span></div>';
+      listEl.dataset.convLoaded = '1';
       return;
     }
     const seen = new Set();
@@ -12971,9 +12990,14 @@ async function renderConversations(scope = '') {
           </div>
         </div>`;
     }).join('');
+    listEl.dataset.convLoaded = '1';
     updateConvSortLabels();
     filterConversations(scope);
   } catch(err) {
+    // Deliberately NOT marking convLoaded here - a genuine failure should
+    // still show the loading state (then this same error) on the next
+    // attempt, rather than silently sitting on whatever was on screen
+    // before with no visible sign anything went wrong.
     listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--bad);font-size:0.85rem">Error: ${esc(err.message)}</div>`;
   }
 }
