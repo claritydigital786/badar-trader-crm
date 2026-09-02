@@ -4,6 +4,16 @@ _Last updated: 2026-09-02, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
 
+## 2026-09-02 (even later) - Agents can attach any file type; a real "Not signed in" send failure fixed for good
+
+**Attach anything, per Muhammad's direct instruction.** The Omnichannel composer's file picker only ever accepted `image/jpeg, image/png, application/pdf` - a front-end-only restriction; `send-wa-message` already sends anything else as a WhatsApp document attachment with no allowlist of its own. Removed the front-end restriction entirely, kept the 5MB cap and an empty-file-type guard. Verified in-browser: `.docx`/`.zip` validate clean now, oversized/empty-type files still correctly rejected.
+
+**Published, then corrected, an artifact version of the agent WhatsApp guidelines** (the 24h-window doc from earlier today) as a navy/gold infographic matching the reference funnel-diagram style Muhammad shared. First delivery was incomplete: published as private with no mention that sharing needs an explicit Share action from the page itself, so it couldn't be forwarded to anyone. Corrected in chat rather than silently republishing.
+
+**Real live bug: Hanzala's send failed with "Not signed in" while his Inbox was fully loaded and working.** Root cause: a stale/expired access token the app's own session state hadn't detected - his earlier reads had already succeeded while the session was still valid, so nothing surfaced the problem until his first authenticated write (the send) failed. Immediate fix given first (refresh the page / sign out-in) to unblock the real conversation right away. Then hardened for real: `sendWaViaFunction()` (`index.html`) now retries once via an explicit `sb.auth.refreshSession()` before surfacing anything to the agent; only a genuinely dead session still errors, with a clear, actionable message and a real sign-out, instead of the raw "Not signed in" string. Verified in-browser, zero console errors. Committed as `d386186`, merged clean with concurrent work (`eb0f2a0`).
+
+**Meta Ads Performance widget - real cause identified, needs Muhammad/Badar's own action in Meta, not a code fix.** Confirmed live via screenshot: Clarity Digital LLC's Business Settings has zero System Users, so the CRM's stored Meta token (set 2026-07-10, never updated) was never actually granted `ads_management`/`ads_read` on ad account `act_1024848662493589` from anywhere reachable here. Muhammad then clarified the real structure: **DIGICANO's Business Portfolio owns/hosts the Badar Trader CRM app** (not Clarity Digital), and Clarity Digital separately holds access to Badar's own assets. So the fix is: create the System User in DIGICANO's Business Settings (where the app actually lives), share the ad account from Clarity Digital's Business Settings to DIGICANO's business, then assign that System User to the now-shared ad account and generate a fresh token from there. No click made on any live Meta account, per the standing rule - this is fully a client-side/business-settings action, not something a coding session can do.
+
 ## 2026-09-02 (latest) - Why Badar saw the old hierarchy UI and Hanzala saw the new one
 
 Reported as a role-specific render bug: Hanzala's agent account showed the new
