@@ -83,8 +83,18 @@ assert.ok(/if \(ownerErr\)/.test(reports),
 
 // ── Payroll is NOT touched by this fix ─────────────────────────
 {
-  assert.ok(/const leads  = demoMode \? _DEMO_LEADS : cachedLeads;/.test(html),
+  // 2026-09-04: cachedLeads holds one page of All Leads now, so payroll fetches
+  // its own complete set instead - fetchPayrollLeads(). The point this guards is
+  // unchanged and still holds: payroll reads a lead source of its OWN, entirely
+  // separate from the leadAgent map the Reports fix introduced.
+  assert.ok(/const leads  = demoMode \? _DEMO_LEADS : await fetchPayrollLeads\(\);/.test(html),
     'calculatePayroll keeps its own separate lead source - this fix does not reach it');
+  assert.match(html, /async function fetchPayrollLeads\(\)[\s\S]{0,400}assigned_agent_id, status, converted_at, created_at/,
+    'and that source must carry every column the payroll calculation reads');
+  const payrollBlock = html.slice(html.indexOf('async function calculatePayroll'),
+                                  html.indexOf('async function calculatePayroll') + 3000);
+  assert.ok(!payrollBlock.includes('leadAgent'),
+    'payroll must not start borrowing the Reports attribution map');
   const payroll = html.slice(html.indexOf('async function loadPayrollDepositTransactions'),
                             html.indexOf('async function loadPayrollRuns'));
   assert.ok(payroll.includes(".is('deposit_document_id', null)"),

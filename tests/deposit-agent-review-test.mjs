@@ -193,9 +193,23 @@ test('P: the Phase 1 form, upload and idempotency are untouched', () => {
 
 // ── Q. No regression in the existing aggregates ────────────────
 test('Q: existing aggregates still route through approvedAum', () => {
-  assert.match(html, /const revenue = approvedAum\((?:cachedLeads|perfLeads)\);/);
-  assert.match(html, /const perfLeads = productionLeads\(cachedLeads\);/);
-  assert.match(html, /const revenue = approvedAum\(leads\);/);
+  // The admin and agent revenue aggregates moved into SQL on 2026-09-04
+  // (dashboard_summary / agent_summary) so the browser stops downloading whole
+  // tables to add numbers up. Same converted-only rule, asserted where it lives.
+  const agentSql = readFileSync(new URL('../supabase/migrations/20260904020000_agent_summary_rpc.sql', import.meta.url), 'utf8');
+  const dashSql  = readFileSync(new URL('../supabase/migrations/20260904000000_dashboard_summary_rpc.sql', import.meta.url), 'utf8');
+  for (const [name, sql] of [['agent_summary', agentSql], ['dashboard_summary', dashSql]]) {
+    assert.match(sql, /sum\(account_balance\)\s*filter\s*\(where status = 'converted'\)/,
+      `${name} must aggregate approved (converted) deposits only`);
+  }
+  // approvedAum() itself must still exist and still gate on 'converted' - demo
+  // mode and every remaining JS call site depend on it.
+  assert.match(html, /function approvedAum\(leads\)/);
+  assert.match(html, /return \(lead && lead\.status\) === 'converted';/);
+  assert.match(agentSql, /wa_channel is distinct from '6541' or created_at < timestamptz '2026-09-02T00:00:00Z'/,
+    'the agent aggregate still applies the production-subset rule perfLeads used to');
+  assert.match(dashSql, /coalesce\(sum\(account_balance\) filter \(where status = 'converted'\), 0\) as approved_aum/,
+    'the admin dashboard aggregate keeps the converted-only rule');
   const unfiltered = html.match(/reduce\(\((?:s|sum), l\) => \1 \+ \(Number\(l\.account_balance\) \|\| 0\), 0\)/g) || [];
   assert.equal(unfiltered.length, 0, 'no unfiltered account_balance aggregate may return');
 });

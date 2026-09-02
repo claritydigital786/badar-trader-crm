@@ -108,10 +108,19 @@ assert.doesNotMatch(
   /renderLeadsTable\('admin-leads-tbody', cachedLeads, true\)/,
   'Inline edits must re-render through filterLeadsLocal, not around the filter.',
 );
+// 2026-09-04: the export no longer filters an in-memory copy of the whole table
+// (there isn't one any more - cachedLeads is a single page). It re-runs the
+// SAME buildLeadsQuery() the table uses, against Postgres, so the CSV matches
+// the active filters exactly and is no longer capped at what was downloaded.
 assert.match(
   html,
-  /function exportLeadsCSV\(\)[\s\S]{0,400}leadMatchesFilters/,
-  'Export CSV must export the rows on screen, not the whole cached set.',
+  /async function exportLeadsCSV\(\)[\s\S]{0,900}fetchAllRows\(\(\) => buildLeadsQuery\(f\)\)/,
+  'Export CSV must export the filtered set from the server, using the table\'s own query.',
+);
+assert.match(
+  html,
+  /async function exportLeadsCSV\(\)\s*\{\s*\n\s*const f = leadFilters\(\);/,
+  'and it must read the live filter state, not a stale copy.',
 );
 assert.match(
   html,
