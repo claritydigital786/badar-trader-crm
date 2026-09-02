@@ -4,6 +4,16 @@ _Last updated: 2026-09-02, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
 
+## 2026-09-02 (later still) - Bilal and Faisal restored to rotation; two agents remain out
+
+Muhammad confirmed the go-ahead for the two of the four rotation-suspended agents mentioned in the "Restore real agents to rotation" open item below: **Syed Bilal Ahmad Hashmi and Syed Faisal Basit had `receives_leads` flipped to `true`** via a direct SQL update, verified live (both now `receives_leads: true`, `is_active: true`). **Farwa Qazi and Syed Hamza remain `receives_leads = false`** - not touched, still waiting on an explicit go-ahead. No code change, no deploy, pure data update.
+
+Also drafted (not sent) two professional CRM-login-credential emails for Bilal and Faisal at Muhammad's request, with placeholder login URL/username/password fields - Muhammad will fill in real credentials and forward them himself from his own email, cc'ing Ehsan and Hanzala.
+
+Separately, answered a real design question live rather than treating it as a bug: `is_admin()` (the single choke-point every RLS policy and the Converted-approval trigger gates on) was widened in Phase 40 (2026-09-01) to `role IN ('admin', 'super_admin')`, so admin and super_admin currently see identically everything everywhere. Flagged that narrowing admin's visibility below super_admin's would be a deliberate, repo-wide RLS change, not a bug fix - not done, pending Muhammad specifying exactly what admin should still be allowed to see.
+
+A live bug report from Muhammad ("Ehsan's and Hanzala's leads are still the same", "Muhammad Asif", "Friends....", "Junaid's Lead omni channel conversations inbox") was checked against live data twice (agent lead counts, most-recent-leads-by-agent) - round-robin was confirmed actively and correctly alternating, including the specific lead named "Muhammad Asif" genuinely assigned to Hanzala. The report never resolved into a concrete, checkable claim; Muhammad's own final framing was that Ehsan may have been looking at a stale/glitchy screen. No code was changed on this thread - flagging here in case the same symptom recurs and a session picks this up fresh.
+
 ## 2026-09-02 (later) - Duplicate-lead race closed, staff numbers can never be processed as customers, commits `f916533` + `2050571`
 
 Muhammad reported Ehsan Wazir's own number showing up as a lead with a failed delivery notice - traced to the real mechanism rather than patched at the symptom, and it turned out to be three separate, related bugs plus real accumulated damage:
