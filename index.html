@@ -13161,7 +13161,7 @@ async function openConversation(convId, scope = '') {
       </div>
       <div id="conv-attach-chip" style="display:none"></div>
       <div class="conv-input-bar">
-        <input type="file" id="conv-attach-input" hidden onchange="onConvAttachPicked(this)" accept="image/jpeg,image/png,application/pdf" />
+        <input type="file" id="conv-attach-input" hidden onchange="onConvAttachPicked(this)" />
         <button type="button" class="conv-icon-btn" title="Attach a file" aria-label="Attach a file" onclick="document.getElementById('conv-attach-input').click()">📎</button>
         <button type="button" class="conv-icon-btn conv-icon-btn-secondary" title="Send an approved WhatsApp template - the only thing that works once the 24 hour window has closed" aria-label="Send an approved WhatsApp template" onclick="openTemplatePicker()">${COPY_ICON_SVG}</button>
         <button type="button" class="conv-icon-btn" id="${scope}voice-rec-btn" title="Record a voice note" aria-label="Record a voice note" onclick="toggleVoiceRecording('${scope}')">🎤</button>
@@ -13337,7 +13337,7 @@ async function openConversation(convId, scope = '') {
       </div>
       <div id="conv-attach-chip" style="display:none"></div>
       <div class="conv-input-bar">
-        <input type="file" id="conv-attach-input" hidden onchange="onConvAttachPicked(this)" accept="image/jpeg,image/png,application/pdf" />
+        <input type="file" id="conv-attach-input" hidden onchange="onConvAttachPicked(this)" />
         <button type="button" class="conv-icon-btn" title="Attach a file" aria-label="Attach a file" onclick="document.getElementById('conv-attach-input').click()">📎</button>
         <button type="button" class="conv-icon-btn conv-icon-btn-secondary" title="Send an approved WhatsApp template - the only thing that works once the 24 hour window has closed" aria-label="Send an approved WhatsApp template" onclick="openTemplatePicker()">${COPY_ICON_SVG}</button>
         <button type="button" class="conv-icon-btn" id="${scope}voice-rec-btn" title="Record a voice note" aria-label="Record a voice note" onclick="toggleVoiceRecording('${scope}')">🎤</button>
@@ -14701,11 +14701,17 @@ let _convAttachment = null; // { file, name, size, type }
 // 5MB matches both WhatsApp's own image ceiling and what comfortably fits in
 // a request once base64 has inflated it by about a third.
 const CONV_ATTACH_MAX_BYTES = 5 * 1024 * 1024;
-// Kept deliberately narrow for the first version: the two image types
-// WhatsApp renders inline, plus PDF, which is what a deposit receipt actually
-// arrives as. Anything else would still send as a document, but it is not
-// offered until someone asks for it.
-const CONV_ATTACH_ALLOWED = ['image/jpeg', 'image/png', 'application/pdf'];
+// Was narrowed to image/jpeg, image/png and application/pdf only - Muhammad's
+// direct instruction, 2026-09-02: "each and every single agent should be
+// able to attach anything in the conversations inbox." send-wa-message
+// already sends anything outside its own image/audio lists as a WhatsApp
+// "document" attachment with no allowlist of its own, so this was a purely
+// artificial front-end restriction with nothing behind it - removed rather
+// than expanded to a longer list that would just need updating again next
+// time someone needs a type not on it. What actually still gates a send is
+// the same as before: the 5MB size cap here, and Meta's own document-type
+// support at send time (surfaced as a real, visible error if a genuinely
+// unsupported type is ever rejected - never a silent failure).
 
 function humanFileSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
@@ -14716,8 +14722,13 @@ function humanFileSize(bytes) {
 // Returns an error string, or null when the file is acceptable.
 function validateConvAttachment(file) {
   if (!file) return 'No file selected.';
-  if (!CONV_ATTACH_ALLOWED.includes(file.type)) {
-    return 'Only JPG, PNG and PDF files can be sent.';
+  // No mime-type allowlist here on purpose - see the comment above
+  // CONV_ATTACH_MAX_BYTES. An empty file.type means the browser could not
+  // identify the file at all, which send-wa-message would reject anyway
+  // ("Attachment has no file type") - catching it here gives a clearer
+  // message before a round trip to the server.
+  if (!file.type) {
+    return 'This file type could not be identified by the browser and cannot be sent.';
   }
   if (file.size <= 0) return 'That file is empty.';
   if (file.size > CONV_ATTACH_MAX_BYTES) {
