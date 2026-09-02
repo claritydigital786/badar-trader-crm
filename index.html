@@ -6642,19 +6642,14 @@ async function loadAdminLeads() {
   }
 
 
-  // Real pagination, not a bigger cap. This table hit the exact same silent
-  // undercount the Dashboard did on 2026-08-24 and the Inbox did on 2026-09-01
-  // - an unbounded select relying on PostgREST's server-side max_rows, which
-  // is a moving target (1000, then 5000) rather than a real fix. 7,432 real
-  // leads already exceed 5000, so the previous raise just delayed this same
-  // bug, it didn't close it. Pages through in genuine 1000-row batches via
-  // .range() until exhausted, matching fetchAllLeadsForDashboard's own
-  // pattern, so this stops depending on whatever the server cap happens to
-  // be today.
-  // The filtered rows and the unfiltered head count are independent, so the
-  // count query fires alongside the page loop rather than after it - it is
-  // only there to say "of N" honestly and should not add extra latency on
-  // top of however many pages the loop needs.
+  // History worth keeping: this table used to rely on PostgREST's server-side
+  // max_rows (1000, then 5000), which silently undercounted once real leads
+  // passed the cap - the same bug the Dashboard hit on 2026-08-24 and the Inbox
+  // on 2026-09-01. That was fixed by paging through the WHOLE table, which was
+  // correct but expensive: 7,701 rows / 8.8 MB to render 100. Since 2026-09-04
+  // only the requested page is fetched, so neither the cap nor the volume
+  // applies - see loadLeadsPage().
+  //
   // The unfiltered head count for the sidebar badge - head:true means zero
   // rows are transferred, only the Content-Range total. It runs alongside the
   // page fetch rather than after it.
