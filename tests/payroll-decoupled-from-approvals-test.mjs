@@ -93,7 +93,10 @@ const slice = (from, to) => html.slice(html.indexOf(from), html.indexOf(to));
 
 // ── ...while the REPORTING figures keep approved deposits ──────
 {
-  assert.ok(/const revenue = approvedAum\(cachedLeads\);/.test(html),
+  // perfLeads = productionLeads(cachedLeads) since 2026-09-02 - see the
+  // WhatsApp number hierarchy change. Still approvedAum(), still over the
+  // agent's own cached leads; only bot-test traffic is excluded from it.
+  assert.ok(/const revenue = approvedAum\((?:cachedLeads|perfLeads)\);/.test(html),
     'the agent AUM card and My Performance column still use approvedAum()');
   assert.ok(/setS\('agent-stat-revenue'/.test(html), 'the approved-AUM stat card is unchanged');
   assert.ok(/const revenue = approvedAum\(leads\);/.test(html),

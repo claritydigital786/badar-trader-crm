@@ -6,8 +6,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 PGBIN=$(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | tail -1)
 [ -n "$PGBIN" ] || { echo "no local postgres found - skipping SQL suite"; exit 0; }
 rm -rf /tmp/pgt && mkdir -p /tmp/pgt/sock && chown -R postgres:postgres /tmp/pgt
-cp "$HERE/fixture.sql" "$HERE/approve_deposit_and_convert_test.sql" /tmp/pgt/
+cp "$HERE/fixture.sql" "$HERE/approve_deposit_and_convert_test.sql" "$HERE/production_kpis_test.sql" /tmp/pgt/
 cp "$HERE/../../supabase/migrations/20260901060000_deposit_approval_transaction.sql" /tmp/pgt/migration.sql
+cp "$HERE/../../supabase/migrations/20260902100000_production_kpis_exclude_bot_test.sql" /tmp/pgt/migration_kpis.sql
 chown postgres:postgres /tmp/pgt/*.sql
 cat > /tmp/pgt/go.sh <<'INNER'
 export PATH=PGBIN_PLACEHOLDER:$PATH
@@ -15,10 +16,22 @@ initdb -D /tmp/pgt/data -U postgres --auth=trust >/dev/null 2>&1
 pg_ctl -D /tmp/pgt/data -o "-k /tmp/pgt/sock -c listen_addresses=" -l /tmp/pgt/pg.log -w start >/dev/null 2>&1
 createdb -h /tmp/pgt/sock -U postgres crmtest
 P="psql -h /tmp/pgt/sock -U postgres -d crmtest -v ON_ERROR_STOP=1 -q"
-$P -c "CREATE ROLE authenticated NOLOGIN; CREATE ROLE anon NOLOGIN;"
+# service_role too: production's Supabase cluster has it, and a migration that
+# REVOKEs from it fails outright without it. Found by this fixture on
+# 2026-09-02 - the same class of gap as the unqualified-table-name one.
+$P -c "CREATE ROLE authenticated NOLOGIN; CREATE ROLE anon NOLOGIN; CREATE ROLE service_role NOLOGIN;"
 $P -f /tmp/pgt/fixture.sql
 $P -f /tmp/pgt/migration.sql
+$P -f /tmp/pgt/migration_kpis.sql
 psql -h /tmp/pgt/sock -U postgres -d crmtest -f /tmp/pgt/approve_deposit_and_convert_test.sql 2>&1
+# The KPI suite seeds its own leads, so it runs last, in its own database.
+createdb -h /tmp/pgt/sock -U postgres kpitest
+K="psql -h /tmp/pgt/sock -U postgres -d kpitest -v ON_ERROR_STOP=1 -q"
+$K -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;" 2>/dev/null || true
+$K -f /tmp/pgt/fixture.sql
+$K -f /tmp/pgt/migration.sql
+$K -f /tmp/pgt/migration_kpis.sql
+psql -h /tmp/pgt/sock -U postgres -d kpitest -f /tmp/pgt/production_kpis_test.sql 2>&1
 INNER
 sed -i "s|PGBIN_PLACEHOLDER|$PGBIN|" /tmp/pgt/go.sh
 chmod +x /tmp/pgt/go.sh && chown postgres:postgres /tmp/pgt/go.sh

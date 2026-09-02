@@ -141,9 +141,15 @@ const lead = (status, balance, extra = {}) => ({ status, account_balance: balanc
 
 // ── Call sites: the helper has to actually be used ─────────────
 {
-  // Agent dashboard.
-  assert.ok(/const revenue = approvedAum\(cachedLeads\);/.test(html),
+  // Agent dashboard. The argument became productionLeads(cachedLeads) on
+  // 2026-09-02 (bot-test traffic must not inflate an agent's own figures) -
+  // a narrowing of the input, not a change to how AUM itself is derived, so
+  // what this asserts is the stronger contract: the AUM figure is produced by
+  // approvedAum() over a subset of cachedLeads and by nothing else.
+  assert.ok(/const revenue = approvedAum\((?:cachedLeads|perfLeads)\);/.test(html),
     'the agent dashboard must use approvedAum()');
+  assert.ok(/const perfLeads = productionLeads\(cachedLeads\);/.test(html),
+    'and perfLeads must be derived from cachedLeads, not from some other source');
   // Admin + Super Admin dashboard (Super Admin runs initAdmin(), same view).
   assert.ok(/const revenue = approvedAum\(leads\);/.test(html),
     'the admin dashboard must use approvedAum()');

@@ -28,7 +28,13 @@ CREATE TABLE leads (
   kyc_status text NOT NULL DEFAULT 'pending'
     CHECK (kyc_status = ANY (ARRAY['pending','verified','rejected','not_started'])),
   deposit_amount numeric, deposit_platform text, deposit_account_ref text,
-  manual_tier text, converted_at timestamptz, updated_at timestamptz DEFAULT now());
+  manual_tier text, converted_at timestamptz, updated_at timestamptz DEFAULT now(),
+  -- Added 2026-09-02 for the production-KPI suite. Same shape as production:
+  -- wa_channel is nullable with the same CHECK, and NULL is the honest state
+  -- for every lead that predates channel tracking.
+  source text,
+  wa_channel text CHECK (wa_channel IS NULL OR wa_channel IN ('6541', '3903')),
+  created_at timestamptz NOT NULL DEFAULT now());
 
 CREATE TABLE kyc_documents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -4,6 +4,79 @@ _Last updated: 2026-09-02, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
 
+## 2026-09-02 (latest) - WhatsApp number hierarchy: 3903 is the ONLY live primary, 6541 is bot-testing only
+
+Muhammad relayed the business owner's final decision. `+92 371 5773903` is the
+one live primary production number (Meta ads, real customers, CRM intake, the
+whole funnel). `+971 52 558 6541` is a bot-testing number and nothing else.
+There is no "secondary production number" any more, and the old
+main/primary/secondary/ingest-only wording is business-obsolete.
+
+This was labelling, reporting and clarity only. **No bot routing, credential,
+token, phone-number ID or Supabase secret was touched**, and the runtime is
+unchanged: 6541 is still the number the automated bot physically replies from,
+and 3903 is still ingest-only. Business role and technical bot state are now
+stated as two separate facts everywhere they appear, because they point in
+opposite directions and conflating them is how this gets broken later.
+
+**Single source of truth** - `WA_NUMBERS`, `WA_TAG_FULL`, `WA_TAG_COMPACT`,
+`WA_TAG_UNTAGGED` near the top of index.html's script. Every staff-facing
+label reads from these, so the Inbox pills, the dashboard card, the lead badge
+and Connect WhatsApp cannot drift apart.
+
+**Where it now shows** - a compact "WhatsApp Number Hierarchy" card on both the
+admin/super-admin Dashboard and the agent Dashboard (LIVE PRODUCTION routing
+flow beside BOT TESTING); the Omnichannel Inbox channel pills in both views,
+live number listed first; a "WhatsApp Number" row in the lead detail panel;
+the Connect WhatsApp table, live primary first, with the business role and the
+current bot state written as separate sentences; and the Meta Integration,
+Messenger/Instagram and Guide copy that referenced the old wording.
+
+**The KPI rule, and why it is date-anchored.** This is the part worth reading
+before changing anything here. Every one of the 201 leads tagged `6541` in
+production is a REAL Meta-ad customer, acquired while 6541 was the only live
+number - all 201 predate the decision, and 20 of them are the CRM's qualified
+leads. A blanket `wa_channel <> '6541'` exclusion would have dropped Total
+Leads 7,654 -> 7,453 and Qualified Leads 21 -> 1, erasing genuine historical
+performance. So bot-test traffic is defined as 6541 **AND** created on/after
+`2026-09-02` (`isBotTestLead()` in index.html, `public.is_bot_test_lead()` in
+SQL). Measured BEFORE/AFTER against live production: every figure identical,
+0 rows excluded today. Applied at the Dashboard fetch, the agent stat bar and
+gauges, the Reports total/converted counts, the campaign funnel, and the
+`report_agent_performance` / `report_source_performance` RPCs. `cachedLeads`
+itself stays complete - My Leads is a work list, not a KPI, so an agent can
+still see and work a test lead.
+
+**A real defect caught before shipping.** The first SQL predicate was
+`p_wa_channel = '6541' AND ...`, which returns NULL for an untagged lead. Every
+caller filters with `WHERE NOT is_bot_test_lead(...)`, and `NOT NULL` is NULL,
+so every historical/untagged lead created on or after the cutover would have
+been silently DROPPED from Total Leads, Agent Performance, Lead Source and the
+funnel. One production lead already matched that description. Found by
+comparing BEFORE/AFTER counts against live data rather than trusting the local
+suite. Fixed with `IS NOT DISTINCT FROM` plus an explicit NULL-date guard, and
+pinned by regression tests on both the SQL and JS sides.
+
+**Historical NULL leads are never attributed.** 6,450+ leads predate channel
+tracking. They render as "Historical / Untagged", stay in every production
+figure, and are never shown as 3903. No lead was deleted, relabelled or
+reclassified; no `wa_channel` value was written.
+
+Verified: 29/29 node suites, 98/98 SQL assertions against the real migration on
+a throwaway Postgres (including a full NULL-combination sweep), 35/35 browser
+assertions against the local preview in all three roles with zero console
+errors, the PostgREST `.or()` filter proven to parse against the live API
+(401 from RLS, versus 400 PGRST100 for a deliberately malformed control), and
+both RPCs called live as an admin after the migration.
+
+Deliberately not changed: `report_financial_summary()` (deposit/AUM ledger),
+the approve_deposit_and_convert RPC, the transaction ledger, the payroll
+exclusion, personalized deposit links, RLS, and every Edge Function `.ts` file.
+
+Noted, not acted on: the production `transactions` table is now empty and the
+`FINAL TEST - HANZALA` lead is gone - the deposit test data was cleaned up
+outside this session. Nothing here touched it.
+
 ## 2026-09-02 (later still) - Bilal and Faisal restored to rotation; two agents remain out
 
 Muhammad confirmed the go-ahead for the two of the four rotation-suspended agents mentioned in the "Restore real agents to rotation" open item below: **Syed Bilal Ahmad Hashmi and Syed Faisal Basit had `receives_leads` flipped to `true`** via a direct SQL update, verified live (both now `receives_leads: true`, `is_active: true`). **Farwa Qazi and Syed Hamza remain `receives_leads = false`** - not touched, still waiting on an explicit go-ahead. No code change, no deploy, pure data update.

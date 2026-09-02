@@ -1,0 +1,13 @@
+{
+  "_why": "Routing keys, phone-number-ID secrets, WABA id and bot-reply gate identifiers, counted in executable code with // comments stripped. Recorded at commit 9935636, before the WhatsApp number hierarchy change. The hierarchy change is labelling and reporting only, so every one of these must stay exactly as it was.",
+  "unchangedTokenCounts": {
+    "WHATSAPP_PHONE_NUMBER_ID_3903": 1,
+    "CONNECT_WA_WABA_ID": 4,
+    "1342908727797643": 3,
+    "BOT_REPLIES_ENABLED": 4,
+    "whatsapp-status?number=": 2,
+    "toggleReplyGate": 3,
+    "key: 'primary'": 1,
+    "key: '3903'": 1
+  }
+}

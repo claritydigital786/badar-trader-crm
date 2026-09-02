@@ -193,7 +193,8 @@ test('P: the Phase 1 form, upload and idempotency are untouched', () => {
 
 // ── Q. No regression in the existing aggregates ────────────────
 test('Q: existing aggregates still route through approvedAum', () => {
-  assert.match(html, /const revenue = approvedAum\(cachedLeads\);/);
+  assert.match(html, /const revenue = approvedAum\((?:cachedLeads|perfLeads)\);/);
+  assert.match(html, /const perfLeads = productionLeads\(cachedLeads\);/);
   assert.match(html, /const revenue = approvedAum\(leads\);/);
   const unfiltered = html.match(/reduce\(\((?:s|sum), l\) => \1 \+ \(Number\(l\.account_balance\) \|\| 0\), 0\)/g) || [];
   assert.equal(unfiltered.length, 0, 'no unfiltered account_balance aggregate may return');
@@ -201,9 +202,25 @@ test('Q: existing aggregates still route through approvedAum', () => {
 
 // ── House style ────────────────────────────────────────────────
 test('no em dashes in anything this phase touched', () => {
-  for (const [n, t] of [['index.html', html], ['conversion-hook', hook], ['migration', migration]]) {
+  // One carve-out, and only one: the business owner approved the WhatsApp
+  // number hierarchy tags on 2026-09-02 as exact strings, and both contain an
+  // em dash. Reproducing them verbatim was the explicit instruction, so the
+  // rule is enforced everywhere except those two constants - which are pinned
+  // here by their full text, so nothing else can drift in behind them.
+  const APPROVED_TAGS = [
+    '\u{1F7E2} LIVE • PRIMARY • PAKISTAN — +92 371 5773903',
+    '\u{1F9EA} TEST ONLY • BOT TESTING • UAE — +971 52 558 6541',
+  ];
+  const withoutApproved = t => APPROVED_TAGS.reduce(
+    (acc, tag) => acc.split(tag.replace('\u{1F7E2} ', '\\u{1F7E2} ').replace('\u{1F9EA} ', '\\u{1F9EA} ')).join(''), t);
+  for (const [n, t] of [['index.html', withoutApproved(html)], ['conversion-hook', hook], ['migration', migration]]) {
     assert.ok(!t.includes('—'), `${n} must not contain an em dash`);
   }
+  // The tags themselves are present, exactly as approved.
+  const tagLines = html.split('\n').filter(l => l.includes('—'));
+  assert.equal(tagLines.length, 2, 'exactly two em dashes remain, both in the approved tags');
+  assert.ok(tagLines.every(l => /WA_TAG_FULL|'3903':|'6541':/.test(l)),
+    'both em dashes live in the approved WA_TAG_FULL constants and nowhere else');
 });
 
 // ── Approval must tell the agent too, not just the return ──────
