@@ -14,7 +14,87 @@ including one logged into a different Claude account._
 
 **Meta Ads Performance widget - real cause identified, needs Muhammad/Badar's own action in Meta, not a code fix.** Confirmed live via screenshot: Clarity Digital LLC's Business Settings has zero System Users, so the CRM's stored Meta token (set 2026-07-10, never updated) was never actually granted `ads_management`/`ads_read` on ad account `act_1024848662493589` from anywhere reachable here. Muhammad then clarified the real structure: **DIGICANO's Business Portfolio owns/hosts the Badar Trader CRM app** (not Clarity Digital), and Clarity Digital separately holds access to Badar's own assets. So the fix is: create the System User in DIGICANO's Business Settings (where the app actually lives), share the ad account from Clarity Digital's Business Settings to DIGICANO's business, then assign that System User to the now-shared ad account and generate a fresh token from there. No click made on any live Meta account, per the standing rule - this is fully a client-side/business-settings action, not something a coding session can do.
 
-## 2026-09-02 (latest) - Why Badar saw the old hierarchy UI and Hanzala saw the new one
+## 2026-09-02 (latest) - Hanzala's three Inbox screenshots: inbound customer reactions built, two prior fixes verified live
+
+Three screenshots from Muhammad Hanzala while working the live Inbox.
+
+**Screenshot 1, "Send failed: Not signed in".** Already fixed and already in
+production - verified, not assumed: production's ETag matched the repo copy
+exactly, so the deployed file is the one carrying the fix. `sendWaViaFunction()`
+catches exactly that message, calls `sb.auth.refreshSession()` and retries once
+(`_retrying` makes a loop impossible). Only a genuinely dead session surfaces an
+error, and it signs the agent out rather than leaving a fake logged-in state.
+One shared function, called from all three send paths, so every role gets it.
+
+**Screenshot 3, frozen "0:03:30 left".** Already fixed and in production.
+Chrome throttles or suspends `setInterval` in a backgrounded tab, so the label
+froze at whatever the agent tabbed away on. `startWaWindowTicker()` now forces
+one correct tick on `visibilitychange`. Reproduced in a browser: a hand-frozen
+"0:03:30 left" self-corrected to "1:59:59 left" the moment the tab regained
+focus. The business rule is unchanged and was re-proven: `lastInbound` matches
+`direction === 'inbound'` only, so an agent's own reply never restarts the
+window. Added this session: the rule is now stated in the UI, because Hanzala's
+screenshot came with exactly the wrong assumption - one shared
+`WA_WINDOW_TOOLTIP` on both conversation headers and the contact panel, plus
+visible text under the panel pill ("Your replies do not restart it").
+
+**Screenshot 2, "[unsupported message type: reaction]" - the real remaining
+bug.** The webhook had NO reaction handling at all: `extractUserInput()`
+returns null for type "reaction", so it fell straight through to the generic
+default branch of `describeUnsupportedMessage()`. 137 such rows existed across
+102 leads.
+
+Meta's payload shape was confirmed against this repo's own outbound reaction
+sender in `send-wa-message`, not from memory: `reaction: { message_id, emoji }`,
+with an empty emoji meaning removal.
+
+`handleReactionMessage()` is called from BOTH dispatch paths (6541 full-bot and
+3903 ingest-only), before the unsupported-message fallback and before the bot
+flow, so a thumbs-up can never be read as a funnel answer. It resolves the
+target by `wa_message_id` scoped to that lead, records the reaction, and creates
+no communications row at all. It sends nothing and touches no lead state.
+
+**Why a new table.** `communication_message_actions` is inherently staff-only
+and cannot represent a customer: its `user_id` is NOT NULL referencing
+`profiles`, its UNIQUE is `(communication_id, user_id)`, and every RLS policy is
+`user_id = auth.uid()`. Storing a customer reaction there would require
+attributing it to a staff member - a fabrication. New
+`communication_customer_reactions` holds only what Meta sends. Staff are
+read-only (SELECT grant only, no insert/update/delete policy), scoped by the
+parent communication's own RLS, so agent isolation is inherited rather than
+re-implemented. Proven in Postgres: Hanzala sees 2, Farwa sees 0, admin sees 2.
+
+**Historical placeholders.** The original emoji and target are GONE, and that
+was proven before writing anything: `communications` has no raw-payload column,
+and searching `audit_log` (24,011 rows) and `communication_logs` (78 rows) for
+"reaction" returns zero hits. So nothing was reconstructed and no emoji was
+invented. All 137 rows were byte-identical to the one placeholder string with
+nothing appended and no attachments, so they were relabelled losslessly to
+"Customer reacted to a message" - lead, timestamp, direction, wa_message_id and
+channel all preserved, no row deleted. Same pattern as the 586 `[image]` rows on
+2026-09-02. `displayMsgText()` carries the same rule as a belt-and-braces guard,
+and the Comm Log now routes through it too. The 40 `[unsupported message type:
+unsupported]` rows are a different type and were deliberately left alone.
+
+Verified: 31/31 node suites (new `tests/customer-reactions-test.mjs` runs the
+REAL webhook functions under Node against an in-memory Supabase - 30 subtests
+covering all 17 required cases), 119/119 SQL against the real migration on a
+throwaway Postgres, 17/17 browser assertions, and `deno check` CLEAN on the
+modified webhook (Deno installed this session; esm.sh is blocked by the egress
+proxy, so the check ran against the real Supabase types via an `npm:` specifier,
+and the unmodified HEAD baseline checks clean the same way).
+
+**Deployed: the two migrations and the frontend. NOT the webhook.** The MCP
+deploy tool needs the whole 145KB / 3,012-line file inline, and this session has
+only read fragments of it - reproducing it by hand would risk silently
+corrupting the most critical function on a live, billed WhatsApp integration.
+It needs one CLI command from Muhammad's laptop (see REMAINING_TODOS). Until
+then the state is coherent and strictly better than before: agents never see the
+technical string again (the 137 rows are relabelled and the presenter guards
+it), and a new reaction still lands as a single honest "Customer reacted to a
+message" row instead of attaching to its target message.
+
+## 2026-09-02 - Why Badar saw the old hierarchy UI and Hanzala saw the new one
 
 Reported as a role-specific render bug: Hanzala's agent account showed the new
 Inbox pills and the Dashboard hierarchy card, Badar's super-admin account still

@@ -611,6 +611,20 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
           continue;
         }
 
+        // A reaction is metadata on an existing message, not a message of its
+        // own. Handled before extractUserInput()/recordUnsupportedMessage()
+        // so it never becomes a standalone "[unsupported message type:
+        // reaction]" bubble, and deliberately before the bot flow so a
+        // thumbs-up can never be interpreted as a funnel answer.
+        if (message.type === "reaction") {
+          if (agent) {
+            console.log(`Reaction from agent ${agent.name} - ignoring (agents aren't processed as leads).`);
+            continue;
+          }
+          await handleReactionMessage(sb, message, senderPhone, contactName, timestamp, "6541");
+          continue;
+        }
+
         const input = extractUserInput(message);
         if (!input) {
           // This used to log and continue, which meant a voice note, PDF,
@@ -1139,6 +1153,14 @@ function describeUnsupportedMessage(message: any): string {
         .filter(Boolean);
       return names.length ? `[contact card: ${names.join(", ")}]` : "[contact card]";
     }
+    case "reaction":
+      // Defensive only. A well-formed reaction never reaches this function -
+      // both dispatch paths route type "reaction" to handleReactionMessage()
+      // first. This covers a malformed payload with no target message_id,
+      // where there is genuinely nothing to attach the reaction to. Even
+      // then it must not read as a CRM fault, so it says what happened in
+      // plain words and never claims an emoji it does not have.
+      return "Customer reacted to a message";
     case "button":
       // Quick-reply button on a template. extractUserInput only understands
       // the newer "interactive" reply shapes, not this older one.
@@ -1146,6 +1168,119 @@ function describeUnsupportedMessage(message: any): string {
     default:
       return `[unsupported message type: ${type}]`;
   }
+}
+
+// ── INBOUND CUSTOMER REACTIONS (Hanzala's report, 2026-09-02) ───────────
+//
+// A customer reacting to a message used to produce a standalone
+// "[unsupported message type: reaction]" bubble, because there was no
+// reaction handling anywhere in this file: extractUserInput() returns null
+// for type "reaction", so it fell straight through to the generic default
+// branch of describeUnsupportedMessage(). 137 such rows exist in production
+// across 102 leads.
+//
+// Meta's payload, confirmed against this repo's own outbound reaction sender
+// in send-wa-message (which posts the same shape), not from memory:
+//
+//   { "type": "reaction", "id": "wamid.OWN",
+//     "reaction": { "message_id": "wamid.TARGET", "emoji": "\u{1F44D}" } }
+//
+// An EMPTY emoji is Meta's removal signal - the same convention the outbound
+// path already relies on ("Meta uses an empty emoji to remove the existing
+// reaction").
+//
+// A reaction is metadata about an existing message, never a message of its
+// own, so this deliberately: creates no communications row, runs no bot step,
+// sends nothing to the customer, and never touches the lead's funnel state.
+function reactionPayloadOf(
+  message: any,
+): { targetWaMessageId: string; emoji: string } | null {
+  if (String(message?.type ?? "") !== "reaction") return null;
+  const targetWaMessageId = String(message?.reaction?.message_id ?? "").trim();
+  if (!targetWaMessageId) return null;
+  // Trimmed, but NOT defaulted to anything: an empty emoji is a real,
+  // meaningful value here (removal), not a missing one.
+  const emoji = String(message?.reaction?.emoji ?? "").trim();
+  return { targetWaMessageId, emoji };
+}
+
+async function handleReactionMessage(
+  sb: SupabaseClient,
+  message: any,
+  senderPhone: string,
+  contactName: string,
+  timestamp: string,
+  channel: "6541" | "3903",
+): Promise<void> {
+  const payload = reactionPayloadOf(message);
+  if (!payload) return;
+  const { targetWaMessageId, emoji } = payload;
+
+  const { lead } = await upsertLead(sb, senderPhone, contactName, timestamp, channel);
+  if (!lead) {
+    console.error(`handleReactionMessage: could not upsert lead for ${senderPhone} - reaction lost.`);
+    return;
+  }
+
+  // Resolve the target from its real WhatsApp id. Scoped to this lead so a
+  // reaction can never attach itself to another customer's conversation.
+  const { data: target, error: targetError } = await sb
+    .from("communications")
+    .select("id")
+    .eq("wa_message_id", targetWaMessageId)
+    .eq("lead_id", lead.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (targetError) {
+    console.error(`handleReactionMessage: could not look up target ${targetWaMessageId} -`, targetError.message);
+    return;
+  }
+  if (!target) {
+    // The customer reacted to a message this CRM has no record of - one sent
+    // before the CRM existed, or from the phone directly. There is nothing
+    // honest to attach the reaction to, and inventing a target would be
+    // worse than dropping it, so this is logged and ignored rather than
+    // written somewhere approximate.
+    console.log(`Reaction to unknown message ${targetWaMessageId} for lead ${lead.id} - nothing to attach it to, ignoring.`);
+    return;
+  }
+
+  if (!emoji) {
+    // Removal. Only applied when the removal is at least as recent as what is
+    // stored, so a redelivered old removal cannot erase a newer reaction.
+    const { error } = await sb
+      .from("communication_customer_reactions")
+      .delete()
+      .eq("communication_id", target.id)
+      .lte("reacted_at", timestamp);
+    if (error) console.error("handleReactionMessage: could not remove reaction -", error.message);
+    else console.log(`Customer removed their reaction on message ${targetWaMessageId}.`);
+    return;
+  }
+
+  // Upsert on communication_id: WhatsApp allows one reaction per person per
+  // message, so a new emoji REPLACES the old one rather than stacking. This
+  // is also what makes a redelivered webhook event a no-op - the second
+  // delivery writes the identical row - so reactions need no separate
+  // dedupe check the way messages do (wasAlreadyProcessed keys on
+  // communications.wa_message_id, and a reaction deliberately creates no
+  // communications row).
+  const { error } = await sb
+    .from("communication_customer_reactions")
+    .upsert({
+      communication_id: target.id,
+      lead_id: lead.id,
+      emoji,
+      target_wa_message_id: targetWaMessageId,
+      wa_message_id: message?.id ? String(message.id) : null,
+      channel,
+      reacted_at: timestamp,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "communication_id" });
+
+  if (error) console.error("handleReactionMessage: could not record reaction -", error.message);
+  else console.log(`Customer reacted ${emoji} to message ${targetWaMessageId} on ${channel}.`);
 }
 
 // Records an inbound message the bot cannot act on, so the agent at least sees
@@ -1258,6 +1393,13 @@ async function ingestOnlyMessage(
   const { lead } = await upsertLead(sb, senderPhone, contactName, timestamp, "3903");
   if (!lead) {
     console.error(`ingestOnlyMessage: could not upsert lead for ${senderPhone} on 3903 - message lost.`);
+    return;
+  }
+
+  // A reaction is metadata on an existing message, not a message. Handled
+  // before the placeholder path below so it never becomes its own bubble.
+  if (String(message?.type ?? "") === "reaction") {
+    await handleReactionMessage(sb, message, senderPhone, contactName, timestamp, "3903");
     return;
   }
 
