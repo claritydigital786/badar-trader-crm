@@ -11399,9 +11399,26 @@ async function fetchAllRows(buildQuery, pageSize = 1000) {
   for (;;) {
     const starts = Array.from({ length: batchSize }, (_, i) => nextStart + i * pageSize);
     const results = await Promise.all(starts.map((start) => buildQuery().range(start, start + pageSize - 1)));
+    // Real regression found live, 2026-09-02, hours after the change above
+    // shipped: a batch this size doesn't know in advance how many of its
+    // pages actually exist, so the later ones in a batch can legitimately
+    // ask for rows past the table's real end - and PostgREST can answer
+    // that with an error (416-class "range not satisfiable") rather than an
+    // empty 200, depending on version/config. The old code treated ANY
+    // error as fatal, so once the real data ran out mid-batch, the whole
+    // fetch died and every Dashboard number stuck on "-" forever instead of
+    // just finishing a little early. If at least one page in this same
+    // batch came back with real data, an error on another page in the SAME
+    // batch is that overshoot, not a real failure - only bail out for good
+    // when every page in a batch failed, which is what a genuine query
+    // problem (bad column, RLS denial, etc.) still looks like.
+    const anySucceeded = results.some((r) => !r.error);
     let shortPageSeen = false;
     for (const { data, error } of results) {
-      if (error) return { data: null, error };
+      if (error) {
+        if (anySucceeded) { shortPageSeen = true; continue; }
+        return { data: null, error };
+      }
       all = all.concat(data || []);
       if (!data || data.length < pageSize) shortPageSeen = true;
     }
