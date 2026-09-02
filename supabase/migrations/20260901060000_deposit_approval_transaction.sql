@@ -202,3 +202,15 @@ $function$;
 
 REVOKE ALL ON FUNCTION public.approve_deposit_and_convert(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.approve_deposit_and_convert(uuid) TO authenticated;
+-- Supabase's default privileges grant EXECUTE on every new public function to
+-- anon, authenticated and service_role. REVOKE ... FROM PUBLIC above does NOT
+-- remove those, because they are direct role grants rather than PUBLIC ones -
+-- caught during the production deployment verification, because a local
+-- Postgres has no such defaults and the migration looked correct there.
+--
+-- The function already refuses an unauthenticated caller on its first line and
+-- then re-checks is_admin(), so this is defence in depth rather than a hole
+-- being closed. service_role is revoked too: nothing server-side calls this,
+-- and auth.uid() is NULL under service_role, so the function would refuse it.
+REVOKE EXECUTE ON FUNCTION public.approve_deposit_and_convert(uuid) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.approve_deposit_and_convert(uuid) FROM service_role;
