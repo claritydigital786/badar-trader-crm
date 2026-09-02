@@ -13538,6 +13538,22 @@ function attachmentKindFromPath(path) {
   return 'file';
 }
 
+// The thumbnail's signed URL is only valid for 300 seconds - reusing it for
+// the click-to-enlarge action meant any attachment clicked more than 5
+// minutes after the conversation was opened pointed at an already-expired
+// link. Found live, 2026-09-02: an agent's screen recording showed exactly
+// that - clicking to enlarge a real customer's screenshot went to a blank
+// black page (a direct navigation to a dead signed URL has no <img> element
+// to fall back to a broken-image icon; it's just a failed page load).
+// Generates a FRESH signed URL at the actual moment of the click instead of
+// ever reusing the one from render time, so this can't go stale no matter
+// how long the conversation has been open.
+async function openConvAttachment(path) {
+  const { data, error } = await sb.storage.from('deposit-screenshots').createSignedUrl(path, 300);
+  if (error || !data) { showToast('Could not open this attachment - please try again.', 'err'); return; }
+  window.open(data.signedUrl, '_blank');
+}
+
 // Same rendering as loadConvAttachmentThumbs's own per-message branch, but
 // for exactly one attachment keyed by its real message id (conv-att-rt-<id>)
 // rather than an array-position id - used only by the realtime INSERT
@@ -13557,7 +13573,7 @@ async function loadRealtimeAttachmentThumb(messageId, attachmentPath) {
   const name = String(attachmentPath).split('/').pop();
   if (kind === 'image') {
     el.innerHTML = `<img src="${esc(url)}" alt="Attachment" style="width:100%;max-height:420px;object-fit:contain;border-radius:inherit;display:block" />`;
-    el.onclick = () => window.open(url, '_blank');
+    el.onclick = () => openConvAttachment(attachmentPath);
   } else if (kind === 'audio') {
     el.innerHTML = `<audio controls preload="none" src="${esc(url)}" style="max-width:240px;display:block"></audio>`;
     el.onclick = null;
@@ -13566,7 +13582,7 @@ async function loadRealtimeAttachmentThumb(messageId, attachmentPath) {
     el.onclick = null;
   } else {
     el.innerHTML = `<span style="text-decoration:underline">📄 ${esc(name)}</span>`;
-    el.onclick = () => window.open(url, '_blank');
+    el.onclick = () => openConvAttachment(attachmentPath);
   }
 }
 
@@ -13592,7 +13608,7 @@ async function loadConvAttachmentThumbs(convId, messages) {
       // dominate the whole thread; width is left to fill whatever the
       // bubble's max-width already is (see .msg-bubble.media-only below).
       el.innerHTML = `<img src="${esc(url)}" alt="Attachment" style="width:100%;max-height:420px;object-fit:contain;border-radius:inherit;display:block" />`;
-      el.onclick = () => window.open(url, '_blank');
+      el.onclick = () => openConvAttachment(m.attachment_path);
     } else if (kind === 'audio') {
       // Playable inline - a voice note the agent has to download first is
       // barely better than not having it.
@@ -13603,7 +13619,7 @@ async function loadConvAttachmentThumbs(convId, messages) {
       el.onclick = null;
     } else {
       el.innerHTML = `<span style="text-decoration:underline">📄 ${esc(name)}</span>`;
-      el.onclick = () => window.open(url, '_blank');
+      el.onclick = () => openConvAttachment(m.attachment_path);
     }
   }));
 }
