@@ -1613,6 +1613,11 @@
       background:#fff; border:1px solid #d1d7db; box-shadow:0 1px 2px rgba(11,20,26,.14); font-size:.88rem; z-index:1; }
     .msg-wrapper:has(.msg-reaction-mark) { margin-bottom:12px; }
     [data-theme="dark"] .msg-reaction-mark { background:#202c33; border-color:#3b4a54; }
+    /* The CUSTOMER's own reaction, distinct from the agent's own mark above.
+       Offset so both can sit under one bubble without overlapping when an
+       agent has also reacted to the same message. */
+    .msg-reaction-customer { left:auto; right:7px; }
+    .msg-wrapper:has(.msg-reaction-customer) { margin-bottom:14px; }
 
     .msg-action-menu { position:fixed; z-index:90; width:238px; max-height:min(520px,calc(100vh - 20px));
       overflow-y:auto; padding:7px; border-radius:12px; background:#fff; border:1px solid #e2e8f0;
@@ -9712,10 +9717,24 @@ function truncate(s, n) {
 // reply - only what's shown inside the bubble itself, so agents aren't
 // staring at empty space for a two-word reply. Collapses any run of 2+
 // newlines down to one, and drops leading/trailing blank lines entirely.
+// The one place every staff-facing surface routes a stored message body
+// through before showing it, so a presentational rule added here cannot be
+// missed by one render path and applied by another.
 function displayMsgText(text) {
   const stripped = String(text ?? '').replace(/^\[DELIVERY FAILED:[\s\S]*?\]\n?/, '');
-  return stripped.replace(/\n{2,}/g, '\n').replace(/^\n+|\n+$/g, '');
+  const clean = stripped.replace(/\n{2,}/g, '\n').replace(/^\n+|\n+$/g, '');
+  // Historical reaction placeholders. The rows themselves are relabelled by
+  // migration 20260903010000, and inbound reactions no longer produce a
+  // standalone bubble at all - this is the belt-and-braces guard so the
+  // technical string can never reach an agent's screen from an unmigrated
+  // environment, a replayed old row, or a surface added later. No emoji and
+  // no target are invented: the original payload is provably unrecoverable
+  // (see that migration), so it says only what is actually known.
+  if (clean === '[unsupported message type: reaction]') return REACTION_PLACEHOLDER_TEXT;
+  return clean;
 }
+
+const REACTION_PLACEHOLDER_TEXT = 'Customer reacted to a message';
 
 // True when the stored body is combineSendLog()'s failure form (webhook
 // index.ts) - the WhatsApp send failed but the log still records the text
@@ -12256,11 +12275,59 @@ async function loadMessageActions(messageIds) {
   (data || []).forEach(row => _messageActions.set(row.communication_id, row));
 }
 
+// ── INBOUND CUSTOMER REACTIONS (Hanzala's report, 2026-09-02) ───────────
+//
+// Deliberately a SEPARATE store from _messageActions above. That map holds
+// communication_message_actions, which is per-STAFF-USER CRM preference data
+// (pin/star/hide plus the reaction this signed-in agent themselves sent) and
+// cannot represent a customer at all - its user_id references profiles, so a
+// customer has no row there and never could. These are what the CUSTOMER
+// reacted, recorded by the webhook from Meta's own reaction payload.
+//
+// Both render as a mark under the bubble, and they are told apart by their
+// tooltips ("Your WhatsApp reaction" versus the customer's), so an agent can
+// always see which is which.
+let _customerReactions = new Map(); // communication id -> { emoji, reacted_at }
+
+function customerReactionFor(messageId) {
+  return _customerReactions.get(String(messageId || '')) || null;
+}
+
+async function loadCustomerReactions(messageIds) {
+  _customerReactions = new Map();
+  if (demoMode) return;
+  const ids = (messageIds || []).filter(Boolean);
+  if (!ids.length) return;
+  // Chunked like every other .in() lookup in this file - the id list goes
+  // into the request URL.
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await sb.from('communication_customer_reactions')
+      .select('communication_id, emoji, reacted_at')
+      .in('communication_id', ids.slice(i, i + 200));
+    if (error) {
+      // Same posture as loadMessageActions: a missing table on a preview
+      // branch must leave the Inbox fully readable, not break every
+      // conversation on load.
+      console.error('loadCustomerReactions:', error.message);
+      return;
+    }
+    (data || []).forEach(r => _customerReactions.set(r.communication_id, r));
+  }
+}
+
+function customerReactionMarkHtml(messageId) {
+  const r = customerReactionFor(messageId);
+  if (!r) return '';
+  const when = r.reacted_at ? ` on ${fmtDateTime(r.reacted_at)}` : '';
+  return `<span class="msg-reaction-mark msg-reaction-customer" title="The customer reacted ${esc(r.emoji)}${esc(when)}">${esc(r.emoji)}</span>`;
+}
+
 function messageActionMarksHtml(messageId) {
   const state = messageActionState(messageId);
   const marks = `${state.is_pinned ? '📌' : ''}${state.is_starred ? '⭐' : ''}`;
   return `${marks ? `<span class="msg-action-marks" aria-label="${state.is_pinned ? 'Pinned ' : ''}${state.is_starred ? 'Starred' : ''}">${marks}</span>` : ''}`
-    + `${state.reaction ? `<span class="msg-reaction-mark" title="Your WhatsApp reaction">${esc(state.reaction)}</span>` : ''}`;
+    + `${state.reaction ? `<span class="msg-reaction-mark" title="Your WhatsApp reaction">${esc(state.reaction)}</span>` : ''}`
+    + customerReactionMarkHtml(messageId);
 }
 
 function messageActionButtonHtml({ id, waMessageId = '', text = '', direction = 'inbound', createdAt = '', createdLabel = '', status = '' }) {
@@ -12998,6 +13065,17 @@ function contactInfoBarHtml(opts) {
     </div>`;
 }
 
+// The 24h reply window is Meta's rule, not the CRM's, and agents were reading
+// the countdown as "time since I last did something". Hanzala's screenshot
+// (2026-09-02) came with exactly that assumption. The rule is stated in full
+// wherever the countdown appears, because an agent who believes their own
+// reply restarts it will let a real window lapse.
+const WA_WINDOW_TOOLTIP =
+  'How long WhatsApp will still accept a free-form reply. '
+  + 'This countdown is set by the CUSTOMER’S last incoming message and nothing else - '
+  + 'your own replies do NOT restart it. It resets only when the customer messages again. '
+  + 'At zero, Meta blocks free-form replies until they message you or you send an approved template.';
+
 function waWindowState(lastInboundIso) {
   if (!lastInboundIso) {
     return { open: false, msLeft: 0, tone: 'closed', label: 'No inbound message', everInbound: false };
@@ -13112,7 +13190,8 @@ function renderContactPanel(scope, convId, info) {
     <div class="conv-contact-section">
       ${row('Email', esc(info.email || 'Not recorded'))}
       ${row('Lead created', info.createdAt ? esc(fmtDate(info.createdAt)) : 'Unknown')}
-      ${row('Reply window', `<span class="conv-window-pill${info.window.tone === 'ok' ? '' : ' ' + info.window.tone}" id="${scope}conv-contact-window">${esc(info.window.label)}</span>`)}
+      ${row('Reply window', `<span class="conv-window-pill${info.window.tone === 'ok' ? '' : ' ' + info.window.tone}" id="${scope}conv-contact-window" title="${esc(WA_WINDOW_TOOLTIP)}">${esc(info.window.label)}</span>`
+        + `<div style="font-size:0.68rem;color:var(--text-muted);margin-top:4px;line-height:1.45;max-width:26ch">Counts down from the customer’s last message. Your replies do not restart it.</div>`)}
     </div>
     <div class="conv-contact-section">
       <div class="conv-contact-label" style="margin-bottom:8px">Schedule follow-up</div>
@@ -13255,7 +13334,7 @@ async function openConversation(convId, scope = '') {
           <p>${conv.name ? `<span class="conv-header-phone">${esc(conv.phone)}</span>` : ''}${statusBadge(conv.status)}</p>
         </div>
         <span class="conv-window-pill${demoWindow.tone === 'ok' ? '' : ' ' + demoWindow.tone}" id="${scope}conv-window-pill"
-          title="How long WhatsApp will still accept a free-form reply on this conversation">${esc(demoWindow.label)}</span>
+          title="${esc(WA_WINDOW_TOOLTIP)}">${esc(demoWindow.label)}</span>
         <div class="conv-header-actions">
           <button type="button" class="conv-header-btn" title="Search in this conversation" aria-label="Search in this conversation" onclick="toggleConvMsgSearch()">🔍</button>
           <button type="button" class="conv-header-btn" title="Mark as unread and go back to the list" aria-label="Mark as unread" onclick="markConversationUnread('${convId}','${scope}')">📩</button>
@@ -13354,6 +13433,7 @@ async function openConversation(convId, scope = '') {
     const lead = leadRes.data;
     const allMessages = msgsRes.data || [];
     await loadMessageActions(allMessages.map(m => m.id));
+    await loadCustomerReactions(allMessages.map(m => m.id));
     const initials = initialsFor(lead?.full_name);
 
     // 6541 and 3903 share one WABA, so this thread can hold messages from
@@ -13408,7 +13488,7 @@ async function openConversation(convId, scope = '') {
           <p>${lead?.full_name ? `<span class="conv-header-phone">${esc(lead?.phone || '')}</span>` : ''}${statusBadge(lead?.status || 'new')}</p>
         </div>
         <span class="conv-window-pill${waWindow.tone === 'ok' ? '' : ' ' + waWindow.tone}" id="${scope}conv-window-pill"
-          title="How long WhatsApp will still accept a free-form reply on this conversation">${esc(waWindow.label)}</span>
+          title="${esc(WA_WINDOW_TOOLTIP)}">${esc(waWindow.label)}</span>
         <select class="conv-tier-select" title="Set this lead's tier yourself - you know the real situation" onchange="setLeadTier('${convId}', this.value, '${scope}')">
           <option value="new" ${currentTier==='new'?'selected':''}>🆕 New</option>
           <option value="warm" ${currentTier==='warm'?'selected':''}>💬 Engaged</option>
@@ -15728,7 +15808,10 @@ async function loadCommLog(scope = '') {
     id:              'auto-' + r.id,
     lead_id:         r.lead_id,
     type:            r.type || 'whatsapp',
-    message:         (r.direction === 'inbound' ? '↩ ' : '↪ ') + (r.body || ''),
+    // Through the shared presenter, same as the Inbox - the Comm Log is a
+    // staff-facing surface too, so the reaction placeholder rule must apply
+    // here as well rather than only in the conversation view.
+    message:         (r.direction === 'inbound' ? '↩ ' : '↪ ') + displayMsgText(r.body || ''),
     created_at:      r.created_at,
     lead_name:       r.leads?.full_name || '-',
     lead_status:     r.leads?.status    || '',
