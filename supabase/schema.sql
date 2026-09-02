@@ -2542,3 +2542,21 @@ CREATE POLICY "comm_logs_agent_select_own" ON public.communication_logs
 
 -- DONE (Phase 42)
 -- =============================================================
+
+-- =============================================================
+-- Phase 43 - a unique phone closes a real duplicate-lead race
+-- (Muhammad, 2026-09-02)
+-- Corresponds to supabase/migrations/20260902010000_merge_duplicate_leads_and_prevent_race.sql
+-- upsertLead()'s plain SELECT-then-INSERT let two concurrent webhook
+-- invocations for the same brand-new phone number both find "no existing
+-- lead" and both insert one - found live (18 real phone numbers had exactly
+-- this pattern). This index makes the second INSERT fail at the database
+-- level instead of silently succeeding as a duplicate. Partial because
+-- Messenger/Instagram leads legitimately have phone NULL.
+-- =============================================================
+
+CREATE UNIQUE INDEX IF NOT EXISTS leads_phone_unique_idx
+  ON public.leads (phone) WHERE phone IS NOT NULL;
+
+-- DONE (Phase 43)
+-- =============================================================

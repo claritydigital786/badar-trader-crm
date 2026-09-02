@@ -514,6 +514,20 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
 
         const sb = makeSupabase();
 
+        // Resolved here, before either path below, so BOTH the 3903
+        // ingest-only branch and the primary 6541 branch can recognize a
+        // known staff phone number and skip lead-processing entirely -
+        // moved up from its old spot further down (which the 6541 path
+        // still uses via this same variable) after a real bug: an agent
+        // texting 3903 - exactly what agents were being told to do all day
+        // to keep their own 24h notification window open - had NO
+        // equivalent check on this branch at all, so their own number got
+        // silently processed as a brand-new customer lead, round-robin
+        // assigned, and pinged like one. Found live, 2026-09-02: Ehsan's own
+        // number showed up as a lead named "Ehsan Wazir" with a failed
+        // notification attached.
+        const agent = (await getAllStaffPhones(sb)).find((a) => normalisePhone(a.phone) === senderPhone);
+
         // 3903 ingest-only path (2026-08-26): create/find the lead, log the
         // real message, assign it round-robin - the same visibility any real
         // lead gets - but stop right there. Deliberately never reaches
@@ -523,6 +537,10 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         // ever send anything to a real 3903 customer. See
         // WHATSAPP_PHONE_NUMBER_ID_3903's comment for why this is safe today.
         if (isIngestOnlyNumber) {
+          if (agent) {
+            console.log(`3903 message from agent ${agent.name} - ignoring (agents aren't processed as leads).`);
+            continue;
+          }
           if (message.id && (await wasAlreadyProcessed(sb, String(message.id)))) {
             console.log(`Skipping duplicate 3903 inbound message ${message.id} - already processed.`);
             continue;
@@ -555,8 +573,8 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
         // gateOpenSync() truthful rather than a guess at the defaults.
         await loadGates(sb);
 
-        const agent = (await getAgentRotation(sb)).find((a) => normalisePhone(a.phone) === senderPhone);
-
+        // agent is resolved once, above, before the isIngestOnlyNumber branch -
+        // reused here rather than looked up a second time.
         if (message.type === "image") {
           if (agent) {
             console.log(`Image from agent ${agent.name} - ignoring (agents aren't processed as leads).`);
@@ -780,6 +798,48 @@ async function getAgentRotation(sb: SupabaseClient): Promise<RotationAgent[]> {
   }
 
   _rotationCache = rows;
+  return rows;
+}
+
+// Deliberately a SEPARATE list from getAgentRotation() above, added
+// 2026-09-02 after a real, live bug: "is this sender a staff member, not a
+// customer" was being decided by checking the ROTATION list, which is
+// filtered to receives_leads=true - an agent temporarily taken out of
+// rotation (Farwa, Bilal, Faisal, Hamza, as of today) is not staff any less
+// for it. Found live: Bilal's own number, out of rotation, texted 6541 on
+// 2026-08-28 and was silently processed as a brand-new customer lead
+// ("urvisaconsultant") because he did not appear in getAgentRotation()'s
+// narrower list. "Who should get assigned a NEW lead" and "is this sender
+// staff, not a customer" are two different questions, and conflating them
+// is what caused this - this list answers only the second one, against
+// every active, non-suspended staff member with a phone, regardless of
+// receives_leads.
+let _staffPhoneCache: RotationAgent[] | null = null;
+async function getAllStaffPhones(sb: SupabaseClient): Promise<RotationAgent[]> {
+  if (_staffPhoneCache) return _staffPhoneCache;
+
+  const { data, error } = await sb
+    .from("profiles")
+    .select("id, full_name, phone")
+    .in("role", ["agent", "admin", "super_admin"])
+    .eq("is_active", true)
+    .eq("is_suspended", false)
+    .not("phone", "is", null);
+
+  if (error) {
+    console.error("getAllStaffPhones: database read failed, falling back to the rotation list -", error.message);
+    return getAgentRotation(sb);
+  }
+
+  const rows: RotationAgent[] = (data ?? [])
+    .map((p: any) => ({
+      id: p.id,
+      name: (p.full_name || "").trim() || "Staff",
+      phone: String(p.phone || "").trim(),
+    }))
+    .filter((a) => a.phone.length > 0);
+
+  _staffPhoneCache = rows;
   return rows;
 }
 
