@@ -5407,6 +5407,10 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Role-independent on purpose: this runs for whoever is signed in, before
+  // any admin/agent branch, so no role can be left behind on an old build.
+  startBuildFreshnessCheck();
+
   const previewParams = new URLSearchParams(location.search);
   const localDemoPreview =
     (location.hostname === '127.0.0.1' || location.hostname === 'localhost') &&
@@ -11507,6 +11511,101 @@ function renderDashboardStats() {
   // Load upcoming follow-ups from lead_activity
   loadUpcomingFollowups();
   loadDashMetaAds();
+}
+
+
+// ── BUILD FRESHNESS: tell any open tab a new build has shipped ──────────
+//
+// Real production report, 2026-09-02: after the WhatsApp number hierarchy
+// shipped, Muhammad Hanzala's agent account showed the new Inbox labels and
+// the new Dashboard card while Badar Tanveer's super-admin account still
+// showed the obsolete ones. It looked like a role-specific render path, and
+// it was not: the deployed index.html is byte-identical for every role, the
+// markup is shared, and the obsolete strings do not exist anywhere in it.
+// The difference was WHICH BUILD each browser was running. A CRM tab left
+// open across a deploy keeps rendering the document it loaded hours ago -
+// no cache header can fix that, because an open tab never re-requests the
+// page at all. Agents on phones reload constantly and got the new build; a
+// desktop tab open all day did not.
+//
+// So the whole app notices now. This is deliberately role-independent: it
+// runs once at boot for whoever is signed in - admin, super admin or agent -
+// and there is no role check anywhere in it.
+//
+// Mechanism: record the ETag of index.html at load time (Vercel's ETag for a
+// static file is the md5 of its content, so it changes on every real deploy
+// and only on a real deploy), then re-check occasionally and whenever the
+// tab is brought back to the foreground. A different ETag means a new build
+// is live. Nothing is auto-reloaded - an agent mid-reply must never have the
+// page pulled out from under them - they are offered a Reload button.
+//
+// Everything here fails silently. A blocked request, an offline laptop or a
+// server that stops sending ETags must never break the CRM.
+const BUILD_CHECK_URL = '/index.html';
+const BUILD_CHECK_INTERVAL_MS = 10 * 60 * 1000;
+let _runningBuildTag = null;
+let _buildBannerShown = false;
+
+// One byte, never from cache. Range keeps this off the wire as a real 890KB
+// download every ten minutes; the ETag is in the headers either way.
+async function fetchDeployedBuildTag() {
+  try {
+    const res = await fetch(BUILD_CHECK_URL, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: { Range: 'bytes=0-0' },
+    });
+    // ETag first (Vercel sends the content md5 for a static file, so it
+    // changes on a real deploy and only on a real deploy). Last-Modified is
+    // the fallback for any host that does not send one. If neither exists
+    // this returns null and the whole check quietly does nothing, which is
+    // the correct outcome - a missing header is not a new build.
+    return res.headers.get('etag') || res.headers.get('last-modified') || null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function showNewBuildBanner() {
+  if (_buildBannerShown || document.getElementById('new-build-banner')) return;
+  _buildBannerShown = true;
+  const bar = document.createElement('div');
+  bar.id = 'new-build-banner';
+  bar.setAttribute('role', 'status');
+  bar.style.cssText =
+    'position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:9999;' +
+    'display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;' +
+    'background:var(--surface-soft);border:1px solid var(--accent);color:var(--text-strong);' +
+    'box-shadow:0 10px 30px rgba(0,0,0,.25);font-size:0.85rem;max-width:calc(100vw - 32px)';
+  bar.innerHTML =
+    '<span>A newer version of the CRM is available.</span>' +
+    '<button type="button" class="btn btn-primary btn-sm" id="new-build-reload">Reload</button>' +
+    '<button type="button" class="btn btn-secondary btn-sm" id="new-build-dismiss">Later</button>';
+  document.body.appendChild(bar);
+  document.getElementById('new-build-reload').onclick = () => location.reload();
+  document.getElementById('new-build-dismiss').onclick = () => bar.remove();
+}
+
+async function checkForNewBuild() {
+  const tag = await fetchDeployedBuildTag();
+  if (!tag) return;
+  if (_runningBuildTag === null) { _runningBuildTag = tag; return; }
+  if (tag !== _runningBuildTag) showNewBuildBanner();
+}
+
+function startBuildFreshnessCheck() {
+  // file:// and the local demo preview have no meaningful deployed build.
+  if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+  checkForNewBuild();
+  setInterval(() => {
+    if (document.visibilityState === 'visible') checkForNewBuild();
+  }, BUILD_CHECK_INTERVAL_MS);
+  // The exact case that produced the report: a tab dormant for hours, then
+  // brought back to the foreground. Checking on focus catches it immediately
+  // instead of up to ten minutes later.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkForNewBuild();
+  });
 }
 
 // ── DASHBOARD CHARTS: pipeline donut + leads-added trend ───────
