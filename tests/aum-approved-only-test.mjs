@@ -146,16 +146,41 @@ const lead = (status, balance, extra = {}) => ({ status, account_balance: balanc
   // a narrowing of the input, not a change to how AUM itself is derived, so
   // what this asserts is the stronger contract: the AUM figure is produced by
   // approvedAum() over a subset of cachedLeads and by nothing else.
-  assert.ok(/const revenue = approvedAum\((?:cachedLeads|perfLeads)\);/.test(html),
-    'the agent dashboard must use approvedAum()');
-  assert.ok(/const perfLeads = productionLeads\(cachedLeads\);/.test(html),
-    'and perfLeads must be derived from cachedLeads, not from some other source');
+  // 2026-09-04: the agent dashboard stopped downloading every assigned lead to
+  // count four numbers - agent_summary() aggregates them in SQL. The RULE is
+  // unchanged and is what this asserts: revenue counts CONVERTED deposits only.
+  // Asserting the SQL directly is stronger than asserting a JS call site,
+  // because the SQL is now where the rule actually lives.
+  const agentSql = readFileSync(new URL('../supabase/migrations/20260904020000_agent_summary_rpc.sql', import.meta.url), 'utf8');
+  assert.match(agentSql, /'approved_aum',\s*coalesce\(sum\(account_balance\)\s*filter\s*\(where status = 'converted'\), 0\)/,
+    'agent_summary() must sum account_balance for converted leads only');
+  assert.ok(!/'approved_aum'[^\n]*filter \(where status = '(pending|pending_approval|qualified|new)'/.test(agentSql),
+    'no non-converted status may contribute to agent AUM');
+  assert.ok(html.includes("const revenue   = Number(sum.approved_aum) || 0;"),
+    'the agent dashboard must read revenue from that aggregate and nothing else');
+  // Demo mode has no database, so it must still route through approvedAum().
+  assert.match(html, /approved_aum: approvedAum\(rows\)/,
+    'demo mode must derive agent AUM through approvedAum() so the two paths cannot drift');
+  // perfLeads (productionLeads(cachedLeads)) is gone with the full-table
+  // download. The bot-test exclusion it applied is now a WHERE clause in
+  // agent_summary(), asserted here so the rule still cannot be skipped.
+  assert.match(agentSql, /wa_channel is distinct from '6541' or created_at < timestamptz '2026-09-02T00:00:00Z'/,
+    'the agent aggregate must still exclude post-cutover bot-test traffic');
   // Admin + Super Admin dashboard (Super Admin runs initAdmin(), same view).
-  assert.ok(/const revenue = approvedAum\(leads\);/.test(html),
-    'the admin dashboard must use approvedAum()');
-  // The by-platform deposit breakdown under the admin figure.
-  assert.ok(/isApprovedDeposit\(l\)\)\{ bp\[l\.deposit_platform\]/.test(html),
-    'the by-platform deposit breakdown must be filtered to approved deposits');
+  // Aggregated in SQL since 2026-09-04; identical converted-only rule.
+  const dashSql = readFileSync(new URL('../supabase/migrations/20260904000000_dashboard_summary_rpc.sql', import.meta.url), 'utf8');
+  assert.match(dashSql, /coalesce\(sum\(account_balance\) filter \(where status = 'converted'\), 0\) as approved_aum/,
+    'the admin dashboard must aggregate approved (converted) deposits only');
+  assert.ok(html.includes("setDashStat('dash-revenue',     '$' + fmtMoney(Number(sum.approved_aum) || 0));"),
+    'and the Dashboard revenue card must read exactly that aggregate');
+  // The by-platform line must follow the same approved-only rule.
+  assert.match(dashSql, /where status = 'converted' and deposit_platform is not null/,
+    'the platform breakdown must count approved deposits only');
+  // The live by-platform breakdown moved into that SQL (asserted above). Demo
+  // mode still derives it in JS, and must keep gating on isApprovedDeposit() -
+  // the two paths have produced real drift in this file before.
+  assert.match(html, /if \(l\.deposit_platform && Number\(l\.account_balance\) && isApprovedDeposit\(l\)\)/,
+    'the demo by-platform breakdown must be filtered to approved deposits');
   // And no unfiltered sum may come back.
   const unfiltered = html.match(/reduce\(\((?:s|sum), l\) => \1 \+ \(Number\(l\.account_balance\) \|\| 0\), 0\)/g) || [];
   assert.equal(unfiltered.length, 0,

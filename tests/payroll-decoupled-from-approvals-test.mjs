@@ -96,11 +96,20 @@ const slice = (from, to) => html.slice(html.indexOf(from), html.indexOf(to));
   // perfLeads = productionLeads(cachedLeads) since 2026-09-02 - see the
   // WhatsApp number hierarchy change. Still approvedAum(), still over the
   // agent's own cached leads; only bot-test traffic is excluded from it.
-  assert.ok(/const revenue = approvedAum\((?:cachedLeads|perfLeads)\);/.test(html),
-    'the agent AUM card and My Performance column still use approvedAum()');
+  // Moved into SQL 2026-09-04 (agent_summary) so the agent dashboard stops
+  // downloading every assigned lead. Converted-only rule unchanged - and this
+  // test's real subject, that PAYROLL does not follow AUM, is asserted below.
+  const agentSql = readFileSync(new URL('../supabase/migrations/20260904020000_agent_summary_rpc.sql', import.meta.url), 'utf8');
+  assert.match(agentSql, /sum\(account_balance\)\s*filter\s*\(where status = 'converted'\)/,
+    'the agent AUM card still counts approved (converted) deposits only');
+  assert.ok(html.includes("const revenue   = Number(sum.approved_aum) || 0;"),
+    'the agent AUM card reads that aggregate');
   assert.ok(/setS\('agent-stat-revenue'/.test(html), 'the approved-AUM stat card is unchanged');
-  assert.ok(/const revenue = approvedAum\(leads\);/.test(html),
-    'the admin/super-admin AUM figure is unchanged');
+  const dashSql = readFileSync(new URL('../supabase/migrations/20260904000000_dashboard_summary_rpc.sql', import.meta.url), 'utf8');
+  assert.match(dashSql, /sum\(account_balance\)\s*filter\s*\(where status = 'converted'\)/,
+    'the admin/super-admin AUM figure is unchanged - converted deposits only');
+  assert.ok(html.includes("setDashStat('dash-revenue',     '$' + fmtMoney(Number(sum.approved_aum) || 0));"),
+    'and the Dashboard card reads exactly that aggregate');
 }
 
 console.log('payroll-decoupled-from-approvals: all assertions passed');

@@ -2795,7 +2795,7 @@
               <button type="button" role="menuitem" onclick="runInboxMenuAction('hide-list','')">Hide lead list</button>
             </div>
           </div>
-          <input type="text" id="conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations()" />
+          <input type="text" id="conv-search-input" placeholder="🔍 Search conversations…" oninput="onConvSearchInput()" />
         </div>
         <div class="conv-filter-tabs" id="conv-filter-tabs" >
           <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all')">All</button>
@@ -4895,6 +4895,7 @@
           <tr><td colspan="7" class="empty-state">Loading…</td></tr>
         </tbody>
       </table>
+      <div id="agent-leads-pager" style="display:flex;align-items:center;gap:12px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--line)"></div>
     </div>
     <div id="agent-lead-detail" class="detail-panel" style="display:none"></div>
   </div>
@@ -4918,7 +4919,7 @@
               <button type="button" role="menuitem" onclick="runInboxMenuAction('hide-list','agent-')">Hide lead list</button>
             </div>
           </div>
-          <input type="text" id="agent-conv-search-input" placeholder="🔍 Search conversations…" oninput="filterConversations('agent-')" />
+          <input type="text" id="agent-conv-search-input" placeholder="🔍 Search conversations…" oninput="onConvSearchInput('agent-')" />
         </div>
         <div class="conv-filter-tabs" id="agent-conv-filter-tabs" >
           <button class="conv-filter-tab active" data-tier="all" onclick="setConvFilter('all','agent-')">All</button>
@@ -5528,8 +5529,11 @@ function toggleTheme(evt) {
   // a CSS variable change on its own, so the dashboard charts need an
   // explicit re-render or they'd keep the old theme's colors until the
   // next full data reload.
-  if (document.getElementById('dash-pipeline-donut')) {
-    renderDashboardCharts(demoMode ? _DEMO_LEADS : cachedLeads);
+  // Re-rendered from the last summary the Dashboard actually received, not
+  // from cachedLeads - that array holds only the current All Leads page now,
+  // so re-deriving from it would repaint the charts with a fraction of the data.
+  if (document.getElementById('dash-pipeline-donut') && _lastDashSummary) {
+    renderDashboardCharts(_lastDashSummary);
   }
 }
 (function initTheme() {
@@ -5609,9 +5613,21 @@ async function initAdmin() {
   const _adminInitials = _adminName.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
   const _adminAvatarEl = document.getElementById('sidebar-user-initials');
   if (_adminAvatarEl) _adminAvatarEl.textContent = _adminInitials;
-  await loadProfiles();
-  await loadAdminLeads();
-  await loadGeneralSettings();
+  // Bootstrap used to be four awaits in a row, the second of which
+  // (loadAdminLeads) downloaded the ENTIRE leads table - 7,701 rows / 8.8 MB
+  // of JSON, paged 1,000 at a time - before loadGeneralSettings() was even
+  // allowed to start, and before a single KPI could render. renderDashboardStats()
+  // then read the whole table a SECOND time via fetchAllLeadsForDashboard()
+  // (another 1.1 MB) to compute eight integers and a sum. That double
+  // full-table read is what left the Dashboard on "Loading... - -" for 8-10
+  // seconds on every hard refresh, and it got worse with every new lead.
+  //
+  // All Leads is not part of the Dashboard, so it is not loaded here any more
+  // at all - adminTab('leads') loads it on demand. Profiles and settings are
+  // independent of each other, so they run concurrently; the Dashboard needs
+  // the workspace timezone from settings to resolve its 'today' range, so it
+  // starts once those resolve.
+  await Promise.all([loadProfiles(), loadGeneralSettings()]);
   renderDashboardStats();
   loadNotifications();
 }
@@ -6588,8 +6604,33 @@ function updateLeadsFilterSummary(shown, f) {
     : `<span>Showing all <strong>${shown}</strong> leads</span>`;
 }
 
+// Single source of truth for the All Leads query. Hoisted out of
+// loadAdminLeads() so the paginated page fetch, the row count and the CSV
+// export all apply byte-identical filters - they used to be able to drift,
+// and a filter that means one thing on screen and another in the export is
+// the kind of bug nobody reports because the numbers merely look plausible.
+// A Supabase query builder is single-use, so this returns a fresh one each call.
+function buildLeadsQuery(f, opts = {}) {
+  let q = sb.from('leads').select('*', opts.withCount ? { count: 'exact' } : undefined).order('created_at', { ascending: false }).order('id', { ascending: true });
+  if (f.status) q = q.eq('status', f.status);
+  if (f.agent === LEAD_FILTER_UNASSIGNED) q = q.is('assigned_agent_id', null);
+  else if (f.agent) q = q.eq('assigned_agent_id', f.agent);
+  if (f.source) q = q.eq('source', f.source);
+  if (f.human === '1') q = q.eq('needs_human', true);
+  if (f.human === '0') q = q.eq('needs_human', false);
+  const since = leadDateSince(f.date);
+  if (since) q = q.gte('created_at', since.toISOString());
+  // The search box used to only ever filter cachedLeads client-side, which
+  // PostgREST silently caps at 1000 rows - so searching for a lead older
+  // than the newest 1000 (anything before the WhatChimp import) could come
+  // back empty even though the lead genuinely exists. Pushing the term into
+  // the query means the database does the matching against the real table,
+  // not a truncated in-memory copy of it.
+  if (f.search) q = q.or(buildLeadSearchOr(f.search));
+  return q;
+}
+
 async function loadAdminLeads() {
-  const f = leadFilters();
   _leadsPageIndex = 0; // a fresh load (filter change, tab open, import, etc.) starts at page 1
 
   if (demoMode) {
@@ -6600,59 +6641,23 @@ async function loadAdminLeads() {
     return;
   }
 
-  // Builds a FRESH query every call, filters applied, so the same filter set
-  // can be paged through with .range() below - a Supabase query builder is
-  // single-use, it cannot be re-issued with a different range once awaited.
-  const buildQuery = () => {
-    // Tiebreaker on id matters here, not just style: paginating via .range()
-    // needs a fully deterministic order, or two rows sharing the exact same
-    // created_at (real, common after a bulk CSV/CSV-style import) can land on
-    // either side of a page boundary inconsistently between requests -
-    // found live during this same-day sweep: a raw created_at-only pagination
-    // test against the real table returned 7,433 rows for a table that
-    // actually holds 7,433, but only 7,424 of them were unique ids.
-    let q = sb.from('leads').select('*').order('created_at', { ascending: false }).order('id', { ascending: true });
-    if (f.status) q = q.eq('status', f.status);
-    if (f.agent === LEAD_FILTER_UNASSIGNED) q = q.is('assigned_agent_id', null);
-    else if (f.agent) q = q.eq('assigned_agent_id', f.agent);
-    if (f.source) q = q.eq('source', f.source);
-    if (f.human === '1') q = q.eq('needs_human', true);
-    if (f.human === '0') q = q.eq('needs_human', false);
-    const since = leadDateSince(f.date);
-    if (since) q = q.gte('created_at', since.toISOString());
-    // The search box used to only ever filter cachedLeads client-side, which
-    // PostgREST silently caps at 1000 rows - so searching for a lead older
-    // than the newest 1000 (anything before the WhatChimp import) could come
-    // back empty even though the lead genuinely exists. Pushing the term into
-    // the query means the database does the matching against the real table,
-    // not a truncated in-memory copy of it.
-    if (f.search) q = q.or(buildLeadSearchOr(f.search));
-    return q;
-  };
 
-  // Real pagination, not a bigger cap. This table hit the exact same silent
-  // undercount the Dashboard did on 2026-08-24 and the Inbox did on 2026-09-01
-  // - an unbounded select relying on PostgREST's server-side max_rows, which
-  // is a moving target (1000, then 5000) rather than a real fix. 7,432 real
-  // leads already exceed 5000, so the previous raise just delayed this same
-  // bug, it didn't close it. Pages through in genuine 1000-row batches via
-  // .range() until exhausted, matching fetchAllLeadsForDashboard's own
-  // pattern, so this stops depending on whatever the server cap happens to
-  // be today.
-  // The filtered rows and the unfiltered head count are independent, so the
-  // count query fires alongside the page loop rather than after it - it is
-  // only there to say "of N" honestly and should not add extra latency on
-  // top of however many pages the loop needs.
+  // History worth keeping: this table used to rely on PostgREST's server-side
+  // max_rows (1000, then 5000), which silently undercounted once real leads
+  // passed the cap - the same bug the Dashboard hit on 2026-08-24 and the Inbox
+  // on 2026-09-01. That was fixed by paging through the WHOLE table, which was
+  // correct but expensive: 7,701 rows / 8.8 MB to render 100. Since 2026-09-04
+  // only the requested page is fetched, so neither the cap nor the volume
+  // applies - see loadLeadsPage().
+  //
+  // The unfiltered head count for the sidebar badge - head:true means zero
+  // rows are transferred, only the Content-Range total. It runs alongside the
+  // page fetch rather than after it.
   const countPromise = sb.from('leads').select('id', { count: 'exact', head: true });
-  const { data: allData, error: fetchError } = await fetchAllRows(buildQuery);
-
+  await loadLeadsPage();
   const { count, error: countError } = await countPromise;
-  if (fetchError) { console.error('loadAdminLeads:', fetchError); return; }
-  cachedLeads = allData || [];
   if (countError) console.warn('loadAdminLeads count:', countError);
-  _leadsTotalCount = (typeof count === 'number') ? count : cachedLeads.length;
-
-  filterLeadsLocal(); // re-apply any text still sitting in the search box
+  if (typeof count === 'number') _leadsTotalCount = count;
   updateLeadsCountBadge();
 }
 
@@ -6912,16 +6917,61 @@ function cancelImportCSV() {
 const LEADS_PAGE_SIZE = 100;
 let _leadsPageIndex = 0;
 
-function filterLeadsLocal() {
+// TRUE server-side pagination. This used to slice an in-memory copy of the
+// ENTIRE leads table - the table only ever showed 100 rows, but the browser had
+// downloaded all 7,701 of them (8.8 MB) to produce those 100. Postgres now does
+// the filtering, ordering and windowing, and exactly one page crosses the wire.
+//
+// PostgREST returns the filtered total in Content-Range on the same request, so
+// the count the pager needs costs no extra round trip.
+//
+// Kept the name because ~14 call sites (inline edits, filter changes, search)
+// invoke it fire-and-forget; it is async now, and they still do not await it.
+async function filterLeadsLocal() {
   const f = leadFilters();
-  const filtered = cachedLeads.filter(l => leadMatchesFilters(l, f));
-  const totalPages = Math.max(1, Math.ceil(filtered.length / LEADS_PAGE_SIZE));
-  _leadsPageIndex = Math.min(Math.max(0, _leadsPageIndex), totalPages - 1);
-  const pageStart = _leadsPageIndex * LEADS_PAGE_SIZE;
-  const pageRows = filtered.slice(pageStart, pageStart + LEADS_PAGE_SIZE);
-  renderLeadsTable('admin-leads-tbody', pageRows, true, adminLeadsEmptyHtml(f));
-  updateLeadsFilterSummary(filtered.length, f);
-  renderLeadsPager(filtered.length);
+
+  if (demoMode) {
+    const filtered = _DEMO_LEADS.filter(l => leadMatchesFilters(l, f));
+    const pages = Math.max(1, Math.ceil(filtered.length / LEADS_PAGE_SIZE));
+    _leadsPageIndex = Math.min(Math.max(0, _leadsPageIndex), pages - 1);
+    const start = _leadsPageIndex * LEADS_PAGE_SIZE;
+    cachedLeads = filtered;
+    renderLeadsTable('admin-leads-tbody', filtered.slice(start, start + LEADS_PAGE_SIZE), true, adminLeadsEmptyHtml(f));
+    updateLeadsFilterSummary(filtered.length, f);
+    renderLeadsPager(filtered.length);
+    return;
+  }
+  await loadLeadsPage();
+}
+
+async function loadLeadsPage() {
+  const f = leadFilters();
+  if (_leadsPageIndex < 0) _leadsPageIndex = 0;
+  const from = _leadsPageIndex * LEADS_PAGE_SIZE;
+  const { data, error, count } = await buildLeadsQuery(f, { withCount: true })
+    .range(from, from + LEADS_PAGE_SIZE - 1);
+
+  // A failed page fetch leaves the rows already on screen alone. Blanking a
+  // working table back to an empty state on a transient error is worse than
+  // showing the previous page for a moment longer.
+  if (error) { console.error('loadLeadsPage:', error.message); return; }
+
+  const total = (typeof count === 'number') ? count : (data || []).length;
+
+  // Deleting or filtering can strand the viewer past the last page; step back
+  // once and re-fetch rather than rendering an empty table over real data.
+  const lastPage = Math.max(0, Math.ceil(total / LEADS_PAGE_SIZE) - 1);
+  if (_leadsPageIndex > lastPage) { _leadsPageIndex = lastPage; return loadLeadsPage(); }
+
+  // cachedLeads now holds ONE PAGE, not the whole table. Every
+  // cachedLeads.find(l => l.id === leadId) in this file is driven by clicking a
+  // row that is on the visible page, so those lookups are unaffected. The three
+  // places that genuinely needed the full set - CSV export, the Comm Log contact
+  // filter and payroll - each fetch their own data now; see their call sites.
+  cachedLeads = data || [];
+  renderLeadsTable('admin-leads-tbody', cachedLeads, true, adminLeadsEmptyHtml(f));
+  updateLeadsFilterSummary(total, f);
+  renderLeadsPager(total);
 }
 
 function renderLeadsPager(totalCount) {
@@ -7590,9 +7640,49 @@ async function initAgent() {
   if (_dashAgentName) _dashAgentName.textContent = name;
   const initialsEl = document.getElementById('agent-sidebar-initials');
   if (initialsEl) initialsEl.textContent = initialsFor(name);
-  await loadAgentLeads();
+  // My Leads is a screen, not a prerequisite for logging in. Bootstrap used to
+  // await loadAgentLeads(), which downloaded every lead assigned to this agent
+  // (1,412 rows / 1.6 MB for the largest caseload) purely so four dashboard
+  // numbers could be counted in JavaScript. The numbers come from SQL now; the
+  // table loads when the agent opens My Leads.
+  await Promise.all([loadAgentSummary(), renderDepositQueues()]);
   loadUpcomingFollowups('agent-');
   loadNotifications();
+}
+
+// Agent dashboard KPI bar + gauges, from one aggregate instead of every row.
+async function loadAgentSummary() {
+  let sum;
+  if (demoMode) {
+    const rows = productionLeads(_DEMO_LEADS);
+    sum = {
+      total: rows.length,
+      new: rows.filter(l => l.status === 'new').length,
+      converted: rows.filter(l => l.status === 'converted').length,
+      approved_aum: approvedAum(rows),
+      in_pipeline: rows.filter(l => l.status !== 'converted' && l.status !== 'lost').length,
+      by_status: rows.reduce((m, l) => { if (l.status) m[l.status] = (m[l.status] || 0) + 1; return m; }, {}),
+      trend: rows.reduce((m, l) => { const k = (l.created_at || '').slice(0, 10); if (k) m[k] = (m[k] || 0) + 1; return m; }, {}),
+    };
+  } else {
+    const { data, error } = await sb.rpc('agent_summary');
+    if (error) { console.error('agent_summary:', error.message); return; }
+    sum = data || {};
+  }
+  applyAgentSummary(sum);
+}
+
+function applyAgentSummary(sum) {
+  const total     = Number(sum.total) || 0;
+  const converted = Number(sum.converted) || 0;
+  const revenue   = Number(sum.approved_aum) || 0;
+  const setS = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setS('agent-stat-total', total);
+  setS('agent-stat-new', Number(sum.new) || 0);
+  setS('agent-stat-converted', converted);
+  setS('agent-stat-revenue', revenue >= 1000 ? (revenue / 1000).toFixed(1) + 'k' : revenue);
+  renderAgentDashboardExtras(total, converted, revenue,
+    Number(sum.in_pipeline) || 0, sum.by_status || {}, sum.trend || {});
 }
 
 const AGENT_TAB_TITLES = { dashboard: 'Dashboard', 'my-leads': 'My Leads', conversations: 'Omnichannel Inbox', 'comm-log': 'Communication Log', 'log-activity': 'Log Activity', guide: 'Guide' };
@@ -7719,59 +7809,111 @@ async function loadAgentLeads() {
   // "No leads assigned to you yet." instead of showing the demo data.
   if (demoMode) {
     cachedLeads = _DEMO_LEADS.slice();
+    renderLeadsTable('agent-leads-tbody', cachedLeads, false);
   } else {
-    // RLS returns only leads assigned to the signed-in Agent.
-    const { data, error } = await sb
-      .from('leads').select('*').order('created_at', { ascending: false });
-    if (error) { console.error('loadAgentLeads:', error); return; }
-    cachedLeads = data || [];
+    // One page, server-side. This was select('*') with no bound: every lead
+    // assigned to the agent, all columns, to render a table that shows 100.
+    // RLS still returns only this agent's own leads - the page is a window
+    // onto that set, not a widening of it.
+    await loadAgentLeadsPage();
   }
-  filterAgentLeadsLocal(); // keep any active search applied after an inline edit
 
-  // Update quick stats bar.
-  //
-  // Counted over the production subset only - a lead that arrived on the
-  // bot-testing number must not inflate an agent's own performance figures
-  // (see isBotTestLead()). cachedLeads itself is left complete on purpose:
-  // the My Leads table below is a work list, not a KPI, and an agent still
-  // needs to see and work every lead assigned to them.
-  const perfLeads = productionLeads(cachedLeads);
-  const total = perfLeads.length;
-  const newCount = perfLeads.filter(l => l.status === 'new').length;
-  const converted = perfLeads.filter(l => l.status === 'converted').length;
-  // Approved deposits only - see approvedAum(). A pending submission contributes 0.
-  const revenue = approvedAum(perfLeads);
+  // The KPI bar is no longer derived from this table's rows - loadAgentSummary()
+  // computes it in SQL over the agent's WHOLE caseload, so a paged table cannot
+  // make an agent's own figures shrink. Refreshed here so an inline edit that
+  // changes a status is reflected in the numbers too.
+  loadAgentSummary();
   renderDepositQueues();
-  const setS = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  setS('agent-stat-total', total);
-  setS('agent-stat-new', newCount);
-  setS('agent-stat-converted', converted);
-  setS('agent-stat-revenue', revenue >= 1000 ? (revenue/1000).toFixed(1)+'k' : revenue);
-  renderAgentDashboardExtras(total, converted, revenue);
 
+  populateActivityLeadSelect();
+}
+
+// The Log Activity picker must list every lead this agent owns, not just the
+// My Leads page on screen, so it fetches two columns of its own. RLS scopes the
+// result to the signed-in agent exactly as before. Cached for the session.
+let _actLeadOptions = null;
+async function populateActivityLeadSelect() {
   const sel = document.getElementById('act-lead-sel');
-  if (sel) {
-    sel.innerHTML = '<option value="">- Select a lead -</option>';
-    cachedLeads.forEach(l => {
-      const o = document.createElement('option');
-      o.value = l.id; o.textContent = l.full_name;
-      sel.appendChild(o);
-    });
+  if (!sel) return;
+  if (!_actLeadOptions) {
+    if (demoMode) {
+      _actLeadOptions = _DEMO_LEADS.map(l => ({ id: l.id, full_name: l.full_name }));
+    } else {
+      const { data, error } = await fetchAllRows(() => sb.from('leads')
+        .select('id, full_name').order('id', { ascending: true }));
+      if (error) { console.error('populateActivityLeadSelect:', error.message); return; }
+      _actLeadOptions = data || [];
+    }
   }
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">- Select a lead -</option>';
+  _actLeadOptions.forEach(l => {
+    const o = document.createElement('option');
+    o.value = l.id; o.textContent = l.full_name;
+    sel.appendChild(o);
+  });
+  if (prev) sel.value = prev;
+}
+
+let _agentLeadsPageIndex = 0;
+
+// Server-side page fetch for My Leads, the agent-side twin of loadLeadsPage().
+// Search runs in Postgres via the same escaped ilike builder the admin table
+// uses, so an agent can find a lead older than the current page - the previous
+// client-side filter could only ever match rows already downloaded.
+async function loadAgentLeadsPage() {
+  const term = (document.getElementById('agent-lead-search')?.value || '').trim();
+  if (_agentLeadsPageIndex < 0) _agentLeadsPageIndex = 0;
+  const from = _agentLeadsPageIndex * LEADS_PAGE_SIZE;
+  let q = sb.from('leads').select('*', { count: 'exact' })
+    .order('created_at', { ascending: false }).order('id', { ascending: true });
+  if (term) q = q.or(buildLeadSearchOr(term));
+  const { data, error, count } = await q.range(from, from + LEADS_PAGE_SIZE - 1);
+  if (error) { console.error('loadAgentLeadsPage:', error.message); return; }
+
+  const total = (typeof count === 'number') ? count : (data || []).length;
+  const lastPage = Math.max(0, Math.ceil(total / LEADS_PAGE_SIZE) - 1);
+  if (_agentLeadsPageIndex > lastPage) { _agentLeadsPageIndex = lastPage; return loadAgentLeadsPage(); }
+
+  cachedLeads = data || [];
+  renderLeadsTable('agent-leads-tbody', cachedLeads, false,
+    term ? `No leads match "${esc(term)}".` : undefined);
+  renderAgentLeadsPager(total);
+}
+
+function renderAgentLeadsPager(totalCount) {
+  const el = document.getElementById('agent-leads-pager');
+  if (!el) return;
+  if (totalCount <= LEADS_PAGE_SIZE) { el.innerHTML = ''; return; }
+  const totalPages = Math.max(1, Math.ceil(totalCount / LEADS_PAGE_SIZE));
+  const page = _agentLeadsPageIndex + 1;
+  const rangeStart = _agentLeadsPageIndex * LEADS_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(totalCount, rangeStart + LEADS_PAGE_SIZE - 1);
+  el.innerHTML = `
+    <span style="color:var(--text-muted);font-size:0.82rem">${rangeStart}-${rangeEnd} of ${totalCount}</span>
+    <button class="btn btn-secondary btn-sm" ${page <= 1 ? 'disabled' : ''} onclick="goToAgentLeadsPage(-1)">&larr; Prev</button>
+    <span style="font-size:0.82rem">Page ${page} of ${totalPages}</span>
+    <button class="btn btn-secondary btn-sm" ${page >= totalPages ? 'disabled' : ''} onclick="goToAgentLeadsPage(1)">Next &rarr;</button>`;
+}
+
+function goToAgentLeadsPage(delta) {
+  _agentLeadsPageIndex += delta;
+  loadAgentLeadsPage();
+  document.getElementById('agent-leads-tbody')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
 function filterAgentLeadsLocal() {
-  const q = (document.getElementById('agent-lead-search')?.value || '').toLowerCase().trim();
-  if (!q) { renderLeadsTable('agent-leads-tbody', cachedLeads, false); return; }
-  const filtered = cachedLeads.filter(l =>
-    (l.full_name  || '').toLowerCase().includes(q) ||
-    (l.phone      || '').toLowerCase().includes(q) ||
-    (l.email      || '').toLowerCase().includes(q)
-  );
-  // Same distinction the admin table now makes: no search matches is not the
-  // same as having no leads at all.
-  renderLeadsTable('agent-leads-tbody', filtered, false,
-    `No leads match "${esc(q)}".`);
+  if (demoMode) {
+    const q = (document.getElementById('agent-lead-search')?.value || '').toLowerCase().trim();
+    const rows = !q ? cachedLeads : cachedLeads.filter(l =>
+      (l.full_name || '').toLowerCase().includes(q) ||
+      (l.phone     || '').toLowerCase().includes(q) ||
+      (l.email     || '').toLowerCase().includes(q));
+    renderLeadsTable('agent-leads-tbody', rows, false, q ? `No leads match "${esc(q)}".` : undefined);
+    return;
+  }
+  _agentLeadsPageIndex = 0;   // a new search term starts back at page 1
+  loadAgentLeadsPage();
 }
 
 // Circumference for r=32 (this dashboard's own gauge SVGs) is 2*pi*32 = 201.06 -
@@ -7779,10 +7921,11 @@ function filterAgentLeadsLocal() {
 // pattern the admin Dashboard's own gauges use at their own radius.
 const AGENT_GAUGE_CIRCUMFERENCE = 201.06;
 
-function renderAgentDashboardExtras(total, converted, revenue) {
-  // Same production subset the totals above were computed from, so the gauges
-  // and the pipeline breakdown cannot disagree with the stat bar.
-  const leads = productionLeads(cachedLeads);
+// inPipeline is passed in rather than recounted from cachedLeads: that array
+// holds one page of My Leads now, so recounting it would understate the gauge.
+// It comes from the same aggregate as the numbers above, so the gauge and the
+// stat bar still cannot disagree.
+function renderAgentDashboardExtras(total, converted, revenue, inPipeline = 0, byStatus = {}, trend = {}) {
   renderWaHierarchyCards();
   const setGauge = (fillId, pctId, subId, count, label) => {
     const fill = document.getElementById(fillId);
@@ -7795,7 +7938,6 @@ function renderAgentDashboardExtras(total, converted, revenue) {
   };
   setGauge('agent-gauge-conv-fill', 'agent-gauge-conv-pct', 'agent-gauge-conv-sub',
     converted, (c, t) => `${c} of ${t} leads`);
-  const inPipeline = leads.filter(l => l.status !== 'converted' && l.status !== 'lost').length;
   setGauge('agent-gauge-pipe-fill', 'agent-gauge-pipe-pct', 'agent-gauge-pipe-sub',
     inPipeline, (c, t) => `${c} of ${t} leads`);
 
@@ -7824,8 +7966,8 @@ function renderAgentDashboardExtras(total, converted, revenue) {
   // Breakdown, scoped to this agent's own leads by status.
   const pipeEl = document.getElementById('agent-pipeline-chart');
   if (pipeEl) {
-    const counts = {};
-    leads.forEach(l => { counts[l.status] = (counts[l.status] || 0) + 1; });
+    // Pre-grouped by SQL - this used to walk every one of the agent's leads.
+    const counts = byStatus || {};
     const statusKeys = Object.keys(STATUS_CHART_LABELS).filter(k => counts[k] > 0);
     if (!statusKeys.length) {
       pipeEl.innerHTML = '<div class="empty-state">No leads yet.</div>';
@@ -7856,7 +7998,7 @@ function renderAgentDashboardExtras(total, converted, revenue) {
       const d = new Date(Date.now() - i * 86400000);
       const key = d.toISOString().slice(0, 10);
       days.push(d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }));
-      dayCounts.push(leads.filter(l => (l.created_at || '').slice(0, 10) === key).length);
+      dayCounts.push(Number(trend[key]) || 0);
     }
     const totalEl = document.getElementById('agent-trend-30d-total');
     if (totalEl) totalEl.textContent = dayCounts.reduce((a, b) => a + b, 0) + ' new leads';
@@ -11446,26 +11588,12 @@ async function fetchAllRows(buildQuery, pageSize = 1000) {
     batchSize *= 2;
   }
 }
+// fetchAllLeadsForDashboard() lived here. It downloaded every lead's status,
+// balance, platform, created_at, needs_human and wa_channel - 7,701 rows /
+// 1.1 MB - so the browser could count them. dashboard_summary() does that in
+// SQL now and returns tens of bytes, so the function has no callers and is gone
+// rather than left lying around for someone to reintroduce.
 
-async function fetchAllLeadsForDashboard() {
-  // Refactored onto the shared fetchAllRows helper during the same-day sweep,
-  // and given a stable order it never had before - this had NO .order() at
-  // all, which is even riskier for .range()-based pagination than an
-  // unstable one (Postgres makes no ordering promise across separate
-  // requests without one), risking a lead's balance being double-counted or
-  // silently dropped from these sums. Ordered by id purely for a
-  // deterministic tiebreaker; the actual sort these numbers care about
-  // (by created_at, for the trend chart) already happens client-side in
-  // filterLeadsByDashRange below.
-  const { data, error } = await fetchAllRows(() => sb
-    .from('leads')
-    .select('status, account_balance, deposit_platform, created_at, needs_human, wa_channel')
-    .order('id', { ascending: true }));
-  if (error) { console.error('fetchAllLeadsForDashboard:', error); return []; }
-  // Bot-test traffic never counts towards business performance - see
-  // isBotTestLead(). wa_channel is selected purely so this filter can run.
-  return productionLeads(data || []);
-}
 
 // Time-frame filter for the Dashboard (Muhammad's request, 2026-08-30):
 // slices the already-fetched full lead set by created_at, client-side, so
@@ -11521,6 +11649,73 @@ function renderWaHierarchyCards() {
   });
 }
 
+// Fetches the Dashboard's numbers from SQL. The range selector and the
+// workspace timezone are passed through so 'today' means the same calendar day
+// the rest of the CRM shows, exactly as filterLeadsByDashRange() did in JS.
+// The last aggregates the Dashboard successfully rendered. Kept so a theme
+// toggle or any other pure re-render can repaint the charts without refetching,
+// and so a failed refresh never wipes a working screen.
+let _lastDashSummary = null;
+
+async function loadDashboardSummary() {
+  const range = document.getElementById('dash-range-select')?.value || 'all';
+  const { data, error } = await sb.rpc('dashboard_summary', {
+    p_range: range, p_tz: workspaceTimeZone(),
+  });
+  if (error) { console.error('dashboard_summary:', error.message); return null; }
+  return data;
+}
+
+// Writes a Dashboard value without ever blanking a good one. A refresh that
+// fails, or that is still in flight, must leave the previous real figure on
+// screen rather than flashing back to "-" - repeated blanking was half of why
+// the Dashboard felt broken even once it was fast.
+function setDashStat(id, value) {
+  const node = document.getElementById(id);
+  if (node && value !== null && value !== undefined) node.textContent = value;
+}
+
+function applyDashboardSummary(sum) {
+  _lastDashSummary = sum;
+  setDashStat('dash-total-leads', sum.total);
+  setDashStat('dash-new-leads',   sum.new);
+  setDashStat('dash-converted',   sum.converted);
+  setDashStat('dash-revenue',     '$' + fmtMoney(Number(sum.approved_aum) || 0));
+  if (typeof sum.active_agents === 'number') setDashStat('dash-agents', sum.active_agents);
+  // Same "By platform - EXNESS: $x" line as before, from the SQL breakdown.
+  const parts = Object.entries(sum.by_platform || {})
+    .map(([k, v]) => k.toUpperCase() + ': $' + fmtMoney(Number(v) || 0));
+  const plEl = document.getElementById('dash-rev-platform');
+  if (plEl) plEl.textContent = parts.length ? 'By platform - ' + parts.join('   ·   ') : '';
+  renderDashboardCharts(sum);
+}
+
+// Demo mode has no database to aggregate, so it builds the same shape from its
+// in-memory fixtures. One render path, one set of rules, no drift between the
+// two - the kind of gap that has produced real false passes in this file before.
+function dashSummaryFromLeads(leads) {
+  const rows = leads || [];
+  const by_status = {};
+  rows.forEach(l => { if (l.status) by_status[l.status] = (by_status[l.status] || 0) + 1; });
+  const trend = {};
+  rows.forEach(l => { const k = (l.created_at || '').slice(0, 10); if (k) trend[k] = (trend[k] || 0) + 1; });
+  const by_platform = {};
+  rows.forEach(l => {
+    if (l.deposit_platform && Number(l.account_balance) && isApprovedDeposit(l)) {
+      by_platform[l.deposit_platform] = (by_platform[l.deposit_platform] || 0) + Number(l.account_balance);
+    }
+  });
+  return {
+    total: rows.length,
+    new: by_status.new || 0,
+    qualified: by_status.qualified || 0,
+    converted: by_status.converted || 0,
+    needs_human: rows.filter(l => l.needs_human).length,
+    approved_aum: approvedAum(rows),
+    by_status, by_platform, trend,
+  };
+}
+
 function renderDashboardStats() {
   const el = id => document.getElementById(id);
   renderWaHierarchyCards();
@@ -11542,7 +11737,8 @@ function renderDashboardStats() {
         <div><div style="color:var(--text-strong);font-size:0.85rem;font-weight:600">Ayesha Malik</div><div style="color:var(--text-muted);font-size:0.76rem">Send crypto signals starter pack</div></div>
         <span style="color:var(--text-muted);font-size:0.78rem;white-space:nowrap">Tomorrow</span>
       </div>`;
-    renderDashboardCharts(demoLeads);
+    _lastDashSummary = dashSummaryFromLeads(demoLeads);
+    renderDashboardCharts(_lastDashSummary);
     // The live path's loadDashMetaAds() call sits below this function's early
     // return, so it was never reached in demo mode at all - the panel was
     // stuck on its static "Loading campaign metrics..." markup forever.
@@ -11555,17 +11751,14 @@ function renderDashboardStats() {
     return;
   }
   if (el('dash-agents')) el('dash-agents').textContent = cachedProfiles.filter(p => p.role === 'agent' && !p.is_suspended).length;
-  fetchAllLeadsForDashboard().then(allLeads => {
-    const leads = filterLeadsByDashRange(allLeads);
-    if (el('dash-total-leads')) el('dash-total-leads').textContent = leads.length;
-    if (el('dash-new-leads'))   el('dash-new-leads').textContent   = leads.filter(l => l.status === 'new').length;
-    if (el('dash-converted'))   el('dash-converted').textContent   = leads.filter(l => l.status === 'converted').length;
-    renderDashboardCharts(leads);
-    // Approved deposits only - see approvedAum(). Super Admin shares this view.
-    const revenue = approvedAum(leads);
-    renderDepositQueues();
-    if (el('dash-revenue'))     el('dash-revenue').textContent     = '$' + fmtMoney(revenue);
-    { const bp={}; leads.forEach(l=>{ if(l.deposit_platform && Number(l.account_balance) && isApprovedDeposit(l)){ bp[l.deposit_platform]=(bp[l.deposit_platform]||0)+Number(l.account_balance);} }); const pl=Object.entries(bp).map(([k,v])=>k.toUpperCase()+': $'+fmtMoney(v)).join('   ·   '); if(el('dash-rev-platform')) el('dash-rev-platform').textContent = pl ? 'By platform - '+pl : ''; }
+  renderDepositQueues();
+  // One RPC returning eight integers, a sum and at most 30 daily counts -
+  // instead of 7,701 lead rows the browser then had to aggregate itself.
+  // dashboard_summary() applies the identical rules in SQL: the 2026-09-02
+  // bot-test exclusion, converted-only AUM, and the same range windows.
+  loadDashboardSummary().then(sum => {
+    if (!sum) return;   // fetch failed: leave the last good numbers on screen
+    applyDashboardSummary(sum);
   });
   // Load upcoming follow-ups from lead_activity
   loadUpcomingFollowups();
@@ -11688,16 +11881,22 @@ function dashChartGridColor() {
   return document.documentElement.getAttribute('data-theme') === 'dark' ? '#243350' : '#f1f5f9';
 }
 
-function renderDashboardCharts(leads) {
+// Takes the aggregate shape returned by dashboard_summary() (or its demo
+// equivalent from dashSummaryFromLeads()) rather than an array of leads. The
+// 30-day trend used to be derived by filtering all 7,701 lead objects once per
+// day rendered - 30 full passes over the array - from data that had to be
+// downloaded first. It is now at most 30 pre-grouped daily counts from SQL.
+function renderDashboardCharts(summary) {
   const donutCanvas = document.getElementById('dash-pipeline-donut');
   const trendCanvas = document.getElementById('dash-trend-chart');
   const legendEl = document.getElementById('dash-pipeline-legend');
   if (!donutCanvas || !trendCanvas || typeof Chart === 'undefined') return;
 
-  const counts = {};
-  (leads || []).forEach(l => { counts[l.status] = (counts[l.status] || 0) + 1; });
+  const sum = summary || {};
+  const counts = sum.by_status || {};
+  const trendCounts = sum.trend || {};
   const statusKeys = Object.keys(STATUS_CHART_LABELS).filter(k => counts[k] > 0);
-  const total = leads?.length || 0;
+  const total = Number(sum.total) || 0;
 
   // Real ratios only, both already meaningful on their own: Conversion Rate is
   // the exact same definition Reports uses (converted/total), New Lead Share
@@ -11721,7 +11920,7 @@ function renderDashboardCharts(leads) {
   // pipeline is waiting on a person right now (needs_human/total) - added
   // 2026-08-30 to fill the visual gap this row left on wider screens, using
   // data the dashboard already fetches rather than a new query.
-  const needsHumanCount = (leads || []).filter(l => l.needs_human).length;
+  const needsHumanCount = Number(sum.needs_human) || 0;
   setGauge('dash-gauge-qualified-ring',   'dash-gauge-qualified-pct',   'dash-gauge-qualified-sub',   counts.qualified || 0);
   setGauge('dash-gauge-needshuman-ring',  'dash-gauge-needshuman-pct',  'dash-gauge-needshuman-sub',  needsHumanCount);
 
@@ -11777,7 +11976,7 @@ function renderDashboardCharts(leads) {
     const d = new Date(Date.now() - i * 86400000);
     const key = d.toISOString().slice(0, 10);
     days.push(d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }));
-    dayCounts.push((leads || []).filter(l => (l.created_at || '').slice(0, 10) === key).length);
+    dayCounts.push(Number(trendCounts[key]) || 0);
   }
   const trendHeaderEl = document.getElementById('dash-trend-30d-total');
   if (trendHeaderEl) trendHeaderEl.textContent = dayCounts.reduce((a, b) => a + b, 0);
@@ -12822,28 +13021,34 @@ function convChannelOf(c) {
 // entirely, not just miscounting them - flagged to Muhammad, not fixed
 // here since fixing the list itself needs real pagination, a bigger
 // change than correcting these two numbers).
-async function fetchRealChannelCount(channel) {
-  if (demoMode) return 0;
-  const { count, error } = await sb.from('leads').select('id', { count: 'exact', head: true }).eq('wa_channel', channel);
-  if (error) { console.error(`fetchRealChannelCount(${channel}):`, error.message); return null; }
-  return count;
-}
+// Writes the exact counts from inbox_conversation_counts() into the pills that
+// already exist. Their markup, position and styling are untouched.
+//
+// This also corrects two numbers that were quietly wrong before pagination
+// existed. "All Numbers" was list.length - the number of conversations that
+// happened to be loaded, which the previous code itself flagged as unfixable
+// without real pagination. The two per-number pills counted rows in LEADS
+// (leads.wa_channel), not conversations, so they answered a different question
+// from the list they sit above. All three now count conversations in the
+// caller's authorised set, which is what the pills claim to show.
+function applyConvCounts(counts, scope = '') {
+  const setCount = (id, n) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = (n === null || n === undefined) ? '?' : n;
+  };
+  setCount(`${scope}conv-channel-count-all`,  counts.chan_all);
+  setCount(`${scope}conv-channel-count-6541`, counts.chan_6541);
+  setCount(`${scope}conv-channel-count-3903`, counts.chan_3903);
 
-async function renderConvChannelCounts(convs, scope = '') {
-  const list = convs || [];
-  const setCount = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = (n === null || n === undefined) ? '?' : n; };
-  setCount(`${scope}conv-channel-count-all`, list.length);
-
-  if (demoMode) {
-    setCount(`${scope}conv-channel-count-6541`, 0);
-    setCount(`${scope}conv-channel-count-3903`, 0);
-    return;
+  // Unread nav badge - previously derived from the loaded rows, which would
+  // undercount the moment the list stopped holding everything.
+  const navBadge = document.getElementById(scope + 'conv-nav-badge');
+  if (navBadge) {
+    const n = Number(counts.unread) || 0;
+    navBadge.textContent = n;
+    navBadge.style.display = n ? 'inline-block' : 'none';
   }
-  const [real6541, real3903] = await Promise.all([fetchRealChannelCount('6541'), fetchRealChannelCount('3903')]);
-  setCount(`${scope}conv-channel-count-6541`, real6541);
-  setCount(`${scope}conv-channel-count-3903`, real3903);
 }
-
 async function renderConversations(scope = '') {
   const listEl = document.getElementById(scope + 'conv-list');
   if (!listEl) return;
@@ -12853,7 +13058,8 @@ async function renderConversations(scope = '') {
     // Demo threads have no real WhatsApp number to attribute - shown as "All
     // numbers" only, so the 6541/3903 filter pills correctly show 0 in demo
     // rather than silently guessing which number a fake lead came in on.
-    renderConvChannelCounts(convs, scope);
+    applyConvCounts({ chan_all: convs.length, chan_6541: 0, chan_3903: 0,
+                      unread: convs.filter(c => c.unread).length }, scope);
     if (!convs.length) {
       listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">No conversations yet.</div>';
       return;
@@ -12910,86 +13116,109 @@ async function renderConversations(scope = '') {
   // first load (nothing rendered yet) should show the loading state; every
   // later call already has a real list on screen and should replace it
   // directly once the fresh data arrives, with no flash back to empty.
-  const isFirstLoad = listEl.dataset.convLoaded !== '1';
-  if (isFirstLoad) {
-    listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">Loading…</div>';
-  }
-  try {
-    // Reads from inbox_conversation_list (added 2026-08-31), a view that is
-    // already one row per LEAD (its latest matching message), not one row
-    // per message. The old query here read `communications` directly with
-    // no .limit() - that's one row per message (13,870+ and growing with
-    // every reply), so it silently hit PostgREST's default 1,000-row cap.
-    // Bounding by conversation instead (~2,024 leads, growing much slower)
-    // means a single generous .limit() reliably covers every real
-    // conversation without needing pagination UI. The messenger/instagram
-    // type filter and the null-safe "Qualified lead summary" exclusion that
-    // used to live here are now baked into the view itself - see the
-    // migration for why each one exists.
-    const { data: rows, error } = await sb
-      .from('inbox_conversation_list')
-      .select('lead_id, type, body, direction, created_at, full_name, phone, status, is_unread, bot_stage, needs_human, handoff_reason, manual_tier, language, wa_channel')
-      .order('created_at', { ascending: false })
-      .limit(5000);
-    if (error) throw error;
-    // Reshape flat view rows back into the { ..., leads: {...} } nesting the
-    // rest of this function (and every other consumer of _lastConvs) already
-    // expects, so nothing downstream has to change.
-    const comms = (rows || []).map(r => ({
-      lead_id: r.lead_id,
-      type: r.type,
-      body: r.body,
-      direction: r.direction,
-      created_at: r.created_at,
-      leads: {
-        full_name: r.full_name,
-        phone: r.phone,
-        status: r.status,
-        is_unread: r.is_unread,
-        bot_stage: r.bot_stage,
-        needs_human: r.needs_human,
-        handoff_reason: r.handoff_reason,
-        manual_tier: r.manual_tier,
-        language: r.language,
-        wa_channel: r.wa_channel,
-      },
-    }));
-    if (!comms || !comms.length) {
-      listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">No conversations yet.<br><span style="font-size:0.75rem;opacity:.7">Messages received via webhook will appear here.</span></div>';
-      listEl.dataset.convLoaded = '1';
-      return;
-    }
-    const seen = new Set();
-    const convs = comms.filter(c => { if (seen.has(c.lead_id)) return false; seen.add(c.lead_id); return true; });
-    _lastConvs = convs;
-    const unreadCount = convs.filter(c => c.leads?.is_unread).length;
-    // Update sidebar badge - counts unread conversations, not total conversations
-    const navBadge = document.getElementById(scope + 'conv-nav-badge');
-    if (navBadge) { navBadge.textContent = unreadCount; navBadge.style.display = unreadCount ? 'inline-block' : 'none'; }
-    renderConvChannelCounts(convs, scope);
-    const now = Date.now();
-    const scored = convs.map(c => {
-      const ts  = new Date(c.created_at).getTime();
-      const sig = convPrioritySignals(c.leads, {
-        direction: c.direction,
-        hoursAgo: Number.isFinite(ts) ? (now - ts) / 3600000 : null,
-      });
-      return { c, sig, _prio: convPriority(sig), _sortTime: Number.isFinite(ts) ? ts : 0 };
-    });
-    // The query already returns newest-first, so "recent" is the untouched
-    // order and priority is an explicit, reversible re-sort on top of it.
-    const ordered = _convSort === 'priority' ? sortConvsByPriority(scored) : scored;
-    listEl.innerHTML = ordered.map(({ c, sig, _prio }) => {
-      const name = c.leads?.full_name || 'Unknown';
-      const initials = initialsFor(name);
-      const preview = (c.direction === 'inbound' ? '↩ ' : '↪ ') + c.body;
-      const tier = sig.tier;
-      const isUnread = sig.isUnread;
-      // Messenger/Instagram leads have no phone at all (see external_id) -
-      // show the channel name in that line instead of leaving it blank.
-      const phone = c.leads?.phone || (c.type === 'messenger' ? 'Messenger' : c.type === 'instagram' ? 'Instagram' : '');
-      return `
-        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" data-awaiting="${sig.awaitingReply}" data-needshuman="${sig.needsHuman}" data-priority="${_prio.score}" data-channel="${convChannelOf(c)}" onclick="openConversation('${c.lead_id}','${scope}')">
+  await loadConvPage(scope, { reset: true });
+  refreshConvCounts(scope);
+}
+
+// ── INBOX PAGING ───────────────────────────────────────────────
+//
+// This list used to fetch inbox_conversation_list with .limit(5000) - 2,873
+// rows / 1.10 MB for Badar and Ehsan - paint every one of them into the DOM in
+// a single innerHTML write, and then implement search and EVERY filter by
+// walking those DOM nodes setting style.display. The browser paid for 2,873
+// conversations to show about a dozen, and each keystroke re-walked all of them.
+//
+// One page is fetched now. Filtering, searching, sorting and counting all run
+// in Postgres over the caller's whole authorised set, so nothing became
+// unreachable by not being loaded - which is the property the old
+// fetch-everything design was really buying.
+const CONV_PAGE_SIZE = 75;
+let _convPageIndex = 0;
+let _convHasMore = true;
+let _convLoadingPage = false;
+let _convListScope = '';
+
+const CONV_LIST_COLS = 'lead_id, type, body, direction, created_at, full_name, phone, status, ' +
+  'is_unread, bot_stage, needs_human, handoff_reason, manual_tier, language, wa_channel, tier, priority';
+
+// Search runs in Postgres, so a conversation that has never been loaded is
+// still findable - the old textContent scan could only match rows already in
+// the DOM. Wildcards and .or()'s own separators are escaped/stripped exactly as
+// buildLeadSearchOr() does, so a typed % cannot act as a wildcard.
+function buildConvSearchOr(term) {
+  const escaped = term.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_').replace(/[,()]/g, '');
+  const like = `%${escaped}%`;
+  return `full_name.ilike.${like},phone.ilike.${like},body.ilike.${like}`;
+}
+
+function convSearchTerm(scope = '') {
+  return (document.getElementById(scope + 'conv-search-input')?.value || '').trim();
+}
+
+// Every active filter is applied by the database over the whole authorised set,
+// not over whichever page happens to be loaded.
+function buildConvQuery(scope = '') {
+  let q = sb.from('inbox_conversation_list').select(CONV_LIST_COLS);
+
+  // Lead stage - single-select; 'all' means every stage.
+  if (_activeConvFilter !== 'all') q = q.eq('tier', _activeConvFilter);
+
+  // Operational state - each active chip narrows further, on top of the stage.
+  // "Deposit Ready + Needs Human" is Deposit Ready leads that ALSO need a
+  // person, not the union of the two. Same AND semantics as the old DOM pass.
+  if (_activeConvOps.has('unread'))     q = q.eq('is_unread', true);
+  if (_activeConvOps.has('awaiting'))   q = q.eq('direction', 'inbound');
+  if (_activeConvOps.has('needshuman')) q = q.eq('needs_human', true);
+
+  // convChannelOf(): a channel pill means one of the two real WhatsApp
+  // numbers, so Messenger/Instagram rows are excluded rather than guessed into
+  // one of them.
+  if (_activeConvChannel !== 'all') q = q.eq('type', 'whatsapp').eq('wa_channel', _activeConvChannel);
+
+  const term = convSearchTerm(scope);
+  if (term) q = q.or(buildConvSearchOr(term));
+
+  if (_convSort === 'priority') q = q.order('priority', { ascending: false });
+  q = q.order('created_at', { ascending: false });
+  // Deterministic tiebreaker: without one, rows sharing a timestamp can fall on
+  // either side of a page boundary between requests and appear twice, or not at all.
+  return q.order('lead_id', { ascending: true });
+}
+
+// Flat view row -> the { ..., leads: {...} } nesting every existing consumer of
+// _lastConvs already expects. Shape unchanged, so nothing downstream moved.
+function convRowFromView(r) {
+  return {
+    lead_id: r.lead_id, type: r.type, body: r.body,
+    direction: r.direction, created_at: r.created_at,
+    leads: {
+      full_name: r.full_name, phone: r.phone, status: r.status,
+      is_unread: r.is_unread, bot_stage: r.bot_stage, needs_human: r.needs_human,
+      handoff_reason: r.handoff_reason, manual_tier: r.manual_tier,
+      language: r.language, wa_channel: r.wa_channel,
+    },
+  };
+}
+
+// The conversation card, lifted verbatim out of the old render so the initial
+// list, an appended page and a realtime insert all produce byte-identical
+// markup. This is a data-loading change, not a visual one.
+function convRowHtml(c, scope = '') {
+  const now = Date.now();
+  const ts  = new Date(c.created_at).getTime();
+  const sig = convPrioritySignals(c.leads, {
+    direction: c.direction,
+    hoursAgo: Number.isFinite(ts) ? (now - ts) / 3600000 : null,
+  });
+  const _prio = convPriority(sig);
+  const name = c.leads?.full_name || 'Unknown';
+  const initials = initialsFor(name);
+  const preview = (c.direction === 'inbound' ? '\u21a9 ' : '\u21aa ') + c.body;
+  const tier = sig.tier;
+  const isUnread = sig.isUnread;
+  const phone = c.leads?.phone || (c.type === 'messenger' ? 'Messenger' : c.type === 'instagram' ? 'Instagram' : '');
+  return `
+        <div class="conv-item${c.lead_id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${isUnread}" data-awaiting="${sig.awaitingReply}" data-needshuman="${sig.needsHuman}" data-priority="${_prio.score}" data-channel="${convChannelOf(c)}" data-lead="${c.lead_id}" onclick="openConversation('${c.lead_id}','${scope}')">
           <div class="conv-avatar" style="background:${avatarColor(c.lead_id)};position:relative">${initials}${channelBadge(c.type)}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(name)}${isUnread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
@@ -13001,59 +13230,160 @@ async function renderConversations(scope = '') {
             <div style="margin-top:4px">${tierBadge(tier)}</div>
           </div>
         </div>`;
-    }).join('');
+}
+
+async function loadConvPage(scope = '', { reset = false, append = false } = {}) {
+  const listEl = document.getElementById(scope + 'conv-list');
+  if (!listEl || _convLoadingPage) return;
+  _convListScope = scope;
+  _convLoadingPage = true;
+  if (reset) { _convPageIndex = 0; _convHasMore = true; }
+
+  // Only the very first paint shows the loading state. A later reset - filter
+  // change, search, realtime nudge, reconnect - keeps the current rows on
+  // screen and swaps them when the response lands. (Muhammad, 2026-09-01: the
+  // sidebar appearing to "restart" every few seconds under real traffic was
+  // this function reacting correctly to real messages, but reading as the whole
+  // list reloading.)
+  const isFirstLoad = listEl.dataset.convLoaded !== '1';
+  if (reset && isFirstLoad) {
+    listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">Loading conversations…</div>';
+  }
+
+  const from = _convPageIndex * CONV_PAGE_SIZE;
+  try {
+    const { data, error } = await buildConvQuery(scope).range(from, from + CONV_PAGE_SIZE - 1);
+    if (error) throw error;
+    const rows = (data || []).map(convRowFromView);
+    _convHasMore = rows.length === CONV_PAGE_SIZE;
+
+    if (reset) {
+      _lastConvs = rows;
+      listEl.innerHTML = rows.length
+        ? rows.map(c => convRowHtml(c, scope)).join('')
+        : `<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">${convSearchTerm(scope) ? 'No conversations match your search.' : 'No conversations match this filter.'}</div>`;
+      listEl.scrollTop = 0;
+    } else if (append && rows.length) {
+      // A row can legitimately move across a page boundary between requests on
+      // a live list; drop anything already rendered rather than duplicating it.
+      const have = new Set(_lastConvs.map(c => c.lead_id));
+      const fresh = rows.filter(c => !have.has(c.lead_id));
+      _lastConvs = _lastConvs.concat(fresh);
+      if (fresh.length) listEl.insertAdjacentHTML('beforeend', fresh.map(c => convRowHtml(c, scope)).join(''));
+    }
     listEl.dataset.convLoaded = '1';
     updateConvSortLabels();
-    filterConversations(scope);
-  } catch(err) {
-    // Deliberately NOT marking convLoaded here - a genuine failure should
-    // still show the loading state (then this same error) on the next
-    // attempt, rather than silently sitting on whatever was on screen
-    // before with no visible sign anything went wrong.
-    listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--bad);font-size:0.85rem">Error: ${esc(err.message)}</div>`;
+    attachConvInfiniteScroll(scope);
+  } catch (err) {
+    // Only replace a list that has nothing in it - an error must never wipe
+    // conversations an agent is working from.
+    if (!listEl.querySelector('.conv-item')) {
+      listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--bad);font-size:0.85rem">Error: ${esc(err.message)}</div>`;
+    } else {
+      showToast('Could not refresh conversations: ' + err.message, 'err');
+    }
+  } finally {
+    _convLoadingPage = false;
   }
 }
 
-function filterConversations(scope = '') {
-  const q = (document.getElementById(scope + 'conv-search-input')?.value || '').toLowerCase();
+// Realtime row update. A new message means exactly one conversation's summary
+// changed - its preview, timestamp, unread state, priority and position. The
+// old handler answered that by re-fetching and repainting every conversation.
+//
+// Re-reads only that lead's row from the same view (so RLS still decides
+// whether this user may see it at all, and the tier/priority come from the same
+// SQL the list is sorted by), then:
+//   * row already rendered -> replace it in place and move it if the sort says so
+//   * row not rendered but belongs above the last loaded row -> insert it
+//   * row not rendered and belongs further down -> ignore it; it will be there
+//     when the user pages down to it
+// It also respects the active filters: a message arriving for a conversation the
+// current filter excludes must not push an unmatching row into the list.
+async function applyConvRealtimeRow(leadId, scope = '') {
+  if (!leadId || demoMode) return;
   const listEl = document.getElementById(scope + 'conv-list');
-  let visibleCount = 0;
-  listEl?.querySelectorAll('.conv-item').forEach(el => {
-    const matchesText = el.textContent.toLowerCase().includes(q);
-    // Lead stage - single-select, and 'all' means every stage.
-    const matchesTier = _activeConvFilter === 'all'
-      ? true
-      : el.dataset.tier === _activeConvFilter;
-    // Operational state - each active chip narrows further, on top of the
-    // stage. "Deposit Ready + Needs Human" is Deposit Ready leads that also
-    // need a person, not the union of the two.
-    const matchesOps = [..._activeConvOps].every(op =>
-      op === 'unread'     ? el.dataset.unread === 'true'
-      : op === 'awaiting'   ? el.dataset.awaiting === 'true'
-      : op === 'needshuman' ? el.dataset.needshuman === 'true'
-      : true);
-    const matchesChannel = _activeConvChannel === 'all' ? true : el.dataset.channel === _activeConvChannel;
-    const show = matchesText && matchesTier && matchesOps && matchesChannel;
-    el.style.display = show ? '' : 'none';
-    if (show) visibleCount++;
-  });
-  // Bug found 2026-08-05: a filter/search matching zero conversations just
-  // left a blank area with no explanation - indistinguishable from the
-  // feature being broken. Every other list in the app (leads, CSV import,
-  // etc.) already shows a real empty-state message; this didn't.
-  if (!listEl) return;
-  let emptyEl = listEl.querySelector('.conv-empty-state');
-  if (visibleCount === 0) {
-    if (!emptyEl) {
-      emptyEl = document.createElement('div');
-      emptyEl.className = 'conv-empty-state';
-      emptyEl.style.cssText = 'padding:24px;text-align:center;color:#94a3b8;font-size:0.85rem';
-      listEl.appendChild(emptyEl);
-    }
-    emptyEl.textContent = q ? 'No conversations match your search.' : 'No conversations match this filter.';
-  } else if (emptyEl) {
-    emptyEl.remove();
+  if (!listEl || listEl.dataset.convLoaded !== '1') return;
+
+  // buildConvQuery() carries every active filter, search term and the sort, so
+  // asking it for this one lead answers "does this row still belong here?" with
+  // exactly the same rules the list itself uses.
+  const { data, error } = await buildConvQuery(scope).eq('lead_id', leadId).limit(1);
+  if (error) { console.error('applyConvRealtimeRow:', error.message); return; }
+
+  const existing = listEl.querySelector(`.conv-item[data-lead="${CSS.escape(leadId)}"]`);
+  if (!data || !data.length) {
+    // No longer matches the active filter (e.g. it was Unread-only and an agent
+    // just read it). Drop it rather than leaving a stale row behind.
+    if (existing) existing.remove();
+    _lastConvs = _lastConvs.filter(c => c.lead_id !== leadId);
+    return;
   }
+
+  // Under priority sort the correct position depends on every other row's
+  // score, which this client no longer holds - so let the server decide by
+  // refetching page 1 (75 rows), rather than guessing a position. That is one
+  // page, not the whole list.
+  if (_convSort === 'priority') { loadConvPage(scope, { reset: true }); return; }
+
+  // Newest-first: an inbound or outbound message makes this the most recent
+  // conversation by definition, so the top is provably its place.
+  const row = convRowFromView(data[0]);
+  _lastConvs = [row].concat(_lastConvs.filter(c => c.lead_id !== leadId));
+  if (existing) existing.remove();
+  listEl.insertAdjacentHTML('afterbegin', convRowHtml(row, scope));
+}
+
+// Seamless loading, no page-number controls: the next page is fetched as the
+// list nears its end, so it still reads as one continuous conversation list.
+let _convScrollBound = null;
+function attachConvInfiniteScroll(scope = '') {
+  const listEl = document.getElementById(scope + 'conv-list');
+  if (!listEl || _convScrollBound === listEl) return;
+  if (_convScrollBound) _convScrollBound.removeEventListener('scroll', _onConvScroll);
+  _convScrollBound = listEl;
+  listEl.addEventListener('scroll', _onConvScroll);
+}
+function _onConvScroll(e) {
+  const el = e.currentTarget;
+  if (_convLoadingPage || !_convHasMore) return;
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 300) {
+    _convPageIndex++;
+    loadConvPage(_convListScope, { append: true });
+  }
+}
+
+// Counts over the whole authorised set, from SQL. Deriving them from the loaded
+// page would understate every one of them the moment pagination existed.
+let _convCountsTimer = null;
+async function refreshConvCounts(scope = '') {
+  if (demoMode) return;
+  const { data, error } = await sb.rpc('inbox_conversation_counts');
+  if (error) { console.error('inbox_conversation_counts:', error.message); return; }
+  applyConvCounts(data || {}, scope);
+}
+// Realtime can deliver a burst; recount once after it settles, not per message.
+function scheduleConvCountRefresh(scope = '') {
+  clearTimeout(_convCountsTimer);
+  _convCountsTimer = setTimeout(() => refreshConvCounts(scope), 800);
+}
+
+// Filters and search now run in Postgres over the caller's ENTIRE authorised
+// set, so this re-queries rather than hiding DOM rows. The old version walked
+// every rendered .conv-item setting style.display: a filter could only narrow
+// the rows already downloaded, and search could only match text already in the
+// DOM - a conversation that had never been loaded was unfindable. Same
+// predicates, same AND semantics, evaluated by the database.
+function filterConversations(scope = '') {
+  loadConvPage(scope || _convListScope, { reset: true });
+}
+
+// Debounced: the old search was free because it never left the browser, this
+// one must not fire a query per keystroke.
+let _convSearchTimer = null;
+function onConvSearchInput(scope = '') {
+  clearTimeout(_convSearchTimer);
+  _convSearchTimer = setTimeout(() => filterConversations(scope), 250);
 }
 
 // ── 24-hour customer service window (catalog C2) ───────────────
@@ -14684,6 +15014,9 @@ function forwardTargetList() {
   if (demoMode) {
     return _DEMO_CONVERSATIONS.map(c => ({ id: c.id, name: c.name, phone: c.phone }));
   }
+  // The loaded page is the default list; searching goes to the server (see
+  // renderForwardTargets), so a conversation that is not on the current page is
+  // still a reachable forward target.
   return (_lastConvs || []).map(c => ({
     id: c.lead_id,
     name: c.leads?.full_name || 'Unknown',
@@ -14691,18 +15024,35 @@ function forwardTargetList() {
   }));
 }
 
-function renderForwardTargets(query) {
+// Forward-target search, server-side. _lastConvs holds one page now, so a
+// purely local filter would silently make every conversation below the fold
+// un-forwardable - the exact class of disappearance this change must not cause.
+async function searchForwardTargets(q) {
+  if (demoMode || _forwardMode === 'team') return null;   // team list is already complete
+  const term = String(q || '').trim();
+  if (!term) return null;                                  // no term: show the loaded page
+  const { data, error } = await sb.from('inbox_conversation_list')
+    .select('lead_id, full_name, phone')
+    .or(buildConvSearchOr(term))
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) { console.error('searchForwardTargets:', error.message); return null; }
+  return (data || []).map(r => ({ id: r.lead_id, name: r.full_name || 'Unknown', phone: r.phone || '' }));
+}
+
+async function renderForwardTargets(query) {
   const listEl = document.getElementById('fwd-list');
   if (!listEl) return;
   const q = String(query || '').trim().toLowerCase();
 
   const selfId = demoMode ? (_DEMO_PROFILE?.id) : currentUser?.id;
-  const targets = forwardTargetList()
+  const remote = await searchForwardTargets(query);
+  const targets = (remote || forwardTargetList())
     // Customer mode: forwarding a message back into the conversation it came
     // from is almost always a misclick. Team mode: forwarding to yourself is
     // pointless, and the current conversation id is a lead id, not a person.
     .filter(t => _forwardMode === 'team' ? t.id !== selfId : t.id !== _activeConvId)
-    .filter(t => !q || t.name.toLowerCase().includes(q) || (t.phone || '').toLowerCase().includes(q));
+    .filter(t => remote || !q || t.name.toLowerCase().includes(q) || (t.phone || '').toLowerCase().includes(q));
 
   if (!targets.length) {
     const empty = _forwardMode === 'team'
@@ -15385,7 +15735,11 @@ function startConvRealtime(scope = '') {
       if (payload.new.subject === 'Qualified lead summary') return;
       // Refresh sidebar list. RLS on the underlying subscription already
       // restricts which INSERTs an agent receives to their own leads.
-      renderConversations(_convRealtimeScope);
+      // One message must not reload the whole Inbox. This refreshes exactly
+      // the affected conversation's summary row and repositions it; the other
+      // 74 rows on screen are left untouched.
+      applyConvRealtimeRow(payload.new.lead_id, _convRealtimeScope);
+      scheduleConvCountRefresh(_convRealtimeScope);
       // If this conversation is currently open, append message live
       if (_activeConvId && _activeConvId === payload.new.lead_id) {
         const msgArea = document.getElementById('conv-msgs-' + _activeConvId);
@@ -15451,7 +15805,7 @@ function startConvRealtime(scope = '') {
         // down, and those INSERTs are gone - the stream is not replayed. One
         // reconciling re-render on (re)subscribe closes that gap. It is a
         // safety net for missed events, not a substitute for realtime.
-        renderConversations(_convRealtimeScope);
+        renderConversations(_convRealtimeScope);   // full reconcile after a (re)subscribe
         return;
       }
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
@@ -15694,12 +16048,26 @@ async function loadPayrollDepositTransactions(start, end) {
   }
 }
 
+// Exactly the columns calculatePayroll() reads: ownership, status, both date
+// fields it falls back between, and the id it keys transactions on.
+async function fetchPayrollLeads() {
+  const { data, error } = await fetchAllRows(() => sb.from('leads')
+    .select('id, assigned_agent_id, status, converted_at, created_at')
+    .order('id', { ascending: true }));
+  if (error) { console.error('fetchPayrollLeads:', error.message); return []; }
+  return data || [];
+}
+
 async function calculatePayroll() {
   const period = document.getElementById('payroll-period')?.value || 'monthly';
   const mult   = { daily:1/30, weekly:1/4, biweekly:1/2, monthly:1 }[period] || 1;
   const pLabel = { daily:'Daily', weekly:'Weekly', biweekly:'Bi-weekly', monthly:'Monthly' }[period];
   const agents = (demoMode ? _DEMO_PROFILES : cachedProfiles).filter(p => p.role === 'agent' && !p.is_suspended);
-  const leads  = demoMode ? _DEMO_LEADS : cachedLeads;
+  // Payroll must see EVERY lead, not the All Leads page. It fetches the five
+  // columns the calculation below actually reads, on click, rather than relying
+  // on a global cache that no longer holds the whole table. The commission and
+  // conversion logic underneath is unchanged.
+  const leads  = demoMode ? _DEMO_LEADS : await fetchPayrollLeads();
   if (!await savePayrollSettings(true)) {
     setMsg(document.getElementById('payroll-setup-msg'), 'Fix the salary setup before calculating payroll.', 'err');
     return;
@@ -15806,9 +16174,24 @@ function openPayrollRun(id) {
 // cachedLeads, which is the server-filtered set - so a search term (or an
 // inline edit that pushed a row out of the filter) left the CSV holding leads
 // that were not on screen when the button was pressed.
-function exportLeadsCSV() {
+async function exportLeadsCSV() {
   const f = leadFilters();
-  const leads = (cachedLeads || []).filter(l => leadMatchesFilters(l, f));
+  // cachedLeads is one page now, so the export fetches the full filtered set
+  // itself, straight from Postgres, using the SAME buildLeadsQuery() the table
+  // uses - the export cannot silently disagree with what is on screen. This is
+  // the one place a large read is legitimate: the user explicitly asked for
+  // every matching row, and it happens on click, never on load.
+  const btn = document.getElementById('export-leads-btn');
+  const restore = btn ? btn.textContent : null;
+  if (btn) { btn.disabled = true; btn.textContent = 'Preparing…'; }
+  let leads = [];
+  try {
+    const { data, error } = await fetchAllRows(() => buildLeadsQuery(f));
+    if (error) { showToast('Export failed: ' + error.message, 'err'); return; }
+    leads = data || [];
+  } finally {
+    if (btn) { btn.disabled = false; if (restore !== null) btn.textContent = restore; }
+  }
   if (!leads.length) {
     alert(leadFiltersActive(f)
       ? 'No leads match the current filters, so there is nothing to export. Clear the filters to export everything.'
@@ -15897,6 +16280,17 @@ function filterCommLogStatus(btn, status, scope = '') {
   renderCommLog(scope);
 }
 
+// Reverse-chronological window over the two communication tables. 500 rows of
+// each is far more than the screen shows and still ~30x smaller than the full
+// download it replaces.
+const COMM_LOG_PAGE_SIZE = 500;
+let _commLogLimit = COMM_LOG_PAGE_SIZE;
+
+function loadMoreCommLog(scope = '') {
+  _commLogLimit += COMM_LOG_PAGE_SIZE;
+  loadCommLog(scope);
+}
+
 async function loadCommLog(scope = '') {
   if (demoMode) {
     _cachedCommLogs = _DEMO_COMM_LOGS.map(r => ({
@@ -15923,13 +16317,20 @@ async function loadCommLog(scope = '') {
   // timestamp can land inconsistently across page boundaries between
   // requests. Found live during this same-day sweep on the leads table
   // (7,433 rows fetched, only 7,424 unique ids without one).
+  // Bounded to the most recent COMM_LOG_PAGE_SIZE of each table. This used to
+  // page through BOTH in full on every visit to the screen: 16,010
+  // communications rows / 3.5 MB, to render a reverse-chronological list whose
+  // top is all anyone reads. "Load more" widens the window on request, so
+  // nothing is unreachable - it is just no longer downloaded up front.
   const [manualRes, autoRes] = await Promise.all([
-    fetchAllRows(() => sb.from('communication_logs')
+    sb.from('communication_logs')
       .select('*, lead:leads!lead_id(full_name, status)')
-      .order('created_at', { ascending: false }).order('id', { ascending: true })),
-    fetchAllRows(() => sb.from('communications')
+      .order('created_at', { ascending: false }).order('id', { ascending: true })
+      .limit(_commLogLimit),
+    sb.from('communications')
       .select('id, lead_id, type, body, direction, created_at, leads(full_name, status)')
-      .order('created_at', { ascending: false }).order('id', { ascending: true })),
+      .order('created_at', { ascending: false }).order('id', { ascending: true })
+      .limit(_commLogLimit),
   ]);
   if (manualRes.error) console.error('loadCommLog (manual):', manualRes.error);
   if (autoRes.error)   console.error('loadCommLog (auto):', autoRes.error);
@@ -15959,8 +16360,23 @@ async function loadCommLog(scope = '') {
   renderCommLog(scope);
 }
 
-function populateClLeadFilter(scope = '') {
-  const leads = demoMode ? _DEMO_LEADS : cachedLeads;
+// The contact dropdown needs every lead's name, not the current All Leads page,
+// so it fetches its own list - two columns instead of select('*'), and only when
+// the Comm Log screen is actually open. Cached for the session so switching
+// tabs does not refetch it.
+let _clLeadOptions = null;
+async function ensureClLeadOptions() {
+  if (demoMode) return _DEMO_LEADS;
+  if (_clLeadOptions) return _clLeadOptions;
+  const { data, error } = await fetchAllRows(() => sb.from('leads')
+    .select('id, full_name, phone').order('id', { ascending: true }));
+  if (error) { console.error('ensureClLeadOptions:', error.message); return cachedLeads || []; }
+  _clLeadOptions = data || [];
+  return _clLeadOptions;
+}
+
+async function populateClLeadFilter(scope = '') {
+  const leads = await ensureClLeadOptions();
 
   // Main filter dropdown
   const filterSel = document.getElementById(scope + 'cl-lead-filter');
@@ -15992,6 +16408,17 @@ function filterCommLog(btn, type, scope = '') {
   document.querySelectorAll(`#${scope}cl-type-btns .cl-type-btn`).forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   renderCommLog(scope);
+}
+
+// Older entries are outside the fetched window rather than absent, so the
+// screen says so and offers to widen it. Shown only when the last fetch came
+// back full, i.e. there is plausibly more behind it.
+function commLogMoreHtml(scope = '') {
+  if (_cachedCommLogs.length < _commLogLimit) return '';
+  return `<div style="text-align:center;padding:8px 0 20px">
+    <button class="btn btn-secondary btn-sm" onclick="loadMoreCommLog('${scope}')">Load older entries</button>
+    <div style="color:var(--text-muted);font-size:0.75rem;margin-top:6px">Showing the most recent ${_commLogLimit} entries per channel</div>
+  </div>`;
 }
 
 function renderCommLog(scope = '') {
@@ -16032,7 +16459,7 @@ function renderCommLog(scope = '') {
         <p style="color:var(--text-body);font-size:0.875rem;line-height:1.55;margin:0 0 6px">${esc(l.message)}</p>
         <div style="color:var(--text-muted);font-size:0.75rem">by ${esc(l.created_by_name)}</div>
       </div>
-    </div>`).join('');
+    </div>`).join('') + commLogMoreHtml(scope);
 }
 
 function showAddNoteForm(scope = '') {

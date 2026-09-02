@@ -1,0 +1,246 @@
+// Omnichannel Inbox: server-side paging, filtering, search and counts.
+//
+// Before this the Inbox fetched inbox_conversation_list with .limit(5000) -
+// 2,873 rows / 1.10 MB for Badar and Ehsan - painted every row into the DOM in
+// one innerHTML write, then implemented search and EVERY filter by walking
+// those nodes setting style.display. The browser paid for 2,873 conversations
+// to show about a dozen, and each keystroke re-walked all of them.
+//
+// The property the old design bought - nothing is ever unreachable - is the one
+// thing pagination must not lose, so most of what follows is about reachability,
+// not speed.
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import test from 'node:test';
+import vm from 'node:vm';
+
+const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const migDir = new URL('../supabase/migrations/', import.meta.url);
+const mig = readFileSync(new URL(
+  readdirSync(migDir).find(f => f.includes('inbox_pagination')), migDir), 'utf8');
+const block = (a, b) => html.slice(html.indexOf(a), html.indexOf(b));
+const stripJs = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+// ── A. The full fetch is gone ──────────────────────────────────
+test('the Inbox no longer downloads every conversation', () => {
+  assert.ok(!/\.limit\(5000\)/.test(stripJs(html)), '.limit(5000) must not come back');
+  const load = block('async function loadConvPage', 'function attachConvInfiniteScroll');
+  assert.match(load, /\.range\(from, from \+ CONV_PAGE_SIZE - 1\)/,
+    'the list must be windowed in Postgres');
+  assert.match(html, /const CONV_PAGE_SIZE = 75;/);
+});
+
+test('paging is seamless, not page-number controls', () => {
+  assert.match(html, /function _onConvScroll/, 'infinite scroll must drive the next page');
+  assert.match(html, /_convPageIndex\+\+;\s*\n\s*loadConvPage\(_convListScope, \{ append: true \}\)/);
+  // The Inbox must not grow the pager UI the All Leads table uses.
+  const inbox = block('async function loadConvPage', 'async function openConversation');
+  assert.ok(!/goToLeadsPage|renderLeadsPager|Page \$\{page\} of/.test(inbox),
+    'no page-number controls may appear in the Inbox');
+});
+
+// ── B. Nothing became unreachable ──────────────────────────────
+test('search runs server-side, so unloaded conversations are findable', () => {
+  const qb = block('function buildConvQuery', 'function convRowFromView');
+  assert.match(qb, /if \(term\) q = q\.or\(buildConvSearchOr\(term\)\)/);
+  assert.match(html, /full_name\.ilike\.\$\{like\},phone\.ilike\.\$\{like\},body\.ilike\.\$\{like\}/,
+    'search must cover name, phone and message body');
+  // The old DOM scan must be gone - it could only match loaded rows.
+  assert.ok(!/el\.textContent\.toLowerCase\(\)\.includes\(q\)/.test(html),
+    'search must not fall back to scanning rendered nodes');
+  assert.match(html, /function onConvSearchInput[\s\S]{0,300}setTimeout\(\(\) => filterConversations\(scope\), 250\)/,
+    'and must be debounced now that it costs a request');
+});
+
+test('search escapes wildcards and .or() separators', () => {
+  const f = block('function buildConvSearchOr', 'function convSearchTerm');
+  for (const re of [/replace\(\/%\/g/, /replace\(\/_\/g/, /replace\(\/\[,\(\)\]\/g/]) assert.match(f, re);
+});
+
+test('forwarding can still reach a conversation that is not loaded', () => {
+  // _lastConvs holds one page now; a purely local filter would silently make
+  // every conversation below the fold un-forwardable.
+  assert.match(html, /async function searchForwardTargets\(q\)[\s\S]{0,700}from\('inbox_conversation_list'\)/);
+  assert.match(html, /const remote = await searchForwardTargets\(query\);/);
+});
+
+test('pagination is deterministic, so no row is skipped or duplicated', () => {
+  const qb = block('function buildConvQuery', 'function convRowFromView');
+  assert.match(qb, /return q\.order\('lead_id', \{ ascending: true \}\)/,
+    'a tiebreaker is required or rows sharing a timestamp straddle page boundaries');
+  const load = block('async function loadConvPage', 'function attachConvInfiniteScroll');
+  assert.match(load, /const have = new Set\(_lastConvs\.map\(c => c\.lead_id\)\)/,
+    'an appended page must drop rows already rendered');
+});
+
+// ── C. Filters and counts cover the whole authorised set ───────
+test('every filter is applied by the database', () => {
+  const qb = block('function buildConvQuery', 'function convRowFromView');
+  for (const [what, re] of [
+    ['stage',      /q\.eq\('tier', _activeConvFilter\)/],
+    ['unread',     /q\.eq\('is_unread', true\)/],
+    ['awaiting',   /q\.eq\('direction', 'inbound'\)/],
+    ['needshuman', /q\.eq\('needs_human', true\)/],
+    ['channel',    /\.eq\('type', 'whatsapp'\)\.eq\('wa_channel', _activeConvChannel\)/],
+  ]) assert.match(qb, re, `${what} must filter server-side`);
+  assert.ok(!/el\.style\.display = show \? '' : 'none'/.test(html),
+    'the DOM show/hide filter pass must be gone');
+});
+
+test('counts are exact over the authorised set, not the loaded page', () => {
+  assert.match(html, /sb\.rpc\('inbox_conversation_counts'\)/);
+  assert.match(mig, /create or replace function public\.inbox_conversation_counts/);
+  for (const k of ['chan_all', 'chan_3903', 'chan_6541', 'unread', 'needshuman', 'awaiting'])
+    assert.ok(mig.includes(`'${k}'`), `counts must include ${k}`);
+  // "All Numbers" used to be list.length, and the two number pills counted
+  // LEADS rather than conversations.
+  assert.ok(!/fetchRealChannelCount/.test(html), 'the leads-based channel count must be gone');
+  assert.ok(!/setCount\(`\$\{scope\}conv-channel-count-all`, list\.length\)/.test(html));
+});
+
+test('the approved WhatsApp hierarchy is untouched', () => {
+  assert.match(html, /\u{1F7E2} LIVE/u, 'the LIVE pill must remain');
+  assert.match(html, /\u{1F9EA} TEST/u, 'the TEST pill must remain');
+  assert.ok(html.includes('3903') && html.includes('6541'));
+  // No third production-number concept may appear in the counts.
+  assert.ok(!/chan_(?!all|3903|6541|untagged|other)\w+/.test(mig));
+});
+
+// ── D. Realtime does not reload the list ───────────────────────
+test('a new message updates one row, not the whole Inbox', () => {
+  const handler = block("if (payload.new.subject === 'Qualified lead summary') return;",
+                        '// Delivery ticks arrive as UPDATEs');
+  assert.match(handler, /applyConvRealtimeRow\(payload\.new\.lead_id, _convRealtimeScope\)/);
+  assert.ok(!/renderConversations\(_convRealtimeScope\);/.test(handler),
+    'the INSERT handler must not re-fetch every conversation');
+  const upd = block('async function applyConvRealtimeRow', '// Seamless loading');
+  assert.match(upd, /buildConvQuery\(scope\)\.eq\('lead_id', leadId\)\.limit\(1\)/,
+    'the refreshed row must honour the active filters, so an excluded row is not pushed in');
+  assert.match(upd, /if \(existing\) existing\.remove\(\);/, 'and must not duplicate the row');
+  // The count refresh is fired by the realtime handler alongside the row update.
+  assert.match(handler, /scheduleConvCountRefresh\(_convRealtimeScope\)/, 'counts must follow the change');
+});
+
+test('realtime respects the active sort', () => {
+  const upd = block('async function applyConvRealtimeRow', '// Seamless loading');
+  assert.match(upd, /if \(_convSort === 'priority'\) \{ loadConvPage\(scope, \{ reset: true \}\); return; \}/,
+    'priority position depends on other rows\' scores, so the server must decide it');
+});
+
+test('the realtime publication and message append are not regressed', () => {
+  const rt = readFileSync(new URL(
+    readdirSync(migDir).find(f => f.includes('realtime_publication_communications')), migDir), 'utf8');
+  assert.match(rt, /add table public\.communications/i);
+  assert.match(html, /if \(msgArea\.querySelector\(`\[data-message-id=/,
+    'the duplicate-message guard must remain');
+  assert.match(html, /scheduleConvRealtimeRetry/, 'channel recovery must remain');
+});
+
+// ── E. Loading states ──────────────────────────────────────────
+test('a refresh never blanks a working list', () => {
+  const load = block('async function loadConvPage', 'function attachConvInfiniteScroll');
+  assert.match(load, /if \(reset && isFirstLoad\)/,
+    'only the very first paint may show the loading state');
+  assert.match(load, /if \(!listEl\.querySelector\('\.conv-item'\)\) \{[\s\S]{0,300}Error:/,
+    'an error must not wipe conversations an agent is working from');
+});
+
+// ── F. Security ────────────────────────────────────────────────
+test('RLS is inherited, not re-implemented', () => {
+  assert.match(mig, /with \(security_invoker = true\)/,
+    'the view must stay security_invoker so the caller\'s RLS applies');
+  assert.match(mig, /security invoker/i, 'the counts function too');
+  assert.ok(!/security definer/i.test(mig), 'nothing here may run with definer rights');
+  assert.ok(!/service_role/.test(mig));
+});
+
+// ── G. Visual freeze ───────────────────────────────────────────
+test('the conversation card markup is unchanged', () => {
+  const row = block('function convRowHtml', 'async function loadConvPage');
+  for (const frag of [
+    'class="conv-item', 'class="conv-avatar"', 'class="conv-info"', 'class="conv-name"',
+    'class="conv-phone"', 'class="conv-preview"', 'class="conv-time"',
+    'convPriorityChip(_prio, sig)', 'tierBadge(tier)', 'channelBadge(c.type)',
+    'preview.slice(0,60)', 'avatarColor(c.lead_id)',
+  ]) assert.ok(row.includes(frag), `the card must still render ${frag}`);
+  // Pinned literally, because moving the card into its own function is exactly
+  // the kind of change that silently restyles it: this dot was briefly rewritten
+  // to var(--accent) during that move, turning the unread marker from blue to
+  // gold on every conversation row. The freeze is the point of this task.
+  assert.ok(row.includes('border-radius:50%;background:#3b82f6;margin-left:4px'),
+    'the unread dot must stay exactly as it was - blue, no vertical-align');
+  // Exactly one LIVE definition of the card, so the initial list, an appended
+  // page and a realtime insert cannot drift apart visually. (The demo branch
+  // keeps its own renderer, keyed on c.id rather than c.lead_id.)
+  assert.equal((stripJs(html).match(/class="conv-item\$\{c\.lead_id === _activeConvId/g) || []).length, 1,
+    'the live conversation card must be defined exactly once');
+});
+
+// ── H. tier/priority in SQL match the JavaScript ───────────────
+test('the SQL tier and priority transcribe the JS rules exactly', () => {
+  // Same constants, so a tuning change in one cannot silently skip the other.
+  assert.match(html, /const CONV_TIER_WEIGHT = \{ qualified: 45, hot: 40, warm: 15, new: 10, closed: -100 \};/);
+  assert.match(mig, /'qualified' then 45 when 'hot' then 40 when 'warm' then 15/);
+  assert.match(html, /const CONV_ESCALATED_BAND = 1000;/);
+  assert.match(mig, /then 1000 \+/);
+  for (const re of [/deposit\|screenshot\|payment\|paid\|transfer\|receipt/,
+                    /complain\|angry\|upset\|refund\|scam\|objection/,
+                    /human\|agent\|person\|talk\|speak\|call me/]) {
+    assert.match(html, re, 'JS must still carry this reason group');
+    assert.match(mig, re, 'and SQL must match it');
+  }
+  // computeLeadTier's ordering rule: converted is checked FIRST, and a stored
+  // manual_tier of 'closed' is ignored, so no manual value can claim a
+  // conversion the approval flow withheld.
+  assert.match(mig, /when coalesce\(l\.status,'new'\) = 'converted' then 'closed'[\s\S]{0,200}manual_tier <> 'closed'/);
+});
+
+test('tier and priority produce identical results in JS and SQL', () => {
+  // Runs the real scoring code from index.html against rows whose expected
+  // values were computed by the deployed SQL on production (400 sampled rows,
+  // 0 mismatches). This fixture pins a representative subset so the two
+  // implementations cannot drift apart later without a test failing.
+  const tierS = html.indexOf('function computeLeadTier');
+  const tierE = html.indexOf('// ── INBOX PRIORITY');
+  const scoreS = html.indexOf('const CONV_PRIORITY_REASONS');
+  const scoreE = html.indexOf('function convWaitLabel');
+  const src = (html.slice(tierS, tierE) + html.slice(scoreS, scoreE)).replace(/^const /gm, 'var ');
+  const box = { convWaitLabel: () => 'x' };
+  vm.createContext(box);
+  vm.runInContext(src, box);
+
+  const cases = [
+    // [status, manual_tier, bot_stage, needs_human, handoff_reason, is_unread, direction, hours, tier, score]
+    ['converted', null, 'done', false, '', false, 'outbound', 1, 'closed', -100],
+    ['new', null, 'awaiting_language', false, '', false, 'outbound', 1, 'new', 10],
+    ['new', null, 'awaiting_menu', false, '', true, 'inbound', 2, 'new', 47],
+    ['qualified', null, 'x', false, '', false, 'outbound', 1, 'qualified', 45],
+    ['pending_approval', null, 'x', false, '', false, 'outbound', 1, 'qualified', 45],
+    ['new', null, 'awaiting_deposit_confirm', false, '', false, 'outbound', 1, 'hot', 40],
+    ['new', null, 'x', true, 'wants deposit help', false, 'outbound', 1, 'hot', 1080],
+    ['new', null, 'x', true, 'angry customer', false, 'outbound', 1, 'warm', 1045],
+    ['new', null, 'x', true, 'talk to a person', true, 'inbound', 30, 'warm', 1095],
+    ['new', 'warm', 'awaiting_language', false, '', false, 'outbound', 1, 'warm', 15],
+    ['new', 'closed', 'awaiting_language', false, '', false, 'outbound', 1, 'new', 10],
+  ];
+  for (const [status, mt, bs, nh, hr, unread, dir, hours, wantTier, wantScore] of cases) {
+    const lead = { status, manual_tier: mt, bot_stage: bs, needs_human: nh,
+                   handoff_reason: hr, is_unread: unread };
+    assert.equal(box.computeLeadTier(lead), wantTier, `tier for ${status}/${mt}/${bs}/${hr}`);
+    const sig = box.convPrioritySignals(lead, { direction: dir, hoursAgo: hours });
+    assert.equal(box.convPriority(sig).score, wantScore, `score for ${status}/${hr}/${dir}@${hours}h`);
+  }
+});
+
+// ── I. Nothing else moved ──────────────────────────────────────
+test('this change touches no business rule', () => {
+  for (const forbidden of ['approve_deposit_and_convert', 'payroll', 'BOT_REPLIES_ENABLED',
+                           'verify_jwt', 'phone_number_id', 'drop policy', 'account_balance']) {
+    assert.ok(!mig.toLowerCase().includes(forbidden.toLowerCase()),
+      `the Inbox migration must not touch ${forbidden}`);
+  }
+  // The 24-hour window timer and the send auth-retry must be intact.
+  assert.match(html, /const WA_WINDOW_MS = 24 \* 3600000;/);
+  assert.match(html, /await sb\.auth\.refreshSession\(\)/);
+  assert.match(html, /loadCustomerReactions/, 'customer reactions must still load');
+});

@@ -135,8 +135,13 @@ assert.ok(/id="agent-wa-hierarchy"/.test(html), 'the agent shell has the card co
 // Both dashboards reach their renderer on the same tab switch, for any role.
 assert.ok(/if \(name === 'dashboard'\)\s+renderDashboardStats\(\);/.test(code),
   'the admin/super-admin dashboard tab calls its renderer');
-assert.ok(/renderAgentDashboardExtras\(total, converted, revenue\);/.test(code),
+// The agent dashboard's numbers come from agent_summary() since 2026-09-04, so
+// the renderer is invoked from applyAgentSummary() - still one shared path that
+// every agent reaches, which is what this guards.
+assert.ok(/renderAgentDashboardExtras\(total, converted, revenue,\s*\n?\s*Number\(sum\.in_pipeline\) \|\| 0, sum\.by_status \|\| \{\}, sum\.trend \|\| \{\}\);/.test(code),
   'the agent dashboard calls its renderer from the shared agent load path');
+assert.ok(/async function loadAgentSummary\(\)/.test(code) && /await Promise\.all\(\[loadAgentSummary\(\)/.test(code),
+  'and that path runs at agent bootstrap for every agent, not per-screen');
 
 // ── 6. Build freshness reaches every role, and never auto-reloads ─
 {

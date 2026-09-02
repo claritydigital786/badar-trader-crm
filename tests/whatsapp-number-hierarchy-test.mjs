@@ -176,25 +176,37 @@ const ctx = vm.createContext({ console });
 
 // ── 7. Every KPI read path actually applies the rule ──────────────
 {
-  const dashFetch = code.slice(code.indexOf('async function fetchAllLeadsForDashboard'),
-                               code.indexOf('function filterLeadsByDashRange'));
-  assert.ok(/wa_channel/.test(dashFetch), 'the dashboard fetch selects wa_channel so the filter can run');
-  assert.ok(/return productionLeads\(data \|\| \[\]\)/.test(dashFetch),
-    'the Dashboard (Total/New/Converted, gauges, donut, trend, AUM) counts production leads only');
+  // 2026-09-04: the Dashboard no longer downloads leads to filter them in JS -
+  // dashboard_summary() applies the cutover rule in SQL. Assert it there, which
+  // is stronger: the rule can no longer be bypassed by a client-side call site.
+  const dashSql = readFileSync(new URL('../supabase/migrations/20260904000000_dashboard_summary_rpc.sql', import.meta.url), 'utf8');
+  const agentSql = readFileSync(new URL('../supabase/migrations/20260904020000_agent_summary_rpc.sql', import.meta.url), 'utf8');
+  for (const [name, sql] of [['dashboard_summary', dashSql], ['agent_summary', agentSql]]) {
+    assert.match(sql, /wa_channel is distinct from '6541'/,
+      `${name} must apply the 6541 bot-test rule`);
+    assert.match(sql, /2026-09-02T00:00:00Z/,
+      `${name} must anchor that rule to the approved cutover date`);
+    assert.match(sql, /or (?:l\.)?created_at < /,
+      `${name} must keep HISTORICAL 6541 traffic in production figures`);
+  }
+  // Every Dashboard figure - Total/New/Converted, gauges, donut, trend, AUM and
+  // the platform line - is produced by that one scoped CTE, so the production
+  // rule is applied once, in SQL, and cannot be skipped by a call site.
+  assert.match(dashSql, /with scoped as \([\s\S]{0,600}wa_channel is distinct from '6541'/,
+    'the Dashboard aggregates all read from one production-scoped set');
+  for (const key of ['total', 'new', 'qualified', 'converted', 'needs_human', 'approved_aum']) {
+    assert.ok(dashSql.includes(`'${key}',`), `dashboard_summary must return ${key}`);
+  }
+  assert.match(dashSql, /from scoped/, 'and derive them from the scoped set');
 
-  const agentLeads = code.slice(code.indexOf('async function loadAgentLeads'),
-                                code.indexOf('function filterAgentLeadsLocal'));
-  assert.ok(/const perfLeads = productionLeads\(cachedLeads\)/.test(agentLeads),
-    "the agent's own stat bar counts production leads only");
-  assert.ok(/approvedAum\(perfLeads\)/.test(agentLeads),
-    "the agent's AUM figure uses the same production subset");
-  assert.ok(/cachedLeads = data \|\| \[\]/.test(agentLeads),
-    'cachedLeads itself stays complete - My Leads is a work list, not a KPI');
-
-  const extrasStart = code.indexOf('function renderAgentDashboardExtras');
-  const extras = code.slice(extrasStart, extrasStart + 1200);
-  assert.ok(/productionLeads\(cachedLeads\)/.test(extras),
-    "the agent's gauges and pipeline breakdown use the same subset as the stat bar");
+  // The agent's own stat bar, gauges and pipeline breakdown get the same
+  // treatment in agent_summary() - one scoped CTE, same cutover rule.
+  assert.match(agentSql, /with scoped as \([\s\S]{0,400}wa_channel is distinct from '6541'/,
+    "the agent's stat bar, gauges and pipeline breakdown share one production-scoped set");
+  assert.match(agentSql, /assigned_agent_id = auth\.uid\(\)/,
+    "and that set is scoped to the signed-in agent's own leads");
+  assert.ok(/renderAgentDashboardExtras\(total, converted, revenue,/.test(code),
+    "the agent's gauges are rendered from those same aggregates");
 
   const reports = code.slice(code.indexOf('async function loadReports'),
                              code.indexOf('function renderAgentPerformanceReport'));
