@@ -36,7 +36,7 @@ to look finished when it isn't.
 
 ## Requested (not yet applied)
 
-_(nothing pending)_
+- **2026-09-02 - Automate the 24h WhatsApp window keep-alive with a Time-In/Time-Out shift feature, instead of relying on agents manually texting the number. [PRINCIPLE].** Raised in the "Chatbot Training | CRM Rectifications" WhatsApp group by whoever is messaging as "Badar Sales Agent Hanzala," addressed to Muhammad Shoaib: "we need to replace the manual 24-hour agent messaging habit with an automated (Time-In / Time-Out) ... shift tracking feature in the CRM. When an agent clocks in bot should automatically detect their WhatsApp window status and trigger any required session refresh so lead notifications never fail silently. Please implement this duty status detection to handle session keep-alives automatically during active shifts," followed by "otherwise notification tu atyy rahay ga plus un leads ka kia banay ga jo off duties ayin gee" (concern: notifications will keep failing, and what happens to leads that come in while an agent is off-duty). Real, well-motivated request - directly follows from the same-day finding that every notification to Ehsan and Hanzala was failing delivery due to WhatsApp's 24h customer-service-window rule, and from `AGENT_WHATSAPP_GUIDELINES.md`'s manual "text the number every 24h" workaround. Not evaluated or built yet - this is a real code/architecture question (what "clocks in" means in this CRM, whether a bot-triggered keep-alive message to a customer-service number is even something WhatsApp's own rules permit a business to send proactively without it counting as a template, and how "off-duty" leads should route) that needs to be scoped out with Muhammad before any implementation starts.
 
 ---
 
