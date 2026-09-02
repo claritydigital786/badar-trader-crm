@@ -202,19 +202,121 @@ BEGIN
   PERFORM chk('Reports: net AUM = 500',
     (SELECT COALESCE(SUM(amount),0) FROM transactions WHERE type='deposit')
     - (SELECT COALESCE(SUM(amount),0) FROM transactions WHERE type='withdrawal') = 500);
-  -- loadPayrollDepositTransactions()'s filter
-  PERFORM chk('Payroll: row matches type=deposit AND currency=USD in range',
-    (SELECT count(*) FROM transactions WHERE type='deposit' AND currency='USD'
-      AND created_at >= now()-interval '1 day' AND created_at <= now()+interval '1 day')=1);
-  PERFORM chk('Payroll: attributed to Hanzala via the lead',
+  -- Agent attribution is kept for REPORTING (the Reports agent column), which
+  -- Muhammad explicitly still wants.
+  PERFORM chk('Reports: attributed to Hanzala via the lead',
     (SELECT count(*) FROM transactions t JOIN leads le ON le.id=t.client_id
       WHERE le.assigned_agent_id='11111111-1111-4111-8111-111111111111')=1);
-  PERFORM chk('Payroll: 5% commission on 500 = 25',
-    (SELECT SUM(amount)*0.05 FROM transactions WHERE type='deposit' AND currency='USD')=25);
+  -- ...but payroll must NOT see it. This is loadPayrollDepositTransactions()'s
+  -- real filter, including the deposit_document_id IS NULL exclusion.
+  PERFORM chk('Payroll: the approved deposit is EXCLUDED from the payroll query',
+    (SELECT count(*) FROM transactions WHERE type='deposit' AND currency='USD'
+      AND deposit_document_id IS NULL
+      AND created_at >= now()-interval '1 day' AND created_at <= now()+interval '1 day')=0);
+  PERFORM chk('Payroll: commissionable revenue from this approval = 0',
+    (SELECT COALESCE(SUM(amount),0) FROM transactions
+      WHERE type='deposit' AND currency='USD' AND deposit_document_id IS NULL)=0);
   -- approvedAum() equivalent: status='converted' only
   PERFORM chk('AUM (approved-only rule) unchanged in shape = 500',
     (SELECT COALESCE(SUM(account_balance),0) FROM leads WHERE status='converted')=500);
   PERFORM chk('AUM and the ledger agree',
     (SELECT COALESCE(SUM(account_balance),0) FROM leads WHERE status='converted')
     = (SELECT COALESCE(SUM(amount),0) FROM transactions WHERE type='deposit'));
+END $$;
+
+-- ═══ PAYROLL DECOUPLING (Muhammad, 2026-09-01) ════════════════
+-- Approved deposits reach Reports and AUM but must NOT reach payroll or
+-- commission in this phase. calculatePayroll() is not a preview: it INSERTS a
+-- payroll_runs row carrying total_commission, i.e. a persisted payable. The
+-- decoupling is one filter - deposit_document_id IS NULL - and this proves both
+-- that it works and that it is the thing doing the work.
+DO $$
+DECLARE
+  d uuid; l uuid; agent uuid := '11111111-1111-4111-8111-111111111111';
+  pay_before numeric; pay_after numeric; pay_unfiltered numeric;
+  comm_before numeric; comm_after numeric; comm_unfiltered numeric;
+  reports_after numeric; aum_after numeric; conv_after bigint; attrib numeric;
+  PCT constant numeric := 5;   -- the agent's EXISTING configured rate, not a new rule
+BEGIN
+  DELETE FROM transactions; DELETE FROM kyc_documents; DELETE FROM leads;
+  DELETE FROM balance_audit_log; DELETE FROM automation_events_fired;
+
+  -- A pre-existing, hand-entered deposit: this is the payroll baseline and must
+  -- keep counting exactly as it does today.
+  d := mk(); SELECT client_id INTO l FROM kyc_documents WHERE id = d;
+  INSERT INTO transactions(client_id, type, amount, currency, notes)
+    VALUES (l, 'deposit', 200, 'USD', 'manually recorded by an admin');
+
+  -- PAYROLL BEFORE - the real query loadPayrollDepositTransactions() runs.
+  SELECT COALESCE(SUM(t.amount),0) INTO pay_before
+    FROM transactions t JOIN leads le ON le.id = t.client_id
+   WHERE t.type='deposit' AND t.currency='USD' AND t.deposit_document_id IS NULL
+     AND le.assigned_agent_id = agent;
+  comm_before := pay_before * PCT / 100;
+
+  -- Ehsan approves a $500 deposit.
+  PERFORM try_approve(d, '33333333-3333-4333-8333-333333333333');
+
+  -- PAYROLL AFTER - identical query.
+  SELECT COALESCE(SUM(t.amount),0) INTO pay_after
+    FROM transactions t JOIN leads le ON le.id = t.client_id
+   WHERE t.type='deposit' AND t.currency='USD' AND t.deposit_document_id IS NULL
+     AND le.assigned_agent_id = agent;
+  comm_after := pay_after * PCT / 100;
+
+  -- The SAME query without the new filter: what payroll would have counted.
+  SELECT COALESCE(SUM(t.amount),0) INTO pay_unfiltered
+    FROM transactions t JOIN leads le ON le.id = t.client_id
+   WHERE t.type='deposit' AND t.currency='USD'
+     AND le.assigned_agent_id = agent;
+  comm_unfiltered := pay_unfiltered * PCT / 100;
+
+  SELECT COALESCE(SUM(amount),0) INTO reports_after FROM transactions WHERE type='deposit';
+  SELECT COALESCE(SUM(account_balance),0), COUNT(*) INTO aum_after, conv_after
+    FROM leads WHERE status='converted';
+  SELECT COALESCE(SUM(t.amount),0) INTO attrib
+    FROM transactions t JOIN leads le ON le.id=t.client_id
+   WHERE le.assigned_agent_id = agent AND t.type='deposit';
+
+  RAISE NOTICE 'PAYROLL revenue  before=% after=% (unfiltered would be %)', pay_before, pay_after, pay_unfiltered;
+  RAISE NOTICE 'PAYROLL commission before=% after=% (unfiltered would be %)', comm_before, comm_after, comm_unfiltered;
+
+  PERFORM chk('ledger: transaction created (+$500)',
+    (SELECT COALESCE(SUM(amount),0) FROM transactions WHERE deposit_document_id = d) = 500);
+  PERFORM chk('Reports recorded deposits = 700 (200 manual + 500 approved)', reports_after = 700);
+  PERFORM chk('Hanzala deposit attribution (reporting) = 700', attrib = 700);
+  PERFORM chk('approved AUM = +500', aum_after = 500);
+  PERFORM chk('converted count = +1', conv_after = 1);
+  PERFORM chk('PAYROLL revenue UNCHANGED (' || pay_before || ' -> ' || pay_after || ')', pay_after = pay_before);
+  PERFORM chk('PAYROLL commission UNCHANGED (' || comm_before || ' -> ' || comm_after || ')', comm_after = comm_before);
+  PERFORM chk('...and the filter is what prevents it (unfiltered would have been ' || pay_unfiltered || ')',
+    pay_unfiltered = pay_before + 500);
+  PERFORM chk('no commission row / payable of any kind was created',
+    (SELECT count(*) FROM transactions WHERE type <> 'deposit') = 0);
+
+  -- A duplicate approval must not change either side.
+  PERFORM try_approve(d, '33333333-3333-4333-8333-333333333333');
+  PERFORM try_approve(d, '44444444-4444-4444-8444-444444444444');
+  PERFORM chk('duplicate approval: still exactly ONE approved-deposit transaction',
+    (SELECT count(*) FROM transactions WHERE deposit_document_id IS NOT NULL) = 1);
+  SELECT COALESCE(SUM(t.amount),0) INTO pay_after
+    FROM transactions t JOIN leads le ON le.id = t.client_id
+   WHERE t.type='deposit' AND t.currency='USD' AND t.deposit_document_id IS NULL
+     AND le.assigned_agent_id = agent;
+  PERFORM chk('duplicate approval: payroll STILL unchanged', pay_after = pay_before);
+  PERFORM chk('duplicate approval: zero payroll entries added',
+    (SELECT count(*) FROM transactions WHERE deposit_document_id IS NULL) = 1);
+END $$;
+
+-- Manual deposits must keep counting for payroll exactly as they do today.
+DO $$
+DECLARE d uuid; l uuid; pay numeric;
+BEGIN
+  DELETE FROM transactions; DELETE FROM kyc_documents; DELETE FROM leads;
+  d := mk(); SELECT client_id INTO l FROM kyc_documents WHERE id=d;
+  INSERT INTO transactions(client_id, type, amount, currency) VALUES (l,'deposit',300,'USD');
+  INSERT INTO transactions(client_id, type, amount, currency) VALUES (l,'deposit',150,'USD');
+  SELECT COALESCE(SUM(amount),0) INTO pay FROM transactions
+   WHERE type='deposit' AND currency='USD' AND deposit_document_id IS NULL;
+  PERFORM chk('manual deposits still count for payroll (450), unchanged behaviour', pay = 450);
 END $$;

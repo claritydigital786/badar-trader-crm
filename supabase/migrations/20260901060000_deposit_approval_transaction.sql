@@ -5,7 +5,8 @@
 -- bug. The transactions table was, and still is, completely empty: approval wrote
 -- leads.account_balance and nothing else, so the CRM had two parallel money
 -- systems that had never met. leads.account_balance drives AUM; transactions
--- drives Reports, the Financials summary and payroll commission.
+-- drives Reports and the Financials summary (and, for hand-entered rows only,
+-- payroll commission - see the note at the INSERT).
 --
 -- Three things here, and deliberately nothing else:
 --
@@ -173,9 +174,20 @@ BEGIN
    WHERE id = p_document_id;
 
   -- 3. Exactly one deposit transaction, which is what Reports, the Financials
-  --    summary and payroll all read. USD because the deposit form is USD-only
-  --    ("Deposit Amount (USD)") and payroll filters on currency = 'USD';
-  --    multi-currency handling elsewhere is untouched.
+  --    summary and the client ledger read.
+  --
+  --    PAYROLL DELIBERATELY DOES NOT COUNT IT (Muhammad, 2026-09-01): commission
+  --    is out of scope for this phase, and calculatePayroll() is not a preview -
+  --    it inserts a payroll_runs row carrying total_commission, a persisted
+  --    payable. loadPayrollDepositTransactions() therefore filters
+  --    deposit_document_id IS NULL, so hand-entered deposits keep counting for
+  --    payroll exactly as they do today and approval-generated ones do not.
+  --    When approved deposits are meant to be commissionable, that one filter
+  --    is what changes; nothing here needs to.
+  --
+  --    USD because the deposit form is USD-only ("Deposit Amount (USD)") and the
+  --    payroll query matches on currency = 'USD'; multi-currency handling
+  --    elsewhere is untouched.
   INSERT INTO public.transactions
     (client_id, type, amount, currency, notes, recorded_by, deposit_document_id)
   VALUES

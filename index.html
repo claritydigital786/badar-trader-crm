@@ -14734,14 +14734,29 @@ function renderPayrollRows(rows) {
   if (resEl) resEl.style.display = 'block';
 }
 
+// Payroll reads MANUALLY RECORDED deposits only.
+//
+// Muhammad, 2026-09-01, explicit scope decision: approved deposit verifications
+// now write a row to the transactions ledger so Reports and the Financials
+// summary reflect them, but commission is out of scope for this phase. Without
+// this filter an approved $500 deposit would have flowed straight into
+// calculatePayroll() - which is not a preview, it INSERTS a payroll_runs row
+// carrying total_commission, i.e. a persisted payable.
+//
+// deposit_document_id IS NULL is the whole decoupling: approval-generated rows
+// carry the approved document's id, hand-entered ones (addTransaction() in the
+// lead detail Financial Ledger tab) carry NULL and are completely unaffected.
+// Nothing about the commission rules themselves is changed here; when approved
+// deposits are meant to be commissionable, this one filter is what changes.
 async function loadPayrollDepositTransactions(start, end) {
   const pageSize = 1000;
   const rows = [];
   for (let offset = 0; ; offset += pageSize) {
     const { data, error } = await sb.from('transactions')
-      .select('id,client_id,amount,currency,created_at')
+      .select('id,client_id,amount,currency,created_at,deposit_document_id')
       .eq('type', 'deposit')
       .eq('currency', 'USD')
+      .is('deposit_document_id', null)
       .gte('created_at', start.toISOString())
       .lte('created_at', end.toISOString())
       .order('created_at', { ascending:true })
@@ -14768,7 +14783,10 @@ async function calculatePayroll() {
   if (demoMode) {
     txns = _DEMO_TRANSACTIONS.filter(t => {
       const created = new Date(t.created_at);
-      return t.type === 'deposit' && t.currency === 'USD' && created >= start && created <= end;
+      // Same rule as the live query, including the approved-deposit exclusion,
+      // so demo cannot show a commission production would not pay.
+      return t.type === 'deposit' && t.currency === 'USD' && !t.deposit_document_id
+        && created >= start && created <= end;
     });
   } else {
     const { data, error } = await loadPayrollDepositTransactions(start, end);

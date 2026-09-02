@@ -2584,6 +2584,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS transactions_one_per_deposit_document
 -- The amount is read from leads.deposit_amount server-side. The function takes
 -- only a document id, so no figure can be supplied by the caller at approval.
 -- See migration 20260901060000 for the full function body.
+--
+-- PAYROLL IS DELIBERATELY NOT CONNECTED TO THIS (Muhammad, 2026-09-01).
+-- Commission is out of scope for this phase. calculatePayroll() is not a
+-- preview - it inserts a payroll_runs row carrying total_commission, i.e. a
+-- persisted payable - and its query matched type='deposit' AND currency='USD',
+-- which an approval-generated row satisfies exactly. loadPayrollDepositTransactions()
+-- in index.html therefore also filters deposit_document_id IS NULL, so
+-- hand-entered deposits keep counting for payroll exactly as they do today and
+-- approval-generated ones contribute nothing. Agent attribution is still stored
+-- and still shown in Reports. When approved deposits are meant to become
+-- commissionable, that single filter is what changes - nothing in this schema.
 
 -- DONE (Phase 43)
 -- =============================================================
