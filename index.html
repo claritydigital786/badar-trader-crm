@@ -15033,7 +15033,7 @@ async function sendConvMessage(convId, scope = '') {
 // Server-side send. Returns { warning? } on success and throws on every
 // failure. There is deliberately no browser fallback because that would put
 // the raw WhatsApp token in every Agent session.
-async function sendWaViaFunction(convId, text, replyToWaMessageId, attachment = null, template = null) {
+async function sendWaViaFunction(convId, text, replyToWaMessageId, attachment = null, template = null, _retrying = false) {
   let data, error;
   try {
     ({ data, error } = await sb.functions.invoke('send-wa-message', {
@@ -15054,6 +15054,29 @@ async function sendWaViaFunction(convId, text, replyToWaMessageId, attachment = 
       const body = await error.context.json();
       if (body?.error) msg = body.error;
     } catch (_) { /* keep the generic message */ }
+
+    // A stale access token reads back here as "Not signed in" even while
+    // the rest of the app still shows the agent fully logged in - the
+    // browser's own session state doesn't always notice its token has gone
+    // stale until an authenticated write actually fails. Found live,
+    // 2026-09-02: Hanzala's send failed exactly this way with a fully
+    // loaded, working Inbox on screen - real leads, real messages, just a
+    // token that had quietly expired underneath it (most likely the laptop
+    // sleeping through the SDK's own refresh window). One silent retry
+    // after an explicit session refresh recovers most of these without the
+    // agent ever seeing an error; only a genuinely dead session (the
+    // refresh itself fails) should ever surface as an error, and as an
+    // actionable one - never the raw "Not signed in" string, which reads
+    // like a bug in the CRM rather than what it actually is.
+    if (msg === 'Not signed in' && !_retrying) {
+      const { data: refreshed, error: refreshError } = await sb.auth.refreshSession();
+      if (!refreshError && refreshed?.session) {
+        return sendWaViaFunction(convId, text, replyToWaMessageId, attachment, template, true);
+      }
+      showToast('Your session expired. Please sign in again.', 'err');
+      await sb.auth.signOut();
+      throw new Error('Your session expired - please sign in again, then resend this message.');
+    }
     throw new Error(msg);
   }
   if (!data?.ok) throw new Error(data?.error || 'Send failed');
