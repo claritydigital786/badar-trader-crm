@@ -12921,6 +12921,7 @@ function filterConversations(scope = '') {
 // composer can be stopped before a doomed send is attempted.
 const WA_WINDOW_MS = 24 * 3600000;
 let _waWindowTimer = null;
+let _waWindowVisHandler = null;
 
 // Common country-calling-code prefixes for the customer base this CRM
 // actually serves (Pakistan first and by far the most common, then the
@@ -12999,6 +13000,17 @@ function waWindowState(lastInboundIso) {
 // Re-renders the pill and re-gates the composer on a timer, so a window that
 // closes while the agent is mid-thought stops them rather than letting them
 // type into a send that Meta will refuse.
+//
+// The countdown can go stale without the tab ever crashing or erroring:
+// Chrome throttles (and can fully suspend) setInterval timers in a
+// backgrounded or minimized tab, so a agent who tabs away and back can see
+// the exact same "X left" value they left behind, long after the real
+// window moved on - found live, 2026-09-02, a screenshot and a later
+// message both showing the identical "0:03:30 left". waWindowState()
+// itself always computes from the real Date.now(), so the fix isn't the
+// math - it's forcing one immediate, correct tick the moment the tab is
+// actually looked at again, instead of trusting the interval to have kept
+// up while hidden.
 function startWaWindowTicker(lastInboundIso, scope) {
   stopWaWindowTicker();
   if (!lastInboundIso) return;
@@ -13017,10 +13029,13 @@ function startWaWindowTicker(lastInboundIso, scope) {
   };
   tick();
   _waWindowTimer = setInterval(tick, 1000);
+  _waWindowVisHandler = () => { if (document.visibilityState === 'visible') tick(); };
+  document.addEventListener('visibilitychange', _waWindowVisHandler);
 }
 
 function stopWaWindowTicker() {
   if (_waWindowTimer) { clearInterval(_waWindowTimer); _waWindowTimer = null; }
+  if (_waWindowVisHandler) { document.removeEventListener('visibilitychange', _waWindowVisHandler); _waWindowVisHandler = null; }
 }
 
 function applyWaWindowGate(state, scope) {
