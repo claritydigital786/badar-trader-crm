@@ -1,10 +1,22 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-09-03, continuing from the entry directly below.
+_Last updated: 2026-09-05, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
 
-## 2026-09-03 (latest of all) - Reports' Monthly Trend chart was reporting the current month as ZERO leads
+## 2026-09-05 (latest of all) - Every agent send threw an error in the Inbox; found from a screenshot, reproduced, fixed and live
+
+**FIXED AND LIVE IN PRODUCTION, verified byte-identical against `main`.** Muhammad sent a screenshot of the toast agents were getting: "Could not refresh conversations: Assignment to constant variable." He then said it fires on every click of the send button, for any agent.
+
+**Cause.** `loadConvPage()` declared `const rows = (data || []).map(convRowFromView)`. The reconcile branch added the same day with the Financial Ledger feature (`29ac643`) pins the open conversation when it sits outside the reloaded range - `if (openRow) rows = [openRow].concat(rows);` - which reassigns that const and throws. Sending a message calls `reconcileConversations()`, so any agent whose open chat was outside the loaded range hit it on every send. The throw is caught, so the list was not wiped, but the reconcile aborted: no refresh, and the open conversation never pinned. Once a ledger-injected row is in `st.rows` it never leaves, so the error then repeats on every send from that point on.
+
+**Reproduced before fixing, not inferred.** Two copies of the real-DOM harness were built and driven side by side, one from `HEAD` and one from the fix. The `HEAD` build produced the reported toast word for word and dropped the pinned row; the fixed build pins it (76 rows from 75, no duplicates) and raises nothing. The fix itself is one keyword: `const` to `let`, with a comment recording why it cannot be a const.
+
+**Regression cover at both levels, because a static suite is exactly what let this through.** `tests/dom/scenarios.js` gained scenarios 16-18, which run the real function and fail on the pre-fix build with the exact production message; `tests/ledger-open-conversation-test.mjs` now asserts the binding is `let`, which needs no browser. All 18 DOM scenarios pass on the fix, and 35 of 37 node suites pass (the 2 failures are the known Node-20 `.ts` gap, which also fails on a clean checkout).
+
+**Worth keeping.** This is the second regression in three days that a green static suite could not see, after the 2026-09-05 pagination one that prompted the harness in the first place. Anything that changes `loadConvPage` should be driven in the harness, not only regex-asserted.
+
+## 2026-09-03 - Reports' Monthly Trend chart was reporting the current month as ZERO leads
 
 **DONE, frontend only, browser-verified, committed and pushed. No migration, no deploy, nothing touching live conversation data or any credential.** Picked up from a bare "continue": pulled `main` (clean, already up to date), read this file and its Active Work Claims (nothing open), reconciled the 15 open to-dos, and put the genuinely session-workable shortlist back to Muhammad instead of picking silently. He chose to continue the manual, evidence-based audit.
 
