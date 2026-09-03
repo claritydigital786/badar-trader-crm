@@ -102,17 +102,54 @@ async function googleAccessToken(): Promise<string> {
   return (await res.json()).access_token as string;
 }
 
+// A1 notation: a sheet name containing a space (or most punctuation) MUST be
+// wrapped in single quotes, with any literal single quote doubled. Google's own
+// documentation is explicit about this.
+//
+// This was the 404 (found 2026-09-06). The tab is "Converted Leads", and the
+// code built `Converted Leads!A1:N1` unquoted. Google could not resolve that to
+// a sheet in the spreadsheet and answered
+// 404 "Requested entity was not found." - which reads like a missing
+// spreadsheet, so the verified spreadsheet id and the verified Editor share both
+// looked like the wrong suspects. The entity that was not found was the RANGE.
+function quoteTab(title: string): string {
+  return `'${title.replace(/'/g, "''")}'`;
+}
+const a1 = (tab: string, ref: string) => `${quoteTab(tab)}!${ref}`;
+
+const metaUrl = () =>
+  `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=spreadsheetId,properties.title,sheets.properties.title`;
+
 const sheetsUrl = (range: string, suffix = "") =>
   `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}${suffix}`;
 
-async function sheetsFetch(token: string, url: string, init: RequestInit = {}) {
+// Ask the spreadsheet what its tabs are actually called instead of trusting a
+// configured name to exist. If the configured tab is present it is used (matched
+// case-insensitively, since a manual rename easily differs in case); otherwise
+// the first tab is used and the response says so, rather than failing with an
+// error that points at the wrong thing.
+async function resolveTab(token: string): Promise<{ tab: string; title: string; tabs: string[]; configuredFound: boolean }> {
+  const meta = await sheetsFetch(token, metaUrl(), {}, "spreadsheet metadata");
+  const tabs: string[] = (meta.sheets ?? []).map((sh: { properties?: { title?: string } }) => sh.properties?.title ?? "");
+  const match = tabs.find(t => t.trim().toLowerCase() === SHEET_TAB.trim().toLowerCase());
+  return {
+    tab: match ?? tabs[0] ?? SHEET_TAB,
+    title: meta.properties?.title ?? "",
+    tabs,
+    configuredFound: !!match,
+  };
+}
+
+async function sheetsFetch(token: string, url: string, init: RequestInit = {}, label = "sheets request") {
   const res = await fetch(url, {
     ...init,
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json", ...(init.headers ?? {}) },
   });
   if (!res.ok) {
     const text = (await res.text()).slice(0, 300);
-    const err: Error & { status?: number } = new Error(`sheets ${res.status}: ${text}`);
+    // The label matters: every Google call previously failed with the same
+    // "sheets 404" string, so a 404 could not be attributed to a request.
+    const err: Error & { status?: number } = new Error(`${label} -> ${res.status}: ${text}`);
     err.status = res.status;
     throw err;
   }
@@ -122,19 +159,19 @@ async function sheetsFetch(token: string, url: string, init: RequestInit = {}) {
 // Writes the header once. Harmless to re-run: it only writes when row 1 is empty
 // or does not already match, so it cannot clobber a sheet someone has customised
 // beyond the header.
-async function ensureHeader(token: string) {
-  const got = await sheetsFetch(token, sheetsUrl(`${SHEET_TAB}!A1:N1`));
+async function ensureHeader(token: string, tab: string) {
+  const got = await sheetsFetch(token, sheetsUrl(a1(tab, "A1:N1")), {}, "header GET");
   const row: string[] = got.values?.[0] ?? [];
   if (row.length && row[1] === "Lead ID") return;
-  await sheetsFetch(token, sheetsUrl(`${SHEET_TAB}!A1:N1`, "?valueInputOption=RAW"), {
+  await sheetsFetch(token, sheetsUrl(a1(tab, "A1:N1"), "?valueInputOption=RAW"), {
     method: "PUT", body: JSON.stringify({ values: [HEADER] }),
-  });
+  }, "header PUT");
 }
 
 // lead_id -> 1-based sheet row. Column B is the stable business key; name and
 // phone are never used to match, being duplicated and inconsistently formatted.
-async function leadRowIndex(token: string): Promise<Map<string, number>> {
-  const got = await sheetsFetch(token, sheetsUrl(`${SHEET_TAB}!B:B`));
+async function leadRowIndex(token: string, tab: string): Promise<Map<string, number>> {
+  const got = await sheetsFetch(token, sheetsUrl(a1(tab, "B:B")), {}, "lead-id column GET");
   const map = new Map<string, number>();
   (got.values ?? []).forEach((r: string[], i: number) => {
     const id = (r?.[0] ?? "").trim();
@@ -201,19 +238,30 @@ Deno.serve(async (req) => {
   const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}`;
   if (!due?.length) return json({ ok: true, configured: true, processed: 0, sheet_url: SHEET_URL });
 
+
   let token: string;
+  let tab = SHEET_TAB, sheetTitle = "", tabsAvailable: string[] = [], configuredTabFound = true;
   try {
     token = await googleAccessToken();
-    await ensureHeader(token);
+    // Metadata first: it proves the spreadsheet id and the share independently
+    // of any range, and tells us what the tabs are really called.
+    const resolved = await resolveTab(token);
+    tab = resolved.tab; sheetTitle = resolved.title;
+    tabsAvailable = resolved.tabs; configuredTabFound = resolved.configuredFound;
+    await ensureHeader(token, tab);
   } catch (e) {
     // Auth or header failure is not per-row: back every due row off together
     // rather than burning an attempt each.
     const msg = String((e as Error).message).slice(0, 400);
     for (const job of due) await backoff(admin, job, msg);
-    return json({ ok: false, configured: true, error: msg, sheet_url: SHEET_URL }, 200);
+    // The response now names the failing request and what the spreadsheet
+    // actually contains, so a 404 can be attributed instead of guessed at.
+    return json({ ok: false, configured: true, error: msg, sheet_url: SHEET_URL,
+                  spreadsheet_title: sheetTitle, tab_used: tab,
+                  tabs_available: tabsAvailable, configured_tab_found: configuredTabFound }, 200);
   }
 
-  const index = await leadRowIndex(token);
+  const index = await leadRowIndex(token, tab);
   let synced = 0, failed = 0;
 
   for (const job of due) {
@@ -271,12 +319,12 @@ Deno.serve(async (req) => {
 
       const existing = index.get(String(lead.id));
       if (existing) {
-        await sheetsFetch(token, sheetsUrl(`${SHEET_TAB}!A${existing}:N${existing}`, "?valueInputOption=RAW"),
-          { method: "PUT", body: JSON.stringify({ values }) });
+        await sheetsFetch(token, sheetsUrl(a1(tab, `A${existing}:N${existing}`), "?valueInputOption=RAW"),
+          { method: "PUT", body: JSON.stringify({ values }) }, "row UPDATE");
       } else {
         const appended = await sheetsFetch(token,
-          sheetsUrl(`${SHEET_TAB}!A:N`, "?valueInputOption=RAW&insertDataOption=INSERT_ROWS"),
-          { method: "POST", body: JSON.stringify({ values }) });
+          sheetsUrl(a1(tab, "A:N"), "?valueInputOption=RAW&insertDataOption=INSERT_ROWS"),
+          { method: "POST", body: JSON.stringify({ values }) }, "row APPEND");
         // Remember where it landed, so two due rows for the same lead in one
         // batch cannot append twice.
         const m = /![A-Z]+(\d+):/.exec(appended?.updates?.updatedRange ?? "");
@@ -295,7 +343,9 @@ Deno.serve(async (req) => {
     }
   }
 
-  return json({ ok: true, configured: true, processed: due.length, synced, failed, sheet_url: SHEET_URL });
+  return json({ ok: true, configured: true, processed: due.length, synced, failed,
+                sheet_url: SHEET_URL, spreadsheet_title: sheetTitle, tab_used: tab,
+                tabs_available: tabsAvailable, configured_tab_found: configuredTabFound });
 });
 
 // Bounded exponential backoff: 1, 2, 4, 8, 16, 32 minutes, then the row stops

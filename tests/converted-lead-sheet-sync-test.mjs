@@ -44,7 +44,7 @@ test('one row per converted lead, in the table and in the sheet', () => {
   assert.match(mig, /lead_id\s+uuid not null unique/,
     'the outbox key is lead_id, so a lead can only ever have one job');
   // The sheet write matches on the lead id column, never on name or phone.
-  assert.match(fn, /async function leadRowIndex\(token: string\)[\s\S]{0,400}sheetsUrl\(`\$\{SHEET_TAB\}!B:B`\)/,
+  assert.match(fn, /async function leadRowIndex\(token: string, tab: string\)[\s\S]{0,400}sheetsUrl\(a1\(tab, "B:B"\)\)/,
     'the sheet is indexed by the Lead ID column');
   assert.match(fn, /const existing = index\.get\(String\(lead\.id\)\);/);
   assert.match(fn, /if \(existing\) \{[\s\S]{0,300}method: "PUT"/, 'an existing row is updated');
@@ -149,4 +149,38 @@ test('the outbox stores no customer PII', () => {
                            mig.indexOf('comment on table'));
   for (const pii of ['full_name', 'email', 'phone', 'amount'])
     assert.ok(!create.includes(pii), `the queue must not duplicate ${pii} - it is read at send time`);
+});
+
+test('A1 ranges quote the tab name, which is what caused the 404', () => {
+  // Google requires single quotes around a sheet name containing a space, and
+  // doubling of any literal quote. The tab is "Converted Leads", so the
+  // unquoted `Converted Leads!A1:N1` could not be resolved and Google answered
+  // 404 "Requested entity was not found" - about the RANGE, not the
+  // spreadsheet, which is why the verified id and share looked innocent.
+  assert.match(fn, /function quoteTab\(title: string\): string \{\s*\n\s*return `'\$\{title\.replace\(\/'\/g, "''"\)\}'`;/,
+    'tab names must be single-quoted with internal quotes doubled');
+  assert.match(fn, /const a1 = \(tab: string, ref: string\) => `\$\{quoteTab\(tab\)\}!\$\{ref\}`;/);
+  // No raw, unquoted range may survive anywhere.
+  assert.ok(!/sheetsUrl\(`\$\{SHEET_TAB\}!/.test(fn),
+    'no unquoted tab range may remain');
+  assert.equal((fn.match(/sheetsUrl\(a1\(tab, /g) || []).length, 5,
+    'all five value ranges - header GET, header PUT, column GET, row UPDATE, row APPEND - go through a1()');
+});
+
+test('the tab is resolved from spreadsheet metadata, not assumed', () => {
+  assert.match(fn, /fields=spreadsheetId,properties\.title,sheets\.properties\.title/,
+    'metadata proves the spreadsheet id and share independently of any range');
+  assert.match(fn, /t\.trim\(\)\.toLowerCase\(\) === SHEET_TAB\.trim\(\)\.toLowerCase\(\)/,
+    'the configured tab is matched case-insensitively');
+  assert.match(fn, /tab: match \?\? tabs\[0\] \?\? SHEET_TAB/,
+    'a missing configured tab falls back to the first, and says so');
+  assert.match(fn, /configured_tab_found: configuredTabFound/);
+});
+
+test('every Google request is labelled so a failure can be attributed', () => {
+  for (const label of ['spreadsheet metadata', 'header GET', 'header PUT',
+                       'lead-id column GET', 'row UPDATE', 'row APPEND'])
+    assert.ok(fn.includes(`"${label}"`), `the ${label} request must be labelled`);
+  assert.match(fn, /new Error\(`\$\{label\} -> \$\{res\.status\}: \$\{text\}`\)/,
+    'the error must name which request failed');
 });
