@@ -36,8 +36,33 @@ const HEADER = [
   "Approved By", "Approval Date", "WhatsApp Channel", "Lead Source", "Campaign",
 ];
 
+// CORS. Same shape the project's other browser-facing functions use (see
+// conversion-hook), but with the origin pinned rather than "*": this one is
+// admin-only, so there is no reason for any other site to be able to read its
+// responses. CORS is not the security boundary - verify_jwt plus the role check
+// below are - this only lets the CRM's own preflight through.
+//
+// Why it was needed (found live 2026-09-06): "Sync now" failed with "Failed to
+// send a request to the Edge Function" while the function sat ACTIVE and the
+// queue stayed at pending=1. supabase-js sends authorization/apikey/
+// content-type/x-client-info, so the browser issues an OPTIONS preflight first.
+// OPTIONS fell through to the method check and was answered 405 with no
+// Access-Control-* headers at all, so the browser never sent the POST and the
+// sync code was never reached.
+const ALLOWED_ORIGIN = "https://crm.badartrader.com";
+const CORS: Record<string, string> = {
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+  "Access-Control-Allow-Methods": "POST,OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+  "Access-Control-Max-Age": "86400",
+  "Vary": "Origin",
+};
+
 const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS, "content-type": "application/json" },
+  });
 
 // ── Google service-account auth (RS256 JWT -> access token) ────
 function b64url(bytes: Uint8Array): string {
@@ -128,6 +153,11 @@ function rowFor(r: Record<string, unknown>): string[] {
 }
 
 Deno.serve(async (req) => {
+  // Preflight is answered before ANY authentication or business logic, because a
+  // preflight legitimately carries no credentials - the browser has not sent the
+  // real request yet. Nothing is authorised here; the POST below still has to
+  // pass verify_jwt and the admin role check.
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
