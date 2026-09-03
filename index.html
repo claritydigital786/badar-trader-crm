@@ -4834,10 +4834,19 @@
         <div class="stat-value" id="agent-stat-converted">-</div>
         <div class="stat-trend">Paying clients</div>
       </div>
+      <!-- "AUM" until 2026-09-03. It is the right term on Reports, where the
+           audience uses it, but this card is read by agents, and an agent
+           looking at their own dashboard should not have to know a brokerage
+           acronym to read their own number. Same reasoning as the account
+           menu's "Toggle Theme" the same day: name the thing, not the jargon.
+           The sub-line no longer repeats the heading and says whose deposits
+           these are instead - it sums account_balance for this agent's own
+           leads at status 'converted', which is exactly the Converted count
+           in the card beside it. -->
       <div class="stat-card" style="border-left:4px solid var(--ok)">
-        <div class="stat-label" style="color:var(--ok)">AUM</div>
+        <div class="stat-label" style="color:var(--ok)">Approved Deposits</div>
         <div class="stat-value" style="color:var(--ok)" id="agent-stat-revenue">-</div>
-        <div class="stat-trend">Approved deposits</div>
+        <div class="stat-trend">From your converted clients</div>
       </div>
     </div>
 

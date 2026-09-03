@@ -17,8 +17,13 @@ import test from 'node:test';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const block = (a, b) => html.slice(html.indexOf(a), html.indexOf(b));
 // Comments are stripped where the check is about what a user can actually see -
-// the code comment recording the old name is history, not a label.
-const visible = html.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+// a comment recording the old name is history, not a label. HTML comments count
+// too: the agent dashboard's own AUM rename comment cites "Toggle Theme" as the
+// precedent for it, and that is prose about a decision, not anything rendered.
+const visible = html
+  .replace(/<!--[\s\S]*?-->/g, '')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '');
 
 test('the jargon label is gone from every menu', () => {
   assert.ok(!/Toggle Theme/.test(visible), '"Toggle Theme" must not survive in anything rendered');
