@@ -13801,7 +13801,19 @@ async function openConversation(convId, scope = '') {
       // production, since Vercel deploys from main automatically. With '*'
       // the column is simply absent until the migration runs, and the ticks
       // render nothing rather than the page breaking.
-      sb.from('communications').select('*')
+      //
+      // fetchAllRows() rather than a plain unbounded query - found during a
+      // full Inbox audit, 2026-09-03: this had no .limit() at all, and
+      // PostgREST silently caps an unlimited read at 1,000 rows (the exact
+      // same class of bug fetchAllLeadsForDashboard() already had, fixed
+      // earlier the same day). No real conversation has crossed 1,000
+      // messages yet (worst live case checked: 206), so this was not yet
+      // causing visible harm - but a long-running conversation eventually
+      // will cross it, and the truncation would silently hide the NEWEST
+      // messages (ordered ascending, so row 1,001+ is what gets cut), which
+      // are exactly the ones an agent needs to see. Fixed before it broke
+      // anything, not after.
+      fetchAllRows(() => sb.from('communications').select('*')
         .eq('lead_id', convId).eq('type', 'whatsapp')
         // Same exclusion as renderConversations() above - this is an internal
         // note, never actually sent to the customer over WhatsApp. Same
@@ -13810,7 +13822,7 @@ async function openConversation(convId, scope = '') {
         // have rendered completely empty even if it somehow appeared in the
         // list at all.
         .or('subject.is.null,subject.neq.Qualified lead summary')
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: true }))
     ]);
     if (leadRes.error) throw leadRes.error;
     const lead = leadRes.data;
