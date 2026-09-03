@@ -24,15 +24,20 @@ const stripJs = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm,
 // ── A. The full fetch is gone ──────────────────────────────────
 test('the Inbox no longer downloads every conversation', () => {
   assert.ok(!/\.limit\(5000\)/.test(stripJs(html)), '.limit(5000) must not come back');
-  const load = block('async function loadConvPage', 'function attachConvInfiniteScroll');
-  assert.match(load, /\.range\(from, from \+ CONV_PAGE_SIZE - 1\)/,
-    'the list must be windowed in Postgres');
+  const load = block('async function loadConvPage', 'function convEmptyHtml');
+  assert.match(load, /\.range\(from, to\)/, 'the list must be windowed in Postgres');
+  assert.match(load, /const to   = reconcile \? \(\(st\.pageIndex \+ 1\) \* CONV_PAGE_SIZE\) - 1\s*\n\s*: from \+ CONV_PAGE_SIZE - 1;/,
+    'a page is CONV_PAGE_SIZE rows; a reconcile re-reads the whole loaded depth');
   assert.match(html, /const CONV_PAGE_SIZE = 75;/);
 });
 
 test('paging is seamless, not page-number controls', () => {
-  assert.match(html, /function _onConvScroll/, 'infinite scroll must drive the next page');
-  assert.match(html, /_convPageIndex\+\+;\s*\n\s*loadConvPage\(_convListScope, \{ append: true \}\)/);
+  // Replaced the scrollTop/scrollHeight arithmetic with an observer rooted on
+  // the real scrolling element (2026-09-05) - see observeConvSentinel.
+  assert.match(html, /new IntersectionObserver\(entries => \{[\s\S]{0,160}loadMoreConversations\(scope\)/);
+  assert.match(html, /\{ root: listEl, rootMargin: '300px' \}/,
+    'the observer root must be the conversation list, not the viewport');
+  assert.match(html, /function loadMoreConversations\(scope = ''\) \{[\s\S]{0,220}st\.pageIndex\+\+;\s*\n\s*loadConvPage\(scope, \{ append: true \}\)/);
   // The Inbox must not grow the pager UI the All Leads table uses.
   const inbox = block('async function loadConvPage', 'async function openConversation');
   assert.ok(!/goToLeadsPage|renderLeadsPager|Page \$\{page\} of/.test(inbox),
@@ -68,8 +73,8 @@ test('pagination is deterministic, so no row is skipped or duplicated', () => {
   const qb = block('function buildConvQuery', 'function convRowFromView');
   assert.match(qb, /return q\.order\('lead_id', \{ ascending: true \}\)/,
     'a tiebreaker is required or rows sharing a timestamp straddle page boundaries');
-  const load = block('async function loadConvPage', 'function attachConvInfiniteScroll');
-  assert.match(load, /const have = new Set\(_lastConvs\.map\(c => c\.lead_id\)\)/,
+  const load = block('async function loadConvPage', 'function convEmptyHtml');
+  assert.match(load, /const fresh = rows\.filter\(c => !st\.ids\.has\(c\.lead_id\)\);/,
     'an appended page must drop rows already rendered');
 });
 
@@ -113,18 +118,77 @@ test('a new message updates one row, not the whole Inbox', () => {
   assert.match(handler, /applyConvRealtimeRow\(payload\.new\.lead_id, _convRealtimeScope\)/);
   assert.ok(!/renderConversations\(_convRealtimeScope\);/.test(handler),
     'the INSERT handler must not re-fetch every conversation');
-  const upd = block('async function applyConvRealtimeRow', '// Seamless loading');
-  assert.match(upd, /buildConvQuery\(scope\)\.eq\('lead_id', leadId\)\.limit\(1\)/,
-    'the refreshed row must honour the active filters, so an excluded row is not pushed in');
-  assert.match(upd, /if \(existing\) existing\.remove\(\);/, 'and must not duplicate the row');
+  // 2026-09-05: realtime reconciles the loaded depth through the SAME filtered
+  // query the list is built with, so a row the filter excludes is not pushed in,
+  // one that stops matching disappears, and ordering comes from the server.
+  assert.match(html, /function applyConvRealtimeRow\(leadId, scope = ''\) \{[\s\S]{0,200}reconcileConversations\(scope\)/);
+  assert.match(html, /loadConvPage\(scope, \{ reconcile: true \}\)/);
   // The count refresh is fired by the realtime handler alongside the row update.
   assert.match(handler, /scheduleConvCountRefresh\(_convRealtimeScope\)/, 'counts must follow the change');
 });
 
-test('realtime respects the active sort', () => {
-  const upd = block('async function applyConvRealtimeRow', '// Seamless loading');
-  assert.match(upd, /if \(_convSort === 'priority'\) \{ loadConvPage\(scope, \{ reset: true \}\); return; \}/,
-    'priority position depends on other rows\' scores, so the server must decide it');
+test('REGRESSION: no realtime path may rewind pagination depth', () => {
+  // The 2026-09-05 production bug: every realtime path called loadConvPage with
+  // reset:true, so from 225 rows a single inbound message - or a resubscribe, or
+  // a tab foreground - collapsed the list to 75, pageIndex to 0 and scrollTop to
+  // 0. On a live line that fires continuously, making older conversations
+  // unreachable from the UI even though SQL could page to all 39 pages.
+  const rt = stripJs(block('function startConvRealtime', 'function appendConvDaySeparatorIfNeeded'));
+  assert.ok(!/renderConversations\(/.test(rt),
+    'no realtime path may call renderConversations() - that resets to page 1');
+  assert.match(rt, /reconcileConversations\(_convRealtimeScope\)/,
+    'realtime must reconcile the loaded depth instead');
+  const vis = stripJs(block('function handleConvRealtimeVisibility', 'function stopConvRealtime'));
+  assert.ok(!/renderConversations\(/.test(vis), 'foreground regain must not reset either');
+  assert.match(vis, /reconcileConversations\(_convRealtimeScope\)/);
+  // Reset must remain reachable ONLY from genuine dataset changes.
+  assert.match(html, /function filterConversations\(scope = ''\) \{[\s\S]{0,200}\{ reset: true \}/,
+    'search/filter/channel changes still reset, which is correct');
+});
+
+test('ordinary Inbox actions do not rewind pagination either', () => {
+  // Opening a conversation re-renders the sidebar for its active state. That
+  // used to reset to page 1 too - the single most common action in the Inbox.
+  for (const fn of ['openConversation', 'sendConvMessage', 'setConvTier']) {
+    const i = html.indexOf('function ' + fn);
+    if (i < 0) continue;
+    const body = html.slice(i, i + 4000);
+    assert.ok(!/\n\s*renderConversations\(scope\);/.test(body),
+      `${fn} must reconcile, not reset`);
+  }
+});
+
+test('paging state is per-scope, so the two shells cannot interfere', () => {
+  assert.match(html, /const _convPaging = Object\.create\(null\);/);
+  assert.match(html, /function convPaging\(scope = ''\)/);
+  for (const k of ['pageIndex', 'hasMore', 'loading', 'rows', 'ids', 'observer', 'listEl'])
+    assert.ok(html.includes(k + ':'), `per-scope state must own ${k}`);
+  // The old shared globals must be gone.
+  for (const g of ['_convPageIndex', '_convHasMore', '_convLoadingPage', '_convScrollBound'])
+    assert.ok(!new RegExp('let ' + g + '\\b').test(html), `${g} must no longer be a global`);
+});
+
+test('a manual fail-safe exists whenever more conversations remain', () => {
+  assert.match(html, /Load older conversations<\/button>/);
+  assert.match(html, /function renderConvSentinel[\s\S]{0,400}if \(!st\.hasMore \|\| !st\.rows\.length\) \{ if \(existing\) existing\.remove\(\); return; \}/,
+    'the control must appear only while more remain');
+  assert.match(html, /Loading older conversations…/);
+  assert.ok(!/Page \$\{page\} of/.test(block('function renderConvSentinel', 'function setConvMoreState')),
+    'no page-number navigation');
+});
+
+test('scroll position is preserved across a reconcile', () => {
+  assert.match(html, /function convViewportAnchor\(listEl\)/);
+  assert.match(html, /function restoreConvViewportAnchor\(listEl, anchor\)/);
+  assert.match(html, /const anchor = reconcile \? convViewportAnchor\(listEl\) : null;/);
+  // Anchored to a lead id, not a pixel offset, so a row moving to the top does
+  // not slide the whole list under the user.
+  assert.match(html, /\.conv-item\[data-lead="\$\{CSS\.escape\(anchor\.leadId\)\}"\]/);
+  const load = block('async function loadConvPage', 'function convEmptyHtml');
+  assert.match(load, /\} else if \(reset\) \{[\s\S]{0,700}listEl\.scrollTop = 0;/,
+    'only a genuine dataset change may jump to the top');
+  assert.equal((load.match(/listEl\.scrollTop = 0;/g) || []).length, 1,
+    'nothing else may reset the scroll position');
 });
 
 test('the realtime publication and message append are not regressed', () => {

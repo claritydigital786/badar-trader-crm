@@ -101,7 +101,10 @@ function loadLifecycle() {
       removeEventListener(ev, fn) { box.listeners[ev]?.delete(fn); },
       getElementById: () => null,
     },
+    // 2026-09-05: the realtime paths reconcile the loaded depth instead of
+    // re-rendering from page 1, so that is what they call now.
     renderConversations: scope => box.renderCalls.push(scope),
+    reconcileConversations: scope => box.renderCalls.push(scope),
     appendConvDaySeparatorIfNeeded: () => {},
     applyDeliveryTickUpdate: () => {},
   };
@@ -128,7 +131,7 @@ test('SUBSCRIBED reconciles the list and clears the backoff', () => {
   b.startConvRealtime('agent-');
   b.statusCb('SUBSCRIBED');
   assert.deepEqual(b.renderCalls, ['agent-'],
-    'one reconciling re-render on (re)subscribe - realtime does not replay missed INSERTs');
+    'one reconcile on (re)subscribe - realtime does not replay missed INSERTs');
   assert.equal(b._convRealtimeRetries, 0);
 });
 

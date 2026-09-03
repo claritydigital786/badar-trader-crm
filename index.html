@@ -1397,6 +1397,21 @@
     }
 
     .conv-list { flex:1 1 0; min-height:0; overflow-y:auto; background:#fff; }
+    /* Bottom sentinel: what the IntersectionObserver watches, and the manual
+       fail-safe if a browser ever drops that callback. Deliberately quiet - it
+       borrows the same greys as the rest of this WhatsApp-alike column and is
+       only present while more conversations remain. */
+    .conv-more { padding:14px 13px 18px; text-align:center; }
+    .conv-more-btn {
+      background:none; border:1px solid #e9edef; border-radius:14px;
+      padding:5px 14px; font-size:0.76rem; color:#667781; cursor:pointer;
+      font-family:inherit; transition:background .12s, color .12s;
+    }
+    .conv-more-btn:hover { background:#f5f6f6; color:#3b4a54; }
+    .conv-more-status { font-size:0.76rem; color:#8696a0; }
+    [data-theme="dark"] .conv-more-btn { border-color:var(--line); color:var(--text-muted); }
+    [data-theme="dark"] .conv-more-btn:hover { background:var(--surface-soft); color:var(--text-body); }
+    [data-theme="dark"] .conv-more-status { color:var(--text-muted); }
     /* 72px row with the divider starting after the avatar, as WhatsApp does. */
     .conv-item { display:flex; align-items:center; gap:13px; padding:0 13px; height:72px; cursor:pointer; transition:background .12s; position:relative; }
     .conv-item::after { content:''; position:absolute; left:68px; right:0; bottom:0; height:1px; background:#e9edef; }
@@ -13133,9 +13148,30 @@ async function renderConversations(scope = '') {
 // unreachable by not being loaded - which is the property the old
 // fetch-everything design was really buying.
 const CONV_PAGE_SIZE = 75;
-let _convPageIndex = 0;
-let _convHasMore = true;
-let _convLoadingPage = false;
+
+// PER-SCOPE paging state. These were module-level globals until 2026-09-05,
+// shared by the admin shell ('') and the agent shell ('agent-') - two Inboxes
+// that use every function here and differ only by element-id prefix, so one
+// shell could reset the other's depth. Each scope owns its own state now, which
+// also means every current and future agent inherits the behaviour with no
+// per-account code anywhere.
+const _convPaging = Object.create(null);
+function convPaging(scope = '') {
+  if (!_convPaging[scope]) {
+    _convPaging[scope] = {
+      scope,
+      pageIndex: 0,   // highest page fetched; depth = (pageIndex + 1) * CONV_PAGE_SIZE
+      hasMore: true,
+      loading: false,
+      rows: [],       // the conversations currently rendered, in order
+      ids: new Set(), // their lead_ids, for O(1) duplicate rejection
+      observer: null, // IntersectionObserver watching the bottom sentinel
+      listEl: null,   // the element that observer is rooted on
+    };
+  }
+  return _convPaging[scope];
+}
+// Which shell is on screen, so the realtime handlers know which Inbox to update.
 let _convListScope = '';
 
 const CONV_LIST_COLS = 'lead_id, type, body, direction, created_at, full_name, phone, status, ' +
@@ -13232,125 +13268,239 @@ function convRowHtml(c, scope = '') {
         </div>`;
 }
 
-async function loadConvPage(scope = '', { reset = false, append = false } = {}) {
+// Three modes, and the distinction is the whole point of this function:
+//
+//   reset      - the user changed the dataset (entered the Inbox, typed a
+//                search, changed a filter or the channel). Depth goes back to
+//                page 1 and the viewport goes to the top, because they asked
+//                for a different list.
+//   append     - the user reached the bottom. One more page is added.
+//   reconcile  - a realtime event. The ALREADY LOADED depth is re-queried and
+//                replaced in place; the page index, the row count and the
+//                scroll position all survive.
+//
+// Regression this fixes (found 2026-09-05 in a real DOM harness, after Badar
+// reported he could not browse past the first chunk in production): every
+// realtime path called this with reset:true. From 225 rows loaded, a single
+// inbound message - or a channel resubscribe, or a tab foreground - collapsed
+// the list back to 75 rows, pageIndex to 0 and scrollTop to 0. On a live
+// WhatsApp line that fires continuously, so older conversations were in
+// practice unreachable from the UI even though the database could page to all
+// 39 pages. Realtime events are not dataset changes and must never reset depth.
+async function loadConvPage(scope = '', { reset = false, append = false, reconcile = false } = {}) {
   const listEl = document.getElementById(scope + 'conv-list');
-  if (!listEl || _convLoadingPage) return;
+  if (!listEl) return;
+  const st = convPaging(scope);
+  if (st.loading) return;
   _convListScope = scope;
-  _convLoadingPage = true;
-  if (reset) { _convPageIndex = 0; _convHasMore = true; }
+  st.loading = true;
 
-  // Only the very first paint shows the loading state. A later reset - filter
-  // change, search, realtime nudge, reconnect - keeps the current rows on
-  // screen and swaps them when the response lands. (Muhammad, 2026-09-01: the
-  // sidebar appearing to "restart" every few seconds under real traffic was
-  // this function reacting correctly to real messages, but reading as the whole
-  // list reloading.)
+  if (reset) { st.pageIndex = 0; st.hasMore = true; }
+
+  // Only the very first paint shows the loading state. Any later call already
+  // has a real list on screen and replaces it when the response lands, with no
+  // flash back to empty. (Muhammad, 2026-09-01.)
   const isFirstLoad = listEl.dataset.convLoaded !== '1';
   if (reset && isFirstLoad) {
     listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">Loading conversations…</div>';
   }
+  if (append) setConvMoreState(scope, 'loading');
 
-  const from = _convPageIndex * CONV_PAGE_SIZE;
+  // reconcile re-reads everything the user has already pulled down, so their
+  // depth is preserved rather than rewound.
+  const from = reconcile ? 0 : st.pageIndex * CONV_PAGE_SIZE;
+  const to   = reconcile ? ((st.pageIndex + 1) * CONV_PAGE_SIZE) - 1
+                         : from + CONV_PAGE_SIZE - 1;
+
+  // Anchor the viewport to a real conversation rather than to a pixel offset:
+  // if a row legitimately moves to the top because it just received a message,
+  // everything below shifts by one row height, and restoring a raw scrollTop
+  // would visibly slide the list. Restoring the anchor lead's own offset keeps
+  // whatever the user was looking at exactly where it was.
+  const anchor = reconcile ? convViewportAnchor(listEl) : null;
+
   try {
-    const { data, error } = await buildConvQuery(scope).range(from, from + CONV_PAGE_SIZE - 1);
+    const { data, error } = await buildConvQuery(scope).range(from, to);
     if (error) throw error;
     const rows = (data || []).map(convRowFromView);
-    _convHasMore = rows.length === CONV_PAGE_SIZE;
 
-    if (reset) {
+    if (reconcile) {
+      // Fewer rows than we held means conversations left this filter; that is a
+      // real change, not a reason to think there is nothing more behind them.
+      st.hasMore = st.hasMore && rows.length >= (to - from + 1);
+      st.rows = rows;
+      st.ids = new Set(rows.map(c => c.lead_id));
       _lastConvs = rows;
       listEl.innerHTML = rows.length
         ? rows.map(c => convRowHtml(c, scope)).join('')
-        : `<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">${convSearchTerm(scope) ? 'No conversations match your search.' : 'No conversations match this filter.'}</div>`;
-      listEl.scrollTop = 0;
-    } else if (append && rows.length) {
+        : convEmptyHtml(scope);
+      renderConvSentinel(scope);
+      restoreConvViewportAnchor(listEl, anchor);
+    } else if (reset) {
+      st.hasMore = rows.length === CONV_PAGE_SIZE;
+      st.rows = rows;
+      st.ids = new Set(rows.map(c => c.lead_id));
+      _lastConvs = rows;
+      listEl.innerHTML = rows.length ? rows.map(c => convRowHtml(c, scope)).join('') : convEmptyHtml(scope);
+      renderConvSentinel(scope);
+      listEl.scrollTop = 0;   // a genuinely different dataset starts at the top
+    } else if (append) {
+      st.hasMore = rows.length === CONV_PAGE_SIZE;
       // A row can legitimately move across a page boundary between requests on
       // a live list; drop anything already rendered rather than duplicating it.
-      const have = new Set(_lastConvs.map(c => c.lead_id));
-      const fresh = rows.filter(c => !have.has(c.lead_id));
-      _lastConvs = _lastConvs.concat(fresh);
-      if (fresh.length) listEl.insertAdjacentHTML('beforeend', fresh.map(c => convRowHtml(c, scope)).join(''));
+      const fresh = rows.filter(c => !st.ids.has(c.lead_id));
+      fresh.forEach(c => st.ids.add(c.lead_id));
+      st.rows = st.rows.concat(fresh);
+      _lastConvs = st.rows;
+      if (fresh.length) {
+        const sentinel = document.getElementById(scope + 'conv-more');
+        const html = fresh.map(c => convRowHtml(c, scope)).join('');
+        // Insert BEFORE the sentinel so it stays at the bottom of the list.
+        if (sentinel) sentinel.insertAdjacentHTML('beforebegin', html);
+        else listEl.insertAdjacentHTML('beforeend', html);
+      }
+      renderConvSentinel(scope);
     }
+
     listEl.dataset.convLoaded = '1';
     updateConvSortLabels();
-    attachConvInfiniteScroll(scope);
+    observeConvSentinel(scope);
   } catch (err) {
     // Only replace a list that has nothing in it - an error must never wipe
     // conversations an agent is working from.
     if (!listEl.querySelector('.conv-item')) {
       listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--bad);font-size:0.85rem">Error: ${esc(err.message)}</div>`;
     } else {
+      setConvMoreState(scope, 'error');
       showToast('Could not refresh conversations: ' + err.message, 'err');
     }
   } finally {
-    _convLoadingPage = false;
+    st.loading = false;
   }
 }
 
-// Realtime row update. A new message means exactly one conversation's summary
-// changed - its preview, timestamp, unread state, priority and position. The
-// old handler answered that by re-fetching and repainting every conversation.
+function convEmptyHtml(scope = '') {
+  return `<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:0.85rem">${convSearchTerm(scope) ? 'No conversations match your search.' : 'No conversations match this filter.'}</div>`;
+}
+
+// The lead currently at the top of the visible area, plus how far into that row
+// the viewport sits. Stable across a re-render even when rows reorder.
+function convViewportAnchor(listEl) {
+  const top = listEl.scrollTop;
+  const items = listEl.querySelectorAll('.conv-item');
+  for (const el of items) {
+    if (el.offsetTop + el.offsetHeight > top) {
+      return { leadId: el.dataset.lead, delta: top - el.offsetTop };
+    }
+  }
+  return null;
+}
+
+function restoreConvViewportAnchor(listEl, anchor) {
+  if (!anchor || !anchor.leadId) return;
+  const el = listEl.querySelector(`.conv-item[data-lead="${CSS.escape(anchor.leadId)}"]`);
+  // If the anchor conversation is gone (filtered out), leave the scroll where
+  // it is rather than guessing - jumping is worse than a small drift.
+  if (el) listEl.scrollTop = el.offsetTop + anchor.delta;
+}
+
+// ── BOTTOM SENTINEL + FAIL-SAFE ────────────────────────────────
 //
-// Re-reads only that lead's row from the same view (so RLS still decides
-// whether this user may see it at all, and the tier/priority come from the same
-// SQL the list is sorted by), then:
-//   * row already rendered -> replace it in place and move it if the sort says so
-//   * row not rendered but belongs above the last loaded row -> insert it
-//   * row not rendered and belongs further down -> ignore it; it will be there
-//     when the user pages down to it
-// It also respects the active filters: a message arriving for a conversation the
-// current filter excludes must not push an unmatching row into the list.
-async function applyConvRealtimeRow(leadId, scope = '') {
-  if (!leadId || demoMode) return;
+// The sentinel is what the IntersectionObserver watches, and it doubles as the
+// manual fallback. The previous implementation measured scrollTop against
+// scrollHeight on every scroll event; an observer rooted on the real scrolling
+// element is both cheaper and immune to a missed event, and the visible button
+// means that even if the browser drops the observer callback entirely, no
+// conversation can become unreachable - which is the property that regressed.
+function renderConvSentinel(scope = '') {
   const listEl = document.getElementById(scope + 'conv-list');
-  if (!listEl || listEl.dataset.convLoaded !== '1') return;
-
-  // buildConvQuery() carries every active filter, search term and the sort, so
-  // asking it for this one lead answers "does this row still belong here?" with
-  // exactly the same rules the list itself uses.
-  const { data, error } = await buildConvQuery(scope).eq('lead_id', leadId).limit(1);
-  if (error) { console.error('applyConvRealtimeRow:', error.message); return; }
-
-  const existing = listEl.querySelector(`.conv-item[data-lead="${CSS.escape(leadId)}"]`);
-  if (!data || !data.length) {
-    // No longer matches the active filter (e.g. it was Unread-only and an agent
-    // just read it). Drop it rather than leaving a stale row behind.
-    if (existing) existing.remove();
-    _lastConvs = _lastConvs.filter(c => c.lead_id !== leadId);
-    return;
-  }
-
-  // Under priority sort the correct position depends on every other row's
-  // score, which this client no longer holds - so let the server decide by
-  // refetching page 1 (75 rows), rather than guessing a position. That is one
-  // page, not the whole list.
-  if (_convSort === 'priority') { loadConvPage(scope, { reset: true }); return; }
-
-  // Newest-first: an inbound or outbound message makes this the most recent
-  // conversation by definition, so the top is provably its place.
-  const row = convRowFromView(data[0]);
-  _lastConvs = [row].concat(_lastConvs.filter(c => c.lead_id !== leadId));
-  if (existing) existing.remove();
-  listEl.insertAdjacentHTML('afterbegin', convRowHtml(row, scope));
+  if (!listEl) return;
+  const st = convPaging(scope);
+  const existing = document.getElementById(scope + 'conv-more');
+  if (!st.hasMore || !st.rows.length) { if (existing) existing.remove(); return; }
+  if (existing) { setConvMoreState(scope, 'idle'); listEl.appendChild(existing); return; }
+  const el = document.createElement('div');
+  el.className = 'conv-more';
+  el.id = scope + 'conv-more';
+  el.innerHTML = `<button type="button" class="conv-more-btn" onclick="loadMoreConversations('${scope}')">Load older conversations</button>
+    <span class="conv-more-status" aria-live="polite"></span>`;
+  listEl.appendChild(el);
 }
 
-// Seamless loading, no page-number controls: the next page is fetched as the
-// list nears its end, so it still reads as one continuous conversation list.
-let _convScrollBound = null;
-function attachConvInfiniteScroll(scope = '') {
-  const listEl = document.getElementById(scope + 'conv-list');
-  if (!listEl || _convScrollBound === listEl) return;
-  if (_convScrollBound) _convScrollBound.removeEventListener('scroll', _onConvScroll);
-  _convScrollBound = listEl;
-  listEl.addEventListener('scroll', _onConvScroll);
-}
-function _onConvScroll(e) {
-  const el = e.currentTarget;
-  if (_convLoadingPage || !_convHasMore) return;
-  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 300) {
-    _convPageIndex++;
-    loadConvPage(_convListScope, { append: true });
+function setConvMoreState(scope = '', state) {
+  const el = document.getElementById(scope + 'conv-more');
+  if (!el) return;
+  const btn = el.querySelector('.conv-more-btn');
+  const status = el.querySelector('.conv-more-status');
+  if (state === 'loading') {
+    if (btn) btn.style.display = 'none';
+    if (status) status.textContent = 'Loading older conversations…';
+  } else if (state === 'error') {
+    if (btn) btn.style.display = '';
+    if (status) status.textContent = '';
+  } else {
+    if (btn) btn.style.display = '';
+    if (status) status.textContent = '';
   }
+}
+
+// One observer per scope, rooted on that scope's own scrolling element - NOT on
+// the viewport, which would never fire for a pane with its own internal scrollbar.
+function observeConvSentinel(scope = '') {
+  const listEl = document.getElementById(scope + 'conv-list');
+  const sentinel = document.getElementById(scope + 'conv-more');
+  const st = convPaging(scope);
+  if (!listEl || !sentinel) return;
+  if (st.observer && st.listEl === listEl) { st.observer.disconnect(); st.observer.observe(sentinel); return; }
+  if (st.observer) st.observer.disconnect();
+  st.listEl = listEl;
+  st.observer = new IntersectionObserver(entries => {
+    if (entries.some(e => e.isIntersecting)) loadMoreConversations(scope);
+  }, { root: listEl, rootMargin: '300px' });
+  st.observer.observe(sentinel);
+}
+
+function loadMoreConversations(scope = '') {
+  const st = convPaging(scope);
+  if (st.loading || !st.hasMore) return;
+  st.pageIndex++;
+  loadConvPage(scope, { append: true });
+}
+
+// ── REALTIME RECONCILE ─────────────────────────────────────────
+//
+// Every realtime path goes through here, and every one of them reconciles
+// rather than resets. Re-reading the loaded depth handles all of the cases the
+// old per-row surgery had to special-case: the conversation moves to the top,
+// it drops out because the active filter no longer matches it, a brand new
+// conversation appears above everything, or several arrive at once. Ordering
+// and membership come from the same query the list is built with, so the row
+// cannot end up somewhere the server would not have put it.
+//
+// Debounced: a busy WhatsApp line delivers bursts, and one reconcile after the
+// burst settles is both cheaper and less visually noisy than one per message.
+let _convReconcileTimer = null;
+function reconcileConversations(scope = '') {
+  // Demo mode renders from in-memory fixtures and has no server paging to
+  // preserve, so it keeps using the plain renderer.
+  if (demoMode) return renderConversations(scope);
+  clearTimeout(_convReconcileTimer);
+  _convReconcileTimer = setTimeout(() => {
+    const listEl = document.getElementById(scope + 'conv-list');
+    // Nothing rendered yet means the Inbox has not been opened in this session;
+    // there is no depth to preserve and no list to update.
+    if (!listEl || listEl.dataset.convLoaded !== '1') return;
+    loadConvPage(scope, { reconcile: true });
+  }, 400);
+}
+
+// Kept under its original name because startConvRealtime's INSERT handler calls
+// it. The lead id is no longer needed to place the row - the reconcile query
+// orders the whole loaded range - but it is still accepted so the call site
+// reads the same and so a future targeted optimisation has it available.
+function applyConvRealtimeRow(leadId, scope = '') {
+  if (demoMode) return;
+  reconcileConversations(scope);
 }
 
 // Counts over the whole authorised set, from SQL. Deriving them from the loaded
@@ -13659,7 +13809,7 @@ async function assignConversationAgent(leadId, agentId, scope = '') {
   const cached = (cachedLeads || []).find(l => l.id === leadId);
   if (cached) cached.assigned_agent_id = agentId || null;
   showToast(`Conversation assigned to ${who}.`);
-  renderConversations(scope);
+  reconcileConversations(scope);   // ownership changed, not the dataset - keep the user's depth
 }
 
 // Jumps to the lead's own detail panel without losing where they came from.
@@ -13701,7 +13851,7 @@ async function openConversation(convId, scope = '') {
     // leads.is_unread. Without this a conversation marked unread in demo would
     // stay unread forever, which is not how it behaves in production.
     conv.unread = false;
-    renderConversations(scope);
+  reconcileConversations(scope);
     const chatPanel = document.getElementById(scope + 'conv-chat-panel');
     if (!chatPanel) return;
     const initials = initialsFor(conv.name);
@@ -13788,7 +13938,7 @@ async function openConversation(convId, scope = '') {
   const chatPanel = document.getElementById(scope + 'conv-chat-panel');
   if (!chatPanel) return;
   chatPanel.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted)">Loading conversation…</div>';
-  renderConversations(scope); // update sidebar active state
+  reconcileConversations(scope); // update sidebar active state - must not rewind paging
 
   try {
     const [leadRes, msgsRes] = await Promise.all([
@@ -13970,7 +14120,7 @@ async function openConversation(convId, scope = '') {
     startWaWindowTicker(lastInboundIso, scope);
     if (lead?.is_unread) {
       await sb.from('leads').update({ is_unread: false }).eq('id', convId);
-      renderConversations(scope);
+      reconcileConversations(scope);
     }
     collapseConvListOnMobile(scope);
   } catch(err) {
@@ -14119,7 +14269,7 @@ async function markConversationUnread(convId, scope = '') {
   // On mobile the list is collapsed while a chat is open, so it has to come
   // back or the agent is left staring at an empty panel with no way to it.
   expandConvListOnMobile(scope);
-  renderConversations(scope);
+  reconcileConversations(scope);
   showToast('Marked as unread');
 }
 
@@ -14128,13 +14278,13 @@ async function setLeadTier(leadId, tier, scope) {
     const conv = _DEMO_CONVERSATIONS.find(c => c.id === leadId);
     if (conv) conv.status = tier === 'closed' ? 'converted' : conv.status;
     showToast('Tier updated (demo)');
-    renderConversations(scope);
+    reconcileConversations(scope);
     return;
   }
   const { error } = await sb.from('leads').update({ manual_tier: tier }).eq('id', leadId);
   if (error) { showToast(`Couldn't update tier: ${error.message}`, 'err'); return; }
   showToast('Tier updated ✓');
-  renderConversations(scope);
+  reconcileConversations(scope);
 }
 
 function toggleConvListPanel(scope) {
@@ -14188,7 +14338,7 @@ async function runInboxMenuAction(action, scope) {
   closeInboxMenus();
   const search = document.getElementById(scope + 'conv-search-input');
   if (action === 'refresh') {
-    await renderConversations(scope);
+    await reconcileConversations(scope);
     showToast('Inbox refreshed.');
     return;
   }
@@ -15164,7 +15314,7 @@ async function doForwardMessage(targetId, targetName) {
       conv.lastMsg = text; conv.lastTime = timeStr;
     }
     showToast(`Forwarded to ${targetName}. (demo - nothing was sent)`);
-    renderConversations('');
+    reconcileConversations('');
     return;
   }
 
@@ -15174,7 +15324,7 @@ async function doForwardMessage(targetId, targetName) {
       showToast(viaFunction.warning, 'err');
     }
     showToast(`Forwarded to ${targetName} ✓`);
-    renderConversations('');
+    reconcileConversations('');
   } catch (err) {
     // Most likely cause is the target's 24-hour window being closed, which
     // WhatsApp rejects outright. Surfacing the real API message is more
@@ -15607,7 +15757,7 @@ async function sendConvMessage(convId, scope = '') {
     }
     if (input) { input.value = ''; input.style.height = 'auto'; }
     clearConvAttachment();
-    renderConversations(scope);
+    reconcileConversations(scope);
     return;
   }
 
@@ -15805,7 +15955,10 @@ function startConvRealtime(scope = '') {
         // down, and those INSERTs are gone - the stream is not replayed. One
         // reconciling re-render on (re)subscribe closes that gap. It is a
         // safety net for missed events, not a substitute for realtime.
-        renderConversations(_convRealtimeScope);   // full reconcile after a (re)subscribe
+        // Reconcile the loaded depth, never rewind it. This used to call
+        // renderConversations(), which resets to page 1 - so every resubscribe
+        // (including every reconnect) threw away whatever the user had paged to.
+        reconcileConversations(_convRealtimeScope);
         return;
       }
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
@@ -15845,7 +15998,7 @@ function scheduleConvRealtimeRetry() {
 function handleConvRealtimeVisibility() {
   if (document.hidden || !_convRealtimeSub) return;
   if (_convRealtimeSub.state === 'joined') {
-    renderConversations(_convRealtimeScope);   // catch anything missed while hidden
+    reconcileConversations(_convRealtimeScope); // catch anything missed while hidden, keeping depth
   } else {
     _convRealtimeRetries = 0;                  // user is here now; retry promptly
     scheduleConvRealtimeRetry();
