@@ -1,20 +1,46 @@
-// Converted leads -> private Google Sheet. Server side only.
+// Converted leads -> private Google Sheet, via a Google Apps Script Web App.
+// Server side only.
 //
-// Nothing about Google exists in the browser: the service-account key, the
-// spreadsheet id and the access token all live in Edge secrets and never leave
-// this function. The frontend can ask this function to drain the queue, but it
-// cannot reach Google itself and never sees a credential.
+// TRANSPORT CHANGED 2026-09-06. The direct Google service-account route
+// (Sheets API + Drive API, JWT-signed as the service account) was abandoned
+// after conclusive testing: correct service-account identity, correct live
+// key, correct Spreadsheet ID, both Sheets and Drive APIs enabled, two
+// separate spreadsheets shared directly as Editor - Drive files.get and Sheets
+// spreadsheets.get both still returned 404 for every file tested, from this
+// function AND from an identical local script run outside Supabase entirely.
+// That ruled out Supabase/runtime configuration and pointed at an org-level
+// Google Workspace/Cloud restriction on sharing to this service account, which
+// is not something this repo can fix. Rather than keep debugging Google
+// Workspace policy, the write now happens through a Web App that runs as
+// Muhammad's own Google account (Execute as: Me), so no external grant is
+// involved in reading or writing the sheet at all.
+//
+// The old direct-API implementation (RS256 JWT signing, Sheets values.get/put,
+// A1-range construction) is not kept in this file - it added ~150 lines nobody
+// can execute any more. It is intact in git history at commit 9559ba4 if the
+// Workspace restriction is ever lifted and this needs to revert.
+//
+// The old GOOGLE_SHEETS_SPREADSHEET_ID / GOOGLE_SERVICE_ACCOUNT_EMAIL /
+// GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY secrets are left configured in the project
+// and simply unused - nothing in this file reads them.
+//
+// Nothing about Google exists in the browser: the webhook URL, the shared
+// secret and the outbound request all live in this Edge Function and never
+// leave it. The frontend can ask this function to drain the queue, ping the
+// webhook, or run a self-cleaning synthetic test, but it cannot reach Apps
+// Script itself and never sees a credential.
 //
 // This is the sending half of a transactional outbox. The approval transaction
-// (approve_deposit_and_convert) enqueues a row and commits; if Google is down,
-// rate-limiting, or not configured yet, the conversion has already succeeded and
-// the row simply stays pending for a later attempt. A sync failure can never
-// roll back an approval.
+// (approve_deposit_and_convert) enqueues a row and commits; if the webhook is
+// down, rate-limiting, or not configured yet, the conversion has already
+// succeeded and the row simply stays pending for a later attempt. A sync
+// failure can never roll back an approval.
 //
-// Row identity in the sheet is the lead_id in column B. Before writing, the
-// function reads that column and either UPDATEs the matching row or APPENDs a
-// new one, so a retry - or a re-approval, or a backfill run - can never produce
-// a second row for the same customer.
+// Row identity in the sheet is the lead_id in column B, enforced on the Apps
+// Script side (see Code.gs there): it reads that column under a script lock
+// and either UPDATEs the matching row or APPENDs a new one, so a retry - or a
+// re-approval, or a backfill run - can never produce a second row for the same
+// customer.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyInternalRequest } from "../_shared/internal_auth.mjs";
 
@@ -22,19 +48,28 @@ const SUPABASE_URL      = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const INTERNAL_FUNCTION_SECRET = Deno.env.get("INTERNAL_FUNCTION_SECRET") ?? "";
 
-const SHEET_ID       = Deno.env.get("GOOGLE_SHEETS_SPREADSHEET_ID") ?? "";
-const SA_EMAIL       = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_EMAIL") ?? "";
-const SA_PRIVATE_KEY = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY") ?? "";
-const SHEET_TAB      = Deno.env.get("GOOGLE_SHEETS_TAB_NAME") ?? "Converted Leads";
+// Old direct-Google-API secrets. Deliberately read but NOT used by the webhook
+// transport - kept configured only so a revert to that route needs no secret
+// changes. Referenced once (below) purely so an unused-import/unused-var lint
+// pass has a reason not to flag them; nothing in this file sends them anywhere.
+const _LEGACY_GOOGLE_SECRETS_STILL_CONFIGURED = [
+  "GOOGLE_SHEETS_SPREADSHEET_ID", "GOOGLE_SERVICE_ACCOUNT_EMAIL", "GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY",
+].every((name) => !!Deno.env.get(name));
+
+// New transport: an Apps Script Web App deployed by Muhammad, "Execute as: Me,
+// Who has access: Anyone" - reachability is by URL, so the shared secret below
+// IS the access control for it, checked on the Apps Script side before it
+// reads or writes anything.
+const WEBHOOK_URL    = Deno.env.get("GOOGLE_SHEETS_WEBHOOK_URL") ?? "";
+const WEBHOOK_SECRET = Deno.env.get("CONVERTED_LEADS_SHEET_WEBHOOK_SECRET") ?? "";
 
 const MAX_ATTEMPTS = 6;
 const BATCH_SIZE   = 25;
 
-const HEADER = [
-  "Converted At", "Lead ID", "Customer Name", "Email", "Phone Number",
-  "Amount Deposited", "Currency", "Forwarded By Agent", "Agent ID",
-  "Approved By", "Approval Date", "WhatsApp Channel", "Lead Source", "Campaign",
-];
+// A lead_id that can never collide with a real lead's UUID, so a synthetic
+// connectivity test can never be mistaken for (or clash with) real data, and is
+// trivial for an admin to find and delete by eye in the sheet.
+const TEST_LEAD_ID_PREFIX = "TEST-SYNTHETIC-";
 
 // CORS. Same shape the project's other browser-facing functions use (see
 // conversion-hook), but with the origin pinned rather than "*": this one is
@@ -64,129 +99,90 @@ const json = (body: unknown, status = 200) =>
     headers: { ...CORS, "content-type": "application/json" },
   });
 
-// ── Google service-account auth (RS256 JWT -> access token) ────
-function b64url(bytes: Uint8Array): string {
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-function pemToPkcs8(pem: string): Uint8Array {
-  // Secrets managers frequently store the key with literal \n; accept both.
-  const body = pem.replace(/\\n/g, "\n")
-    .replace(/-----BEGIN PRIVATE KEY-----/, "").replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/\s+/g, "");
-  return Uint8Array.from(atob(body), c => c.charCodeAt(0));
-}
-async function googleAccessToken(): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  const header  = b64url(new TextEncoder().encode(JSON.stringify({ alg: "RS256", typ: "JWT" })));
-  const payload = b64url(new TextEncoder().encode(JSON.stringify({
-    iss: SA_EMAIL,
-    scope: "https://www.googleapis.com/auth/spreadsheets",
-    aud: "https://oauth2.googleapis.com/token",
-    iat: now, exp: now + 3600,
-  })));
-  const key = await crypto.subtle.importKey(
-    "pkcs8", pemToPkcs8(SA_PRIVATE_KEY),
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
-  const sig = new Uint8Array(await crypto.subtle.sign(
-    "RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(`${header}.${payload}`)));
-  const assertion = `${header}.${payload}.${b64url(sig)}`;
+type SheetRow = {
+  converted_at: unknown; lead_id: unknown; full_name: unknown; email: unknown; phone: unknown;
+  amount: unknown; currency: unknown; agent_name: unknown; assigned_agent_id: unknown;
+  approver_name: unknown; approved_at: unknown; wa_channel: unknown; source: unknown; campaign: unknown;
+};
 
-  const res = await fetch("https://oauth2.googleapis.com/token", {
+// Sends one batch of rows to the Apps Script Web App. The script itself does
+// the header/idempotent-upsert work (see Code.gs) - this only transports the
+// already-resolved field values and reports back what it did.
+async function callWebhook(body: Record<string, unknown>, label: string): Promise<Record<string, unknown>> {
+  if (!WEBHOOK_URL || !WEBHOOK_SECRET) {
+    const err: Error & { notConfigured?: boolean } = new Error("google sheets webhook is not configured");
+    err.notConfigured = true;
+    throw err;
+  }
+  const res = await fetch(WEBHOOK_URL, {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion,
-    }),
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ secret: WEBHOOK_SECRET, ...body }),
   });
-  if (!res.ok) throw new Error(`google token: ${res.status} ${(await res.text()).slice(0, 200)}`);
-  return (await res.json()).access_token as string;
-}
-
-// A1 notation: a sheet name containing a space (or most punctuation) MUST be
-// wrapped in single quotes, with any literal single quote doubled. Google's own
-// documentation is explicit about this.
-//
-// This was the 404 (found 2026-09-06). The tab is "Converted Leads", and the
-// code built `Converted Leads!A1:N1` unquoted. Google could not resolve that to
-// a sheet in the spreadsheet and answered
-// 404 "Requested entity was not found." - which reads like a missing
-// spreadsheet, so the verified spreadsheet id and the verified Editor share both
-// looked like the wrong suspects. The entity that was not found was the RANGE.
-function quoteTab(title: string): string {
-  return `'${title.replace(/'/g, "''")}'`;
-}
-const a1 = (tab: string, ref: string) => `${quoteTab(tab)}!${ref}`;
-
-const metaUrl = () =>
-  `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=spreadsheetId,properties.title,sheets.properties.title`;
-
-const sheetsUrl = (range: string, suffix = "") =>
-  `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}${suffix}`;
-
-// Ask the spreadsheet what its tabs are actually called instead of trusting a
-// configured name to exist. If the configured tab is present it is used (matched
-// case-insensitively, since a manual rename easily differs in case); otherwise
-// the first tab is used and the response says so, rather than failing with an
-// error that points at the wrong thing.
-async function resolveTab(token: string): Promise<{ tab: string; title: string; tabs: string[]; configuredFound: boolean }> {
-  const meta = await sheetsFetch(token, metaUrl(), {}, "spreadsheet metadata");
-  const tabs: string[] = (meta.sheets ?? []).map((sh: { properties?: { title?: string } }) => sh.properties?.title ?? "");
-  const match = tabs.find(t => t.trim().toLowerCase() === SHEET_TAB.trim().toLowerCase());
-  return {
-    tab: match ?? tabs[0] ?? SHEET_TAB,
-    title: meta.properties?.title ?? "",
-    tabs,
-    configuredFound: !!match,
-  };
-}
-
-async function sheetsFetch(token: string, url: string, init: RequestInit = {}, label = "sheets request") {
-  const res = await fetch(url, {
-    ...init,
-    headers: { authorization: `Bearer ${token}`, "content-type": "application/json", ...(init.headers ?? {}) },
-  });
+  const text = await res.text();
   if (!res.ok) {
-    const text = (await res.text()).slice(0, 300);
-    // The label matters: every Google call previously failed with the same
-    // "sheets 404" string, so a 404 could not be attributed to a request.
-    const err: Error & { status?: number } = new Error(`${label} -> ${res.status}: ${text}`);
+    const err: Error & { status?: number } = new Error(`${label} -> HTTP ${res.status}: ${text.slice(0, 300)}`);
     err.status = res.status;
     throw err;
   }
-  return res.json();
+  let parsed: Record<string, unknown> | null = null;
+  try { parsed = JSON.parse(text); } catch { /* handled below */ }
+  if (!parsed) throw new Error(`${label} -> non-JSON response: ${text.slice(0, 300)}`);
+  if (parsed.ok === false) throw new Error(`${label} -> ${parsed.error ?? "webhook reported failure"}`);
+  return parsed;
 }
 
-// Writes the header once. Harmless to re-run: it only writes when row 1 is empty
-// or does not already match, so it cannot clobber a sheet someone has customised
-// beyond the header.
-async function ensureHeader(token: string, tab: string) {
-  const got = await sheetsFetch(token, sheetsUrl(a1(tab, "A1:N1")), {}, "header GET");
-  const row: string[] = got.values?.[0] ?? [];
-  if (row.length && row[1] === "Lead ID") return;
-  await sheetsFetch(token, sheetsUrl(a1(tab, "A1:N1"), "?valueInputOption=RAW"), {
-    method: "PUT", body: JSON.stringify({ values: [HEADER] }),
-  }, "header PUT");
-}
+// Resolves one row's field values from the database at send time. Nothing here
+// is taken from a client, and the outbox row itself holds no customer data -
+// see converted_lead_sheet_sync's own schema comment.
+async function resolveRow(
+  admin: ReturnType<typeof createClient>,
+  job: { lead_id: string; deposit_document_id: string | null },
+): Promise<SheetRow> {
+  const { data: lead, error: leadErr } = await admin.from("leads")
+    .select("id, full_name, email, phone, converted_at, wa_channel, source, meta_campaign, assigned_agent_id")
+    .eq("id", job.lead_id).single();
+  if (leadErr || !lead) throw new Error(leadErr?.message ?? "lead not found");
 
-// lead_id -> 1-based sheet row. Column B is the stable business key; name and
-// phone are never used to match, being duplicated and inconsistently formatted.
-async function leadRowIndex(token: string, tab: string): Promise<Map<string, number>> {
-  const got = await sheetsFetch(token, sheetsUrl(a1(tab, "B:B")), {}, "lead-id column GET");
-  const map = new Map<string, number>();
-  (got.values ?? []).forEach((r: string[], i: number) => {
-    const id = (r?.[0] ?? "").trim();
-    if (id && id !== "Lead ID") map.set(id, i + 1);
-  });
-  return map;
-}
+  // Amount Deposited = the approved deposit's ledger row, matched by
+  // deposit_document_id. That is the transaction approve_deposit_and_convert
+  // inserts, i.e. the amount tied to THIS conversion event - not AUM, not a
+  // payroll or commission figure, neither of which is read here at all.
+  let amount: unknown = null, currency: unknown = null;
+  if (job.deposit_document_id) {
+    const { data: txn } = await admin.from("transactions")
+      .select("amount, currency").eq("deposit_document_id", job.deposit_document_id).limit(1).maybeSingle();
+    if (txn) { amount = txn.amount; currency = txn.currency; }
+  }
 
-function rowFor(r: Record<string, unknown>): string[] {
-  const s = (v: unknown) => (v === null || v === undefined ? "" : String(v));
-  return [
-    s(r.converted_at), s(r.lead_id), s(r.full_name), s(r.email), s(r.phone),
-    s(r.amount), s(r.currency), s(r.agent_name), s(r.assigned_agent_id),
-    s(r.approver_name), s(r.approved_at), s(r.wa_channel), s(r.source), s(r.campaign),
-  ];
+  // Forwarded By = the lead's canonical owner, resolved server-side.
+  let agentName: string | null = null;
+  if (lead.assigned_agent_id) {
+    const { data: a } = await admin.from("profiles")
+      .select("full_name, email").eq("id", lead.assigned_agent_id).maybeSingle();
+    agentName = a?.full_name ?? a?.email ?? null;
+  }
+
+  // Approved By / Approval Date = the approval record itself.
+  let approverName: string | null = null, approvedAt: string | null = null;
+  if (job.deposit_document_id) {
+    const { data: doc } = await admin.from("kyc_documents")
+      .select("reviewed_by, reviewed_at").eq("id", job.deposit_document_id).maybeSingle();
+    approvedAt = doc?.reviewed_at ?? null;
+    if (doc?.reviewed_by) {
+      const { data: p } = await admin.from("profiles")
+        .select("full_name, email").eq("id", doc.reviewed_by).maybeSingle();
+      approverName = p?.full_name ?? p?.email ?? null;
+    }
+  }
+
+  return {
+    converted_at: lead.converted_at, lead_id: lead.id, full_name: lead.full_name,
+    email: lead.email, phone: lead.phone, amount, currency,
+    agent_name: agentName, assigned_agent_id: lead.assigned_agent_id,
+    approver_name: approverName, approved_at: approvedAt,
+    wa_channel: lead.wa_channel, source: lead.source, campaign: lead.meta_campaign,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -204,6 +200,8 @@ Deno.serve(async (req) => {
   //   * a signed-in ADMIN or SUPER ADMIN, checked server-side against profiles,
   //     so the CRM can nudge the queue right after an approval without holding
   //     any Google credential. An agent's token fails this check.
+  // This gate is unchanged by the transport switch and covers every action
+  // below (sync, ping, test) identically - there is no lower-trust action.
   const internal = verifyInternalRequest(req, INTERNAL_FUNCTION_SECRET);
   let authorized = internal.authorized;
   if (!authorized) {
@@ -219,13 +217,81 @@ Deno.serve(async (req) => {
     authorized = true;
   }
 
-  if (!SHEET_ID || !SA_EMAIL || !SA_PRIVATE_KEY) {
+  let body: Record<string, unknown> = {};
+  try { body = await req.json(); } catch { /* empty body is the default "drain the queue" call */ }
+  const action = typeof body.action === "string" ? body.action : "sync";
+
+  if (!WEBHOOK_URL || !WEBHOOK_SECRET) {
     // Not an error: the integration simply is not configured yet. Rows stay
     // queued and nothing is lost.
     return json({ ok: false, configured: false,
-                  reason: "google sheets secrets are not configured" }, 200);
+                  reason: "google sheets webhook is not configured" }, 200);
   }
 
+  // ── action: ping ────────────────────────────────────────────
+  // Pure connectivity + secret check. Touches no database table, sends no
+  // spreadsheet row. Lets an admin prove the Apps Script deployment and the
+  // shared secret are correct before anything real is sent.
+  if (action === "ping") {
+    try {
+      const res = await callWebhook({ action: "ping" }, "ping");
+      return json({ ok: true, configured: true, action: "ping", webhook: res });
+    } catch (e) {
+      return json({ ok: false, configured: true, action: "ping",
+                    error: String((e as Error).message).slice(0, 400) }, 200);
+    }
+  }
+
+  // ── action: test ────────────────────────────────────────────
+  // A self-contained, self-identifying synthetic round-trip: append, then
+  // update the SAME lead_id with one changed field to prove idempotency, all
+  // under a lead_id that can never be a real lead's UUID. Never touches
+  // converted_lead_sheet_sync. The admin still has to open the actual sheet to
+  // see the row and delete it - this function cannot see a Google Sheet's
+  // rendered contents, only what Apps Script reports back.
+  if (action === "test") {
+    const testId = TEST_LEAD_ID_PREFIX + crypto.randomUUID();
+    const now = new Date().toISOString();
+    try {
+      const appendRes = await callWebhook({
+        action: "sync",
+        rows: [{
+          converted_at: now, lead_id: testId, full_name: "SYNTHETIC TEST - safe to delete",
+          email: "synthetic-test@example.invalid", phone: "+10000000000",
+          amount: "1", currency: "USD", agent_name: "Diagnostic run", assigned_agent_id: testId,
+          approver_name: "Diagnostic run", approved_at: now, wa_channel: "test", source: "synthetic-test",
+          campaign: "sync-converted-leads-sheet self-test",
+        }],
+      }, "synthetic append");
+
+      const updateRes = await callWebhook({
+        action: "sync",
+        rows: [{
+          converted_at: now, lead_id: testId, full_name: "SYNTHETIC TEST - safe to delete",
+          email: "synthetic-test@example.invalid", phone: "+10000000000",
+          amount: "2", currency: "USD", agent_name: "Diagnostic run", assigned_agent_id: testId,
+          approver_name: "Diagnostic run", approved_at: now, wa_channel: "test", source: "synthetic-test",
+          campaign: "sync-converted-leads-sheet self-test (amount changed 1 -> 2)",
+        }],
+      }, "synthetic update");
+
+      return json({
+        ok: true, configured: true, action: "test", test_lead_id: testId,
+        append: appendRes, update: updateRes,
+        // updateRes.appended should be 0 and updateRes.updated should be 1 for
+        // this to prove idempotency - the caller (admin panel) shows this plainly.
+        idempotent: updateRes.appended === 0 && updateRes.updated === 1,
+        next_step: "Open the sheet, confirm exactly one row for this Lead ID with amount=2, then delete that row.",
+      });
+    } catch (e) {
+      return json({ ok: false, configured: true, action: "test", test_lead_id: testId,
+                    error: String((e as Error).message).slice(0, 400) }, 200);
+    }
+  }
+
+  if (action !== "sync") return json({ error: `unknown action "${action}"` }, 400);
+
+  // ── action: sync (default) - drain the outbox ──────────────
   const { data: due, error: dueErr } = await admin
     .from("converted_lead_sheet_sync")
     .select("id, lead_id, deposit_document_id, attempt_count")
@@ -235,117 +301,47 @@ Deno.serve(async (req) => {
     .order("created_at", { ascending: true })
     .limit(BATCH_SIZE);
   if (dueErr) return json({ error: dueErr.message }, 500);
-  const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}`;
-  if (!due?.length) return json({ ok: true, configured: true, processed: 0, sheet_url: SHEET_URL });
+  if (!due?.length) return json({ ok: true, configured: true, processed: 0 });
 
+  // Mark the whole batch processing up front, exactly as the per-row version
+  // did before sending - prevents an overlapping run from picking the same rows.
+  await admin.from("converted_lead_sheet_sync")
+    .update({ status: "processing", updated_at: new Date().toISOString() })
+    .in("id", due.map((j) => j.id));
 
-  let token: string;
-  let tab = SHEET_TAB, sheetTitle = "", tabsAvailable: string[] = [], configuredTabFound = true;
+  let rows: SheetRow[];
   try {
-    token = await googleAccessToken();
-    // Metadata first: it proves the spreadsheet id and the share independently
-    // of any range, and tells us what the tabs are really called.
-    const resolved = await resolveTab(token);
-    tab = resolved.tab; sheetTitle = resolved.title;
-    tabsAvailable = resolved.tabs; configuredTabFound = resolved.configuredFound;
-    await ensureHeader(token, tab);
+    rows = await Promise.all(due.map((job) => resolveRow(admin, job)));
   } catch (e) {
-    // Auth or header failure is not per-row: back every due row off together
-    // rather than burning an attempt each.
+    // A row failed to resolve from the database (not a Google/webhook problem).
+    // Back the whole batch off together, same posture as a transport failure.
     const msg = String((e as Error).message).slice(0, 400);
     for (const job of due) await backoff(admin, job, msg);
-    // The response now names the failing request and what the spreadsheet
-    // actually contains, so a 404 can be attributed instead of guessed at.
-    return json({ ok: false, configured: true, error: msg, sheet_url: SHEET_URL,
-                  spreadsheet_title: sheetTitle, tab_used: tab,
-                  tabs_available: tabsAvailable, configured_tab_found: configuredTabFound }, 200);
+    return json({ ok: false, configured: true, error: msg }, 200);
   }
 
-  const index = await leadRowIndex(token, tab);
-  let synced = 0, failed = 0;
-
-  for (const job of due) {
-    try {
-      await admin.from("converted_lead_sheet_sync")
-        .update({ status: "processing", updated_at: new Date().toISOString() })
-        .eq("id", job.id);
-
-      // Every value is read from the database at send time. Nothing is taken
-      // from a client, and the outbox row itself holds no customer data.
-      const { data: lead, error: leadErr } = await admin.from("leads")
-        .select("id, full_name, email, phone, converted_at, wa_channel, source, meta_campaign, assigned_agent_id")
-        .eq("id", job.lead_id).single();
-      if (leadErr || !lead) throw new Error(leadErr?.message ?? "lead not found");
-
-      // Amount Deposited = the approved deposit's ledger row, matched by
-      // deposit_document_id. That is the transaction approve_deposit_and_convert
-      // inserts, i.e. the amount tied to THIS conversion event - not AUM, not a
-      // payroll or commission figure, neither of which is read here at all.
-      let amount: unknown = null, currency: unknown = null;
-      if (job.deposit_document_id) {
-        const { data: txn } = await admin.from("transactions")
-          .select("amount, currency").eq("deposit_document_id", job.deposit_document_id).limit(1).maybeSingle();
-        if (txn) { amount = txn.amount; currency = txn.currency; }
-      }
-
-      // Forwarded By = the lead's canonical owner, resolved server-side.
-      let agentName: string | null = null;
-      if (lead.assigned_agent_id) {
-        const { data: a } = await admin.from("profiles")
-          .select("full_name, email").eq("id", lead.assigned_agent_id).maybeSingle();
-        agentName = a?.full_name ?? a?.email ?? null;
-      }
-
-      // Approved By / Approval Date = the approval record itself.
-      let approverName: string | null = null, approvedAt: string | null = null;
-      if (job.deposit_document_id) {
-        const { data: doc } = await admin.from("kyc_documents")
-          .select("reviewed_by, reviewed_at").eq("id", job.deposit_document_id).maybeSingle();
-        approvedAt = doc?.reviewed_at ?? null;
-        if (doc?.reviewed_by) {
-          const { data: p } = await admin.from("profiles")
-            .select("full_name, email").eq("id", doc.reviewed_by).maybeSingle();
-          approverName = p?.full_name ?? p?.email ?? null;
-        }
-      }
-
-      const values = [rowFor({
-        converted_at: lead.converted_at, lead_id: lead.id, full_name: lead.full_name,
-        email: lead.email, phone: lead.phone, amount, currency,
-        agent_name: agentName, assigned_agent_id: lead.assigned_agent_id,
-        approver_name: approverName, approved_at: approvedAt,
-        wa_channel: lead.wa_channel, source: lead.source, campaign: lead.meta_campaign,
-      })];
-
-      const existing = index.get(String(lead.id));
-      if (existing) {
-        await sheetsFetch(token, sheetsUrl(a1(tab, `A${existing}:N${existing}`), "?valueInputOption=RAW"),
-          { method: "PUT", body: JSON.stringify({ values }) }, "row UPDATE");
-      } else {
-        const appended = await sheetsFetch(token,
-          sheetsUrl(a1(tab, "A:N"), "?valueInputOption=RAW&insertDataOption=INSERT_ROWS"),
-          { method: "POST", body: JSON.stringify({ values }) }, "row APPEND");
-        // Remember where it landed, so two due rows for the same lead in one
-        // batch cannot append twice.
-        const m = /![A-Z]+(\d+):/.exec(appended?.updates?.updatedRange ?? "");
-        if (m) index.set(String(lead.id), Number(m[1]));
-      }
-
+  try {
+    const res = await callWebhook({ action: "sync", rows }, "sheet sync");
+    const now = new Date().toISOString();
+    for (const job of due) {
       await admin.from("converted_lead_sheet_sync").update({
-        status: "synced", synced_at: new Date().toISOString(),
+        status: "synced", synced_at: now,
         attempt_count: (job.attempt_count ?? 0) + 1, last_error: null,
-        updated_at: new Date().toISOString(),
+        updated_at: now,
       }).eq("id", job.id);
-      synced++;
-    } catch (e) {
-      await backoff(admin, job, String((e as Error).message).slice(0, 400));
-      failed++;
     }
+    return json({ ok: true, configured: true, processed: due.length,
+                  synced: due.length, failed: 0, webhook: res });
+  } catch (e) {
+    // The webhook call is one HTTP request for the whole batch, so a failure -
+    // Apps Script down, wrong secret, quota, timeout - applies to all of it.
+    // Every due row backs off together rather than burning an attempt each in
+    // a way that could desynchronise their retry schedules.
+    const msg = String((e as Error).message).slice(0, 400);
+    for (const job of due) await backoff(admin, job, msg);
+    return json({ ok: false, configured: true, processed: due.length,
+                  synced: 0, failed: due.length, error: msg }, 200);
   }
-
-  return json({ ok: true, configured: true, processed: due.length, synced, failed,
-                sheet_url: SHEET_URL, spreadsheet_title: sheetTitle, tab_used: tab,
-                tabs_available: tabsAvailable, configured_tab_found: configuredTabFound });
 });
 
 // Bounded exponential backoff: 1, 2, 4, 8, 16, 32 minutes, then the row stops

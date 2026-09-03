@@ -8455,6 +8455,7 @@ function nudgeConvertedLeadSheetSync() {
 
 let _sheetSyncUrl = null;
 let _sheetSyncDiag = null;
+let _sheetSyncTestResult = null;
 async function renderConvertedSheetPanel() {
   const box = document.getElementById('converted-sheet-panel');
   if (!box) return;
@@ -8478,37 +8479,74 @@ async function renderConvertedSheetPanel() {
     </div>
     ${s.last_error ? `<div style="font-size:0.78rem;color:var(--bad);margin-bottom:10px">Last error: ${esc(String(s.last_error).slice(0,240))}</div>` : ''}
     ${_sheetSyncDiag ? `<div style="font-size:0.74rem;color:var(--text-muted);margin-bottom:10px">
-      Spreadsheet: <strong>${esc(_sheetSyncDiag.spreadsheet_title || '-')}</strong>
-      &nbsp;·&nbsp; Tab used: <strong>${esc(_sheetSyncDiag.tab_used || '-')}</strong>
-      ${_sheetSyncDiag.configured_tab_found === false ? ' <span style="color:var(--warn)">(configured tab not found - using the first tab)</span>' : ''}
-      ${Array.isArray(_sheetSyncDiag.tabs_available) && _sheetSyncDiag.tabs_available.length ? `<br>Tabs in this spreadsheet: ${esc(_sheetSyncDiag.tabs_available.join(', '))}` : ''}
+      ${_sheetSyncDiag.spreadsheet ? `Spreadsheet: <strong>${esc(_sheetSyncDiag.spreadsheet)}</strong>` : ''}
+      ${_sheetSyncDiag.tab ? ` &nbsp;·&nbsp; Tab: <strong>${esc(_sheetSyncDiag.tab)}</strong>` : ''}
     </div>` : ''}
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${_sheetSyncTestResult ? '10px' : '0'}">
+      <button class="btn btn-secondary btn-sm" onclick="pingConvertedSheetWebhook()" title="Connectivity + secret check only - writes nothing">Ping webhook</button>
+      <button class="btn btn-secondary btn-sm" onclick="testConvertedSheetWebhook()" title="Sends one synthetic, clearly-fake row (Lead ID starts with TEST-SYNTHETIC-), then updates it, to prove append/update work before touching real data. Delete the row from the sheet afterward.">Run synthetic test</button>
       <button class="btn btn-secondary btn-sm" onclick="runConvertedSheetSync()">Sync now</button>
       <button class="btn btn-secondary btn-sm" onclick="retryConvertedSheetSync()">Retry failed</button>
       ${_sheetSyncUrl ? `<a class="btn btn-secondary btn-sm" href="${esc(_sheetSyncUrl)}" target="_blank" rel="noopener noreferrer">Open Google Sheet</a>` : ''}
       <button class="btn btn-secondary btn-sm" onclick="backfillConvertedSheet()" title="Queue every already-converted lead. Nothing runs automatically.">Backfill existing</button>
-    </div>`;
+    </div>
+    ${_sheetSyncTestResult ? `<pre style="font-size:0.72rem;color:var(--text-muted);background:var(--surface-soft);border-radius:8px;padding:10px;white-space:pre-wrap;word-break:break-word;margin:0">${esc(_sheetSyncTestResult)}</pre>` : ''}`;
+}
+
+// Connectivity + secret check only. Touches no database row and writes nothing
+// to the sheet - see the Edge Function's action:'ping' handling.
+async function pingConvertedSheetWebhook() {
+  showToast('Pinging the Apps Script webhook…');
+  const { data, error } = await sb.functions.invoke('sync-converted-leads-sheet', { body: { action: 'ping' } });
+  if (error) { showToast('Ping failed: ' + error.message, 'err'); return; }
+  _sheetSyncTestResult = 'PING\n' + JSON.stringify(data, null, 2);
+  if (data?.ok) {
+    _sheetSyncDiag = data.webhook || null;
+    showToast('Webhook reachable and secret accepted.');
+  } else {
+    showToast('Ping did not succeed: ' + String(data?.error || 'see details below').slice(0, 160), 'err');
+  }
+  renderConvertedSheetPanel();
+}
+
+// Sends one synthetic row (Lead ID starts with TEST-SYNTHETIC- and can never
+// collide with a real lead's UUID), then re-sends the SAME Lead ID with one
+// changed field to prove the sheet updates the existing row rather than
+// appending a duplicate. Never touches converted_lead_sheet_sync or any real
+// lead. The admin still has to open the sheet to see the row and delete it -
+// this only proves the round trip works.
+async function testConvertedSheetWebhook() {
+  if (!confirm('Send one synthetic test row to the Google Sheet?\n\nIt is clearly marked (Lead ID starts with TEST-SYNTHETIC-) and never touches real data, but you will need to delete it from the sheet afterward.')) return;
+  showToast('Sending synthetic test row…');
+  const { data, error } = await sb.functions.invoke('sync-converted-leads-sheet', { body: { action: 'test' } });
+  if (error) { showToast('Test failed: ' + error.message, 'err'); return; }
+  _sheetSyncTestResult = 'SYNTHETIC TEST\n' + JSON.stringify(data, null, 2);
+  if (data?.ok) {
+    showToast(data.idempotent
+      ? `Append + update both succeeded - one row for ${data.test_lead_id}. Now delete it from the sheet.`
+      : `Test ran but did not look idempotent - check the details below before trusting Sync now.`, data.idempotent ? undefined : 'err');
+  } else {
+    showToast('Synthetic test failed: ' + String(data?.error || '').slice(0, 160), 'err');
+  }
+  renderConvertedSheetPanel();
 }
 
 async function runConvertedSheetSync() {
   showToast('Contacting the sync worker…');
-  const { data, error } = await sb.functions.invoke('sync-converted-leads-sheet', { body: {} });
+  const { data, error } = await sb.functions.invoke('sync-converted-leads-sheet', { body: { action: 'sync' } });
   if (error) { showToast('Sync failed: ' + error.message, 'err'); return; }
   if (data && data.configured === false) {
-    showToast('Google Sheets is not configured yet - rows stay queued until it is.', 'err');
+    showToast('The Google Sheets webhook is not configured yet - rows stay queued until it is.', 'err');
   } else if (data && data.error) {
-    // The function labels which Google request failed and reports what the
-    // spreadsheet actually contains, so a failure can be attributed rather than
-    // guessed at - a 404 on a range and a 404 on the spreadsheet itself used to
-    // look identical from here.
-    _sheetSyncDiag = data;
-    showToast('Google reported: ' + String(data.error).slice(0, 140), 'err');
+    // The webhook response, when present, says which spreadsheet/tab it wrote
+    // to, so a failure can be attributed rather than guessed at.
+    _sheetSyncDiag = data.webhook || null;
+    showToast('Sync reported: ' + String(data.error).slice(0, 140), 'err');
   } else {
-    _sheetSyncDiag = data;
+    _sheetSyncDiag = data.webhook || null;
     // The URL is only ever handed back by the admin-authenticated function; it
     // is not stored anywhere a non-admin could read it.
-    if (data?.sheet_url) _sheetSyncUrl = data.sheet_url;
+    if (data?.webhook?.url) _sheetSyncUrl = data.webhook.url;
     showToast(`Sync run complete - ${data?.synced ?? 0} synced, ${data?.failed ?? 0} failed.`);
   }
   renderConvertedSheetPanel();
