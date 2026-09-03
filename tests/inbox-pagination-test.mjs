@@ -308,3 +308,82 @@ test('this change touches no business rule', () => {
   assert.match(html, /await sb\.auth\.refreshSession\(\)/);
   assert.match(html, /loadCustomerReactions/, 'customer reactions must still load');
 });
+
+// ── Sorting + stable open (Hanzala, 2026-09-05) ────────────────
+test('three sort modes exist and the production default is preserved', () => {
+  assert.match(html, /const CONV_SORT_MODES = \['priority', 'recent', 'oldest'\];/);
+  assert.match(html, /CONV_SORT_LABELS = \{ priority: 'Priority', recent: 'Newest First', oldest: 'Oldest First' \}/);
+  // NOT 'priority'. The default was deliberately moved to 'recent' on
+  // 2026-08-27 because priority buried very recent unanswered messages behind
+  // already-tagged leads. Restoring priority as the default reintroduces that.
+  assert.match(html, /let _convSort = 'recent';/,
+    "the shipped default must stay 'recent' - see the 2026-08-27 note");
+});
+
+test('all three sorts are applied by Postgres over the whole set', () => {
+  const qb = block('function buildConvQuery', 'function convRowFromView');
+  assert.match(qb, /if \(_convSort === 'priority'\) \{\s*\n\s*q = q\.order\('priority', \{ ascending: false \}\)\.order\('created_at', \{ ascending: false \}\);/,
+    'priority keeps the existing ordering, tie-broken by latest activity');
+  assert.match(qb, /q = q\.order\('created_at', \{ ascending: _convSort === 'oldest' \}\);/,
+    'newest/oldest both order by genuine latest conversation activity');
+  assert.match(qb, /return q\.order\('lead_id', \{ ascending: true \}\)/,
+    'every sort keeps a deterministic tiebreaker');
+  // No client-side re-sorting of the loaded page may creep back in.
+  assert.ok(!/sortConvsByPriority\(/.test(stripJs(block('async function loadConvPage', 'function convEmptyHtml'))),
+    'the loaded page must not be re-sorted in the browser');
+});
+
+test('changing sort is a dataset reset that keeps every other filter', () => {
+  const f = block('function setConvSort', 'function cycleConvSort');
+  assert.match(f, /filterConversations\(scope\)/,
+    'a sort change resets paging to page 1 of the new order');
+  assert.ok(!/_activeConvFilter\s*=|_activeConvOps\s*=|_activeConvChannel\s*=|conv-search-input.*value\s*=/.test(f),
+    'and must not clear the search, stage, ops or channel filters');
+});
+
+test('the sort preference is per-browser, never global', () => {
+  assert.match(html, /localStorage\.setItem\(CONV_SORT_KEY, _convSort\)/);
+  assert.match(html, /if \(CONV_SORT_MODES\.includes\(saved\)\) _convSort = saved;/);
+  // Nothing may write a sort preference to a shared table.
+  assert.ok(!/from\('(profiles|settings)'\)[\s\S]{0,200}sort/i.test(html),
+    'one agent\'s sort choice must never reach another account');
+});
+
+test('REGRESSION: opening a conversation must not move it', () => {
+  const open = block('async function openConversation', 'function attachmentKindFromPath');
+  // The cause: unread contributes +20 to priority, so clearing it on open
+  // dropped the row and the reconcile moved it out from under the agent.
+  assert.match(html, /if \(sig\.isUnread\) score \+= 20;/, 'unread still scores - that rule is unchanged');
+  assert.match(open, /markConvRowReadInPlace\(convId, scope\)/,
+    'read acknowledgement must patch the row in place');
+  assert.match(open, /setActiveConvRow\(convId, scope\)/,
+    'selecting a row must be a class toggle, not a re-query');
+  assert.ok(!/reconcileConversations\(scope\)/.test(stripJs(open)),
+    'opening must not trigger a reconcile - that is what reordered the row');
+  // Read state is still genuinely written.
+  assert.match(open, /update\(\{ is_unread: false \}\)\.eq\('id', convId\)/,
+    'read acknowledgement itself must be retained');
+});
+
+test('opening a conversation fabricates no activity', () => {
+  const open = stripJs(block('async function openConversation', 'function attachmentKindFromPath'));
+  assert.ok(!/from\('communications'\)[\s\S]{0,120}\.insert\(/.test(open),
+    'opening must never write a message row');
+  assert.ok(!/created_at:\s*new Date|created_at:\s*now/.test(open),
+    'opening must never stamp a conversation activity timestamp');
+  const helper = block('function markConvRowReadInPlace', 'function loadMoreConversations');
+  assert.ok(!/created_at/.test(helper), 'the read patch must not touch the sort key');
+});
+
+test('the sort control is the only visual addition, in both shells', () => {
+  assert.equal((html.match(/data-conv-sort-select/g) || []).length, 3,
+    'one control per shell plus the JS selector that syncs them');
+  assert.equal((html.match(/onchange="setConvSort\(this\.value,'(agent-)?'\)"/g) || []).length, 2,
+    'admin and agent shells each get one');
+  for (const opt of ['>Priority<', '>Newest First<', '>Oldest First<'])
+    assert.ok(html.includes(opt), `the control must offer ${opt}`);
+  // The card itself is untouched.
+  const row = block('function convRowHtml', 'async function loadConvPage');
+  assert.ok(row.includes('border-radius:50%;background:#3b82f6;margin-left:4px'),
+    'the unread dot stays exactly as it was');
+});

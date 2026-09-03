@@ -1401,6 +1401,22 @@
        fail-safe if a browser ever drops that callback. Deliberately quiet - it
        borrows the same greys as the rest of this WhatsApp-alike column and is
        only present while more conversations remain. */
+    /* Sort control. Sits at the end of the existing Needs-action row and takes
+       its type scale and colours from the chips beside it, so the row keeps its
+       current height and rhythm - this is an addition, not a re-layout. */
+    /* The existing "Needs action" label line becomes a flex row so the control
+       sits at its right end. The row keeps its height - nothing below moves. */
+    .conv-ops-row { display:flex; flex-direction:column; }
+    .conv-ops-row > .conv-ops-label { display:flex; align-items:center; }
+    .conv-sort-wrap { display:inline-flex; align-items:center; gap:5px; margin-left:auto; }
+    .conv-sort-label { font-size:0.68rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:#8696a0; }
+    .conv-sort-select {
+      font-family:inherit; font-size:0.72rem; color:#3b4a54; background:#fff;
+      border:1px solid #e9edef; border-radius:10px; padding:3px 6px; cursor:pointer; max-width:120px;
+    }
+    .conv-sort-select:focus { outline:2px solid var(--accent); outline-offset:1px; }
+    [data-theme="dark"] .conv-sort-label { color:var(--text-muted); }
+    [data-theme="dark"] .conv-sort-select { background:var(--surface-soft); color:var(--text-body); border-color:var(--line); }
     .conv-more { padding:14px 13px 18px; text-align:center; }
     .conv-more-btn {
       background:none; border:1px solid #e9edef; border-radius:14px;
@@ -2822,6 +2838,14 @@
         </div>
         <div class="conv-ops-row" id="conv-ops-row" title="Operational state - these stack on top of whichever lead stage is selected">
           <span class="conv-ops-label">Needs action</span>
+            <label class="conv-sort-wrap">
+              <span class="conv-sort-label">Sort</span>
+              <select class="conv-sort-select" data-conv-sort-select onchange="setConvSort(this.value,'')" title="Order the whole conversation list">
+                <option value="priority">Priority</option>
+                <option value="recent">Newest First</option>
+                <option value="oldest">Oldest First</option>
+              </select>
+            </label>
           <div class="conv-ops-chips">
             <button class="conv-ops-chip" data-op="unread" onclick="toggleConvOps('unread')">📩 Unread</button>
             <button class="conv-ops-chip" data-op="awaiting" onclick="toggleConvOps('awaiting')">⏳ Waiting on Us</button>
@@ -4946,6 +4970,14 @@
         </div>
         <div class="conv-ops-row" id="agent-conv-ops-row" title="Operational state - these stack on top of whichever lead stage is selected">
           <span class="conv-ops-label">Needs action</span>
+            <label class="conv-sort-wrap">
+              <span class="conv-sort-label">Sort</span>
+              <select class="conv-sort-select" data-conv-sort-select onchange="setConvSort(this.value,'agent-')" title="Order the whole conversation list">
+                <option value="priority">Priority</option>
+                <option value="recent">Newest First</option>
+                <option value="oldest">Oldest First</option>
+              </select>
+            </label>
           <div class="conv-ops-chips">
             <button class="conv-ops-chip" data-op="unread" onclick="toggleConvOps('unread','agent-')">📩 Unread</button>
             <button class="conv-ops-chip" data-op="awaiting" onclick="toggleConvOps('awaiting','agent-')">⏳ Waiting on Us</button>
@@ -12788,26 +12820,49 @@ const CONV_SORT_KEY = 'bt-conv-sort';
 // see what actually just came in, not what was already flagged days ago -
 // 'priority' stays one click away for whoever wants it, it just isn't the
 // silent default that hides new activity anymore.
+// Three explicit modes, requested by Hanzala 2026-09-05. 'oldest' is new; the
+// other two are the orderings that already existed.
+//
+// The default stays 'recent'. It is NOT 'priority', and that is deliberate:
+// the default was changed FROM priority TO recent on 2026-08-27 because
+// priority silently buried a large volume of real, very recent, unanswered
+// customer messages (48 conversations active in one 6-hour window) behind a
+// handful of already-tagged HOT/WARM leads, on every browser that had never
+// toggled it. Restoring priority as the default would reintroduce that.
+const CONV_SORT_MODES = ['priority', 'recent', 'oldest'];
+const CONV_SORT_LABELS = { priority: 'Priority', recent: 'Newest First', oldest: 'Oldest First' };
 let _convSort = 'recent';
 try {
   const saved = localStorage.getItem(CONV_SORT_KEY);
-  if (saved === 'recent' || saved === 'priority') _convSort = saved;
+  if (CONV_SORT_MODES.includes(saved)) _convSort = saved;
 } catch (_) { /* private mode / storage blocked - the default is fine */ }
 
+// localStorage is per-browser and per-profile, so one person's choice is never
+// inherited by anyone else. Badar picking Oldest First cannot change Hanzala's.
 function setConvSort(mode, scope = '') {
-  _convSort = (mode === 'recent') ? 'recent' : 'priority';
+  _convSort = CONV_SORT_MODES.includes(mode) ? mode : 'recent';
   try { localStorage.setItem(CONV_SORT_KEY, _convSort); } catch (_) {}
-  renderConversations(scope);
-  showToast(_convSort === 'priority'
-    ? 'Inbox sorted by priority - who needs you most is at the top.'
-    : 'Inbox sorted by most recent message.');
+  // A sort change IS a genuine dataset change: the whole authorised set is
+  // re-ordered by Postgres and paging restarts from page 1 of the new order.
+  // The active search, stage filter, ops chips and channel are all read fresh
+  // by buildConvQuery(), so every one of them survives the switch.
+  filterConversations(scope);
+  showToast(_convSort === 'priority' ? 'Inbox sorted by priority - who needs you most is at the top.'
+          : _convSort === 'oldest'   ? 'Inbox sorted oldest first - longest-waiting conversations first.'
+          :                            'Inbox sorted by most recent message.');
+}
+
+function cycleConvSort(scope = '') {
+  const i = CONV_SORT_MODES.indexOf(_convSort);
+  setConvSort(CONV_SORT_MODES[(i + 1) % CONV_SORT_MODES.length], scope);
 }
 
 function updateConvSortLabels() {
   document.querySelectorAll('[data-conv-sort-label]').forEach(el => {
-    el.textContent = _convSort === 'priority'
-      ? 'Sort: priority (change to newest)'
-      : 'Sort: newest (change to priority)';
+    el.textContent = `Sort: ${CONV_SORT_LABELS[_convSort]} (change)`;
+  });
+  document.querySelectorAll('[data-conv-sort-select]').forEach(el => {
+    if (el.value !== _convSort) el.value = _convSort;
   });
 }
 
@@ -13131,7 +13186,7 @@ async function renderConversations(scope = '') {
     listEl.innerHTML = ordered.map(({ c, tier, sig, _prio }) => {
       const initials = initialsFor(c.name);
       return `
-        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${!!c.unread}" data-awaiting="${sig.awaitingReply}" data-needshuman="${sig.needsHuman}" data-priority="${_prio.score}" data-channel="unattributed" onclick="openConversation('${c.id}','${scope}')">
+        <div class="conv-item${c.id === _activeConvId ? ' active' : ''}" data-tier="${tier}" data-unread="${!!c.unread}" data-awaiting="${sig.awaitingReply}" data-needshuman="${sig.needsHuman}" data-priority="${_prio.score}" data-channel="unattributed" data-lead="${c.id}" onclick="openConversation('${c.id}','${scope}')">
           <div class="conv-avatar" style="background:${avatarColor(c.id)}">${initials}</div>
           <div class="conv-info">
             <div class="conv-name">${esc(c.name)}${c.unread ? ' <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#3b82f6;margin-left:4px"></span>' : ''}</div>
@@ -13249,8 +13304,21 @@ function buildConvQuery(scope = '') {
   const term = convSearchTerm(scope);
   if (term) q = q.or(buildConvSearchOr(term));
 
-  if (_convSort === 'priority') q = q.order('priority', { ascending: false });
-  q = q.order('created_at', { ascending: false });
+  // Ordering is applied by Postgres over the WHOLE authorised set, so page 2
+  // continues the same order rather than re-sorting whatever is loaded.
+  //   priority - the existing production ordering, unchanged: the SQL `priority`
+  //              column is a transcription of convPriority(), tie-broken by most
+  //              recent activity exactly as sortConvsByPriority() did.
+  //   recent   - genuine latest conversation activity, newest first.
+  //   oldest   - the same activity field ascending. created_at on this view is
+  //              the LATEST message per lead (DISTINCT ON ... ORDER BY
+  //              created_at DESC), so this is conversation chronology, not lead
+  //              creation date.
+  if (_convSort === 'priority') {
+    q = q.order('priority', { ascending: false }).order('created_at', { ascending: false });
+  } else {
+    q = q.order('created_at', { ascending: _convSort === 'oldest' });
+  }
   // Deterministic tiebreaker: without one, rows sharing a timestamp can fall on
   // either side of a page boundary between requests and appear twice, or not at all.
   return q.order('lead_id', { ascending: true });
@@ -13493,6 +13561,38 @@ function observeConvSentinel(scope = '') {
     if (entries.some(e => e.isIntersecting)) loadMoreConversations(scope);
   }, { root: listEl, rootMargin: '300px' });
   st.observer.observe(sentinel);
+}
+
+// Marks one rendered row as the open conversation. Pure DOM, no fetch, no sort.
+function setActiveConvRow(convId, scope = '') {
+  const listEl = document.getElementById(scope + 'conv-list');
+  if (!listEl) return;
+  listEl.querySelectorAll('.conv-item.active').forEach(el => el.classList.remove('active'));
+  const row = listEl.querySelector(`.conv-item[data-lead="${CSS.escape(String(convId))}"]`);
+  if (row) row.classList.add('active');
+}
+
+// Clears the unread marker on an already-rendered row WITHOUT re-ordering the
+// list. Opening a conversation must never move it: reordering is reserved for
+// genuine conversation activity (a real inbound or outbound message), which
+// arrives through the realtime reconcile and is ordered by the active sort.
+//
+// The cached row is updated too, so a later reconcile does not flash the dot
+// back on before the server confirms what this already wrote.
+function markConvRowReadInPlace(convId, scope = '') {
+  const listEl = document.getElementById(scope + 'conv-list');
+  const st = convPaging(scope);
+  const cached = st.rows.find(c => c.lead_id === convId);
+  if (cached?.leads) cached.leads.is_unread = false;
+  const row = listEl?.querySelector(`.conv-item[data-lead="${CSS.escape(String(convId))}"]`);
+  if (row) {
+    row.dataset.unread = 'false';
+    // The dot is the only unread affordance on the card; the rest of the row is
+    // unchanged, so nothing reflows and the row keeps its exact position.
+    row.querySelector('.conv-name span[style*="border-radius:50%"]')?.remove();
+  }
+  // The unread pill counts the whole authorised set, so it still has to be asked.
+  scheduleConvCountRefresh(scope);
 }
 
 function loadMoreConversations(scope = '') {
@@ -13886,7 +13986,12 @@ async function openConversation(convId, scope = '') {
     // leads.is_unread. Without this a conversation marked unread in demo would
     // stay unread forever, which is not how it behaves in production.
     conv.unread = false;
-  reconcileConversations(scope);
+    // Same stable-open behaviour as the live branch: acknowledge the read, but
+    // do not re-render the list, which under priority sort would move the row
+    // the agent just clicked. Demo and live have produced real drift bugs in
+    // this file before, so they share the helper.
+    setActiveConvRow(convId, scope);
+    markConvRowReadInPlace(convId, scope);
     const chatPanel = document.getElementById(scope + 'conv-chat-panel');
     if (!chatPanel) return;
     const initials = initialsFor(conv.name);
@@ -13973,7 +14078,9 @@ async function openConversation(convId, scope = '') {
   const chatPanel = document.getElementById(scope + 'conv-chat-panel');
   if (!chatPanel) return;
   chatPanel.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted)">Loading conversation…</div>';
-  reconcileConversations(scope); // update sidebar active state - must not rewind paging
+  // Selecting a row is a UI action, not conversation activity. Marking it active
+  // is a class toggle - it must not re-query, re-order, or move anything.
+  setActiveConvRow(convId, scope);
 
   try {
     const [leadRes, msgsRes] = await Promise.all([
@@ -14166,8 +14273,15 @@ async function openConversation(convId, scope = '') {
     applyWaWindowGate(waWindow, scope);
     startWaWindowTicker(lastInboundIso, scope);
     if (lead?.is_unread) {
+      // Read acknowledgement is real business state and is kept. What changed
+      // (Hanzala, 2026-09-05) is that it no longer reorders the list: unread
+      // contributes +20 to the priority score, so clearing it on open dropped
+      // the row 20 points and the reconcile moved it away under the agent's
+      // cursor - the row they had just deliberately clicked. The row is patched
+      // in place instead, and the counts refreshed, with no re-query and no
+      // re-order.
       await sb.from('leads').update({ is_unread: false }).eq('id', convId);
-      reconcileConversations(scope);
+      markConvRowReadInPlace(convId, scope);
     }
     collapseConvListOnMobile(scope);
   } catch(err) {
@@ -14393,7 +14507,7 @@ async function runInboxMenuAction(action, scope) {
   // an agent who wants the plain newest-first list back gets it in one click,
   // and the choice sticks per browser.
   if (action === 'toggle-sort') {
-    setConvSort(_convSort === 'priority' ? 'recent' : 'priority', scope);
+    cycleConvSort(scope);
     return;
   }
   // 'Unread conversations' predates the stage/operational split - it used to
