@@ -42,6 +42,38 @@ window.inboxScenarios = async function (scope = '') {
   const ids = [...el.querySelectorAll('.conv-item')].map(n => n.dataset.lead);
   check('9. no duplicates', ids.length === new Set(ids).size, { rendered: ids.length });
 
+  // The open conversation is pinned through a reconcile when it sits outside
+  // the reloaded range - the Financial Ledger case, where a row is injected so
+  // the agent can see the chat they were sent to. This shipped broken on
+  // 2026-09-05: `rows` was declared const and the pin reassigned it, so EVERY
+  // reconcile threw "Assignment to constant variable". Reported from production
+  // by Muhammad - agents saw "Could not refresh conversations" on every send,
+  // because sending calls reconcileConversations(). A static suite cannot catch
+  // this; only running the function does.
+  {
+    const injected = { lead_id: 'lead-pinned-test', type: 'whatsapp', body: 'from the ledger',
+      direction: 'inbound', created_at: new Date().toISOString(),
+      leads: { full_name: 'Ledger Person', phone: '+920000000000', status: 'new' } };
+    const heldRows = st.rows;
+    const heldActive = _activeConvId;
+    st.rows = [injected].concat(st.rows);
+    _activeConvId = 'lead-pinned-test';
+    let toast = null;
+    const realToast = window.showToast;
+    window.showToast = (m) => { toast = m; };
+    await loadConvPage(scope, { reconcile: true }); await settle();
+    window.showToast = realToast;
+    const pinnedIds = [...el.querySelectorAll('.conv-item')].map(n => n.dataset.lead);
+    check('16. reconcile with a pinned open row does not throw', toast === null, { toast });
+    check('17. the open conversation survives the reconcile',
+          pinnedIds[0] === 'lead-pinned-test', { first: pinnedIds[0] });
+    check('18. pinning introduces no duplicate rows',
+          pinnedIds.length === new Set(pinnedIds).size, { rendered: pinnedIds.length });
+    _activeConvId = heldActive;
+    st.rows = heldRows;
+    await loadConvPage(scope, { reconcile: true }); await settle();
+  }
+
   // A genuine dataset change MUST reset - that is the only correct reset.
   const search = document.getElementById(scope + 'conv-search-input');
   if (search) {

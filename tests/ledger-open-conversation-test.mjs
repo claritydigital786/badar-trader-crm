@@ -70,6 +70,16 @@ test('the open conversation stays visible in the list across a reconcile', () =>
   assert.match(load, /if \(openRow\) rows = \[openRow\]\.concat\(rows\);/);
   // Only while genuinely absent, so it cannot become a permanent stowaway row.
   assert.match(load, /\? st\.rows\.find\(c => c\.lead_id === _activeConvId\)\s*\n\s*: null;/);
+  // The pin REASSIGNS rows, so the binding it reassigns cannot be a const.
+  // It shipped as one on 2026-09-05 and made every reconcile throw
+  // "Assignment to constant variable" - which agents met as "Could not refresh
+  // conversations" on each send, since sending calls reconcileConversations().
+  // Behaviourally covered by scenarios 16-18 in tests/dom/scenarios.js; this
+  // line is the cheap guard that does not need a browser to run.
+  assert.match(load, /let rows = \(data \|\| \[\]\)\.map\(convRowFromView\);/,
+    'rows must be declared with let - the reconcile branch prepends the pinned row');
+  assert.ok(!/const rows = \(data \|\| \[\]\)\.map\(convRowFromView\);/.test(load),
+    'a const here throws on every reconcile, and every agent send triggers one');
 });
 
 test('it reuses the Inbox stack rather than duplicating it', () => {

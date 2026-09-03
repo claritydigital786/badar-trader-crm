@@ -13573,7 +13573,13 @@ async function loadConvPage(scope = '', { reset = false, append = false, reconci
   try {
     const { data, error } = await buildConvQuery(scope).range(from, to);
     if (error) throw error;
-    const rows = (data || []).map(convRowFromView);
+    // `let`, not `const`: the reconcile branch below legitimately prepends the
+    // open conversation's own row when it sits outside the reloaded range.
+    // Declared const on 2026-09-05 by the Financial Ledger change, which made
+    // every realtime reconcile throw "Assignment to constant variable" - the
+    // Inbox stopped refreshing and toasted the error at agents on each
+    // inbound message. Reported live by Muhammad with a screenshot.
+    let rows = (data || []).map(convRowFromView);
 
     if (reconcile) {
       // Fewer rows than we held means conversations left this filter; that is a
