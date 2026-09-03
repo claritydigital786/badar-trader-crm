@@ -107,8 +107,13 @@ test('Comm Log is bounded rather than downloading every message', () => {
   const load = block('async function loadCommLog(', 'function commLogMoreHtml');
   assert.match(load, /\.limit\(_commLogLimit\)/, 'both communication tables must be bounded');
   assert.equal((load.match(/\.limit\(_commLogLimit\)/g) || []).length, 2);
-  assert.ok(!/fetchAllRows\(\(\) => sb\.from\('communications'\)/.test(html),
-    'the 16,010-row / 3.5 MB full read must be gone');
+  // Scoped to loadCommLog's own block, not the whole file: openConversation()
+  // legitimately uses fetchAllRows() on communications since 2026-09-03 (a
+  // real, separate fix for message-thread truncation past PostgREST's
+  // 1,000-row cap on a long conversation) - a whole-file check would flag
+  // that correct, unrelated use as if it were Comm Log's old bug recurring.
+  assert.ok(!/fetchAllRows\(\(\) => sb\.from\('communications'\)/.test(load),
+    'the 16,010-row / 3.5 MB full read must be gone from loadCommLog specifically');
   assert.match(html, /function loadMoreCommLog/, 'older entries must stay reachable on request');
 });
 

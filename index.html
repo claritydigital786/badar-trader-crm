@@ -11161,30 +11161,58 @@ async function loadReports() {
   }
 
   // Monthly trend - last 6 months from real data
+  //
+  // Was an unbounded select of every lead in the six-month window, ordered
+  // oldest-first, and PostgREST silently caps an unbounded read at 1,000
+  // rows - the same truncation class already fixed on the Dashboard, on All
+  // Leads search and in the Inbox message thread. Checked against the live
+  // database before touching anything (2026-09-03): all 7,866 leads fall
+  // inside the window, so this chart was reading the OLDEST 1,000 of them
+  // and nothing else. August rendered 887 against a real 7,172, and
+  // September - the month actually being lived in - rendered a flat ZERO
+  // against a real 581. A trend chart that reports the current month as no
+  // leads at all is worse than showing no chart.
+  //
+  // Fixed with one head-only count per bucket rather than by paginating the
+  // rows: the chart needs six integers, so no row has to cross the wire at
+  // all, and it stays six small requests however large `leads` grows.
+  //
+  // Boundaries are built in local time because local-month bucketing is what
+  // this chart has always done - but the date is pinned to the 1st BEFORE
+  // the month is stepped back. The old order (step the month, then set the
+  // date) overflows on a long day: run on the 31st, `setMonth(-1)` from 31
+  // March lands on 3 March, and the bucket list ends up with a duplicate
+  // month and a missing one. It has never bitten because nobody opened
+  // Reports on the wrong day, not because it was right.
+  //
+  // .or(PRODUCTION_LEADS_OR_FILTER) brings this into line with every other
+  // figure on this page, which have excluded conclusively-identified
+  // bot-test traffic since 2026-09-02. That set is empty today (verified
+  // live, 0 rows), so no bar moves now - it simply keeps future 6541 test
+  // traffic out of a business chart automatically, like everywhere else.
   try {
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-    sixMonthsAgo.setDate(1);
-    const { data: monthlyLeads } = await sb
-      .from('leads').select('created_at')
-      .gte('created_at', sixMonthsAgo.toISOString())
-      .order('created_at', { ascending: true });
-    const buckets = {};
     const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = [];
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(); d.setMonth(d.getMonth() - i); d.setDate(1);
-      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0');
-      buckets[key] = { label: monthNames[d.getMonth()], count: 0 };
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      start.setDate(1);
+      start.setMonth(start.getMonth() - i);
+      const end = new Date(start);
+      end.setMonth(end.getMonth() + 1);
+      months.push({ label: monthNames[start.getMonth()], start, end });
     }
-    (monthlyLeads || []).forEach(l => {
-      const d = new Date(l.created_at);
-      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0');
-      if (buckets[key]) buckets[key].count++;
-    });
-    const mLabels = Object.values(buckets).map(b => b.label);
-    const mData   = Object.values(buckets).map(b => b.count);
-    renderMonthlyTrendChart(mLabels, mData);
+    const monthCounts = await Promise.all(months.map(m =>
+      sb.from('leads').select('id', { count: 'exact', head: true })
+        .gte('created_at', m.start.toISOString())
+        .lt('created_at', m.end.toISOString())
+        .or(PRODUCTION_LEADS_OR_FILTER)
+    ));
+    const failed = monthCounts.find(r => r.error);
+    if (failed) throw new Error(failed.error.message);
+    renderMonthlyTrendChart(months.map(m => m.label), monthCounts.map(r => r.count || 0));
   } catch(e) {
+    console.error('loadReports monthly trend:', e.message || e);
     renderMonthlyTrendChart([], []);
   }
   renderFinancialSummaryReport((finSummary && finSummary[0]) || null, e4 ? null : {
@@ -11344,7 +11372,14 @@ function renderMonthlyTrendChart(labels, data) {
         responsive: true,
         plugins: { legend: { display: false } },
         scales: {
-          y: { beginAtZero: true, ticks: { stepSize: 2, color:'#64748b', font:{size:11} }, grid: { color:'#f1f5f9' } },
+          // stepSize was pinned to 2, which asks Chart.js for a gridline every
+          // two leads. That was already producing a few hundred ticks on the
+          // truncated data this chart used to receive; with the real August
+          // figure of 7,148 it draws thousands and the y-axis renders as a
+          // solid block of overlapping labels (seen in the browser, 2026-09-03).
+          // Chart.js picks a sensible interval on its own - precision: 0 is all
+          // this needs, since a count of leads is always a whole number.
+          y: { beginAtZero: true, ticks: { precision: 0, color:'#64748b', font:{size:11} }, grid: { color:'#f1f5f9' } },
           x: { ticks: { color:'#64748b', font:{size:11} }, grid: { display: false } },
         }
       }
@@ -13951,7 +13986,19 @@ async function openConversation(convId, scope = '') {
       // production, since Vercel deploys from main automatically. With '*'
       // the column is simply absent until the migration runs, and the ticks
       // render nothing rather than the page breaking.
-      sb.from('communications').select('*')
+      //
+      // fetchAllRows() rather than a plain unbounded query - found during a
+      // full Inbox audit, 2026-09-03: this had no .limit() at all, and
+      // PostgREST silently caps an unlimited read at 1,000 rows (the exact
+      // same class of bug fetchAllLeadsForDashboard() already had, fixed
+      // earlier the same day). No real conversation has crossed 1,000
+      // messages yet (worst live case checked: 206), so this was not yet
+      // causing visible harm - but a long-running conversation eventually
+      // will cross it, and the truncation would silently hide the NEWEST
+      // messages (ordered ascending, so row 1,001+ is what gets cut), which
+      // are exactly the ones an agent needs to see. Fixed before it broke
+      // anything, not after.
+      fetchAllRows(() => sb.from('communications').select('*')
         .eq('lead_id', convId).eq('type', 'whatsapp')
         // Same exclusion as renderConversations() above - this is an internal
         // note, never actually sent to the customer over WhatsApp. Same
@@ -13960,7 +14007,7 @@ async function openConversation(convId, scope = '') {
         // have rendered completely empty even if it somehow appeared in the
         // list at all.
         .or('subject.is.null,subject.neq.Qualified lead summary')
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: true }))
     ]);
     if (leadRes.error) throw leadRes.error;
     const lead = leadRes.data;
@@ -14575,9 +14622,22 @@ async function restoreHiddenMessages() {
     await openConversation(_activeConvId, _activeConvScope);
     return;
   }
+  // Found during a full Inbox audit, 2026-09-03: hiddenMessagesNoticeHtml()'s
+  // count is correctly scoped to THIS conversation (loadMessageActions()
+  // resets _messageActions per conversation on open), but this update had no
+  // scope at all - "3 messages hidden" on the screen, Restore silently
+  // un-hiding every message this agent has ever hidden in every conversation.
+  // Scoped to this lead's own messages, matching what the button visibly
+  // claims to do. communication_message_actions has no lead_id column of its
+  // own (only communication_id), so the id list is fetched first.
+  const { data: convMessages, error: msgErr } = await sb.from('communications')
+    .select('id').eq('lead_id', _activeConvId);
+  if (msgErr) { showToast('Could not restore hidden messages: ' + msgErr.message, 'err'); return; }
+  const ids = (convMessages || []).map(m => m.id);
+  if (!ids.length) { showToast('Nothing to restore in this conversation.'); return; }
   const { error } = await sb.from('communication_message_actions')
     .update({ is_hidden:false, updated_at:new Date().toISOString() })
-    .eq('user_id', currentUser.id).eq('is_hidden', true);
+    .eq('user_id', currentUser.id).eq('is_hidden', true).in('communication_id', ids);
   if (error) { showToast('Could not restore hidden messages: ' + error.message, 'err'); return; }
   showToast('Hidden messages restored.');
   await openConversation(_activeConvId, _activeConvScope);
@@ -15943,6 +16003,34 @@ function startConvRealtime(scope = '') {
     }, payload => {
       applyDeliveryTickUpdate(payload.new);
     })
+    // Customer reactions live in their own table, not as an UPDATE to
+    // communications, so they need their own subscription - found missing
+    // during a full Inbox audit, 2026-09-03: a reaction sent while an agent
+    // had the conversation open never appeared until they closed and
+    // reopened it (loadCustomerReactions() only ever ran on open). WhatsApp
+    // allows one reaction per person per message, so a changed reaction is a
+    // real UPDATE on the same row, not a new INSERT - both share this
+    // handler. Requires public.communication_customer_reactions to be in
+    // the supabase_realtime publication (added 2026-09-03).
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'communication_customer_reactions',
+    }, payload => {
+      applyCustomerReactionUpdate(payload.new, false);
+    })
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'communication_customer_reactions',
+    }, payload => {
+      applyCustomerReactionUpdate(payload.new, false);
+    })
+    // A removal is a real DELETE (handleReactionMessage() in
+    // whatsapp-webhook) - payload.old carries communication_id only because
+    // this table's REPLICA IDENTITY is FULL, not the default primary-key-only
+    // shape most tables here use.
+    .on('postgres_changes', {
+      event: 'DELETE', schema: 'public', table: 'communication_customer_reactions',
+    }, payload => {
+      applyCustomerReactionUpdate(payload.old, true);
+    })
     .subscribe(status => {
       // Before this, .subscribe() took no callback at all: a channel that
       // errored, timed out or was closed underneath a working-looking Inbox
@@ -16037,6 +16125,32 @@ function applyDeliveryTickUpdate(row) {
   const html = deliveryTickHtml(row.direction, row.delivery_status);
   if (existing) existing.remove();
   if (html) timeEl.insertAdjacentHTML('beforeend', html);
+}
+
+// Same pattern as applyDeliveryTickUpdate above, for a customer's reaction to
+// a message. _customerReactions is updated regardless of whether the
+// affected conversation is the one currently open, so whenever it IS opened
+// (now or later) customerReactionFor() already has the right answer without
+// a redundant reload; the DOM patch itself only ever applies to the open
+// conversation - a bubble in a different, unopened conversation is simply
+// not on screen to patch, and will render correctly from loadCustomerReactions()
+// the next time that conversation is opened.
+function applyCustomerReactionUpdate(row, removed) {
+  if (!row || !row.communication_id) return;
+  const id = String(row.communication_id);
+  if (removed) _customerReactions.delete(id);
+  else _customerReactions.set(id, { emoji: row.emoji, reacted_at: row.reacted_at });
+
+  if (!_activeConvId) return;
+  const msgArea = document.getElementById('conv-msgs-' + _activeConvId);
+  const wrapper = msgArea?.querySelector(`[data-message-id="${CSS.escape(id)}"]`);
+  const timeEl  = wrapper?.querySelector('.msg-time');
+  if (!timeEl) return;   // not the open conversation, or not rendered on this page
+
+  const existing = timeEl.querySelector('.msg-reaction-customer');
+  if (existing) existing.remove();
+  const html = customerReactionMarkHtml(id);
+  if (html) timeEl.insertAdjacentHTML('afterbegin', html);
 }
 
 function stopConvRealtime() {

@@ -1,10 +1,34 @@
 # Badar Trader CRM - Handoff
 
-_Last updated: 2026-09-02, continuing from the entry directly below.
+_Last updated: 2026-09-03, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
 
-## 2026-09-02 (latest of all) - A real self-inflicted regression, found and fixed same day; Omnichannel sidebar reload-flash fixed
+## 2026-09-03 (latest of all) - Reports' Monthly Trend chart was reporting the current month as ZERO leads
+
+**DONE, frontend only, browser-verified, committed and pushed. No migration, no deploy, nothing touching live conversation data or any credential.** Picked up from a bare "continue": pulled `main` (clean, already up to date), read this file and its Active Work Claims (nothing open), reconciled the 15 open to-dos, and put the genuinely session-workable shortlist back to Muhammad instead of picking silently. He chose to continue the manual, evidence-based audit.
+
+**The bug, and why it matters more than a chart bug usually does.** The audit moved past the Inbox into Reports. Every unbounded Supabase read in `index.html` was swept first (68 `.select(` sites, 39 with no `.limit`/`.range`/`fetchAllRows`/single-row guard), then the highest-volume one was checked **against the live database rather than reasoned about**. "Monthly Trend - New Leads (Last 6 Months)" read every lead in the window with `select('created_at')`, unbounded, ordered oldest-first - and PostgREST silently caps an unbounded read at 1,000 rows. All 7,866 leads fall inside that window, so the chart rendered the oldest 1,000 and stopped:
+
+| month | rendered | real |
+|-------|---------:|-----:|
+| Jul   |      113 |  113 |
+| Aug   |      887 | 7,148 |
+| Sep   |    **0** |  606 |
+
+Same truncation class as the Dashboard (2026-08-24), All Leads search (2026-08-25) and the Inbox message thread (2026-09-02). This is the first one where the number was not merely low but **zero for the month currently being lived in**, on the page Badar is shown.
+
+**Fixed with six head-only counts, one per bucket** - the chart needs six integers, so no lead row crosses the wire at all, and it stays six small requests however large `leads` grows. Paginating with `fetchAllRows()` would also have been correct but would download the whole table on every Reports load.
+
+**Two more real defects found in the same block.** (1) The bucket loop stepped the month back *before* pinning the date to the 1st, which overflows on a long day: run on 31 March it yields Oct, Dec, Dec, Jan, Mar, Mar - November and February gone, two months double-counted. Never bit only because nobody opened Reports on the 31st. (2) Caused by the fix and caught by looking at the screen rather than the diff: `renderMonthlyTrendChart` pinned the y-axis to `stepSize: 2`, so the real August figure asked Chart.js for thousands of gridlines and the axis rendered as a solid block of overlapping labels. Now `precision: 0`, Chart.js picks the interval.
+
+**Also brought onto `PRODUCTION_LEADS_OR_FILTER`,** which every other figure on Reports has carried since 2026-09-02. That set is empty today (verified live, 0 rows), so no bar moves now - it keeps future 6541 bot-test traffic out of a business chart automatically.
+
+**Verification, honestly scoped.** Before/after numbers read off the live database, not inferred from code. The **real shipped block** was extracted from `index.html` and executed in the browser against stubbed counts, returning exactly the live figures (113 / 7,148 / 606) through the page's own `renderMonthlyTrendChart`; the chart was screenshotted before and after the axis fix. New `tests/reports-monthly-trend-test.mjs` runs that same real block rather than a copy, covering the production shape, the 31 March and 31 May overflow cases, contiguous half-open buckets, head-only reads, the filter, and a query error drawing the empty state instead of six honest-looking zero bars. 33 of 35 node suites pass; the 2 failures are the known Node-20 gap (both load generated `.ts`, and fail identically on a clean checkout - confirmed by stashing, not assumed). `whatsapp-number-hierarchy-test.mjs` hardcoded "exactly 3 production filters on Reports" and correctly failed on the 4th; updated to name the monthly trend and deliberately kept exact, since that assertion was doing its job. The only console errors in the preview are the service worker failing to register in the sandboxed browser (`sw.js` itself serves 200) - pre-existing and unrelated. No Edge Function changed, so no `deno check` and no PHP suite was in scope.
+
+**One decision left to Muhammad rather than made quietly, now a to-do:** August's 7,148 is mostly the 5,145-lead WhatChimp import bulk-loaded on 2026-08-24, so one import day dwarfs every real month. The funnel on this same page already excludes `source = 'whatchimp'` for exactly that reason. Excluding it here would change what the chart *means*, not just fix it - so the chart still counts leads added, as its title says, until he decides.
+
+## 2026-09-02 - A real self-inflicted regression, found and fixed same day; Omnichannel sidebar reload-flash fixed
 
 **Own mistake, fixed the same day it happened.** The `fetchAllRows()` parallel-batch rewrite earlier today (see entry below) had a real flaw: a batch's later pages can legitimately request rows past a table's true end before the code knows how many pages exist, and PostgREST can answer that with an error rather than an empty response - the code treated any error as fatal, so Ehsan's Dashboard got stuck permanently on "-" placeholders (not just slow) the moment his lead count crossed a batch boundary the wrong way. Fixed: an error on one page in a batch is only treated as fatal if EVERY page in that batch failed; an error alongside at least one successful page in the same batch is the harmless overshoot it is. Verified two ways in-browser: a simulated overshoot-error table now recovers all rows correctly, and a genuinely broken query (every page failing) still correctly surfaces its error. Also directly verified via JWT simulation that Ehsan's own real database access was never the problem, before assuming otherwise.
 
