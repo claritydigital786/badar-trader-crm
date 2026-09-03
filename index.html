@@ -8410,10 +8410,15 @@ function buildLedgerTab(lead, leadId, ctx, isAdmin, txRows) {
   const currencyOption = code => `<option value="${code}"${code === defaultTxCurrency ? ' selected' : ''}>${code}</option>`;
   const isLocked = !!lead.balance_locked;
   const balanceBlock = `
-    <div style="margin-bottom:20px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:20px">
+      <div>
       <div class="detail-label" style="margin-bottom:4px">Account Balance ${isLocked ? '<span title="Locked after conversion was approved - unlock it, with a reason, before editing" style="font-size:0.72rem;font-weight:700;color:var(--text-muted)">&#128274; Locked</span>' : ''}</div>
       <div style="font-size:1.8rem;color:var(--accent);font-weight:700">$${fmtMoney(lead.account_balance)}</div>
       <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px">Recorded from agent-entered data - not yet independently verified against the broker/platform.</div>
+      </div>
+      <button class="btn btn-secondary btn-sm" style="flex-shrink:0;white-space:nowrap"
+              onclick="openConversationFromLedger('${leadId}','${ctx}')"
+              title="Open Conversation">&#128172; Open Conversation</button>
     </div>
     ${isAdmin ? `
     <div class="form-row" style="align-items:flex-end;max-width:420px">
@@ -13470,6 +13475,16 @@ async function loadConvPage(scope = '', { reset = false, append = false, reconci
       // Fewer rows than we held means conversations left this filter; that is a
       // real change, not a reason to think there is nothing more behind them.
       st.hasMore = st.hasMore && rows.length >= (to - from + 1);
+      // A conversation opened straight from the Financial Ledger can live far
+      // outside the loaded depth (page 30, say). It was injected so the agent
+      // could see the row they are reading; a reconcile re-reads only the loaded
+      // range and would drop it, leaving the open chat with no row in the list.
+      // Keep the OPEN conversation pinned - it is the one the agent is looking
+      // at - and only while it is genuinely absent from the reconciled set.
+      const openRow = _activeConvId && !rows.some(c => c.lead_id === _activeConvId)
+        ? st.rows.find(c => c.lead_id === _activeConvId)
+        : null;
+      if (openRow) rows = [openRow].concat(rows);
       st.rows = rows;
       st.ids = new Set(rows.map(c => c.lead_id));
       _lastConvs = rows;
@@ -13987,6 +14002,89 @@ async function assignConversationAgent(leadId, agentId, scope = '') {
 }
 
 // Jumps to the lead's own detail panel without losing where they came from.
+// Financial Ledger -> Omnichannel Inbox, straight to this lead's conversation.
+// The mirror of openLeadFromConversation() below, which goes the other way.
+//
+// Identity is the canonical leads.id (UUID) the ledger tab already holds - never
+// the displayed name or phone, which are duplicated and formatted inconsistently
+// across imports.
+//
+// Authorisation is not re-implemented here. The existence check reads
+// inbox_conversation_list, a security_invoker view, so RLS answers the question:
+// a lead this user may not see returns zero rows and gets the same message as a
+// lead with no conversation. Not distinguishing the two is deliberate - telling
+// an agent "that lead exists but is not yours" leaks more than it helps.
+// openConversation() then re-reads the lead and its messages under the same
+// policies, so a tampered id cannot open anything either way.
+async function openConversationFromLedger(leadId, ctx = 'admin') {
+  const scope = ctx === 'agent' ? 'agent-' : '';
+  if (demoMode) { openInboxTabForScope(scope); await openConversation(leadId, scope); return; }
+
+  // One row, not a list scan: the conversation may be on page 30 of the Inbox
+  // and will not be among the 75 currently loaded.
+  const { data, error } = await sb.from('inbox_conversation_list')
+    .select(CONV_LIST_COLS).eq('lead_id', leadId).limit(1);
+  if (error) { showToast('Could not open conversation: ' + error.message, 'err'); return; }
+  if (!data || !data.length) {
+    // Genuinely no communications yet, or not this user's lead. Nothing is
+    // fabricated to make the navigation succeed - starting a conversation stays
+    // a separate, explicit action.
+    showToast('No conversation found for this lead yet.');
+    return;
+  }
+
+  openInboxTabForScope(scope);
+  // Wait on the list's own state rather than a fixed delay: switching tabs kicks
+  // off page 1, and inserting the row before that lands would have it wiped by
+  // the render that follows.
+  await whenConvListSettled(scope);
+  ensureConvRowPresent(convRowFromView(data[0]), scope);
+  await openConversation(leadId, scope);
+}
+
+// The Inbox lives in two shells that differ only by id prefix; this picks the one
+// belonging to the signed-in role rather than duplicating either.
+function openInboxTabForScope(scope) {
+  if (scope === 'agent-') {
+    agentTab('conversations', document.querySelector('#agent-tabs .tab-btn[data-tab="conversations"]')
+      || document.createElement('div'));
+  } else {
+    adminTab('conversations');
+  }
+}
+
+// Resolves once the conversation list has finished whatever load the tab switch
+// started. Polls the paging state that already exists, so it waits on a real
+// condition instead of guessing a duration, and gives up rather than hanging.
+function whenConvListSettled(scope = '', timeoutMs = 8000) {
+  const listEl = document.getElementById(scope + 'conv-list');
+  const st = convPaging(scope);
+  const ready = () => listEl && listEl.dataset.convLoaded === '1' && !st.loading;
+  if (ready()) return Promise.resolve();
+  return new Promise(resolve => {
+    const started = Date.now();
+    const tick = () => {
+      if (ready() || Date.now() - started > timeoutMs) return resolve();
+      setTimeout(tick, 50);
+    };
+    tick();
+  });
+}
+
+// Puts a conversation into the rendered list when paging has not reached it. One
+// row, no refetch of anything else, and the paging state is told about it so a
+// later page cannot render it a second time.
+function ensureConvRowPresent(row, scope = '') {
+  const listEl = document.getElementById(scope + 'conv-list');
+  if (!listEl || !row) return;
+  if (listEl.querySelector(`.conv-item[data-lead="${CSS.escape(String(row.lead_id))}"]`)) return;
+  const st = convPaging(scope);
+  st.rows = [row].concat(st.rows);
+  st.ids.add(row.lead_id);
+  _lastConvs = st.rows;
+  listEl.insertAdjacentHTML('afterbegin', convRowHtml(row, scope));
+}
+
 function openLeadFromConversation(leadId, scope = '') {
   if (scope === 'agent-') { agentTab('my-leads', document.querySelector('#agent-tabs .nav-item[data-tab="my-leads"]')); }
   else { adminTab('leads'); }
