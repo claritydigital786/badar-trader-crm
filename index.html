@@ -2293,7 +2293,7 @@
         <span>Admin · Owner</span>
       </div>
       <div class="account-menu" id="account-menu-admin" style="display:none">
-        <button type="button" onclick="toggleTheme(event)">🌓 Toggle Theme</button>
+        <button type="button" onclick="toggleTheme(event)">🌓 <span class="theme-switch-label">Switch to Light Mode</span></button>
         <button type="button" onclick="handleLogout()">🚪 Log Out</button>
       </div>
     </div>
@@ -4747,7 +4747,7 @@
         <span>Agent</span>
       </div>
       <div class="account-menu" id="account-menu-agent" style="display:none">
-        <button type="button" onclick="toggleTheme(event)">🌓 Toggle Theme</button>
+        <button type="button" onclick="toggleTheme(event)">🌓 <span class="theme-switch-label">Switch to Light Mode</span></button>
         <button type="button" onclick="handleLogout()">🚪 Log Out</button>
       </div>
     </div>
@@ -5580,12 +5580,26 @@ async function handleLogout() {
   await sb.auth.signOut();
 }
 
+// The menu item names where you are going, not the mechanism behind it.
+// It read "Toggle Theme" from 2026-08-03 until Muhammad asked why on
+// 2026-09-05: "toggle" is developer vocabulary, and unlike "Log Out" beside it
+// the label said neither what would change nor which way. Called on every
+// theme change and whenever the account menu opens, so a second tab, a
+// restored localStorage preference or an OS-level change can never leave the
+// label describing the theme the user is already in.
+function updateThemeSwitchLabels() {
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const text = dark ? 'Switch to Light Mode' : 'Switch to Dark Mode';
+  document.querySelectorAll('.theme-switch-label').forEach(el => { el.textContent = text; });
+}
+
 function toggleTheme(evt) {
   evt.stopPropagation();
   const root = document.documentElement;
   const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   root.setAttribute('data-theme', next);
   localStorage.setItem('bt-theme', next);
+  updateThemeSwitchLabels();
   // Chart.js draws onto a canvas with baked-in colors - it doesn't pick up
   // a CSS variable change on its own, so the dashboard charts need an
   // explicit re-render or they'd keep the old theme's colors until the
@@ -5604,6 +5618,7 @@ function toggleTheme(evt) {
   const saved = localStorage.getItem('bt-theme');
   const theme = saved || 'dark';
   document.documentElement.setAttribute('data-theme', theme);
+  updateThemeSwitchLabels();
 })();
 
 function toggleAccountMenu(evt, scope) {
@@ -5613,6 +5628,9 @@ function toggleAccountMenu(evt, scope) {
   const opening = menu.style.display === 'none' || !menu.style.display;
   document.querySelectorAll('.account-menu').forEach(m => m.style.display = 'none');
   menu.style.display = opening ? 'block' : 'none';
+  // Cheap, and it makes the label correct even if the theme changed in another
+  // tab since this page loaded.
+  if (opening) updateThemeSwitchLabels();
 }
 document.addEventListener('click', () => {
   document.querySelectorAll('.account-menu').forEach(m => m.style.display = 'none');
