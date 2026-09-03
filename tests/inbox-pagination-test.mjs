@@ -342,7 +342,8 @@ test('changing sort is a dataset reset that keeps every other filter', () => {
 });
 
 test('the sort preference is per-browser, never global', () => {
-  assert.match(html, /localStorage\.setItem\(CONV_SORT_KEY, _convSort\)/);
+  // The key became per-user on 2026-09-05; see the user-scoping test below.
+  assert.match(html, /localStorage\.setItem\(key, _convSort\)/);
   assert.match(html, /if \(CONV_SORT_MODES\.includes\(saved\)\) _convSort = saved;/);
   // Nothing may write a sort preference to a shared table.
   assert.ok(!/from\('(profiles|settings)'\)[\s\S]{0,200}sort/i.test(html),
@@ -386,4 +387,37 @@ test('the sort control is the only visual addition, in both shells', () => {
   const row = block('function convRowHtml', 'async function loadConvPage');
   assert.ok(row.includes('border-radius:50%;background:#3b82f6;margin-left:4px'),
     'the unread dot stays exactly as it was');
+});
+
+test('the sort preference is scoped to the authenticated user, not the browser', () => {
+  // localStorage is origin/profile scoped, NOT account scoped. The bare
+  // 'bt-conv-sort' key meant two people sharing a machine - which happens here -
+  // overwrote each other: Badar picking Oldest First silently became Hanzala's
+  // next time he signed in on that browser.
+  assert.match(html, /function convSortKey\(\) \{[\s\S]{0,240}`bt-conv-sort:\$\{uid\}`/,
+    'the storage key must include the authenticated user id');
+  assert.match(html, /const uid = currentUser\?\.id;/);
+  assert.match(html, /return uid \? `bt-conv-sort:\$\{uid\}` : null;/,
+    'with no signed-in user there is no key, so nothing is read or written');
+
+  // Nothing may read or write the bare key any more.
+  assert.ok(!/localStorage\.(get|set)Item\(\s*'bt-conv-sort'\s*[,)]/.test(html),
+    'the shared un-scoped key must no longer be used');
+  assert.ok(!/localStorage\.setItem\(CONV_SORT_KEY,/.test(html));
+
+  // The preference is applied once the user is known, not at parse time.
+  assert.match(html, /loadConvSortPreference\(\);   \/\/ per-user Inbox sort/,
+    'afterLogin must apply the signed-in user\'s own preference');
+  assert.match(html, /function loadConvSortPreference\(\) \{\s*\n\s*_convSort = 'recent';/,
+    'and must start from the production default before reading');
+  // Signing out must not leak the previous account's choice to the next login.
+  assert.match(html, /resetConvSortPreference\(\);   \/\/ the next account/);
+  assert.match(html, /function resetConvSortPreference\(\) \{\s*\n\s*_convSort = 'recent';\s*\n\}/);
+
+  // Writes are user-scoped too.
+  assert.match(html, /const key = convSortKey\(\);\s*\n\s*if \(key\) \{ try \{ localStorage\.setItem\(key, _convSort\); \} catch \(_\) \{\} \}/,
+    'saving must use the per-user key and be a no-op when signed out');
+
+  // Default for a user with no stored preference is unchanged.
+  assert.match(html, /let _convSort = 'recent';/);
 });

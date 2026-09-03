@@ -11,7 +11,10 @@ import vm from 'node:vm';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
 const start = html.indexOf('const CONV_PRIORITY_REASONS');
-const end   = html.indexOf('const CONV_SORT_KEY');
+// Anchored on the last function of the priority block itself, not on whatever
+// happens to follow it - the storage-key constant that used to sit here was
+// replaced when the sort preference became per-user (2026-09-05).
+const end   = html.indexOf('function convSortKey');
 assert.ok(start > 0 && end > start, 'The inbox priority block must exist in index.html.');
 
 const sandbox = {

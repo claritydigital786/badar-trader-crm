@@ -5607,6 +5607,7 @@ document.addEventListener('click', () => {
 function showLogin() {
   currentUser = currentProfile = null;
   cachedProfiles = []; cachedLeads = [];
+  resetConvSortPreference();   // the next account on this browser starts from its own
   document.getElementById('login-screen').style.display        = 'flex';
   document.getElementById('set-password-screen').style.display = 'none';
   document.getElementById('admin-dashboard').style.display = 'none';
@@ -5636,6 +5637,7 @@ async function afterLogin(user) {
   currentProfile = profile;
   document.getElementById('login-screen').style.display = 'none';
 
+  loadConvSortPreference();   // per-user Inbox sort, now that we know who this is
   if (isAdminRole(profile.role)) await initAdmin();
   else                           await initAgent();
 
@@ -12810,7 +12812,25 @@ function sortConvsByPriority(rows) {
     (b._prio.score - a._prio.score) || (b._sortTime - a._sortTime));
 }
 
-const CONV_SORT_KEY = 'bt-conv-sort';
+// Sort preference is stored PER AUTHENTICATED USER, not per browser.
+//
+// It used to be the bare key 'bt-conv-sort'. localStorage is scoped to the
+// origin and browser profile, NOT to the signed-in account, so two people
+// sharing a machine - which happens here - overwrote each other's choice: Badar
+// picking Oldest First silently became Hanzala's the next time he signed in on
+// that browser. Keying on the authenticated user id fixes that without a
+// database round trip, and the value is a UI preference only, never anything
+// that affects authorization or what a user can see.
+//
+// The legacy shared key ('bt-conv-sort') is deliberately NOT migrated: it
+// belongs to whoever set it last, and handing it to the next person to sign in
+// would repeat the exact bug. Anyone who had chosen a non-default sort re-picks
+// it once. The stale key is left in place rather than deleted - it is inert,
+// and clearing other origins' storage is not this function's business.
+function convSortKey() {
+  const uid = currentUser?.id;
+  return uid ? `bt-conv-sort:${uid}` : null;   // no user, no stored preference
+}
 // Default changed from 'priority' to 'recent' 2026-08-27 - found live that
 // 'priority' silently buried a large volume of real, very recent, unanswered
 // customer messages (48 conversations active in a single 6-hour window)
@@ -12831,17 +12851,36 @@ const CONV_SORT_KEY = 'bt-conv-sort';
 // toggled it. Restoring priority as the default would reintroduce that.
 const CONV_SORT_MODES = ['priority', 'recent', 'oldest'];
 const CONV_SORT_LABELS = { priority: 'Priority', recent: 'Newest First', oldest: 'Oldest First' };
+// The module-level default. The stored preference cannot be read here - this
+// runs before anyone has signed in, so there is no user to read it for.
+// loadConvSortPreference() applies it from afterLogin().
 let _convSort = 'recent';
-try {
-  const saved = localStorage.getItem(CONV_SORT_KEY);
-  if (CONV_SORT_MODES.includes(saved)) _convSort = saved;
-} catch (_) { /* private mode / storage blocked - the default is fine */ }
 
-// localStorage is per-browser and per-profile, so one person's choice is never
-// inherited by anyone else. Badar picking Oldest First cannot change Hanzala's.
+// Called once the signed-in user is known. Falls back to the production default
+// for a user who has never chosen, which is what a fresh account must get.
+function loadConvSortPreference() {
+  _convSort = 'recent';
+  const key = convSortKey();
+  if (!key) return;
+  try {
+    const saved = localStorage.getItem(key);
+    if (CONV_SORT_MODES.includes(saved)) _convSort = saved;
+  } catch (_) { /* private mode / storage blocked - the default is fine */ }
+  updateConvSortLabels();
+}
+
+// Signing out must not leave the previous account's choice in memory for the
+// next person to sign in on this browser.
+function resetConvSortPreference() {
+  _convSort = 'recent';
+}
+
+// Persisted under the signed-in user's own key, so two accounts sharing a
+// browser keep separate choices.
 function setConvSort(mode, scope = '') {
   _convSort = CONV_SORT_MODES.includes(mode) ? mode : 'recent';
-  try { localStorage.setItem(CONV_SORT_KEY, _convSort); } catch (_) {}
+  const key = convSortKey();
+  if (key) { try { localStorage.setItem(key, _convSort); } catch (_) {} }
   // A sort change IS a genuine dataset change: the whole authorised set is
   // re-ordered by Postgres and paging restarts from page 1 of the new order.
   // The active search, stage filter, ops chips and channel are all read fresh
