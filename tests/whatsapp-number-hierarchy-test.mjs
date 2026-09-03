@@ -210,9 +210,22 @@ const ctx = vm.createContext({ console });
 
   const reports = code.slice(code.indexOf('async function loadReports'),
                              code.indexOf('function renderAgentPerformanceReport'));
+  // Was 3 until 2026-09-03. The Monthly Trend chart was fixed that day (it had
+  // been truncated to the oldest 1,000 leads by PostgREST) and picked up the
+  // production filter in the same change, which every other figure on this page
+  // has carried since 2026-09-02 - so 4 is the filter reaching one more place,
+  // not a regression. The count is kept exact on purpose: a new business figure
+  // added here should fail this line and make someone look, exactly as this did.
   const orCalls = (reports.match(/\.or\(PRODUCTION_LEADS_OR_FILTER\)/g) || []).length;
-  assert.equal(orCalls, 3,
-    'Reports total-leads count, converted count and campaign funnel each apply the production filter');
+  assert.equal(orCalls, 4,
+    'Reports total-leads count, converted count, campaign funnel and monthly trend ' +
+    'each apply the production filter');
+  // `code` has had its // comments stripped, so anchor on real statements.
+  const trendStart = reports.indexOf('const monthCounts = await Promise.all');
+  const trendEnd = reports.indexOf('renderMonthlyTrendChart(months', trendStart);
+  assert.ok(trendStart > 0 && trendEnd > trendStart, 'the monthly trend counts were located');
+  assert.match(reports.slice(trendStart, trendEnd), /\.or\(PRODUCTION_LEADS_OR_FILTER\)/,
+    'the monthly trend counts exclude bot-test traffic like every other figure here');
 }
 
 // ── 8. The reporting RPCs apply the same rule, the same way ───────

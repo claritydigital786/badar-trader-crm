@@ -11146,30 +11146,58 @@ async function loadReports() {
   }
 
   // Monthly trend - last 6 months from real data
+  //
+  // Was an unbounded select of every lead in the six-month window, ordered
+  // oldest-first, and PostgREST silently caps an unbounded read at 1,000
+  // rows - the same truncation class already fixed on the Dashboard, on All
+  // Leads search and in the Inbox message thread. Checked against the live
+  // database before touching anything (2026-09-03): all 7,866 leads fall
+  // inside the window, so this chart was reading the OLDEST 1,000 of them
+  // and nothing else. August rendered 887 against a real 7,172, and
+  // September - the month actually being lived in - rendered a flat ZERO
+  // against a real 581. A trend chart that reports the current month as no
+  // leads at all is worse than showing no chart.
+  //
+  // Fixed with one head-only count per bucket rather than by paginating the
+  // rows: the chart needs six integers, so no row has to cross the wire at
+  // all, and it stays six small requests however large `leads` grows.
+  //
+  // Boundaries are built in local time because local-month bucketing is what
+  // this chart has always done - but the date is pinned to the 1st BEFORE
+  // the month is stepped back. The old order (step the month, then set the
+  // date) overflows on a long day: run on the 31st, `setMonth(-1)` from 31
+  // March lands on 3 March, and the bucket list ends up with a duplicate
+  // month and a missing one. It has never bitten because nobody opened
+  // Reports on the wrong day, not because it was right.
+  //
+  // .or(PRODUCTION_LEADS_OR_FILTER) brings this into line with every other
+  // figure on this page, which have excluded conclusively-identified
+  // bot-test traffic since 2026-09-02. That set is empty today (verified
+  // live, 0 rows), so no bar moves now - it simply keeps future 6541 test
+  // traffic out of a business chart automatically, like everywhere else.
   try {
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-    sixMonthsAgo.setDate(1);
-    const { data: monthlyLeads } = await sb
-      .from('leads').select('created_at')
-      .gte('created_at', sixMonthsAgo.toISOString())
-      .order('created_at', { ascending: true });
-    const buckets = {};
     const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = [];
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(); d.setMonth(d.getMonth() - i); d.setDate(1);
-      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0');
-      buckets[key] = { label: monthNames[d.getMonth()], count: 0 };
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      start.setDate(1);
+      start.setMonth(start.getMonth() - i);
+      const end = new Date(start);
+      end.setMonth(end.getMonth() + 1);
+      months.push({ label: monthNames[start.getMonth()], start, end });
     }
-    (monthlyLeads || []).forEach(l => {
-      const d = new Date(l.created_at);
-      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0');
-      if (buckets[key]) buckets[key].count++;
-    });
-    const mLabels = Object.values(buckets).map(b => b.label);
-    const mData   = Object.values(buckets).map(b => b.count);
-    renderMonthlyTrendChart(mLabels, mData);
+    const monthCounts = await Promise.all(months.map(m =>
+      sb.from('leads').select('id', { count: 'exact', head: true })
+        .gte('created_at', m.start.toISOString())
+        .lt('created_at', m.end.toISOString())
+        .or(PRODUCTION_LEADS_OR_FILTER)
+    ));
+    const failed = monthCounts.find(r => r.error);
+    if (failed) throw new Error(failed.error.message);
+    renderMonthlyTrendChart(months.map(m => m.label), monthCounts.map(r => r.count || 0));
   } catch(e) {
+    console.error('loadReports monthly trend:', e.message || e);
     renderMonthlyTrendChart([], []);
   }
   renderFinancialSummaryReport((finSummary && finSummary[0]) || null, e4 ? null : {
@@ -11329,7 +11357,14 @@ function renderMonthlyTrendChart(labels, data) {
         responsive: true,
         plugins: { legend: { display: false } },
         scales: {
-          y: { beginAtZero: true, ticks: { stepSize: 2, color:'#64748b', font:{size:11} }, grid: { color:'#f1f5f9' } },
+          // stepSize was pinned to 2, which asks Chart.js for a gridline every
+          // two leads. That was already producing a few hundred ticks on the
+          // truncated data this chart used to receive; with the real August
+          // figure of 7,148 it draws thousands and the y-axis renders as a
+          // solid block of overlapping labels (seen in the browser, 2026-09-03).
+          // Chart.js picks a sensible interval on its own - precision: 0 is all
+          // this needs, since a count of leads is always a whole number.
+          y: { beginAtZero: true, ticks: { precision: 0, color:'#64748b', font:{size:11} }, grid: { color:'#f1f5f9' } },
           x: { ticks: { color:'#64748b', font:{size:11} }, grid: { display: false } },
         }
       }
