@@ -45,6 +45,7 @@ A quick chronological log of real bugs found and fixed since the project started
 - **A conversation's entire message history had no row limit**, the same silent-1,000-row-cap bug class as above - a long-running conversation would eventually have its newest messages silently cut off with no error shown.
 - **Every agent's send started throwing "Assignment to constant variable"** the moment a new Financial Ledger feature shipped the same day - traced, reproduced, and fixed same-day.
 - **Reports' Monthly Trend chart showed zero leads for the current month** - the same unbounded-read/1,000-row-cap bug class, this time on the page Badar is shown directly.
+- **Every real user's password reset link redirected to a broken local address** (`127.0.0.1:3000`) instead of the live CRM - the project's Auth configuration had never been updated from its local-development default. Found from Farwa's own screenshot, confirmed against the live Auth service directly, and fixed.
 
 ---
 
