@@ -8990,7 +8990,14 @@ function depositRowHtml(d, forAdmin) {
   const tone = stage === 'awaiting_agent' ? 'var(--warn)'
              : stage === 'awaiting_admin' ? 'var(--accent)'
              : stage === 'returned' ? 'var(--bad)' : 'var(--ok)';
-  const field = (l, v) => `<div><div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">${esc(l)}</div><div style="font-size:0.84rem;color:var(--text-strong);font-weight:600">${esc(v || '-')}</div></div>`;
+  // min-width:0 on the grid item and overflow-wrap on the value - without
+  // both, a grid track's default min-width is its content's own unwrapped
+  // width, so a long unbroken string (an email address, easily 25+ chars)
+  // never shrinks to fit its 140px column and visually overflows straight
+  // into the next field instead of wrapping. Found live, 2026-09-04, from a
+  // screenshot showing an email address bleeding into the WhatsApp number
+  // sitting right next to it.
+  const field = (l, v) => `<div style="min-width:0"><div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">${esc(l)}</div><div style="font-size:0.84rem;color:var(--text-strong);font-weight:600;overflow-wrap:break-word">${esc(v || '-')}</div></div>`;
   return `
   <div class="card" style="padding:14px 16px;margin-bottom:12px;border-left:4px solid ${tone}">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
