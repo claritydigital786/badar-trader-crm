@@ -269,12 +269,16 @@ const ESCALATION_NOTIFICATIONS_ENABLED = true;
 // 3903, this ping still won't reach her. She needs to have messaged 6541
 // specifically.
 //
+// Widened again 2026-09-04 (Muhammad, explicit go-ahead): Farwa Qazi
+// (+92 328 5049458) added, alongside her receives_leads flip back to true
+// the same day. Same 6541-vs-3903 caveat as Mariyam above applies to her too.
+//
 // While only these numbers are listed, every OTHER real agent stays
 // completely unreachable no matter what else happens. Add more agents here
 // once the rhythm on these phones has been watched and judged right;
 // emptying this array is what makes notifications live for the whole team,
 // and that is a deliberate decision to take later, not part of this change.
-const AGENT_NOTIFY_TEST_NUMBERS: string[] = ["923342224925", "923235163874", "923002731461", "923325822756", "923365185363"];
+const AGENT_NOTIFY_TEST_NUMBERS: string[] = ["923342224925", "923235163874", "923002731461", "923325822756", "923365185363", "923285049458"];
 
 let cachedWaToken: string | null = null;
 let cachedWaPhoneId: string | null = null;
