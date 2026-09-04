@@ -37,11 +37,22 @@ port = 54324
 enabled = true
 file_size_limit = "50MiB"
 
+# Explicit rather than left to the CLI's own default, which pushed
+# `true` here on 2026-09-04 and failed the whole config push with a 402
+# (this project is on the free tier - vector buckets need a paid plan,
+# and nothing in this CRM uses them). Matches the project's real state.
+[storage.vector]
+enabled = false
+
 [auth]
 enabled = true
-# URL of the site that users are redirected to after login
-site_url = "http://127.0.0.1:3000"
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# URL of the site that users are redirected to after login. Was still the
+# local-dev default (127.0.0.1:3000) - never updated for production, which
+# is why a real password reset link redirected Farwa (and every other real
+# user, before her) to a local address instead of the live CRM. Found live,
+# 2026-09-04, from her own screenshot of the broken redirect.
+site_url = "https://crm.badartrader.com"
+additional_redirect_urls = ["https://crm.badartrader.com", "http://127.0.0.1:3000", "https://127.0.0.1:3000"]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
