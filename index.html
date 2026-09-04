@@ -2327,6 +2327,10 @@
             <button class="btn btn-secondary btn-sm ql-copy" id="quick-links-copy-btn" onclick="copySelectedQuickLink('')">Copy</button>
           </div>
         </div>
+        <button type="button" class="ql-chip-btn conv-copy-link-btn" id="conv-copy-link-btn" style="display:none"
+                title="Copy a direct link to the conversation that's open right now" onclick="copyActiveConvLink('')">
+          <span class="h-icon" data-nav-icon="link"></span><span class="ql-chip-text">Copy Link</span>
+        </button>
         <div class="wa-chan" id="wa-chan" style="display:none">
           <button type="button" class="wa-chan-btn" id="wa-chan-btn" aria-haspopup="listbox" aria-expanded="false"
                   title="Which real WhatsApp number to show conversations from" onclick="toggleWaChannelMenu(event,'')">
@@ -4780,6 +4784,10 @@
             <button class="btn btn-secondary btn-sm ql-copy" id="agent-quick-links-copy-btn" onclick="copySelectedQuickLink('agent-')">Copy</button>
           </div>
         </div>
+        <button type="button" class="ql-chip-btn conv-copy-link-btn" id="agent-conv-copy-link-btn" style="display:none"
+                title="Copy a direct link to the conversation that's open right now" onclick="copyActiveConvLink('agent-')">
+          <span class="h-icon" data-nav-icon="link"></span><span class="ql-chip-text">Copy Link</span>
+        </button>
         <div class="wa-chan" id="agent-wa-chan" style="display:none">
           <button type="button" class="wa-chan-btn" id="agent-wa-chan-btn" aria-haspopup="listbox" aria-expanded="false"
                   title="Which real WhatsApp number to show conversations from" onclick="toggleWaChannelMenu(event,'agent-')">
@@ -13206,6 +13214,22 @@ function setQuickLinksChip(active, scope = '') {
   const wrap = document.getElementById(`${scope}quick-links`);
   if (wrap) wrap.style.display = active ? '' : 'none';
   if (!active) closeQuickLinksMenus();
+  // Copy CRM Link sits right beside Quick Links and should show/hide with it -
+  // both are Conversations-tab-only header controls. Requested by Bilal via
+  // Muhammad, 2026-09-04: a direct link to a lead's own conversation, so an
+  // agent working from elsewhere can jump straight back to the right
+  // conversation instead of hunting through All Leads. The underlying link
+  // itself (copyConvLink(), ?conv=<leadId> deep link, opened by
+  // handleConvDeepLink() on load) already existed - it had a real "Copy Link"
+  // button in the conversation header until 2026-09-01, deliberately removed
+  // pending a better home for it. This is that home.
+  const copyBtn = document.getElementById(`${scope}conv-copy-link-btn`);
+  if (copyBtn) copyBtn.style.display = active ? '' : 'none';
+}
+
+function copyActiveConvLink(scope = '') {
+  if (!_activeConvId) { showToast('Open a conversation first.', 'err'); return; }
+  copyConvLink(_activeConvId);
 }
 
 document.addEventListener('click', (e) => {
