@@ -477,12 +477,22 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
 
       const messages: any[] = change?.value?.messages ?? [];
       const contacts: any[] = change?.value?.contacts ?? [];
-      // Delivery statuses only ever describe a message THIS webhook sent -
-      // never relevant for 3903, since the ingest-only path below never sends
-      // anything. Skipping them there avoids a WhatChimp-sent message's real
-      // delivery failure showing up as a misleading "[DELIVERY FAILED]" note
-      // on a lead this CRM never actually messaged.
-      const statuses: any[] = isPrimaryNumber ? (change?.value?.statuses ?? []) : [];
+      // Was `isPrimaryNumber ? statuses : []` on the assumption that "the
+      // ingest-only path below never sends anything", so a 3903 status could
+      // only ever describe a WhatChimp-sent message, not one of ours. That
+      // assumption is false: agents send real messages (text, images, voice
+      // notes) to real customers straight through the 3903 channel via
+      // send-wa-message, and every delivery tick for those sends - sent,
+      // delivered, read, and critically failed - was being silently
+      // discarded here, project-wide, for as long as 3903 has existed.
+      // Found 2026-09-05 chasing Faisal's report that clients "aren't
+      // receiving" agent-sent voice notes: 100% of outbound voice notes had
+      // a real wamid from Meta but zero ever got a delivery_status, because
+      // almost all of them go out on 3903 and every status callback for
+      // that number was thrown away here before recordDeliveryStatus ever
+      // ran. The notes may or may not actually be failing to arrive - that
+      // was invisible either way, which is the bug.
+      const statuses: any[] = (isPrimaryNumber || isIngestOnlyNumber) ? (change?.value?.statuses ?? []) : [];
 
       for (const status of statuses) {
         const recipientPhone = normalisePhone(status.recipient_id ?? "");
@@ -531,6 +541,12 @@ async function handleIncomingMessage(payload: unknown): Promise<void> {
                 "outbound",
                 `[DELIVERY FAILED: ${errorInfo ?? "no error detail from Meta"}]`,
                 new Date().toISOString(),
+                undefined,
+                undefined,
+                // This status event just started being processed for 3903 too
+                // (see the statuses[] fix above) - insertCommunication's own
+                // default of "6541" would mislabel a real 3903 failure.
+                isPrimaryNumber ? "6541" : "3903",
               );
             }
           }
@@ -1096,10 +1112,11 @@ async function insertCommunication(
   attachmentPath?: string,
   waMessageId?: string,
   // Which real WhatsApp number this specific message actually went through.
-  // Defaults to "6541" because every call site except ingestOnlyMessage()
-  // (3903's ingest-only path, which passes "3903" explicitly) already lives
-  // inside the primary-number code path - see the 20260901010000 migration
-  // for why this per-message fact exists separately from leads.wa_channel.
+  // Defaults to "6541", but every call site now passes it explicitly where
+  // the event could be either number (ingestOnlyMessage()'s "3903" path, and
+  // the DELIVERY FAILED insert above, now that 3903 statuses are processed
+  // too) - see the 20260901010000 migration for why this per-message fact
+  // exists separately from leads.wa_channel.
   channel: "6541" | "3903" = "6541",
 ): Promise<void> {
   const { error } = await sb.from("communications").insert({
