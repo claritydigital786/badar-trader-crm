@@ -145,6 +145,30 @@ const escalated = (over = {}) => doc({ agent_reviewed_at: '2026-09-01T10:00:00Z'
     'D: the function takes no amount from the caller');
 }
 
+// ══ D2. A second, still-open submission on an already-approved lead ═══
+// Found live 2026-09-05: a customer with TWO deposit-screenshot submissions
+// had the first one approved (converting the lead, locking its balance) -
+// the second document was still sitting in Ehsan's admin queue afterwards,
+// because depositStage() only ever reads the DOCUMENT's own status, never
+// the lead's. The queue kept showing a live "Approve" button for it, and
+// clicking it threw whatever the database trigger happened to say
+// ("the lead is 'converted'...", or "balance is locked..." when the status
+// column itself lagged behind balance_locked). Both must be caught here,
+// before render, not after the click.
+{
+  const convertedLead = { ...submittedLead(), status: 'converted', balance_locked: true, converted_at: '2026-09-01T12:00:00Z' };
+  assert.ok(depositApprovalProblems(convertedLead, escalated()).some(p => /not Pending Approval/.test(p)),
+    'D2: a second open document against an already-converted lead is refused, by status');
+
+  // The exact live shape: status still 'pending_approval' (never got as far
+  // as being flipped) but balance_locked already true from the FIRST
+  // approval. depositApprovalProblems() must not read this as approvable
+  // just because the status column alone still looks fine.
+  const lockedButNotFlipped = { ...submittedLead(), balance_locked: true };
+  assert.ok(depositApprovalProblems(lockedButNotFlipped, escalated()).some(p => /balance is already locked/.test(p)),
+    'D2: balance_locked alone blocks approval, independent of status');
+}
+
 // ══ E. Ehsan returns it ═══════════════════════════════════════
 {
   const returned = doc({ status: 'rejected', notes: 'Screenshot is cropped.', agent_reviewed_at: null });

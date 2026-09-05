@@ -8827,6 +8827,15 @@ function depositApprovalProblems(lead, doc) {
   const out = [];
   if (!lead) { out.push('the lead no longer exists'); return out; }
   if (lead.status !== 'pending_approval') out.push(`the lead is "${lead.status}", not Pending Approval`);
+  // Caught separately from the status check above: a lead can still read
+  // 'pending_approval' while already carrying balance_locked from an earlier
+  // approval (seen live 2026-09-05 on a duplicate submission - the FIRST
+  // document converted the lead and locked its balance, but the second,
+  // still-open document for the same lead kept the queue showing "Approve"
+  // as if nothing had happened). approveConversion() would hit this as a
+  // database trigger error either way; flagging it here means the admin
+  // queue can show the real reason before the click, not after.
+  if (lead.balance_locked) out.push("this lead's balance is already locked from a previous approval");
   if (!(Number(lead.deposit_amount) > 0)) out.push('no deposit amount was submitted');
   if (!lead.deposit_platform) out.push('no broker was recorded');
   if (!lead.deposit_account_ref) out.push('no trading account reference was recorded');
@@ -8869,7 +8878,7 @@ async function loadDepositSubmissions({ agentId = null, escalatedOnly = false } 
     (!escalatedOnly || (!!d.agent_reviewed_at && d.status === 'pending')));
   let q = sb.from('kyc_documents')
     .select('id, client_id, status, notes, file_path, uploaded_at, agent_reviewed_by, agent_reviewed_at, ' +
-            'lead:leads!client_id(id, full_name, email, phone, assigned_agent_id, deposit_platform, deposit_amount, deposit_account_ref, status)')
+            'lead:leads!client_id(id, full_name, email, phone, assigned_agent_id, deposit_platform, deposit_amount, deposit_account_ref, status, balance_locked)')
     .eq('document_type', DEPOSIT_DOC_TYPE)
     .order('uploaded_at', { ascending: false })
     .limit(500);
@@ -9149,6 +9158,17 @@ function depositRowHtml(d, forAdmin, dupCount) {
   const stage = depositStage(d);
   const amount = Number(lead.deposit_amount || 0);
   const agent = (cachedProfiles || []).find(p => p.id === lead.assigned_agent_id);
+  // Checked at render time, not just inside decideDeposit() on click. Found
+  // live 2026-09-05: a lead with two open deposit submissions (a legitimate
+  // second deposit, or a genuine duplicate) had its FIRST one approved,
+  // converting the lead and locking its balance - but the SECOND still sat in
+  // the admin queue with a live "Approve" button, since depositStage() only
+  // ever looks at the document's own status, never the lead's. Clicking it
+  // threw a real but confusing error straight from the database trigger
+  // ("the lead is 'converted'...", "balance is locked..."). Same reasons
+  // approveConversion() itself already checks, just surfaced before the
+  // click instead of after.
+  const adminApproveBlockers = (forAdmin && stage === 'awaiting_admin') ? depositApprovalProblems(lead, d) : [];
   const tone = stage === 'awaiting_agent' ? 'var(--warn)'
              : stage === 'awaiting_admin' ? 'var(--accent)'
              : stage === 'returned' ? 'var(--bad)' : 'var(--ok)';
@@ -9179,13 +9199,15 @@ function depositRowHtml(d, forAdmin, dupCount) {
     ${d.notes && stage === 'returned' ? `<div style="font-size:0.8rem;color:var(--bad);margin-bottom:10px">Returned: ${esc(d.notes)}</div>` : ''}
     ${dupCount > 1 ? `<div style="font-size:0.78rem;color:var(--warn);background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.28);border-radius:8px;padding:7px 10px;margin-bottom:10px">
       Possible duplicate - this lead has ${dupCount} open verifications. Check both before discarding: a customer can legitimately deposit twice.</div>` : ''}
+    ${forAdmin && stage === 'awaiting_admin' && adminApproveBlockers.length ? `<div style="font-size:0.78rem;color:var(--bad);background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.28);border-radius:8px;padding:7px 10px;margin-bottom:10px">
+      Cannot approve yet - ${esc(adminApproveBlockers.join('; '))}. Likely a duplicate submission for a lead already decided - use Return to Agent to clear this one, or check the lead's other verification first.</div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-secondary btn-sm" onclick="viewDepositScreenshot('${esc(d.file_path || '')}')">View Screenshot</button>
       ${!forAdmin && (stage === 'awaiting_agent' || stage === 'returned') ? `
         <button class="btn btn-primary btn-sm" id="dep-escalate-${esc(d.id)}"
           onclick='escalateDepositToAdmin("${esc(d.id)}", ${JSON.stringify(lead).replace(/'/g, "&#39;")})'>Send to Admin for Verification</button>` : ''}
       ${forAdmin && stage === 'awaiting_admin' ? `
-        <button class="btn btn-primary btn-sm" onclick="decideDeposit('${esc(d.id)}','verified','${esc(lead.id)}','')">Approve</button>
+        ${adminApproveBlockers.length ? '' : `<button class="btn btn-primary btn-sm" onclick="decideDeposit('${esc(d.id)}','verified','${esc(lead.id)}','')">Approve</button>`}
         <button class="btn btn-secondary btn-sm" onclick="decideDeposit('${esc(d.id)}','rejected','${esc(lead.id)}','')">Return to Agent</button>` : ''}
       ${!forAdmin && canDiscardDeposit(d) ? `
         <button class="btn btn-secondary btn-sm" style="color:var(--bad);border-color:var(--bad)"
