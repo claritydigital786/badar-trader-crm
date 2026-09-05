@@ -4,6 +4,20 @@ _Last updated: 2026-09-05, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
 
+## 2026-09-05 (latest of all) - Deposit Approvals was offering "Approve" on submissions guaranteed to fail
+
+**FIXED AND PUSHED (frontend only, no migration, no Edge Function deploy needed - `index.html` ships straight to Vercel on push to `main`).** Muhammad sent two screenshots from Ehsan clicking Approve in the Deposit Approvals queue: "Cannot approve - the lead is 'converted', not Pending Approval" on Haroon Faridi, and "This lead's balance is locked after approval - unlock it (with a reason) before editing" on Hamza Ijaz Khan, plus two screen recordings of the actual clicks.
+
+**Root cause, confirmed live, not assumed.** Queried both leads directly: each has **two** `kyc_documents` rows for the same lead (a duplicate deposit-screenshot submission) - one already `verified` (which had already converted the lead / locked its balance), the other still `status='pending'` with `agent_reviewed_at` set, which is exactly what the admin queue's filter (`escalatedOnly`) matches on. The queue's "Approve" button (`depositRowHtml()`) decides whether to render based only on `depositStage(d)`, which reads the *document's* own status - it never once checked whether the *lead* itself was still actually approvable. That check already existed (`depositApprovalProblems()`), it was just only ever called reactively, inside `decideDeposit()`, after the click had already failed.
+
+**Two real leads, two different symptoms of the same bug.** Haroon Faridi's lead was fully `converted` already, caught by `depositApprovalProblems()`'s existing `lead.status !== 'pending_approval'` check. Hamza Ijaz Khan's lead was more subtle: `status` still read `'pending_approval'` (never got flipped), but `balance_locked` was already `true` from the earlier approval - and `depositApprovalProblems()` had **never checked `balance_locked` at all**, so this exact shape could pass every existing pre-check and still blow up on the database trigger that guards balance edits.
+
+**Fix.** `loadDepositSubmissions()` now selects `balance_locked` on the joined lead (it wasn't being fetched before). `depositApprovalProblems()` now also flags `lead.balance_locked`. `depositRowHtml()` now calls `depositApprovalProblems(lead, d)` at render time for every `awaiting_admin` row: if there's a real problem, the Approve button is not rendered at all - replaced with a red warning box naming the actual reason(s) and a note that this is almost certainly a duplicate submission for an already-decided lead, with "Return to Agent" left as the way to clear it from the queue.
+
+**Verified two ways.** Two new cases in `tests/deposit-approval-balance-test.mjs` (section D2) cover both shapes: the status-only case and the balance_locked-only case. Live-checked in a demo-mode browser session by reproducing the exact real scenario (one clean pending lead, one converted+locked lead sharing the same test structure as the real data) - the clean lead still shows a working Approve button, the broken one shows the warning with no Approve button at all. All node suites pass except the 2 known pre-existing Node-20/`.ts` failures (confirmed identical on a clean checkout via `git stash`).
+
+**Left for Muhammad/Ehsan, not touched from here.** The two real, still-stale `kyc_documents` rows for Haroon Faridi and Hamza Ijaz Khan are untouched in the live database - only the code that renders them changed. They'll now show the correct warning in the UI; someone should click "Return to Agent" on each once seen, since that's a decision on real financial records this session should not make unilaterally.
+
 ## 2026-09-05 (latest of all) - Delivery-status callbacks for the real 3903 channel were being silently discarded
 
 **FIXED AND LIVE IN PRODUCTION, verified byte-identical against `main`, all tests pass.** Picked up from Faisal's bug report in the team WhatsApp group ("clients aren't receiving voice notes, and reply-to-previous-message doesn't work either"), shared as a screenshot.
