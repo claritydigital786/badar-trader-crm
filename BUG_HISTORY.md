@@ -46,6 +46,7 @@ A quick chronological log of real bugs found and fixed since the project started
 - **Every agent's send started throwing "Assignment to constant variable"** the moment a new Financial Ledger feature shipped the same day - traced, reproduced, and fixed same-day.
 - **Reports' Monthly Trend chart showed zero leads for the current month** - the same unbounded-read/1,000-row-cap bug class, this time on the page Badar is shown directly.
 - **Every real user's password reset link redirected to a broken local address** (`127.0.0.1:3000`) instead of the live CRM - the project's Auth configuration had never been updated from its local-development default. Found from Farwa's own screenshot, confirmed against the live Auth service directly, and fixed.
+- **Every delivery-status callback (sent/delivered/read/failed) for the real 3903 channel was being silently discarded**, project-wide, on the false assumption that 3903 "never sends anything" - agents actually send real messages, including every voice note, straight through 3903. Traced from Faisal's report that clients weren't receiving voice notes: 100% of outbound voice notes had a real WhatsApp message id but zero ever got a delivery status, so a genuine failure would have been invisible either way. Fixed so both numbers' statuses are processed, and a resulting "[DELIVERY FAILED]" note is now tagged with the channel it actually failed on instead of always defaulting to 6541.
 
 ---
 

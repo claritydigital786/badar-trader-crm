@@ -4,6 +4,18 @@ _Last updated: 2026-09-05, continuing from the entry directly below.
 For a fresh Claude Code session with zero memory of prior conversations -
 including one logged into a different Claude account._
 
+## 2026-09-05 (latest of all) - Delivery-status callbacks for the real 3903 channel were being silently discarded
+
+**FIXED AND LIVE IN PRODUCTION, verified byte-identical against `main`, all tests pass.** Picked up from Faisal's bug report in the team WhatsApp group ("clients aren't receiving voice notes, and reply-to-previous-message doesn't work either"), shared as a screenshot.
+
+**Cause.** `whatsapp-webhook`'s status-callback handler only ever read `change?.value?.statuses` when the incoming event matched `isPrimaryNumber` (the 6541 number). For 3903, it hardcoded `statuses = []`, on a comment-documented assumption that "the ingest-only path below never sends anything" - true of the bot's own auto-replies, false of agents manually messaging real customers via `send-wa-message`, which routes almost every real customer send through 3903 (`resolveSendChannel()` follows whichever number the customer's own messages come in on). Confirmed live: **100% of the last 30 days' outbound voice notes (63 rows) had a real WhatsApp message id from Meta, but zero ever received any `delivery_status`** - not sent, not delivered, not read, not failed - because the callback carrying that information was thrown away before `recordDeliveryStatus` ever ran. A genuine delivery failure on 3903 would have been completely invisible, which matches Faisal's report exactly.
+
+**Fix.** `statuses` is now read for both `isPrimaryNumber` and `isIngestOnlyNumber` events. The one write this unlocks - inserting a `[DELIVERY FAILED: ...]` note into the lead's conversation on a real "failed" callback - now tags it with the channel the failure actually happened on (3903 or 6541) instead of `insertCommunication`'s old default of always "6541".
+
+**Verified before deploy.** `deno check` clean. All 11 Deno test files in `supabase/functions/tests` pass, including `whatsapp-phone-scope-test.mjs` (the suite covering exactly this primary/ingest-only distinction). Deployed via `supabase functions deploy whatsapp-webhook`, then downloaded the live function and diffed against the committed source - byte-identical, no drift. Committed `920bfb5`, pushed to `main`.
+
+**Still open.** This fix makes real send failures on 3903 visible again going forward; it does not itself prove whether any specific past voice note actually failed to arrive (that history was never recorded). Faisal's second complaint - "reply to previous message" (quoted-reply) not working - was checked earlier this session and the code path (`context: { message_id: replyToWaMessageId }` in `send-wa-message`) looks structurally correct; still needs a concrete repro from Faisal to dig further, unless the delivery-status fix above turns out to explain that too (a reply whose original message silently failed would have nothing valid to quote).
+
 ## 2026-09-05 (latest of all) - Every agent send threw an error in the Inbox; found from a screenshot, reproduced, fixed and live
 
 **FIXED AND LIVE IN PRODUCTION, verified byte-identical against `main`.** Muhammad sent a screenshot of the toast agents were getting: "Could not refresh conversations: Assignment to constant variable." He then said it fires on every click of the send button, for any agent.
