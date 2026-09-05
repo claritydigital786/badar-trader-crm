@@ -131,8 +131,19 @@ const escalated = (over = {}) => doc({ agent_reviewed_at: '2026-09-01T10:00:00Z'
   // approved balance, marks the document verified and creates exactly one
   // deposit transaction. The frontend only calls it.
   const fn = html.slice(html.indexOf('async function approveConversion'), html.indexOf('async function rejectConversion'));
-  assert.ok(/sb\.rpc\('approve_deposit_and_convert', \{ p_document_id: documentId \}\)/.test(fn),
-    'D: approval routes through the atomic RPC');
+  // Phase 46 changed this contract ON PURPOSE. The browser now HAS to supply an
+  // amount - but it is the one a human typed after reading the screenshot, not
+  // the customer's claim, which no longer reaches the ledger by any path.
+  assert.ok(/sb\.rpc\('approve_deposit_and_convert', \{\s*p_document_id: documentId,\s*p_verified_amount: approved,\s*p_confirm_mismatch: verdict\.confirmMismatch,?\s*\}\)/.test(fn),
+    'D: approval routes through the atomic RPC, carrying the verified amount');
+  assert.ok(/const verdict = await askVerifiedDepositAmount\(/.test(fn),
+    'D: the amount comes from the verification dialog');
+  assert.ok(/if \(!verdict\) return false;/.test(fn),
+    'D: cancelling the dialog approves nothing');
+  assert.ok(/const approved = verdict\.amount;/.test(fn),
+    'D: the approved figure is the typed one, never freshLead.deposit_amount');
+  assert.ok(!/const approved = Number\(freshLead\.deposit_amount\)/.test(fn),
+    'D: the customer claim must never again become the approved amount');
   assert.ok(!/\.from\('leads'\)\s*\.update\(/.test(fn) && !/update\(\{[^}]*status: 'converted'/.test(fn),
     'D: the browser must no longer write the conversion itself');
   const mig = readFileSync(new URL('../supabase/migrations/20260901060000_deposit_approval_transaction.sql', import.meta.url), 'utf8');

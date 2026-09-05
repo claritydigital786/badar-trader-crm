@@ -8836,7 +8836,10 @@ function depositApprovalProblems(lead, doc) {
   // database trigger error either way; flagging it here means the admin
   // queue can show the real reason before the click, not after.
   if (lead.balance_locked) out.push("this lead's balance is already locked from a previous approval");
-  if (!(Number(lead.deposit_amount) > 0)) out.push('no deposit amount was submitted');
+  // Phase 46 renamed what this checks, not whether it is checked: a submission
+  // carrying no customer amount is still a broken submission, but the claim is
+  // now evidence rather than the figure that becomes money.
+  if (!(Number(lead.claimed_deposit_amount ?? lead.deposit_amount) > 0)) out.push('the customer submitted no deposit amount');
   if (!lead.deposit_platform) out.push('no broker was recorded');
   if (!lead.deposit_account_ref) out.push('no trading account reference was recorded');
   if (!doc) out.push('no deposit screenshot is on file');
@@ -8878,7 +8881,7 @@ async function loadDepositSubmissions({ agentId = null, escalatedOnly = false } 
     (!escalatedOnly || (!!d.agent_reviewed_at && d.status === 'pending')));
   let q = sb.from('kyc_documents')
     .select('id, client_id, status, notes, file_path, uploaded_at, agent_reviewed_by, agent_reviewed_at, ' +
-            'lead:leads!client_id(id, full_name, email, phone, assigned_agent_id, deposit_platform, deposit_amount, deposit_account_ref, status, balance_locked)')
+            'lead:leads!client_id(id, full_name, email, phone, assigned_agent_id, deposit_platform, deposit_amount, claimed_deposit_amount, verified_deposit_amount, account_balance, deposit_account_ref, status, balance_locked)')
     .eq('document_type', DEPOSIT_DOC_TYPE)
     .order('uploaded_at', { ascending: false })
     .limit(500);
@@ -9156,7 +9159,11 @@ function depositDuplicateCounts(rows) {
 function depositRowHtml(d, forAdmin, dupCount) {
   const lead = d.lead || {};
   const stage = depositStage(d);
-  const amount = Number(lead.deposit_amount || 0);
+  // Once approved the card must show the VERIFIED figure, never the claim -
+  // showing a customer's number where money belongs is the whole defect.
+  const amount = Number(
+    (stage === 'approved' ? (lead.verified_deposit_amount ?? lead.account_balance) : null)
+    ?? lead.claimed_deposit_amount ?? lead.deposit_amount ?? 0);
   const agent = (cachedProfiles || []).find(p => p.id === lead.assigned_agent_id);
   // Checked at render time, not just inside decideDeposit() on click. Found
   // live 2026-09-05: a lead with two open deposit submissions (a legitimate
@@ -9191,7 +9198,7 @@ function depositRowHtml(d, forAdmin, dupCount) {
       ${field('WhatsApp', lead.phone)}
       ${field('Broker', lead.deposit_platform)}
       ${field('Trading Account ID', lead.deposit_account_ref)}
-      ${field('Deposit Amount', amount ? '$' + fmtMoney(amount) : '-')}
+      ${field(stage === 'approved' ? 'Verified Amount' : 'Customer Claimed', amount ? '$' + fmtMoney(amount) : '-')}
       ${field('Submitted', d.uploaded_at ? new Date(d.uploaded_at).toLocaleString() : '-')}
       ${forAdmin ? field('Agent', agent?.full_name || agent?.email || 'Unassigned') : ''}
       ${d.agent_reviewed_at ? field('Sent to admin', new Date(d.agent_reviewed_at).toLocaleString()) : ''}
@@ -9689,6 +9696,126 @@ async function notifyAdminPendingApproval(leadId) {
 //    end to end - the right lead, in the right state, with an amount, a broker,
 //    an account reference, a screenshot, and an agent who has actually reviewed
 //    and escalated it.
+// ── VERIFIED DEPOSIT AMOUNT: the human check before money is created ──
+//
+// A customer typed 60037 on 2026-09-05, an admin clicked Approve, and USD
+// 60,037 became a balance, a ledger transaction, AUM, a Reports figure and a
+// row on the Google Sheet. The real deposit was 637.16. Nothing had ever asked
+// a person what the screenshot actually said.
+//
+// So the amount is no longer carried from the customer to the ledger by any
+// path. The admin reads the screenshot and types the figure, into a box that
+// starts EMPTY. It is deliberately not pre-filled with the claim: a pre-filled
+// field is a default, and a default is exactly what got approved last time.
+// approve_deposit_and_convert() re-checks all of this server-side; this dialog
+// only makes the check possible to perform well.
+const DEPOSIT_HIGH_VALUE_FALLBACK = 10000;
+let _depositHighValueThreshold = null;
+
+async function depositHighValueThreshold() {
+  if (_depositHighValueThreshold !== null) return _depositHighValueThreshold;
+  if (demoMode) return (_depositHighValueThreshold = DEPOSIT_HIGH_VALUE_FALLBACK);
+  const { data } = await sb.from('settings').select('value').eq('key', 'deposit_high_value_threshold').maybeSingle();
+  const n = Number(data?.value);
+  return (_depositHighValueThreshold = (Number.isFinite(n) && n > 0) ? n : DEPOSIT_HIGH_VALUE_FALLBACK);
+}
+
+// Resolves to { amount, confirmMismatch } or null if the admin backs out.
+async function askVerifiedDepositAmount({ lead, filePath, claimed }) {
+  const threshold = await depositHighValueThreshold();
+  let shotUrl = null;
+  if (filePath && !demoMode) {
+    const { data } = await sb.storage.from('deposit-screenshots').createSignedUrl(filePath, 300);
+    shotUrl = data?.signedUrl || null;
+  }
+  document.getElementById('dep-approve-overlay')?.remove();
+
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'fwd-overlay';
+    overlay.id = 'dep-approve-overlay';
+    const done = v => { overlay.remove(); resolve(v); };
+    overlay.onclick = e => { if (e.target === overlay) done(null); };
+    const claimTxt = (claimed === null || claimed === undefined || !Number.isFinite(Number(claimed)))
+      ? 'not recorded' : '$' + fmtMoney(Number(claimed));
+    overlay.innerHTML = `<div class="fwd-panel" role="dialog" aria-modal="true" aria-label="Verify deposit amount" style="padding:18px;max-width:560px">
+      <h4 style="margin:0 0 10px;color:inherit">Verify the deposit before approving</h4>
+      <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:10px">${esc(lead?.full_name || lead?.phone || 'This lead')}${lead?.deposit_account_ref ? ' - acct ' + esc(lead.deposit_account_ref) : ''}${lead?.deposit_platform ? ' - ' + esc(lead.deposit_platform) : ''}</div>
+      ${shotUrl ? `<a href="${esc(shotUrl)}" target="_blank" rel="noopener" title="Open full size">
+        <img src="${esc(shotUrl)}" alt="Deposit screenshot" style="width:100%;max-height:320px;object-fit:contain;background:#0f172a;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:10px"></a>`
+        : `<div class="fwd-preview" style="margin-bottom:10px">No screenshot is attached to this submission.</div>`}
+      <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-bottom:6px">
+        <div style="flex:1 1 180px;min-width:0">
+          <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">Customer claimed amount</div>
+          <div style="font-size:1.05rem;font-weight:700;color:var(--text-strong)">${claimTxt}</div>
+        </div>
+        <div style="flex:1 1 180px;min-width:0">
+          <label for="dep-verified-amount" style="font-size:0.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">Verified deposit amount (USD)</label>
+          <input id="dep-verified-amount" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Type what the screenshot shows"
+                 autocomplete="off" style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:8px 12px;font-size:1rem;outline:none">
+        </div>
+      </div>
+      <div id="dep-approve-warn" style="display:none;margin-top:8px"></div>
+      <p style="font-size:.76rem;color:var(--text-muted);line-height:1.45;margin:10px 0 0">
+        Only this figure becomes the client's balance, the deposit transaction, AUM, Reports and the Converted Leads sheet.
+        The customer's claim is never used as money.</p>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+        <button type="button" class="btn btn-secondary btn-sm" id="dep-approve-cancel">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="dep-approve-go" disabled>Approve deposit</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+
+    const input = overlay.querySelector('#dep-verified-amount');
+    const go    = overlay.querySelector('#dep-approve-go');
+    const warn  = overlay.querySelector('#dep-approve-warn');
+    const claimNum = Number(claimed);
+    const hasClaim = Number.isFinite(claimNum);
+    let mismatchAck = false, highAck = false;
+
+    const box = (tone, html) => `<div style="font-size:0.8rem;line-height:1.45;color:${tone};background:rgba(217,119,6,.08);border:1px solid ${tone};border-radius:8px;padding:9px 11px;margin-top:8px">${html}</div>`;
+    const render = () => {
+      const v = Number(input.value);
+      const valid = input.value.trim() !== '' && Number.isFinite(v) && v > 0;
+      const mismatch = valid && hasClaim && v !== claimNum;
+      const high = valid && v >= threshold;
+      let html = '';
+      if (mismatch) html += box('var(--bad)',
+        `<strong>This does not match the customer's claim.</strong><br>Customer claimed $${fmtMoney(claimNum)}, you are approving $${fmtMoney(v)}.
+         <label style="display:flex;gap:7px;align-items:flex-start;margin-top:7px;cursor:pointer">
+           <input type="checkbox" id="dep-ack-mismatch" ${mismatchAck ? 'checked' : ''} style="margin-top:3px">
+           <span>I have read the screenshot and $${fmtMoney(v)} is the correct amount.</span></label>`);
+      if (high) html += box('var(--warn)',
+        `<strong>High-value deposit.</strong><br>$${fmtMoney(v)} is at or above the $${fmtMoney(threshold)} review threshold.
+         <label style="display:flex;gap:7px;align-items:flex-start;margin-top:7px;cursor:pointer">
+           <input type="checkbox" id="dep-ack-high" ${highAck ? 'checked' : ''} style="margin-top:3px">
+           <span>I have double-checked this amount against the screenshot.</span></label>`);
+      warn.innerHTML = html;
+      warn.style.display = html ? '' : 'none';
+      const m = warn.querySelector('#dep-ack-mismatch');
+      if (m) m.onchange = () => { mismatchAck = m.checked; go.disabled = !ready(); };
+      const h = warn.querySelector('#dep-ack-high');
+      if (h) h.onchange = () => { highAck = h.checked; go.disabled = !ready(); };
+      go.disabled = !ready();
+    };
+    const ready = () => {
+      const v = Number(input.value);
+      if (input.value.trim() === '' || !Number.isFinite(v) || v <= 0) return false;
+      if (hasClaim && v !== claimNum && !mismatchAck) return false;
+      if (v >= threshold && !highAck) return false;
+      return true;
+    };
+    input.addEventListener('input', render);
+    overlay.querySelector('#dep-approve-cancel').onclick = () => done(null);
+    go.onclick = () => {
+      if (!ready()) return;
+      const v = Number(input.value);
+      done({ amount: v, confirmMismatch: hasClaim ? v !== claimNum : false });
+    };
+    input.focus();
+  });
+}
+
 async function approveConversion(leadId, ctx, docId) {
   const lead  = cachedLeads.find(l => l.id === leadId);
 
@@ -9703,13 +9830,17 @@ async function approveConversion(leadId, ctx, docId) {
     const subject = doc?.lead || lead;
     const bad = depositApprovalProblems(subject, doc);
     if (bad.length) { refuse(bad); return false; }
-    const approved = Number(subject.deposit_amount);
-    if (!confirm(`Approve this conversion? $${fmtMoney(approved)} will be recorded as the client's balance and as a deposit transaction, the lead will be marked as Converted, and the balance will be locked.`)) return false;
+    const claimedDemo = subject.claimed_deposit_amount ?? subject.deposit_amount ?? null;
+    const verdictDemo = await askVerifiedDepositAmount({ lead: subject, filePath: null, claimed: claimedDemo });
+    if (!verdictDemo) return false;
+    const approved = verdictDemo.amount;
     for (const target of [subject, lead]) {
       if (!target) continue;
       target.status = 'converted';
       target.balance_locked = true;
       target.account_balance = approved;
+      target.verified_deposit_amount = approved;
+      target.claimed_deposit_amount = claimedDemo;
       target.converted_at = new Date().toISOString();
     }
     if (doc) doc.status = 'verified';
@@ -9742,7 +9873,7 @@ async function approveConversion(leadId, ctx, docId) {
   {
     const { data, error } = await sb
       .from('leads')
-      .select('id, status, deposit_amount, deposit_platform, deposit_account_ref, account_balance, balance_locked')
+      .select('id, full_name, phone, status, deposit_amount, claimed_deposit_amount, verified_deposit_amount, deposit_platform, deposit_account_ref, account_balance, balance_locked')
       .eq('id', leadId)
       .maybeSingle();
     if (error) { showToast('Could not load the lead: ' + error.message, 'err'); return false; }
@@ -9752,8 +9883,18 @@ async function approveConversion(leadId, ctx, docId) {
   const bad = depositApprovalProblems(freshLead, documentId ? { id: documentId, agent_reviewed_at: true } : null);
   if (bad.length) { refuse(bad); return false; }
 
-  const approved = Number(freshLead.deposit_amount);
-  if (!confirm(`Approve this conversion? $${fmtMoney(approved)} will be recorded as the client's balance and as a deposit transaction, the lead will be marked as Converted, and the balance will be locked.`)) return false;
+  // The screenshot is fetched so the admin can read the amount off it inside
+  // the same dialog they type it into - checking the evidence in one window and
+  // entering the number in another is how the wrong figure gets approved.
+  let shotPath = null;
+  {
+    const { data: docRow } = await sb.from('kyc_documents').select('file_path').eq('id', documentId).maybeSingle();
+    shotPath = docRow?.file_path || null;
+  }
+  const claimed = freshLead.claimed_deposit_amount ?? freshLead.deposit_amount ?? null;
+  const verdict = await askVerifiedDepositAmount({ lead: freshLead, filePath: shotPath, claimed });
+  if (!verdict) return false;               // cancelled - nothing is approved
+  const approved = verdict.amount;
 
   // One database transaction does all of it: convert the lead, write the
   // approved balance, mark the submission verified, and create exactly one
@@ -9761,7 +9902,11 @@ async function approveConversion(leadId, ctx, docId) {
   // used to do the first two in separate round trips, which is how an approval
   // could half-write. The amount is read from leads.deposit_amount inside the
   // function; nothing about the figure is taken from this page.
-  const { data, error } = await sb.rpc('approve_deposit_and_convert', { p_document_id: documentId });
+  const { data, error } = await sb.rpc('approve_deposit_and_convert', {
+    p_document_id: documentId,
+    p_verified_amount: approved,
+    p_confirm_mismatch: verdict.confirmMismatch,
+  });
   if (error) { showToast('Error approving: ' + error.message, 'err'); return false; }
   const row = Array.isArray(data) ? data[0] : data;
 
