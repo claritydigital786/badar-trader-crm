@@ -904,6 +904,9 @@
     .badge-pending       { background: #fef9c3; color: #854d0e; }
     .badge-verified      { background: #dcfce7; color: #15803d; }
     .badge-rejected      { background: #fee2e2; color: var(--bad); }
+    /* A discarded submission is neither a decision nor a failure - it is
+       withdrawn work. Deliberately grey so it never reads as an action item. */
+    .badge-cancelled     { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
     .badge-low           { background: #dcfce7; color: #15803d; }
     .badge-medium        { background: #fef9c3; color: #854d0e; }
     .badge-high          { background: #fee2e2; color: var(--bad); }
@@ -8797,9 +8800,20 @@ window._DEMO_DEPOSITS = [
 function depositStage(doc) {
   if (!doc) return 'unknown';
   if (doc.status === 'verified') return 'approved';
+  // Checked before 'rejected' and before the agent_reviewed_at split: a
+  // discarded submission keeps whatever agent stamp it had, and must not be
+  // read back as still waiting on anybody.
+  if (doc.status === 'cancelled') return 'cancelled';
   if (doc.status === 'rejected') return 'returned';
   return doc.agent_reviewed_at ? 'awaiting_admin' : 'awaiting_agent';
 }
+// The stages an agent may remove a submission from. 'approved' is deliberately
+// absent and always will be - see cancel_deposit_submission(), which refuses it
+// server-side regardless of what any button here does.
+const DEPOSIT_DISCARDABLE_STAGES = ['awaiting_agent', 'returned'];
+const DEPOSIT_WITHDRAWABLE_STAGES = ['awaiting_admin'];
+function canDiscardDeposit(doc) { return DEPOSIT_DISCARDABLE_STAGES.includes(depositStage(doc)); }
+function canWithdrawDeposit(doc) { return DEPOSIT_WITHDRAWABLE_STAGES.includes(depositStage(doc)); }
 // Everything that must be true before a deposit can become a conversion.
 // Returns a list of plain-English reasons it cannot; empty means approvable.
 //
@@ -8826,7 +8840,23 @@ const DEPOSIT_STAGE_LABEL = {
   awaiting_admin: 'Awaiting Admin Approval',
   approved:       'Approved',
   returned:       'Returned - Action Required',
+  cancelled:      'Discarded',
 };
+
+// The reason codes are the contract with cancel_deposit_submission()'s CHECK
+// constraint, so they live in one place and the modal is rendered from them
+// rather than from a hand-written list that can drift out of sync.
+const DEPOSIT_CANCEL_REASONS = [
+  ['duplicate',          'Duplicate submission'],
+  ['wrong_screenshot',   'Wrong screenshot'],
+  ['wrong_details',      'Wrong amount/details'],
+  ['customer_requested', 'Customer requested cancellation'],
+  ['other',              'Other'],
+];
+function depositCancelReasonLabel(code) {
+  const hit = DEPOSIT_CANCEL_REASONS.find(r => r[0] === code);
+  return hit ? hit[1] : (code || '-');
+}
 
 // One query behind both queues. The agent view is scoped by assigned_agent_id
 // here rather than trusting RLS: `leads: staff update all` means RLS does not
@@ -8915,6 +8945,110 @@ async function notifyAdminsOfDepositEscalation(lead, docId) {
   }
 }
 
+// ── DISCARD / WITHDRAW A MISTAKEN VERIFICATION ─────────────────
+//
+// The agent-facing half of cancel_deposit_submission(). Nothing here is the
+// security boundary: the RPC re-derives the stage, re-checks assignment and
+// refuses an approved submission on its own, so a hand-crafted call from the
+// console gets exactly the same answer as a click. These buttons only decide
+// what is worth OFFERING.
+//
+// Two words for one action on purpose. "Discard" is what it is when the item is
+// still on the agent's own desk; "Withdraw from Admin" is what it is once Ehsan
+// has been asked to look - same row, same soft state, but the agent should see
+// that they are pulling something back from someone else's queue.
+let _depositDiscardTarget = null;
+const _depositRowCache = Object.create(null);
+function cacheDepositRows(rows) {
+  for (const d of rows || []) if (d?.id) _depositRowCache[d.id] = d;
+}
+
+function openDepositDiscardDialog(docId, mode) {
+  const d = _depositRowCache[docId];
+  const lead = d?.lead || {};
+  const withdraw = mode === 'withdraw';
+  _depositDiscardTarget = { docId, mode };
+  document.getElementById('dep-discard-overlay')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'fwd-overlay';
+  overlay.id = 'dep-discard-overlay';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  const who = lead.full_name || lead.phone || 'this lead';
+  const amount = Number(lead.deposit_amount || 0);
+  overlay.innerHTML = `<div class="fwd-panel" role="dialog" aria-modal="true"
+      aria-label="${withdraw ? 'Withdraw deposit verification' : 'Discard deposit verification'}"
+      style="padding:18px;max-width:460px">
+    <h4 style="margin:0 0 10px;color:inherit">${withdraw ? 'Withdraw this from admin review?' : 'Discard this verification?'}</h4>
+    <div class="fwd-preview" style="margin-bottom:12px">${esc(who)}${amount ? ' - $' + fmtMoney(amount) : ''}${lead.deposit_account_ref ? ' - acct ' + esc(lead.deposit_account_ref) : ''}</div>
+    <label for="dep-discard-reason">Reason</label>
+    <select id="dep-discard-reason" class="inline-select" style="width:100%"
+      onchange="document.getElementById('dep-discard-note-wrap').style.display = this.value === 'other' ? '' : 'none'">
+      ${DEPOSIT_CANCEL_REASONS.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('')}
+    </select>
+    <div id="dep-discard-note-wrap" style="display:none;margin-top:10px">
+      <label for="dep-discard-note">What happened?</label>
+      <textarea id="dep-discard-note" rows="3" placeholder="Required when the reason is Other" style="width:100%;resize:vertical"></textarea>
+    </div>
+    <p style="font-size:.78rem;color:var(--text-muted);line-height:1.45;margin:12px 0 0">
+      The submission is not deleted. It leaves your dashboard, keeps its screenshot and history, and stays
+      visible to an admin.${withdraw ? ' Ehsan will no longer see it waiting for approval.' : ''}
+      No balance, transaction, payroll figure or conversion is changed.</p>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('dep-discard-overlay')?.remove()">Keep it</button>
+      <button type="button" class="btn btn-danger btn-sm" id="dep-discard-confirm"
+        onclick="confirmDiscardDeposit()">${withdraw ? 'Withdraw from Admin' : 'Discard Verification'}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('dep-discard-reason')?.focus();
+}
+
+async function confirmDiscardDeposit() {
+  const target = _depositDiscardTarget;
+  if (!target) return;
+  const reason = document.getElementById('dep-discard-reason')?.value || '';
+  const note = (document.getElementById('dep-discard-note')?.value || '').trim();
+  if (reason === 'other' && !note) {
+    showToast('Describe what happened when you choose "Other".', 'err');
+    return;
+  }
+  const btn = document.getElementById('dep-discard-confirm');
+  if (btn) { btn.disabled = true; btn.textContent = 'Working…'; }
+  try {
+    if (demoMode) {
+      // Mirrors cancel_deposit_submission(): an approved submission is refused,
+      // an agent-controlled one becomes 'cancelled' and keeps its stamps.
+      const d = (window._DEMO_DEPOSITS || []).find(x => x.id === target.docId);
+      if (d && d.status !== 'verified' && d.status !== 'cancelled') {
+        d.cancelled_from_stage = depositStage(d);
+        d.status = 'cancelled';
+        d.cancelled_by = currentUser?.id || 'demo-agent';
+        d.cancelled_at = new Date().toISOString();
+        d.cancellation_reason = reason;
+        d.cancellation_note = note || null;
+      }
+      document.getElementById('dep-discard-overlay')?.remove();
+      showToast(target.mode === 'withdraw' ? 'Withdrawn from admin review. (demo)' : 'Verification discarded. (demo)');
+      return renderDepositQueues();
+    }
+    const { data, error } = await sb.rpc('cancel_deposit_submission', {
+      p_document_id: target.docId, p_reason: reason, p_note: note || null,
+    });
+    if (error) { showToast('Could not discard this: ' + error.message, 'err'); return; }
+    const row = Array.isArray(data) ? data[0] : data;
+    document.getElementById('dep-discard-overlay')?.remove();
+    if (row?.already_cancelled) showToast('This submission was already removed.');
+    else showToast(row?.was_stage === 'awaiting_admin'
+      ? 'Withdrawn from admin review. Ehsan no longer sees it.'
+      : 'Verification discarded. It is off your dashboard and kept in the audit trail.');
+    renderDepositQueues();
+  } finally {
+    _depositDiscardTarget = null;
+    const b = document.getElementById('dep-discard-confirm');
+    if (b) { b.disabled = false; }
+  }
+}
+
 // Admin decision. Approve routes through the one existing conversion path so
 // the screenshot requirement, the admin-only trigger and converted_at all still
 // apply; this never sets leads.status itself.
@@ -8990,7 +9124,27 @@ async function notifyAgentOfDepositDecision(leadId, outcome, note) {
 // Renders both queues from one loader. The agent queue is scoped to the signed-in
 // agent; the admin queue shows only what an agent has actually escalated, which
 // is the whole point of the checkpoint.
-function depositRowHtml(d, forAdmin) {
+// NON-BLOCKING duplicate hint. Deliberately just a count of that lead's OPEN
+// verifications, and deliberately not a comparison of broker / amount /
+// trading account ID: those three live on the LEAD row, not on the document,
+// so two submissions for one lead always match on all three by construction
+// and a "matching details" claim would be meaningless. Nothing is auto-rejected
+// or auto-deleted on the strength of this - a customer topping up twice is a
+// normal thing, and the agent is the one who decides.
+//
+// Counted over the agent's own complete set, which is why the admin queue (a
+// server-filtered escalated-only slice) is not given one: a count taken from a
+// partial set would under-report and quietly teach people to trust it.
+function depositDuplicateCounts(rows) {
+  const out = Object.create(null);
+  for (const d of rows || []) {
+    if (!d?.client_id) continue;
+    out[d.client_id] = (out[d.client_id] || 0) + 1;
+  }
+  return out;
+}
+
+function depositRowHtml(d, forAdmin, dupCount) {
   const lead = d.lead || {};
   const stage = depositStage(d);
   const amount = Number(lead.deposit_amount || 0);
@@ -9023,6 +9177,8 @@ function depositRowHtml(d, forAdmin) {
       ${d.agent_reviewed_at ? field('Sent to admin', new Date(d.agent_reviewed_at).toLocaleString()) : ''}
     </div>
     ${d.notes && stage === 'returned' ? `<div style="font-size:0.8rem;color:var(--bad);margin-bottom:10px">Returned: ${esc(d.notes)}</div>` : ''}
+    ${dupCount > 1 ? `<div style="font-size:0.78rem;color:var(--warn);background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.28);border-radius:8px;padding:7px 10px;margin-bottom:10px">
+      Possible duplicate - this lead has ${dupCount} open verifications. Check both before discarding: a customer can legitimately deposit twice.</div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-secondary btn-sm" onclick="viewDepositScreenshot('${esc(d.file_path || '')}')">View Screenshot</button>
       ${!forAdmin && (stage === 'awaiting_agent' || stage === 'returned') ? `
@@ -9031,6 +9187,12 @@ function depositRowHtml(d, forAdmin) {
       ${forAdmin && stage === 'awaiting_admin' ? `
         <button class="btn btn-primary btn-sm" onclick="decideDeposit('${esc(d.id)}','verified','${esc(lead.id)}','')">Approve</button>
         <button class="btn btn-secondary btn-sm" onclick="decideDeposit('${esc(d.id)}','rejected','${esc(lead.id)}','')">Return to Agent</button>` : ''}
+      ${!forAdmin && canDiscardDeposit(d) ? `
+        <button class="btn btn-secondary btn-sm" style="color:var(--bad);border-color:var(--bad)"
+          onclick="openDepositDiscardDialog('${esc(d.id)}','discard')">Discard Verification</button>` : ''}
+      ${!forAdmin && canWithdrawDeposit(d) ? `
+        <button class="btn btn-secondary btn-sm" style="color:var(--bad);border-color:var(--bad)"
+          onclick="openDepositDiscardDialog('${esc(d.id)}','withdraw')">Withdraw from Admin</button>` : ''}
     </div>
   </div>`;
 }
@@ -9042,10 +9204,12 @@ async function renderDepositQueues() {
   if (agentBox) {
     const mine = await loadDepositSubmissions({ agentId: currentUser?.id });
     const open = mine.filter(d => ['awaiting_agent','awaiting_admin','returned'].includes(depositStage(d)));
+    cacheDepositRows(open);
     const need = open.filter(d => depositStage(d) !== 'awaiting_admin').length;
+    const dups = depositDuplicateCounts(open);
     const badge = document.getElementById('agent-deposit-count');
     if (badge) { badge.textContent = need; badge.style.display = need ? '' : 'none'; }
-    agentBox.innerHTML = open.length ? open.map(d => depositRowHtml(d, false)).join('')
+    agentBox.innerHTML = open.length ? open.map(d => depositRowHtml(d, false, dups[d.client_id])).join('')
       : empty('No deposit submissions waiting on you.');
   }
   // Ehsan is an admin who still works leads (7742ba2). Without this, a deposit
@@ -9058,10 +9222,13 @@ async function renderDepositQueues() {
   if (ownBox) {
     const own = await loadDepositSubmissions({ agentId: currentUser?.id });
     const pendingOwn = own.filter(d => ['awaiting_agent', 'returned'].includes(depositStage(d)));
+    cacheDepositRows(pendingOwn);
     if (ownWrap) ownWrap.style.display = pendingOwn.length ? '' : 'none';
     const b = document.getElementById('admin-own-deposit-count');
     if (b) { b.textContent = pendingOwn.length; b.style.display = pendingOwn.length ? '' : 'none'; }
-    ownBox.innerHTML = pendingOwn.map(d => depositRowHtml(d, false)).join('');
+    const ownDups = depositDuplicateCounts(
+      own.filter(d => ['awaiting_agent','awaiting_admin','returned'].includes(depositStage(d))));
+    ownBox.innerHTML = pendingOwn.map(d => depositRowHtml(d, false, ownDups[d.client_id])).join('');
   }
   if (adminBox) {
     const queue = await loadDepositSubmissions({ escalatedOnly: true });
@@ -9119,11 +9286,15 @@ function buildKycTab(lead, leadId, ctx, isAdmin, kycRows) {
             <td><span class="badge badge-${d.status}">${kycStatusLabel(d.status)}</span></td>
             <td style="font-size:0.8rem;color:var(--text-muted)">${fmtDate(d.uploaded_at)}</td>
             <td>${esc(d.reviewer?.full_name || '-')}</td>
-            <td style="color:var(--text-muted)">${esc(d.notes || '-')}</td>
+            <td style="color:var(--text-muted)">${d.status === 'cancelled'
+              ? `${esc(depositCancelReasonLabel(d.cancellation_reason))}${d.cancellation_note ? ' - ' + esc(d.cancellation_note) : ''}`
+                + `<div style="font-size:0.72rem;margin-top:2px">Discarded by ${esc(staffDisplayName(d.cancelled_by))}${d.cancelled_at ? ' on ' + fmtDate(d.cancelled_at) : ''}${d.cancelled_from_stage ? ` (was ${esc(DEPOSIT_STAGE_LABEL[d.cancelled_from_stage] || d.cancelled_from_stage)})` : ''}</div>`
+              : esc(d.notes || '-')}</td>
             <td>${d.file_path ? `<button class="btn btn-secondary btn-sm" onclick="${d.document_type === 'deposit_screenshot' ? 'viewDepositScreenshot' : 'viewKycFile'}('${d.file_path}')">View</button>` : '-'}</td>
             ${isAdmin ? `<td style="white-space:nowrap">
+              ${d.status === 'cancelled' ? '<span style="font-size:0.75rem;color:var(--text-muted)">Discarded - kept for audit</span>' : `
               <button class="btn btn-secondary btn-sm" onclick="reviewKycDocument('${d.id}','verified','${leadId}','${ctx}')">Verify</button>
-              <button class="btn btn-secondary btn-sm" onclick="reviewKycDocument('${d.id}','rejected','${leadId}','${ctx}')">Reject</button>
+              <button class="btn btn-secondary btn-sm" onclick="reviewKycDocument('${d.id}','rejected','${leadId}','${ctx}')">Reject</button>`}
             </td>` : ''}
           </tr>`).join('')
         : `<tr><td colspan="${isAdmin ? 7 : 6}" class="empty-state">No documents recorded yet.</td></tr>`}
@@ -10081,8 +10252,17 @@ function netCurrencyTotals(deposits, withdrawals) {
   return result;
 }
 function txTypeLabel(t) { return t === 'deposit' ? 'Deposit' : 'Withdrawal'; }
+// Plain-text staff name for a profile id. apptAgentName() already does this but
+// returns pre-escaped HTML with an "Unassigned" span baked in, which is wrong
+// inside a sentence like "Discarded by X".
+function staffDisplayName(id) {
+  if (!id) return 'someone no longer on the team';
+  const p = (cachedProfiles || []).find(x => x.id === id);
+  return p ? (p.full_name || p.email || 'Unknown') : 'Unknown';
+}
 function kycStatusLabel(s) {
-  return { not_started:'Not Started', pending:'Pending', verified:'Verified', rejected:'Rejected' }[s] || s;
+  return { not_started:'Not Started', pending:'Pending', verified:'Verified', rejected:'Rejected',
+           cancelled:'Discarded' }[s] || s;
 }
 function riskLabel(r) { return { low:'Low', medium:'Medium', high:'High' }[r] || r; }
 function docTypeLabel(t) {
